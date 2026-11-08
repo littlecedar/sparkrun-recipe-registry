@@ -56,6 +56,8 @@ Stdlib only.  Usage:
     uv run python -B tools/task-queue.py orphans               # TODO items with no live queue row
     uv run python -B tools/task-queue.py lint [FILE ...]       # markdown that will not render (default: the board)
     uv run python -B tools/task-queue.py publish < new-board   # write the board unless the one on disk is newer
+    # `--expect-sha <hex>`: refuse when the disk board moved since the composition read it
+    # (an in-place peer edit keeps the title, so the stamp comparison cannot see it)
 
 Since 2026-11-03 the queue is the register and `mad-science/TODO.md` is a frozen archive
 (`mad-science/QUEUE.md` §"Relationship to TODO.md").  `render --board` is what a board tick
@@ -73,6 +75,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -789,6 +792,12 @@ def cmd_publish(args, path: Path) -> None:
     A peer tick that takes its census early and writes late has twice replaced a newer board with an
     older one (2026-11-06: a 13:56 ET census landed over a 15:15 ET title).  `flock` serializes writers
     but cannot stop a slow one, so the freshness comparison has to happen inside the lock.
+
+    The stamp comparison cannot see an in-place peer edit that keeps the title: measured 2026-11-08
+    11:13, a tick composed from the 11:08 board and published five minutes later over a peer's edit
+    carrying that same 11:08 title, which the equal stamp passed in both directions and the whole
+    file replaced — bytes that no commit and no `/tmp` copy held.  `--expect-sha` is that gate: the
+    caller passes the sha256 it composed from and the write is refused when the disk file moved.
     """
     text = sys.stdin.read()
     problems = lint_markdown(text)
@@ -815,6 +824,15 @@ def cmd_publish(args, path: Path) -> None:
             raise QueueError(
                 f"refusing publish: {board} on disk carries {disk} ET, newer than this read's "
                 f"{incoming} ET — re-read the census, do not overwrite it")
+        if args.expect_sha:
+            # Fail closed when the board is gone too: an absent file cannot be proved unmoved.
+            moved = (hashlib.sha256(board.read_bytes()).hexdigest()
+                     if board.exists() else "(absent)")
+            if moved != args.expect_sha:
+                raise QueueError(
+                    f"refusing publish: {board} on disk is sha256 {moved[:12]}, not the "
+                    f"{args.expect_sha[:12]} this board was composed from — a peer wrote it in "
+                    "between; re-read and re-compose, do not replace their rows")
         tmp = board.with_name(board.name + ".tmp")
         tmp.write_text(text, encoding="utf-8")
         os.replace(tmp, board)
@@ -1037,6 +1055,9 @@ def main(argv: list[str] | None = None) -> int:
     p_lint.set_defaults(fn=cmd_lint)
     p_pub = sub.add_parser("publish", help="write a board from stdin unless the one on disk is newer")
     p_pub.add_argument("--board", default=str(DEFAULT_BOARD), help=f"board file (default {DEFAULT_BOARD})")
+    p_pub.add_argument("--expect-sha", default=None,
+                       help="sha256 of the board this composition was read from; refuse when the file "
+                            "on disk moved (guards a peer's in-place edit carrying the same title)")
     p_pub.add_argument("--lock", default=".local/status-board.lock",
                        help="lock file shared with every other board writer (default .local/status-board.lock)")
     p_pub.add_argument("--lock-wait", type=float, default=90.0,

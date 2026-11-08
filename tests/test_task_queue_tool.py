@@ -34,6 +34,7 @@ from __future__ import annotations
 import contextlib
 import datetime as dt
 import fcntl
+import hashlib
 import importlib.util
 import io
 import json
@@ -636,13 +637,15 @@ class BoardPublish(unittest.TestCase):
         self.board = self.dir / "STATUS.md"
         self.lock = self.dir / "board.lock"
 
-    def publish(self, text, wait=None):
+    def publish(self, text, wait=None, expect_sha=None):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             saved, sys.stdin = sys.stdin, io.StringIO(text)
             try:
                 argv = ["publish", "--board", str(self.board), "--lock", str(self.lock)]
                 if wait is not None:
                     argv += ["--lock-wait", wait]
+                if expect_sha is not None:
+                    argv += ["--expect-sha", expect_sha]
                 return tq.main(argv)
             finally:
                 sys.stdin = saved
@@ -695,6 +698,24 @@ class BoardPublish(unittest.TestCase):
         self.assertEqual(self.board.read_bytes(), before)
         masked = board_text(self.NEW).replace("this tick", "held the rank host (`.30`)")
         self.assertEqual(self.publish(masked), 0)
+
+    def test_an_in_place_peer_edit_is_refused_by_the_composed_sha(self):
+        """Measured 2026-11-08 11:13: an equal title let a whole-file publish replace a peer's
+        in-place edit, and no commit held those bytes. The stamp cannot see that write; the sha can.
+        """
+        self.board.write_text(board_text(self.OLD), encoding="utf-8")
+        composed = hashlib.sha256(self.board.read_bytes()).hexdigest()
+        edited = board_text(self.OLD).replace("this tick", "a peer's in-place edit")
+        self.board.write_text(edited, encoding="utf-8")
+        before = self.board.read_bytes()
+        self.assertEqual(self.publish(board_text(self.NEW), expect_sha=composed), 1)
+        self.assertEqual(self.board.read_bytes(), before)
+
+    def test_the_composed_sha_publishes_when_the_board_did_not_move(self):
+        self.board.write_text(board_text(self.OLD), encoding="utf-8")
+        composed = hashlib.sha256(self.board.read_bytes()).hexdigest()
+        self.assertEqual(self.publish(board_text(self.NEW), expect_sha=composed), 0)
+        self.assertIn(self.NEW, self.board.read_text(encoding="utf-8"))
 
     def test_a_wedged_lock_refuses_instead_of_waiting(self):
         """Measured 2026-11-06: an inherited lock fd held the board lock for over an hour."""
