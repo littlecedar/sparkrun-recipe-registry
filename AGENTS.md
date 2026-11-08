@@ -20,7 +20,7 @@ still add no row, because an accuracy declaration belongs inside `metadata:` whe
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1418 tests (derived by discovery, guard-checked) and 2 skipped, the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
+suite 1422 tests (derived by discovery, guard-checked) and 2 skipped, the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -145,7 +145,7 @@ Load-bearing contracts:
 | `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs), their EXL3 patch/cache mods, and the 2026-10-26-retired vLLM b12x parity arm `zz-ds4-1017-b12x-vllm-parity.yaml` (metrics in `attic/ds4/AGENTS.md`) in `attic/ds4/`, 30 arms, the closed input-scale mod, 9 archived benchmark profiles, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus three retired IFM 7B arms (plain and NGRAM `k2-horizon-7b-fp8-*`, and the UNO tree probe `zz-k2-horizon-7b-uno-tree-sglang.yaml`) in `attic/ifm/arms/` — 7 recipe files in that directory, counted 2026-10-21, the retired qwen3 no-spec control recipe, its spec-metrics guard mod, and 3 archived benchmark profiles in `attic/qwen3/` (metrics in `attic/qwen3/AGENTS.md` §6), `attic/ornith/`, `attic/explore/` (14 archived Explore arms + `ARMS-MANIFEST.md`), `attic/glm/` (1 archived arm + `ARMS-MANIFEST.md`). Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`; unresolved owner questions live in `mad-science/QUESTIONS.md`, settled ones in `mad-science/TODO.md` §"Settled questions" (numbering stable across both). Not served by the registry |
 | `mods/` | Shared mods only (used by ≥2 lanes): 5 + `mod-template/`, the authoritative harness. A mod relevant to a single lane lives at `recipes/<lane>/mods/<mod>/` |
-| `tests/` | 59 test modules, plus one tracked `*.sync-conflict-*.py` fixture that the conflict-copy guard expects |
+| `tests/` | 60 test modules, plus one tracked `*.sync-conflict-*.py` fixture that the conflict-copy guard expects |
 | `tools/` | stdlib scripts (CLIs, fixture generators and guards; `tools/README.md` is the index): bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, decision-ensemble, decision-ladder, cache-audit, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png, eval-suite, agentic-horizon-probe, horizon-analyze, refresh-sweep, boot-watchdog, diarize-fixture, diarize-score, enable-io-uring, forecast-bench, forecast-fixtures, humanizer-analyze, humanizer-measure, task-queue, doc-census, longctx-cell, h2h-client |
 | `plugins/` | One module, `pooling_bench_framework.py`, plus its `plugin.toml` compatibility sidecar: the out-of-tree sparkrun `BenchmarkingPlugin` that drives `tools/pooling-bench.py` for a `framework: pooling-bench` profile (the pooling lanes' only profile-shaped measurement path). Not a registry asset and not stdlib-only — it imports `sparkrun` by definition and is loaded only *inside* a sparkrun process via `plugins.paths` (`tools/README.md` §plugins/; the sidecar's `a0` floor and the unreadable Python range are explained there). |
 | `campaign/` | The campaign director: `sparkrun_campaign/` (protocol, evidence readers, persisted state, director, worker), its acceptance tests, `DESIGN.md` and `systemd/sparkrun-campaign.service`. A **second uv project** with its own `pyproject.toml`/`uv.lock` and third-party deps allowed (it takes none), deliberately not stdlib-only like `tools/`: `tools/run-arm.sh` stays the per-arm executor and `tools/next-arms.py`'s evidence readers are mirrored rather than imported. Live-zone obligations apply — `DESIGN.md` is the current description, and the gate runs its suite with `uv run --project campaign --frozen python -B -m unittest discover -s campaign/tests -t campaign` |
@@ -222,6 +222,18 @@ for p in campaign/*/*.py; do uv run python -m py_compile "$p"; done
 find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec rm -rf {} +
 ```
 
+- **Never push red: `tools/push-gate.py` is the first CI checks run against the commit you are pushing.**
+  Measured 2026-11-08: `gate` runs #1205–#1210 were six consecutive red pushes — five a stale stated suite
+  total, one an RFC1918 literal in tracked prose — six emails for failures those commits already carried.
+  Run `uv run python -B tools/push-gate.py` before any push: it extracts `git archive HEAD` (the committed
+  tree, not this syncthing-shared clone's worktree, which carries a peer's uncommitted count edit), then runs
+  `test_doc_hygiene` (both stated totals and the entry-point census), `test_tracked_address_hygiene`,
+  `bash -n` over shell files changed against `origin/main`, and the campaign suite only when `campaign/`
+  changed — about three seconds, and it quotes the exact assertion CI prints. A non-zero exit is a refusal to
+  push, not a warning. It re-executes itself under `.venv/bin/python`, because a bare `python3` cannot import
+  every test module (no `jinja2`) and would file a false red against a correct number.
+  `git config core.hooksPath .githooks` installs the optional same-script hook for a human's clone; it is a
+  convenience, never the mechanism, since parallel sessions do not install hooks.
 - **A green claim must name its command and its machine.** On 2026-10-30 five consecutive commits were
   reported green off a local suite while CI failed every one: the new test ran a tool with no `--manifest`,
   so it read an untracked `.scratch/` file that exists on the workstation and nowhere else. The failure was
@@ -906,7 +918,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1418 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1422 tests,
   2 skipped on 2026-11-08:** the IFM research docs absent on a
   fresh clone and the
   qwen3-VL validation guard, which runs only where `sparkrun` is importable or on PATH; the

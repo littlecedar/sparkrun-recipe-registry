@@ -1,0 +1,5 @@
+#!/bin/sh
+# Optional convenience on top of the mandatory step in AGENTS.md §Development Commands: parallel
+# sessions never install hooks, so this is not the mechanism that keeps the gate green. Enable it in
+# your own clone with `git config core.hooksPath .githooks`.
+exec uv run python -B tools/push-gate.py
