@@ -58,3 +58,5 @@ command: >
   --chunked-prefill-size {chunked_prefill_size}
   --mem-fraction-static {gpu_memory_utilization}
   --attention-backend {attention_backend}
+  --enable-metrics
+  --enable-cache-report

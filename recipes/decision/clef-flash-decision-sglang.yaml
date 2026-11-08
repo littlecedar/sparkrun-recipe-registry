@@ -41,3 +41,5 @@ command: >
   --host {host}
   --port {port}
   --tp {tensor_parallel}
+  --enable-metrics
+  --enable-cache-report

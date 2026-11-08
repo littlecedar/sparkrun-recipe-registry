@@ -52,3 +52,5 @@ command: >
   --reasoning-parser k2_horizon
   --tool-call-parser k2_horizon
   {extra_args}
+  --enable-metrics
+  --enable-cache-report

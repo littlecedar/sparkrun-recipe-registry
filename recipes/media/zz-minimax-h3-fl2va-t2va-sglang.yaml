@@ -144,3 +144,5 @@ command: >
   --port {port}
   --input-save-path {input_save_path}
   --output-path {output_path}
+  --enable-metrics
+  --enable-cache-report

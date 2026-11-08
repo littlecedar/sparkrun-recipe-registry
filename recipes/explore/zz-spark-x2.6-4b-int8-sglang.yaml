@@ -67,3 +67,5 @@ command: >
   --max-running-requests {max_num_seqs}
   --chunked-prefill-size {chunked_prefill_size}
   --mem-fraction-static {gpu_memory_utilization}
+  --enable-metrics
+  --enable-cache-report

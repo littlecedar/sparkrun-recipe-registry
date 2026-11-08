@@ -81,3 +81,5 @@ command: >
   --speculative-num-draft-tokens {speculative_num_draft_tokens}
   --no-ple-offload-embedding
   {extra_args}
+  --enable-metrics
+  --enable-cache-report

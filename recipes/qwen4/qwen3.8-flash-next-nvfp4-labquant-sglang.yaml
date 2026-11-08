@@ -27,6 +27,10 @@ metadata:
     tower is BF16 and already inside `quantization_config.ignore`. Do not unpin: `main` has twice
     moved under us, once to a weights-free 45 MB snapshot — re-check the node cache before quoting a
     shard count as a disk fact.
+  # Not instrumented: this arm is a boot-gate negative (2026-11-07, the serve child
+  # exits before the engine writes a log), so a metrics flag cannot be boot-verified
+  # here and no cell exists to instrument.
+  instrumented: false
 
 mods:
   - "@eugr/mods/drop-caches"

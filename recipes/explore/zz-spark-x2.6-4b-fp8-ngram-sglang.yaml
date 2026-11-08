@@ -76,3 +76,5 @@ command: >
   --speculative-algorithm {speculative_algorithm}
   --speculative-ngram-max-bfs-breadth {speculative_ngram_max_bfs_breadth}
   --speculative-num-draft-tokens {speculative_num_draft_tokens}
+  --enable-metrics
+  --enable-cache-report

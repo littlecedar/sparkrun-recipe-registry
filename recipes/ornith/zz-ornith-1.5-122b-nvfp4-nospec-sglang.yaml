@@ -67,3 +67,5 @@ command: >
   --attention-backend {attention_backend}
   --moe-runner-backend {moe_runner_backend}
   --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --enable-metrics
+  --enable-cache-report

@@ -90,3 +90,5 @@ command: >
   --speculative-draft-model-revision {speculative_draft_model_revision}
   --enable-linear-replayssm-spec
   --linear-replayssm-cache-len {linear_replayssm_cache_len}
+  --enable-metrics
+  --enable-cache-report

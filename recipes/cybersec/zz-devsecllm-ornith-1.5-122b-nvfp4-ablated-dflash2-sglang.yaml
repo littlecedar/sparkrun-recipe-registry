@@ -97,3 +97,5 @@ command: >
   --speculative-algorithm {speculative_algorithm}
   --speculative-draft-model-path {speculative_draft_model}
   --speculative-num-draft-tokens {speculative_draft_tokens}
+  --enable-metrics
+  --enable-cache-report

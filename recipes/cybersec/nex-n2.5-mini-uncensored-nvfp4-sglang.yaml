@@ -75,3 +75,5 @@ command: >
   --kv-cache-dtype {kv_cache_dtype}
   --default-chat-template-kwargs '{default_chat_template_kwargs}'
   {extra_args}
+  --enable-metrics
+  --enable-cache-report

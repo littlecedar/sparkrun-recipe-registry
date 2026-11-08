@@ -25,6 +25,10 @@ metadata:
     mods/defaults/command are the shipped base's minus the (now deleted) diagnostic
     mod's entry. This is the record of the control that retired it: the assert did not
     fire. It is not a new arm and carries no quality verdict.
+  # Not instrumented: this arm is a boot-gate negative (2026-11-07, the serve child
+  # exits before the engine writes a log), so a metrics flag cannot be boot-verified
+  # here and no cell exists to instrument.
+  instrumented: false
 
 mods:
   - "@eugr/mods/drop-caches"

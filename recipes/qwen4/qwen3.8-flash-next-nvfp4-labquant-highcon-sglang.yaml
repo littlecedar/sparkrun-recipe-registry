@@ -28,6 +28,10 @@ metadata:
     but is not evidence for the high-concurrency admission window.
     Pinned to `6c01ac378d22...` (step-5500 QAD, 43 shards / ~106.3 GB): the pre-5500 revision cannot
     be served by the current mod chain (the PLE unpack mod fail-closes on the old shard layout).
+  # Not instrumented: this arm is a boot-gate negative (2026-11-07, the serve child
+  # exits before the engine writes a log), so a metrics flag cannot be boot-verified
+  # here and no cell exists to instrument.
+  instrumented: false
 
 mods:
   - "@eugr/mods/drop-caches"

@@ -90,3 +90,5 @@ command: >
   --speculative-draft-model-path {speculative_draft_model}
   --speculative-num-draft-tokens {speculative_draft_tokens}
   --model-loader-extra-config '{ "enable_gds": false }'
+  --enable-metrics
+  --enable-cache-report

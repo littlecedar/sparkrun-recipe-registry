@@ -94,3 +94,5 @@ command: >
   --kv-cache-dtype {kv_cache_dtype}
   {extra_args}
 
+  --enable-metrics
+  --enable-cache-report
