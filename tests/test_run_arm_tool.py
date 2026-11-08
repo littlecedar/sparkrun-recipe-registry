@@ -192,6 +192,15 @@ class RunArmContract(unittest.TestCase):
         self.assertIn('stopping leftover container', text, "no leftover stop")
         self.assertIn('LEFTOVER=', text, "no leftover probe")
 
+    def test_the_receipt_root_can_be_scoped_to_a_campaign(self):
+        """A campaign's numbers belong beside its state, not in the fleet-wide dated tree."""
+        text = read_tool()
+        self.assertIn('L="${ARM_RECEIPTS_ROOT:+$ARM_RECEIPTS_ROOT/}$NAME"', text,
+                      "the executor ignores ARM_RECEIPTS_ROOT")
+        self.assertIn('L="${L:-$HOME/benchmarks/tp12-$(date +%Y%m%d)/$NAME}"', text,
+                      "the default window was lost")
+        self.assertIn('.prev-$(date +%H%M%S)', text, "the copy-aside must still be scoped to $L")
+
     def test_an_existing_receipt_is_moved_aside(self):
         """A relaunch overwrote a failed instrument's receipt with a truncated one."""
         text = read_tool()
@@ -1127,7 +1136,7 @@ class ExtraClientHook(BashArmHarness):
             script = receipt / "hook.sh"
             script.write_text(
                 "#!/usr/bin/env bash\nset -uo pipefail\n"
-                f"L={receipt}\nrc=0\n"
+                f"L={receipt}\nHOSTS=10.0.0.1,10.0.0.2\nRECIPE=recipes/x/arm.yaml\nrc=0\n"
                 + extra_client_block(read_tool())
                 + 'echo "rc=$rc"\n'
             )
@@ -1139,6 +1148,12 @@ class ExtraClientHook(BashArmHarness):
             files = {path.name: path.read_text(errors="replace")
                      for path in sorted(receipt.iterdir()) if path.name != "hook.sh"}
             return files, out.stdout + out.stderr
+
+    def test_the_hook_gets_launch_facts_and_no_node_is_in_the_row(self):
+        """The tracked row carries a script path; the host list is the arm's own launch fact."""
+        text = read_tool()
+        self.assertIn('export ARM_HOSTS="$HOSTS" ARM_RECIPE="$RECIPE" ARM_RECEIPT_DIR="$L"', text,
+                      "the hook cannot derive its endpoint without the launch host list")
 
     def test_unset_is_the_previous_executor(self):
         files, out = self.run_hook({})

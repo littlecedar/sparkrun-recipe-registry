@@ -193,7 +193,8 @@
       "estimate_h": 3.0,
       "blocks": [],
       "blocked_by": [
-        "arch-deepgemm-sm12x-paged-sparse"
+        "arch-deepgemm-sm12x-paged-sparse",
+        "w4-survey-arm3-sm121-boot"
       ],
       "state": "blocked",
       "model": "dsv4.1-1017",
@@ -207,7 +208,8 @@
       "estimate_h": 3.0,
       "blocks": [],
       "blocked_by": [
-        "arch-deepgemm-sm12x-paged-sparse"
+        "arch-deepgemm-sm12x-paged-sparse",
+        "w4-survey-arm5-sm121-boot"
       ],
       "state": "blocked",
       "model": "dsv4.1-1017",
@@ -365,11 +367,13 @@
       "blocks": [
         "h2h-doc-refresh"
       ],
-      "blocked_by": [],
-      "state": "blocked",
+      "blocked_by": [
+        "h2h-glm-flash-house-boot"
+      ],
+      "state": "queued",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
-      "notes": "The 37/37 currently tabled in TP4-HEAD-TO-HEAD-1025.md is the 2026-10-13 trial's, never proven through the recipe path (recipes/glm/README.md 'Still unproven on this arm'). One boot, standard-suite house @4096 thinking-on; receipts to ~/benchmarks/ under a dated dir; update the head-to-head row after.\n\nBLOCKED 2026-11-03 (owner decision: 'no window yet'): this row needs all six nodes and `.31`-`.34` are serving production (up 7 days at the 17:04 ET board). It is not runnable until the owner names a slot; the lock file `.local/fleet-window.lock` is written when the window opens, not before.\n\nWINDOW STILL PARKED — re-asked and re-confirmed 2026-11-06: the owner keeps these rows off the fleet and leaves the production ds4 quartet on `.31`-`.34` untouched indefinitely. Not runnable; `.local/fleet-window.lock` is written only when a slot is named, never in anticipation.",
+      "notes": "The 37/37 currently tabled in TP4-HEAD-TO-HEAD-1025.md is the 2026-10-13 trial's, never proven through the recipe path (recipes/glm/README.md 'Still unproven on this arm'). One boot, standard-suite house @4096 thinking-on; receipts to ~/benchmarks/ under a dated dir; update the head-to-head row after.\n\nBLOCKED 2026-11-03 (owner decision: 'no window yet'): this row needs all six nodes and `.31`-`.34` are serving production (up 7 days at the 17:04 ET board). It is not runnable until the owner names a slot; the lock file `.local/fleet-window.lock` is written when the window opens, not before.\n\nWINDOW STILL PARKED — re-asked and re-confirmed 2026-11-06: the owner keeps these rows off the fleet and leaves the production ds4 quartet on `.31`-`.34` untouched indefinitely. Not runnable; `.local/fleet-window.lock` is written only when a slot is named, never in anticipation.\n\nUNBLOCKED 2026-11-07 (owner directive): the production workload stopped and all six nodes (.30-.35) are free for the h2h campaign; `.local/fleet-window.lock` written naming session campaign-queue. The row's boot work is the queued sub-rows that block it; this row closes when its cells land (repo worker's final close).",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive; owner round 2026-11-06 (asked and answered in session)",
       "claimed_by": "",
       "claimed_at": ""
@@ -409,11 +413,13 @@
       "blocks": [
         "h2h-doc-refresh"
       ],
-      "blocked_by": [],
-      "state": "blocked",
+      "blocked_by": [
+        "h2h-beam-house-boot"
+      ],
+      "state": "queued",
       "model": "",
       "node_cost": "quartet",
-      "notes": "Two gaps, executable form: (a) house battery @4096 through the recipe path (never measured there; window-3 smoke 17x23=391 is the only quality datum) — standard-suite house, thinking-on, same as the ds4/GLM rows. (b) BFCL category split: tools/bfcl-eval.py ALREADY computes it — category_summary() prints the per-category correct/total/accuracy table AND writes it into the --json output's summary field (tools/bfcl-eval.py:751,1033-1039,1062); so run bfcl-eval DIRECTLY (never the eval-suite wrapper — it stalled 52 min in window 4, the recorded instrument finding) with --json and the summary lands in the file. Fallback (no rerun needed): the per-case log lines carry the category in parens ('[PASS] irrelevance_2 (irrelevance)') — parse and group by that suffix as a documented derivation; existing logs give 657/722 = 91.0 percent overall (beam-b1-bfcl2.log 475/40 + beam-b1-bfcl3.log 182/25). Then h2h-doc-refresh updates the row.\n\nBLOCKED 2026-11-03 (owner decision: 'no window yet'): this row needs all six nodes and `.31`-`.34` are serving production (up 7 days at the 17:04 ET board). It is not runnable until the owner names a slot; the lock file `.local/fleet-window.lock` is written when the window opens, not before.\n\nWINDOW STILL PARKED — re-asked and re-confirmed 2026-11-06: the owner keeps these rows off the fleet and leaves the production ds4 quartet on `.31`-`.34` untouched indefinitely. Not runnable; `.local/fleet-window.lock` is written only when a slot is named, never in anticipation.",
+      "notes": "Two gaps, executable form: (a) house battery @4096 through the recipe path (never measured there; window-3 smoke 17x23=391 is the only quality datum) — standard-suite house, thinking-on, same as the ds4/GLM rows. (b) BFCL category split: tools/bfcl-eval.py ALREADY computes it — category_summary() prints the per-category correct/total/accuracy table AND writes it into the --json output's summary field (tools/bfcl-eval.py:751,1033-1039,1062); so run bfcl-eval DIRECTLY (never the eval-suite wrapper — it stalled 52 min in window 4, the recorded instrument finding) with --json and the summary lands in the file. Fallback (no rerun needed): the per-case log lines carry the category in parens ('[PASS] irrelevance_2 (irrelevance)') — parse and group by that suffix as a documented derivation; existing logs give 657/722 = 91.0 percent overall (beam-b1-bfcl2.log 475/40 + beam-b1-bfcl3.log 182/25). Then h2h-doc-refresh updates the row.\n\nBLOCKED 2026-11-03 (owner decision: 'no window yet'): this row needs all six nodes and `.31`-`.34` are serving production (up 7 days at the 17:04 ET board). It is not runnable until the owner names a slot; the lock file `.local/fleet-window.lock` is written when the window opens, not before.\n\nWINDOW STILL PARKED — re-asked and re-confirmed 2026-11-06: the owner keeps these rows off the fleet and leaves the production ds4 quartet on `.31`-`.34` untouched indefinitely. Not runnable; `.local/fleet-window.lock` is written only when a slot is named, never in anticipation.\n\nUNBLOCKED 2026-11-07 (owner directive): the production workload stopped and all six nodes (.30-.35) are free for the h2h campaign; `.local/fleet-window.lock` written naming session campaign-queue. The row's boot work is the queued sub-rows that block it; this row closes when its cells land (repo worker's final close).",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive; owner round 2026-11-06 (asked and answered in session)",
       "claimed_by": "",
       "claimed_at": ""
@@ -439,11 +445,16 @@
       "blocks": [
         "h2h-doc-refresh"
       ],
-      "blocked_by": [],
-      "state": "blocked",
+      "blocked_by": [
+        "h2h-second-boot-beam",
+        "h2h-second-boot-ds4-1017",
+        "h2h-second-boot-glm-753b",
+        "h2h-second-boot-glm-flash"
+      ],
+      "state": "queued",
       "model": "",
       "node_cost": "quartet",
-      "notes": "BIGGEST ROW in this set — its purpose is the sigma column, not new arms: every number in TP4-HEAD-TO-HEAD-1025.md is single-boot, so boot-to-boot variance is unquantified. One controlled second-boot ladder per arm, same cells (C1/C2/C5/C10), same-window pairing where possible; report per-cell deltas and pooled sigma back into the head-to-head table.\n\nBLOCKED 2026-11-03 (owner decision: 'no window yet'): this row needs all six nodes and `.31`-`.34` are serving production (up 7 days at the 17:04 ET board). It is not runnable until the owner names a slot; the lock file `.local/fleet-window.lock` is written when the window opens, not before.\n\nWINDOW STILL PARKED — re-asked and re-confirmed 2026-11-06: the owner keeps these rows off the fleet and leaves the production ds4 quartet on `.31`-`.34` untouched indefinitely. Not runnable; `.local/fleet-window.lock` is written only when a slot is named, never in anticipation.",
+      "notes": "BIGGEST ROW in this set — its purpose is the sigma column, not new arms: every number in TP4-HEAD-TO-HEAD-1025.md is single-boot, so boot-to-boot variance is unquantified. One controlled second-boot ladder per arm, same cells (C1/C2/C5/C10), same-window pairing where possible; report per-cell deltas and pooled sigma back into the head-to-head table.\n\nBLOCKED 2026-11-03 (owner decision: 'no window yet'): this row needs all six nodes and `.31`-`.34` are serving production (up 7 days at the 17:04 ET board). It is not runnable until the owner names a slot; the lock file `.local/fleet-window.lock` is written when the window opens, not before.\n\nWINDOW STILL PARKED — re-asked and re-confirmed 2026-11-06: the owner keeps these rows off the fleet and leaves the production ds4 quartet on `.31`-`.34` untouched indefinitely. Not runnable; `.local/fleet-window.lock` is written only when a slot is named, never in anticipation.\n\nUNBLOCKED 2026-11-07 (owner directive): the production workload stopped and all six nodes (.30-.35) are free for the h2h campaign; `.local/fleet-window.lock` written naming session campaign-queue. The row's boot work is the queued sub-rows that block it; this row closes when its cells land (repo worker's final close).",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive; owner round 2026-11-06 (asked and answered in session)",
       "claimed_by": "",
       "claimed_at": ""
@@ -513,11 +524,15 @@
       "title": "Search for GLM-5.3-Flash variants that do not degrade as concurrency increases",
       "estimate_h": 5.0,
       "blocks": [],
-      "blocked_by": [],
-      "state": "blocked",
+      "blocked_by": [
+        "glm-flash-conc-dflash2-k",
+        "glm-flash-conc-no-drafter",
+        "glm-flash-conc-scheduler-knob"
+      ],
+      "state": "queued",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
-      "notes": "MEASURED PROBLEM: the shipped GLM-Flash EXL3 4bpw TP=4 arm peaks at C2 (102.36 ± 24.01) and FALLS at C5 (79.49 ± 11.34) and C10 (73.37 ± 8.44) — the head-to-head doc attributes the shape to the DFlash2 verify-window; ds4-1017 by contrast rises monotonically to C10 (69→116 agg), which is the target shape. LEVERS, RANKED: (1) plain no-drafter ladder — does the degradation vanish without DFlash2? One boot, same geometry, the cleanest experiment; (2) DFlash2 k sweep / verify-window settings (k=7 shipped; try lower k or fixed verify batches); (3) scheduler knobs (--max-running-requests, slot count, chunked-prefill sizing); (4) engine-level batch/EP settings the lane mod exposes; (5) only if the above fail: non-spec alternatives from mad-science/DRAFTER-ALTERNATIVES-1026.md. SUCCESS CRITERION (pre-registered so a near-miss cannot be talked into a win): a variant whose C10 aggregate does not fall below its C2 aggregate AND whose C10 per-request does not regress >10% vs its own C1. DELIVERABLE: ranked variant list + boot-verified ladders for the top candidates, recorded in recipes/glm/README.md (recipe-relevant) and attic/glm/AGENTS.md (history); queue row flipped with the numbers. Each candidate is its own boot; chain them per the dead-time rule. Slots after the in-flight h2h-glm-tools-leg. | DEFERRED to the next window (owner ruling, survey round 3, 2026-10-26): after ds4-1017 completes the quartet goes to ornith-toolcall-ohmympi-triage; this 5 h search waits. Levers and measured problem above stand unchanged.\n\nBLOCKED 2026-11-03 (owner decision: 'no window yet'): this row needs all six nodes and `.31`-`.34` are serving production (up 7 days at the 17:04 ET board). It is not runnable until the owner names a slot; the lock file `.local/fleet-window.lock` is written when the window opens, not before.\n\nWINDOW STILL PARKED — re-asked and re-confirmed 2026-11-06: the owner keeps these rows off the fleet and leaves the production ds4 quartet on `.31`-`.34` untouched indefinitely. Not runnable; `.local/fleet-window.lock` is written only when a slot is named, never in anticipation.",
+      "notes": "MEASURED PROBLEM: the shipped GLM-Flash EXL3 4bpw TP=4 arm peaks at C2 (102.36 ± 24.01) and FALLS at C5 (79.49 ± 11.34) and C10 (73.37 ± 8.44) — the head-to-head doc attributes the shape to the DFlash2 verify-window; ds4-1017 by contrast rises monotonically to C10 (69→116 agg), which is the target shape. LEVERS, RANKED: (1) plain no-drafter ladder — does the degradation vanish without DFlash2? One boot, same geometry, the cleanest experiment; (2) DFlash2 k sweep / verify-window settings (k=7 shipped; try lower k or fixed verify batches); (3) scheduler knobs (--max-running-requests, slot count, chunked-prefill sizing); (4) engine-level batch/EP settings the lane mod exposes; (5) only if the above fail: non-spec alternatives from mad-science/DRAFTER-ALTERNATIVES-1026.md. SUCCESS CRITERION (pre-registered so a near-miss cannot be talked into a win): a variant whose C10 aggregate does not fall below its C2 aggregate AND whose C10 per-request does not regress >10% vs its own C1. DELIVERABLE: ranked variant list + boot-verified ladders for the top candidates, recorded in recipes/glm/README.md (recipe-relevant) and attic/glm/AGENTS.md (history); queue row flipped with the numbers. Each candidate is its own boot; chain them per the dead-time rule. Slots after the in-flight h2h-glm-tools-leg. | DEFERRED to the next window (owner ruling, survey round 3, 2026-10-26): after ds4-1017 completes the quartet goes to ornith-toolcall-ohmympi-triage; this 5 h search waits. Levers and measured problem above stand unchanged.\n\nBLOCKED 2026-11-03 (owner decision: 'no window yet'): this row needs all six nodes and `.31`-`.34` are serving production (up 7 days at the 17:04 ET board). It is not runnable until the owner names a slot; the lock file `.local/fleet-window.lock` is written when the window opens, not before.\n\nWINDOW STILL PARKED — re-asked and re-confirmed 2026-11-06: the owner keeps these rows off the fleet and leaves the production ds4 quartet on `.31`-`.34` untouched indefinitely. Not runnable; `.local/fleet-window.lock` is written only when a slot is named, never in anticipation.\n\nUNBLOCKED 2026-11-07 (owner directive): the production workload stopped and all six nodes (.30-.35) are free for the h2h campaign; `.local/fleet-window.lock` written naming session campaign-queue. The row's boot work is the queued sub-rows that block it; this row closes when its cells land (repo worker's final close).",
       "provenance": "owner 2026-10-26 directive; mad-science/TP4-HEAD-TO-HEAD-1025.md ladder row; mad-science/DRAFTER-ALTERNATIVES-1026.md; recipes/glm/README.md; owner round 2026-11-06 (asked and answered in session)",
       "claimed_by": "",
       "claimed_at": ""
@@ -1220,6 +1235,243 @@
       "notes": "FOUND 2026-11-04 while moving the ablated 122B arm: 'sparkrun recipe validate --strict' on that arm reports suggestion 'restated-managed-path' (its pre_exec refs/main seed), and the arm is not in the AGENTS.md roster, which states the --strict findings are EXACTLY that roster. The finding is path-independent and predates the move, so the roster was already incomplete — the move only made it noticeable. Work: run --strict over every tracked recipe under the register's own HOME override (/home/siv/src/sparkrun-recipe-registry/.local/sparkrun-home, the gate's command), diff the findings against the roster table, and rewrite the table to what the run prints, re-stamping the dated snapshot with the day of that run. Do not add an exemption for this arm without checking whether it is one of the documented deliberate warnings — a suggestion that means 'deliberate /cache/runtime path' may be the known false-positive class, in which case say so in the roster instead of dropping it. Acceptance: a re-run of the gate's validate loop produces exactly the roster's rows, and the roster's date is the run's date. Falsifier: a --strict finding on any tracked recipe that the roster does not name.",
       "provenance": "recipes/cybersec/zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang.yaml (moved from ornith/ in ed0e14c); AGENTS.md:18 roster",
       "evidence": "2026-11-07 re-measure on workstation: validate --strict over all 86 tracked recipes under HOME=$PWD/.local/sparkrun-home prints findings for 53 arms (20 exit 1: 19 unpinned-model-revision, 1 deprecated-topology); AGENTS.md roster now names all 53 in printed order (was the 20 warning arms only, missing e.g. cybersec/zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang) and the claim says --strict adds no finding of its own; commit b43de60. Gate: plain validate 86/86 rc=0, uv run python -B -m unittest discover -s tests 1266 OK 2 skipped, bash -n mods+recipes mods sh, py_compile mods/recipes/tools/plugins py, python3 tools/task-queue.py check ok.",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "h2h-glm-flash-house-boot",
+      "title": "GLM-5.3-Flash 4bpw TP=4 boot: house battery @4096 thinking-on through the recipe path",
+      "estimate_h": 1.5,
+      "blocks": [
+        "h2h-glm-flash-house-recipe"
+      ],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "glm-5.3-flash",
+      "node_cost": "quartet",
+      "notes": "estimate: provisional — one boot, ladder + house through the shipped recipe; the extra client (house @4096 thinking-on) rides on the live serve via ARM_EXTRA_CLIENT, so this row is the first quality battery through the recipe path (37/37 is the trial's). — campaign: glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang: no marker and no machine-readable artefact",
+      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; recipes/glm/README.md §Boot receipt 'Still unproven on this arm'; owner 2026-11-07 window",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml",
+      "tp": 4,
+      "env": {
+        "ARM_EXTRA_CLIENT": "python3 /home/red/src/sparkrun-recipe-registry/tools/eval-suite.py --checks house --house-tier both --house-max-tokens 4096 --base-url http://$NODE:$PORT --model $SERVED --outdir $HOME/benchmarks/h2h-20261107/$NAME/house",
+        "ARM_EXTRA_TIMEOUT": "3600",
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
+      }
+    },
+    {
+      "id": "h2h-beam-house-boot",
+      "title": "Beam-1.0 501B NVFP4 TP=4 boot: house @4096 + BFCL category summary through the recipe path",
+      "estimate_h": 2.0,
+      "blocks": [
+        "h2h-beam-house-and-bfcl-category"
+      ],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "quartet",
+      "notes": "estimate: provisional — one boot, ladder + house via the recipe, BFCL run directly (bfcl-eval.py --json; never the eval-suite wrapper) as the extra client on the live serve. — campaign: zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm: no marker and no machine-readable artefact",
+      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; owner 2026-11-07 window",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml",
+      "tp": 4,
+      "env": {
+        "ARM_EXTRA_CLIENT": "sh -c \"python3 /home/red/src/sparkrun-recipe-registry/tools/eval-suite.py --checks house --house-tier both --house-max-tokens 4096 --base-url http://$NODE:$PORT --model $SERVED --outdir $HOME/benchmarks/h2h-20261107/$NAME/house; python3 /home/red/src/sparkrun-recipe-registry/tools/bfcl-eval.py --base-url http://$NODE:$PORT --model $SERVED --data-dir /home/red/bfcl --max-tokens 4096 --json $HOME/benchmarks/h2h-20261107/$NAME/bfcl.json\"",
+        "ARM_EXTRA_TIMEOUT": "21600",
+        "ARM_OPTS": "-o extra_args=--enable-auto-tool-choice",
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
+      }
+    },
+    {
+      "id": "h2h-second-boot-ds4-1017",
+      "title": "ds4-1017 TP=4 second-boot ladder (C1/C2/C5/C10) — sigma column",
+      "estimate_h": 2.5,
+      "blocks": [
+        "h2h-second-boot-ladder"
+      ],
+      "blocked_by": [],
+      "state": "done",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "estimate: provisional — controlled second boot of the arm in TP4-HEAD-TO-HEAD-1025.md; same cells, same window; ladder only, no extra client. — campaign: deepseek-v4.1-flash-knapcio-tp4-1m-sglang: no marker and no machine-readable artefact\n\nRECEIPT MOVED 2026-11-07 23:06 ET: the arm finished before the campaign receipt root was set, so its window was moved to ~/benchmarks/h2h-20261107/deepseek-v4.1-flash-knapcio-tp4-1m-sglang and state.json + the campaign receipt were repointed; the evidence field names the campaign receipt.",
+      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; owner 2026-11-07 window",
+      "evidence": "/home/red/benchmarks/h2h-20261107/receipts/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.json",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml",
+      "tp": 4,
+      "env": {
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
+      }
+    },
+    {
+      "id": "h2h-second-boot-glm-flash",
+      "title": "GLM-5.3-Flash 4bpw TP=4 second-boot ladder — sigma column",
+      "estimate_h": 2.0,
+      "blocks": [
+        "h2h-second-boot-ladder"
+      ],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "glm-5.3-flash",
+      "node_cost": "quartet",
+      "notes": "estimate: provisional — controlled second boot through the boot2 twin (comment-only copy: the register cannot name two rows for one recipe); ladder only, no extra client. — campaign: glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2: no marker and no machine-readable artefact",
+      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; owner 2026-11-07 window; tests/test_boot_twin_recipes.py",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2.yaml",
+      "tp": 4,
+      "env": {
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
+      }
+    },
+    {
+      "id": "h2h-second-boot-glm-753b",
+      "title": "GLM-5.3 753B 3bpw TP=4 second-boot ladder — sigma column",
+      "estimate_h": 3.0,
+      "blocks": [
+        "h2h-second-boot-ladder"
+      ],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "glm-5.3",
+      "node_cost": "quartet",
+      "notes": "estimate: provisional — controlled second boot; TTR ~42 min on the confirmed NCCL env; ladder only, no extra client. — campaign: glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang: no marker and no machine-readable artefact",
+      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; recipes/glm/README.md §Shipped arm; owner 2026-11-07 window",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/glm/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml",
+      "tp": 4,
+      "env": {
+        "ARM_ALLOW_FEW_SLOTS": "1",
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
+      }
+    },
+    {
+      "id": "h2h-second-boot-beam",
+      "title": "Beam-1.0 501B TP=4 second-boot ladder — sigma column",
+      "estimate_h": 2.0,
+      "blocks": [
+        "h2h-second-boot-ladder"
+      ],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "quartet",
+      "notes": "estimate: provisional — controlled second boot through the boot2 twin (comment-only copy: the register cannot name two rows for one recipe); ladder only, no extra client. — campaign: zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2: no marker and no machine-readable artefact",
+      "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; owner 2026-11-07 window; tests/test_boot_twin_recipes.py",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2.yaml",
+      "tp": 4,
+      "env": {
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
+      }
+    },
+    {
+      "id": "w4-survey-arm3-sm121-boot",
+      "title": "Survey arm 3 SM121 boot: DeepGEMM paged-sparse MQA-logits indexer scoring, 1M decode step cell",
+      "estimate_h": 2.0,
+      "blocks": [
+        "w4-survey-arm3-indexer-scoring"
+      ],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "estimate: provisional — local-only image dsv41-sm121-dg:0.2.0 (sha256:1778ec42…); carry to the quartet before boot (distribution_config.containers.enabled=false). Extra client is tools/longctx-cell.py at 1,039,999 tokens, C1: ms/step + needle witness; serve must report max_model_len >= 1,040,191 (ds4 1M reports 1,048,576).",
+      "provenance": "queue w4-survey-arm3-indexer-scoring; mad-science/DEEPSEEK.md §10.5; recipes/ds4/zz-ds4-1017-sm121-indexer-scoring.yaml; owner 2026-11-07 window",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/ds4/zz-ds4-1017-sm121-indexer-scoring.yaml",
+      "tp": 4,
+      "env": {
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
+        "ARM_EXTRA_CLIENT": "sh -c \"cd /home/red/src/sparkrun-recipe-registry && python3 -B tools/longctx-cell.py --base-url http://$NODE:$PORT --model $SERVED --context-length 1039999 --concurrency 1 --max-tokens 128 --json $L/longctx-1m.json\"",
+        "ARM_EXTRA_TIMEOUT": "3600"
+      }
+    },
+    {
+      "id": "w4-survey-arm5-sm121-boot",
+      "title": "Survey arm 5 SM121 boot: TRT-LLM sparse-MLA backend, C5/C10 @128K cell (preflight-gated)",
+      "estimate_h": 1.5,
+      "blocks": [
+        "w4-survey-arm5-trtllm-mla"
+      ],
+      "blocked_by": [],
+      "state": "blocked",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "gate: arm-author verified against the image (plain container run) that srt/arg_groups/deepseek_v4_hook.py asserts is_sm100_supported() and the c3 tree defines that as capability major 10 only — a GB10 (12,1) launch aborts during arg assembly. Do not spend a slot until an image/tree change lands; also --enable-decoder-swa-bounded-replay is appended unconditionally, so section 10.7's replay-off control is unreachable from this launcher.",
+      "provenance": "queue w4-survey-arm5-trtllm-mla; mad-science/DEEPSEEK.md §10.7; recipes/ds4/zz-ds4-1017-sm121-arm5-trtllm-mla.yaml; owner 2026-11-07 window",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/ds4/zz-ds4-1017-sm121-arm5-trtllm-mla.yaml",
+      "tp": 4,
+      "env": {
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
+        "ARM_EXTRA_CLIENT": "sh -c \"cd /home/red/src/sparkrun-recipe-registry && python3 -B tools/longctx-cell.py --base-url http://$NODE:$PORT --model $SERVED --context-length 131072 --concurrency 5,10 --max-tokens 8 --json $HOME/benchmarks/h2h-20261107/$NAME/longctx-128k-c5-c10.json\"",
+        "ARM_EXTRA_TIMEOUT": "3600"
+      }
+    },
+    {
+      "id": "glm-flash-conc-no-drafter",
+      "title": "GLM-Flash concurrency lever: no-drafter",
+      "estimate_h": 2.0,
+      "blocks": [
+        "glm-flash-concurrency-degradation-search"
+      ],
+      "blocked_by": [],
+      "state": "blocked",
+      "model": "glm-5.3-flash",
+      "node_cost": "quartet",
+      "notes": "gate: variant recipe from arm-author (no-drafter needs command-level --drafter-repo none; k/scheduler levers need the launcher's constant env overridden in the recipe)",
+      "provenance": "glm-flash-concurrency-degradation-search; mad-science/DRAFTER-ALTERNATIVES-1026.md; recipes/glm/README.md; owner 2026-11-07 window",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "glm-flash-conc-dflash2-k",
+      "title": "GLM-Flash concurrency lever: dflash2-k",
+      "estimate_h": 2.0,
+      "blocks": [
+        "glm-flash-concurrency-degradation-search"
+      ],
+      "blocked_by": [],
+      "state": "blocked",
+      "model": "glm-5.3-flash",
+      "node_cost": "quartet",
+      "notes": "gate: variant recipe from arm-author (no-drafter needs command-level --drafter-repo none; k/scheduler levers need the launcher's constant env overridden in the recipe)",
+      "provenance": "glm-flash-concurrency-degradation-search; mad-science/DRAFTER-ALTERNATIVES-1026.md; recipes/glm/README.md; owner 2026-11-07 window",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "glm-flash-conc-scheduler-knob",
+      "title": "GLM-Flash concurrency lever: scheduler-knob",
+      "estimate_h": 2.0,
+      "blocks": [
+        "glm-flash-concurrency-degradation-search"
+      ],
+      "blocked_by": [],
+      "state": "blocked",
+      "model": "glm-5.3-flash",
+      "node_cost": "quartet",
+      "notes": "gate: variant recipe from arm-author (no-drafter needs command-level --drafter-repo none; k/scheduler levers need the launcher's constant env overridden in the recipe)",
+      "provenance": "glm-flash-concurrency-degradation-search; mad-science/DRAFTER-ALTERNATIVES-1026.md; recipes/glm/README.md; owner 2026-11-07 window",
+      "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
     }

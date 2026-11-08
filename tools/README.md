@@ -158,11 +158,15 @@ is shell-evaluated in the arm's scope, so it may use `$L`, `$NODE`, `$PORT`, `$S
 ARM_EXTRA_CLIENT='python3 tools/eval-suite.py --base-url "http://$NODE:$PORT" --outdir "$L/house"'
 ```
 
-Its stdout/stderr land in `<receipt>/extra-client.log` with a closing `extra-client: rc=N` line, and
-the same rc is appended to `house.yaml` when that marker exists — never manufactured, because an
-absent `house.yaml` is what a receipt consumer reads as unfinished. `ARM_EXTRA_TIMEOUT` (default
-1800 s) bounds a wedged client so it cannot hold a TP4 boot. A nonzero client rc is recorded as the
-client's result and never changes the arm's own status or cells. Guarded by
+The hook also receives the launch facts as exported variables — `ARM_HOSTS` (the exact host list the
+arm launched on), `ARM_RECIPE` (its tracked path) and `ARM_RECEIPT_DIR` (`$L`) — so a client script
+derives the rank-0 base URL itself and a tracked row never has to carry a node address. Its
+stdout/stderr land in `<receipt>/extra-client.log` with a closing `extra-client: rc=N` line, and the
+same rc is appended to `house.yaml` when that marker exists — never manufactured, because an absent
+`house.yaml` is what a receipt consumer reads as unfinished. `ARM_EXTRA_TIMEOUT` (default 1800 s)
+bounds a wedged client so it cannot hold a TP4 boot. A nonzero client rc is recorded as the client's
+result and never changes the arm's own status or cells. `ARM_RECEIPTS_ROOT` moves the whole receipt
+to `<root>/<arm>` (a campaign owns its measurements); unset keeps `~/benchmarks/tp12-<date>/<arm>`. Guarded by
 `ExtraClientHook` in `tests/test_run_arm_tool.py` (ordering, unset no-op, rc recording, timeout
 bound, no fabricated marker).
 

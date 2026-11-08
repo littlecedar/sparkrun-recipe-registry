@@ -216,6 +216,17 @@ class Windows(unittest.TestCase):
 class Campaign(unittest.TestCase):
     """The director holds hosts through leases and never writes the window lock."""
 
+    def setUp(self):
+        # A checkout may legitimately carry a declared window lock while a campaign runs. These
+        # cases are about campaign leases, not the window gate, so give them no lock to find.
+        self._lock_dir = tempfile.TemporaryDirectory()
+        self._lock_paths = drip.LOCK_PATHS
+        drip.LOCK_PATHS = (Path(self._lock_dir.name) / "fleet-window.lock",)
+
+    def tearDown(self):
+        drip.LOCK_PATHS = self._lock_paths
+        self._lock_dir.cleanup()
+
     @staticmethod
     def _root(tmp: str, arms: dict, name: str = "d1") -> Path:
         root = Path(tmp) / "campaign"

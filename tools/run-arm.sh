@@ -26,7 +26,11 @@ NODE=${HOSTS%%,*}
 # `-o` overrides, and without a tag every leg writes the same directory and rotates the previous
 # leg to `.prev-<HHMMSS>` -- the numbers survive but the attribution does not.
 NAME=$(basename "$RECIPE" .yaml)${ARM_TAG:+-$ARM_TAG}
-L="$HOME/benchmarks/tp12-$(date +%Y%m%d)/$NAME"
+# Receipt root: a campaign may own its measurements (`ARM_RECEIPTS_ROOT`), so the arm's numbers sit
+# at `<root>/<arm>` beside the campaign's state instead of in the fleet-wide dated tree that
+# `next-arms.py` and the drip scan. Default keeps the historical ~/benchmarks/tp12-<date>/<arm>.
+L="${ARM_RECEIPTS_ROOT:+$ARM_RECEIPTS_ROOT/}$NAME"
+L="${L:-$HOME/benchmarks/tp12-$(date +%Y%m%d)/$NAME}"
 # The serve port is the recipe's, not always 8000 -- the decision lane uses
 # 8020 and the ling arm 8030. Probing the wrong port looks exactly like a boot
 # that never becomes ready, which cost two arms a full 22-minute wait on
@@ -460,6 +464,9 @@ artifacts "$L/ladder.yaml" "$L/house.yaml"
   # Unset = exactly the previous executor. A nonzero rc is the client's result, never the arm's.
   if [ -n "${ARM_EXTRA_CLIENT:-}" ]; then
     extra_timeout=${ARM_EXTRA_TIMEOUT:-1800}
+    # The hook gets the launch facts, never a node address in the tracked row: ARM_HOSTS is the
+    # exact host list this arm runs on, ARM_RECIPE its tracked path, ARM_RECEIPT_DIR its receipt.
+    export ARM_HOSTS="$HOSTS" ARM_RECIPE="$RECIPE" ARM_RECEIPT_DIR="$L"
     echo "extra client: $ARM_EXTRA_CLIENT (timeout ${extra_timeout}s)"
     extra_rc=0
     # Bound a wedged client so it cannot hold a TP4 boot; `-k 30` kills one that ignores TERM.
