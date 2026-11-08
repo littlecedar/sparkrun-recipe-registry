@@ -451,6 +451,26 @@ done
 artifacts "$L/ladder.yaml" "$L/house.yaml"
       ;;
   esac
+
+  # Arm-scoped extra client (`ARM_EXTRA_CLIENT`): a quality client that must speak to THIS boot's
+  # serve -- house battery, BFCL, 1M/trtllm -- runs after the arm's own cells and before the
+  # unconditional stop below. A second process polling the serve cannot work: this executor tears
+  # the serve down, and the client's load would pollute the ladder cells the arm is measuring.
+  # The command string is shell-evaluated here, so it may use `$L`, `$NODE`, `$PORT`, `$SERVED`.
+  # Unset = exactly the previous executor. A nonzero rc is the client's result, never the arm's.
+  if [ -n "${ARM_EXTRA_CLIENT:-}" ]; then
+    extra_timeout=${ARM_EXTRA_TIMEOUT:-1800}
+    echo "extra client: $ARM_EXTRA_CLIENT (timeout ${extra_timeout}s)"
+    extra_rc=0
+    # Bound a wedged client so it cannot hold a TP4 boot; `-k 30` kills one that ignores TERM.
+    eval "timeout -k 30 $extra_timeout $ARM_EXTRA_CLIENT" > "$L/extra-client.log" 2>&1 || extra_rc=$?
+    echo "extra-client: rc=$extra_rc — $ARM_EXTRA_CLIENT" >> "$L/extra-client.log"
+    # Never manufactures house.yaml: an absent one is "unfinished" to the receipt consumer.
+    if [ -e "$L/house.yaml" ]; then
+      echo "extra-client: rc=$extra_rc — output in extra-client.log" >> "$L/house.yaml"
+    fi
+    echo "extra client rc=$extra_rc"
+  fi
 else
   rc=4
 fi

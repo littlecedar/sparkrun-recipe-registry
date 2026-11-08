@@ -1088,5 +1088,88 @@ class DecisionAccuracyGapNegativeControls(BashArmHarness):
         )
 
 
+# ---------------------------------------------------------------------------
+# arm-scoped extra client: a quality client on the live serve, never the arm's verdict.
+# ---------------------------------------------------------------------------
+EXTRA_START = '  if [ -n "${ARM_EXTRA_CLIENT:-}" ]; then'
+
+
+def extra_client_block(text: str) -> str:
+    """The hook verbatim, from its guard to the `fi` closing it."""
+    self_count = text.count(EXTRA_START)
+    assert self_count == 1, f"{self_count} extra-client guards"
+    start = text.index(EXTRA_START)
+    return text[start : text.index("  fi\nelse\n", start) + len("  fi\n")]
+
+
+class ExtraClientHook(BashArmHarness):
+    """A second process cannot share the serve: the executor stops it, and its load pollutes cells.
+
+    So the client rides inside the arm, after the ladder/teb and before the unconditional stop,
+    with its own rc recorded in the receipt dir rather than promoted to the arm's status.
+    """
+
+    def test_the_hook_runs_after_the_cells_and_before_the_stop(self):
+        text = read_tool()
+        start = text.index(EXTRA_START)
+        cells = text.index('artifacts "$L/ladder.yaml" "$L/house.yaml"')
+        self.assertLess(cells, start, "the client runs before the arm's cells finish")
+        self.assertIn("  esac\n\n  # Arm-scoped extra client", text,
+                      "the hook moved inside the recipe case")
+        self.assertLess(start, text.index(TEARDOWN_START),
+                        "the client runs after the serve is stopped")
+
+    def run_hook(self, env_extra: dict[str, str], house: bool = True) -> tuple[dict[str, str], str]:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            receipt = Path(tmpdir)
+            if house:
+                (receipt / "house.yaml").write_text("suite: ok\nladder: ok\n")
+            script = receipt / "hook.sh"
+            script.write_text(
+                "#!/usr/bin/env bash\nset -uo pipefail\n"
+                f"L={receipt}\nrc=0\n"
+                + extra_client_block(read_tool())
+                + 'echo "rc=$rc"\n'
+            )
+            env = {key: value for key, value in os.environ.items()
+                   if key not in ("ARM_EXTRA_CLIENT", "ARM_EXTRA_TIMEOUT")}
+            env.update(env_extra)
+            out = subprocess.run(["bash", str(script)], capture_output=True, text=True,
+                                 check=False, env=env, timeout=120)
+            files = {path.name: path.read_text(errors="replace")
+                     for path in sorted(receipt.iterdir()) if path.name != "hook.sh"}
+            return files, out.stdout + out.stderr
+
+    def test_unset_is_the_previous_executor(self):
+        files, out = self.run_hook({})
+        self.assertNotIn("extra-client.log", files, "the unset hook left a receipt artefact")
+        self.assertNotIn("extra client", out, "the unset hook ran something")
+        self.assertEqual(files["house.yaml"], "suite: ok\nladder: ok\n", "the unset hook touched the marker")
+
+    def test_a_client_runs_live_and_records_its_rc_without_touching_the_arms(self):
+        files, out = self.run_hook({"ARM_EXTRA_CLIENT": "printf 'CELL PASS\\n'"})
+        self.assertIn("CELL PASS", files["extra-client.log"], "the client's stdout was lost")
+        self.assertIn("extra-client: rc=0", files["extra-client.log"])
+        self.assertIn("extra-client: rc=0", files["house.yaml"], "the receipt does not name the client")
+        self.assertEqual(out.strip().splitlines()[-1], "rc=0", "the client changed the arm's status")
+
+    def test_a_failed_client_is_recorded_not_promoted(self):
+        files, out = self.run_hook({"ARM_EXTRA_CLIENT": "false"})
+        self.assertIn("extra-client: rc=1", files["extra-client.log"])
+        self.assertEqual(out.strip().splitlines()[-1], "rc=0", "a client failure failed the arm")
+
+    def test_a_wedged_client_is_bounded(self):
+        started = time.monotonic()
+        files, _ = self.run_hook({"ARM_EXTRA_CLIENT": "sleep 30", "ARM_EXTRA_TIMEOUT": "1"})
+        self.assertLess(time.monotonic() - started, 20, "the timeout did not bound the client")
+        self.assertIn("extra-client: rc=124", files["extra-client.log"], "the bound is not recorded")
+
+    def test_the_hook_never_manufactures_the_finished_marker(self):
+        files, _ = self.run_hook({"ARM_EXTRA_CLIENT": "true"}, house=False)
+        self.assertNotIn("house.yaml", files,
+                         "a house.yaml from the client would read as a finished arm")
+        self.assertIn("extra-client: rc=0", files["extra-client.log"])
+
+
 if __name__ == "__main__":
     unittest.main()

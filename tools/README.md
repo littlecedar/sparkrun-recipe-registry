@@ -146,6 +146,25 @@ alone (a dead ladder's `rc=2` does not exit, so file presence must never mean "m
 `ladder` field carries the command's own exit status. `ladder: failed (rc=N)` is therefore the
 re-attempt shape in both branches — the only state where re-running the arm is the right move.
 
+**A quality client rides inside the arm (`ARM_EXTRA_CLIENT`).** A client started from another
+process cannot share the serve: `run-arm.sh` tears the serve down unconditionally at the end of the
+arm, and the client's load would pollute the ladder cells the arm is measuring. So the hook runs
+after the recipe's own cells (ladder and suite/teb) complete and before the stop, with the serve
+live, and only when `ARM_EXTRA_CLIENT` is set — unset is exactly the previous executor. The string
+is shell-evaluated in the arm's scope, so it may use `$L`, `$NODE`, `$PORT`, `$SERVED`:
+
+```sh
+ARM_EXTRA_CLIENT='python3 tools/eval-suite.py --base-url "http://$NODE:$PORT" --outdir "$L/house"'
+```
+
+Its stdout/stderr land in `<receipt>/extra-client.log` with a closing `extra-client: rc=N` line, and
+the same rc is appended to `house.yaml` when that marker exists — never manufactured, because an
+absent `house.yaml` is what a receipt consumer reads as unfinished. `ARM_EXTRA_TIMEOUT` (default
+1800 s) bounds a wedged client so it cannot hold a TP4 boot. A nonzero client rc is recorded as the
+client's result and never changes the arm's own status or cells. Guarded by
+`ExtraClientHook` in `tests/test_run_arm_tool.py` (ordering, unset no-op, rc recording, timeout
+bound, no fabricated marker).
+
 **Three consumers read this, and only one of them lives in the repo.** The tracked planner
 (`tools/next-arms.py`) reads the fields: `ladder: ok` beside a ladder that parses with cells counts
 as measured, `ladder: failed (rc=N)` does not, and a truncated or cell-less ladder never counts
