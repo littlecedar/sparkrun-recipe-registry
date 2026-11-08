@@ -377,13 +377,14 @@
       "blocked_by": [
         "h2h-glm-flash-house-boot"
       ],
-      "state": "queued",
+      "state": "done",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
       "notes": "The 37/37 currently tabled in TP4-HEAD-TO-HEAD-1025.md is the 2026-10-13 trial's, never proven through the recipe path (recipes/glm/README.md 'Still unproven on this arm'). One boot, standard-suite house @4096 thinking-on; receipts to ~/benchmarks/ under a dated dir; update the head-to-head row after.\n\nBLOCKED 2026-11-03 (owner decision: 'no window yet'): this row needs all six nodes and `.31`-`.34` are serving production (up 7 days at the 17:04 ET board). It is not runnable until the owner names a slot; the lock file `.local/fleet-window.lock` is written when the window opens, not before.\n\nWINDOW STILL PARKED — re-asked and re-confirmed 2026-11-06: the owner keeps these rows off the fleet and leaves the production ds4 quartet on `.31`-`.34` untouched indefinitely. Not runnable; `.local/fleet-window.lock` is written only when a slot is named, never in anticipation.\n\nUNBLOCKED 2026-11-07 (owner directive): the production workload stopped and all six nodes (.30-.35) are free for the h2h campaign; `.local/fleet-window.lock` written naming session campaign-queue. The row's boot work is the queued sub-rows that block it; this row closes when its cells land (repo worker's final close).",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells + owner 2026-10-26 directive; owner round 2026-11-06 (asked and answered in session)",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "evidence": "/home/red/benchmarks/h2h-20261107/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang/client/ — client.json+house.json+house.log, image sha256:7f8f1b38bcf1770e527bdc9ceacdc663063d2871e464f7693a8602e0efbd4a95, house4096 37/37 rc=0"
     },
     {
       "id": "h2h-glm-needle-3rungs",
@@ -1253,12 +1254,12 @@
         "h2h-glm-flash-house-recipe"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
       "notes": "estimate: provisional — one boot, ladder + house through the shipped recipe; the extra client (house @4096 thinking-on) rides on the live serve via ARM_EXTRA_CLIENT, so this row is the first quality battery through the recipe path (37/37 is the trial's). — campaign: glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang: no marker and no machine-readable artefact",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; recipes/glm/README.md §Boot receipt 'Still unproven on this arm'; owner 2026-11-07 window",
-      "evidence": "",
+      "evidence": "/home/red/benchmarks/h2h-20261107/tp12-window/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang",
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml",
@@ -1324,12 +1325,12 @@
         "h2h-second-boot-ladder"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
       "notes": "estimate: provisional — controlled second boot through the boot2 twin (comment-only copy: the register cannot name two rows for one recipe); ladder only, no extra client. — campaign: glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2: no marker and no machine-readable artefact — claim cleared 2026-11-08 00:56 ET at operator pause: boot2 attempt 3 killed at readiness=yes before any cell; no receipt",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; owner 2026-11-07 window; tests/test_boot_twin_recipes.py",
-      "evidence": "",
+      "evidence": "/home/red/benchmarks/h2h-20261107/tp12-window/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2",
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2.yaml",
@@ -1349,7 +1350,7 @@
       "state": "queued",
       "model": "glm-5.3",
       "node_cost": "quartet",
-      "notes": "estimate: provisional — controlled second boot; TTR ~42 min on the confirmed NCCL env; ladder only, no extra client. — campaign: glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang: no marker and no machine-readable artefact — campaign: glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang: no marker and no machine-readable artefact — claim cleared 2026-11-08 00:56 ET at operator pause: attempt 3 killed before readiness (loading past 34 min); no receipt",
+      "notes": "estimate: provisional — controlled second boot; TTR ~42 min on the confirmed NCCL env; ladder only, no extra client. — campaign: glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang: no marker and no machine-readable artefact — campaign: glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang: no marker and no machine-readable artefact — claim cleared 2026-11-08 00:56 ET at operator pause: attempt 3 killed before readiness (loading past 34 min); no receipt — campaign: glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang: no marker and no machine-readable artefact",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; recipes/glm/README.md §Shipped arm; owner 2026-11-07 window",
       "evidence": "",
       "claimed_by": "",
@@ -1358,7 +1359,9 @@
       "tp": 4,
       "env": {
         "ARM_ALLOW_FEW_SLOTS": "1",
-        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
+        "ARM_EXTRA_CLIENT": "python3 -B tools/h2h-client.py --cell house4096 --base-url http://$NODE:$PORT --outdir $L",
+        "ARM_EXTRA_TIMEOUT": "3600"
       }
     },
     {
@@ -1369,14 +1372,14 @@
         "h2h-second-boot-ladder"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "",
       "node_cost": "quartet",
       "notes": "estimate: provisional — controlled second boot through the boot2 twin (comment-only copy: the register cannot name two rows for one recipe); ladder only, no extra client. — campaign: zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2: no marker and no machine-readable artefact",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; owner 2026-11-07 window; tests/test_boot_twin_recipes.py",
       "evidence": "",
-      "claimed_by": "",
-      "claimed_at": "",
+      "claimed_by": "sparkrun-campaign:h2h-20261107",
+      "claimed_at": "2026-11-08T06:56:42Z",
       "recipe": "recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2.yaml",
       "tp": 4,
       "env": {
