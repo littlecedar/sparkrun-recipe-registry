@@ -133,17 +133,26 @@ Two values are rank-local and are **not** in `RECIPE_ENV`:
 
 `NCCL_*` is deliberately absent for the same reason (the probe owns it).
 
-**The engine's `TF_GLM_*` switches are the mod's, not the recipe's.**
-`recipe_env()` is applied with `os.environ.update(...)`, so a recipe `env:` entry
-or `sparkrun run -e TF_GLM_…` for any key in `RECIPE_ENV` is overwritten before
-`tensorfold serve` starts. A knob sweep of `TF_GLM_DFLASH_POLICY` (the DFlash2
-draft-chain length, e.g. `fnc5:0.3` against the shipped `fnc7:0.3`),
-`TF_GLM_MULTI_WINDOW` (the shared verify window's rows) or `TF_GLM_PREFILL_ROWS`
-therefore needs a shim change or a mod copy — there is no CLI flag for them. The
-one exception is `TF_GLM_MAX_QUEUED`, which is *not* in `RECIPE_ENV` (upstream
-leaves the scheduler's stock queueing) and so does pass through; it is admission
-control (past the lanes it answers 429 + Retry-After), not a decode-concurrency
-knob.
+**The engine's `TF_GLM_*` switches are the mod's, not the recipe's — apart from a
+two-key sweep hook.** `recipe_env()` is applied with `os.environ.update(...)`, so a
+recipe `env:` entry or `sparkrun run -e TF_GLM_…` for any key in `RECIPE_ENV` is
+overwritten before `tensorfold serve` starts. `SWEEP_ENV` names the only exception,
+deliberately a two-key whitelist and not a passthrough, so a concurrency A/B needs
+no mod edit while the rest of the production configuration cannot be moved by an
+ambient container variable:
+
+| key | engine meaning | shipped | sweep |
+|---|---|---|---|
+| `TF_GLM_DFLASH_POLICY` | DFlash2 draft-chain length (patch 0018/0021: `fc5:0.3`, `fncN:P`, N 1–7) | `fnc7:0.3` | `-e TF_GLM_DFLASH_POLICY=fnc5:0.3` |
+| `TF_GLM_MULTI_WINDOW` | the shared verify window's rows in a `--parallel` round (patch 0069: 16–64, step 8) | `64` | `-e TF_GLM_MULTI_WINDOW=32` |
+
+An unset or empty value keeps the default below (the engine rejects an empty
+policy), so `-e` is safe to omit. Everything else — `TF_GLM_PREFILL_ROWS`,
+`TF_GLM_KV`, `TF_GLM_COMM`, … — still needs a shim change or a mod copy, because
+`serve` has no CLI flag for them. The one further passthrough is
+`TF_GLM_MAX_QUEUED`, which is *not* in `RECIPE_ENV` (upstream leaves the
+scheduler's stock queueing); it is admission control (past the lanes it answers
+429 + Retry-After), not a decode-concurrency knob.
 
 **`--drafter-repo none` is the engine's serial reference.** The shim maps that
 sentinel onto `tensorfold serve --no-drafts` rather than `--drafter <path>`:

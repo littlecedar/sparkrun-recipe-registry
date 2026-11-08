@@ -15,7 +15,7 @@ executed) and fails naming the stale line, so the number cannot rot; only its sk
 which is why that half carries a date. What only a run can know stays a *dated snapshot*: **2026-11-07
 — every tracked recipe passes plain `validate`, and `--strict` prints exactly the roster below over
 the whole tracked tree (re-measured 2026-11-07, the date on this line: 102 tracked recipes scanned,
-55 of them printing a finding, 22 with a warning and the rest suggestions only; the LiquidAI and 3D
+60 of them printing a finding, 26 with a warning and the rest suggestions only; the LiquidAI and 3D
 arms that landed after the previous snapshot add no row, because an accuracy declaration belongs
 inside `metadata:` where `unknown-top-level-key` does not fire; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
@@ -223,7 +223,7 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
   `--strict` prints exactly the findings in the roster below — it adds none of its own and only exits
   non-zero on the rows whose findings include a `warning`. Re-measured 2026-11-07 over the current 102
   tracked recipes, the LiquidAI and 3D arms included, so the snapshot was re-taken rather than
-  adjusted: twenty-three rows carry `unpinned-model-revision` — the pin never reaches the engine as
+  adjusted: twenty-four rows carry `unpinned-model-revision` — the pin never reaches the engine as
   `--revision` — one carries `deprecated-topology` instead, and every other row carries suggestions
   only, which never gate. No denominator is written here for the reason the snapshot
   paragraph gives: a fraction that scales with the tree goes stale silently. Findings are listed in
@@ -246,6 +246,7 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
   | `decision/zz-jev-9b-decision-coloc-vllm.yaml` | `hardcoded-serve-flag`, `restated-managed-path` |
   | `ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` | `unpinned-model-revision` |
   | `ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` |
+  | `ds4/zz-ds4-1017-sm121-arm3-control.yaml` | `unpinned-model-revision` |
   | `ds4/zz-ds4-1017-sm121-arm5-trtllm-mla.yaml` | `unpinned-model-revision` |
   | `ds4/zz-ds4-1017-sm121-indexer-scoring.yaml` | `unpinned-model-revision` |
   | `ds4/zz-deepseek-v4.1-flash-exl3-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` |
@@ -254,9 +255,11 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
   | `explore/poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml` | `restated-managed-path` |
   | `explore/ternary-bonsai-2-9b-q2_0-llamacpp.yaml` | `recipe-metadata`, `restated-managed-path` |
   | `explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml` | `restated-managed-path` |
+  | `explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2.yaml` | `restated-managed-path` |
   | `explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp.yaml` | `restated-managed-path` |
   | `glm/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` |
   | `glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` |
+  | `glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2.yaml` | `unpinned-model-revision`, `recipe-metadata` |
   | `glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.yaml` | `unpinned-model-revision`, `recipe-metadata` |
   | `glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-parallel.yaml` | `unpinned-model-revision`, `recipe-metadata` |
   | `ifm/k2-horizon-0.9b-bf16-uno-sglang.yaml` | `restated-managed-path` |

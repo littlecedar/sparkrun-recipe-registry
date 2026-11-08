@@ -219,6 +219,26 @@ class RecipeEnv(ShimTestCase):
         for key in ("TORCH_EXTENSIONS_DIR", "TRITON_CACHE_DIR", "HOME"):
             self.assertTrue(self.mod.RECIPE_ENV[key].startswith("/cache/runtime"), key)
 
+    def test_sweep_keys_override_the_mod_defaults(self) -> None:
+        """A concurrency sweep is `-e TF_GLM_…=…`; the two keys win over RECIPE_ENV."""
+        env = self.mod.recipe_env({"TF_GLM_DFLASH_POLICY": "fnc5:0.3", "TF_GLM_MULTI_WINDOW": "32"})
+        self.assertEqual("fnc5:0.3", env["TF_GLM_DFLASH_POLICY"])
+        self.assertEqual("32", env["TF_GLM_MULTI_WINDOW"])
+
+    def test_sweep_keys_fall_back_to_the_mod_defaults(self) -> None:
+        """Unset or empty means the shipped value, not an empty engine switch."""
+        for process_env in ({}, {"TF_GLM_DFLASH_POLICY": "  ", "TF_GLM_MULTI_WINDOW": ""}):
+            env = self.mod.recipe_env(process_env)
+            self.assertEqual("fnc7:0.3", env["TF_GLM_DFLASH_POLICY"], process_env)
+            self.assertEqual("64", env["TF_GLM_MULTI_WINDOW"], process_env)
+
+    def test_a_key_outside_the_whitelist_cannot_be_overridden(self) -> None:
+        """The hook is a whitelist: the rest of the production config stays the mod's."""
+        self.assertEqual(("TF_GLM_DFLASH_POLICY", "TF_GLM_MULTI_WINDOW"), self.mod.SWEEP_ENV)
+        env = self.mod.recipe_env({"TF_GLM_KV": "bf16", "TF_GLM_COMM": "nccl"})
+        self.assertEqual("fp8", env["TF_GLM_KV"])
+        self.assertEqual("roce", env["TF_GLM_COMM"])
+
 
 class ModFiles(unittest.TestCase):
     def test_mod_ships_its_harness(self) -> None:

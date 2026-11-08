@@ -145,8 +145,16 @@ RECIPE_ENV = {
 }
 
 
+# The only two knobs a recipe may override: a concurrency sweep of them must
+# not need a mod edit, and every other key below stays the mod's decision (the
+# RECIPE_ENV comment above says why). Deliberately a whitelist, not a
+# passthrough: an ambient `TF_GLM_*` in the container still cannot move the
+# rest of the production configuration.
+SWEEP_ENV = ("TF_GLM_DFLASH_POLICY", "TF_GLM_MULTI_WINDOW")
+
+
 def recipe_env(process_env: dict[str, str]) -> dict[str, str]:
-    """RECIPE_ENV plus the one per-node value: `TF_ROCE_HCA` from the probe.
+    """RECIPE_ENV, plus the probe's `TF_ROCE_HCA`, plus the `SWEEP_ENV` overrides.
 
     At TP>2 the upstream launcher passes the node's active RoCE devices to the
     engine as `TF_ROCE_HCA`, and to NCCL as `NCCL_IB_HCA` -- the same string
@@ -155,8 +163,16 @@ def recipe_env(process_env: dict[str, str]) -> dict[str, str]:
     name a host device (`recipes/glm/README.md`). Unset when the probe found
     nothing: the engine then derives its own device list, which is what an
     unprobed host would do anyway.
+
+    `SWEEP_ENV` keys win over RECIPE_ENV when the process env carries a
+    non-empty value -- a recipe's `env:` map or `sparkrun run -e KEY=VALUE`.
+    Empty means "unset", so the default below still applies.
     """
     env = dict(RECIPE_ENV)
+    for key in SWEEP_ENV:
+        value = process_env.get(key, "").strip()
+        if value:
+            env[key] = value
     hcas = process_env.get("NCCL_IB_HCA", "").strip()
     if hcas:
         env["TF_ROCE_HCA"] = hcas

@@ -87,12 +87,14 @@ one-line-diff copies of the shipped arm and neither has booted:
 | [`zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.yaml`](zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.yaml) | DFlash2 removed: the shim maps `--drafter-repo none` onto the engine's `--no-drafts`, at the mod's `--parallel 8` | ladder; C2-peak vs flat tells whether the drafter's verify window is the shape |
 | [`zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-parallel.yaml`](zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-parallel.yaml) | slot cap promoted to a key: `--parallel {parallel}` (engine range 1–8) | one boot per `-o parallel=N` |
 
-A third lever — the DFlash2 draft-chain length (`TF_GLM_DFLASH_POLICY`, e.g.
-`fnc5:0.3`) and the shared verify window's rows (`TF_GLM_MULTI_WINDOW`) — is
-**not reachable from a recipe**: the shim sets both itself through
-`os.environ.update(RECIPE_ENV)`, so `-e`/`env:` is overwritten, and `serve` has no
-flag for either (see the mod README §Environment). `-o speculative_draft_model=none`
-is also not a no-drafter lever: sparkrun then prepares a model named `none`.
+A third lever — the DFlash2 draft-chain length and the shared verify window — is a
+**sweep hook in the shim, not a recipe variant**: `recipe_env()` lets exactly
+`TF_GLM_DFLASH_POLICY` and `TF_GLM_MULTI_WINDOW` win over its `RECIPE_ENV`, so a
+boot is `-e TF_GLM_DFLASH_POLICY=fnc5:0.3` (k=5; `fnc3:0.3` for k=3, shipped value
+`fnc7:0.3`) or `-e TF_GLM_MULTI_WINDOW=32` (patch 0069: 16–64, step 8, shipped 64)
+on the shipped arm — no recipe copy, and nothing else in the production config is
+reachable that way. `-o speculative_draft_model=none` is not a no-drafter lever:
+sparkrun then prepares a model named `none`.
 
 ## Boot receipt (2026-10-18)
 
