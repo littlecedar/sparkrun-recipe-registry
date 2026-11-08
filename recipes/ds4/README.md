@@ -1211,17 +1211,29 @@ the flashinfer path never fires. The verification sequence is (1) the launcher r
 (`server_args={… 'moe_runner_backend': 'marlin', 'speculative_moe_runner_backend': 'marlin' …}`),
 (3) `Load weight begin` with its memory number — and a flag is in effect at step 2, never at step 1.
 
-**PROVISIONAL on fit.** One boot died host-side 58 s into weight load: `dmesg`
-`oom-kill:constraint=CONSTRAINT_NONE,…,global_oom`, which took `ssh` and `NetworkManager` down on
-`.30` and left the container `running 0 true` (OOMKilled) with no engine traceback. That is a real
-observation; it is not yet the claim that the 576→640 padding plus repack cannot fit at TP=4, which
-would be an inference from a single boot on a node other sessions were also probing. A second attempt
-runs with the dispatch proven at both hops (`@8`, `.30`–`.33`), and the two outcomes are written down
-before it resolves: a ready serve retracts the negative, because the first death was then memory
-state, not geometry; a death during load with the same memory signature and an exit code stands it,
-on two boots. No throughput or accuracy number is obtainable until one of those lands, and a repeat
-attempt is an operator decision because it can take the host it runs on offline. The flashinfer
-path's measured negative — the ÷128 geometry refusal above — is a different failure and stands.
+**CONFIRMED on a second boot — marlin is selectable, reaches weight load, and does not fit at TP=4
+on GB10.** `@8` printed `Init parallel ends. elapsed=35.90 s` and `Load weight begin. avail
+mem=111.71 GB` with the flag in effect at the engine (`'moe_runner_backend': 'marlin'` twice in
+`server_args`, plus `'speculative_moe_runner_backend': 'marlin'`, beside the launcher receipt's
+`EXTRA_SGLANG_ARGS='… --moe-runner-backend marlin'`), and then the host went, not the engine: the
+kernel log on `.32` shows `global_oom` taking `sglang::schedul` inside its docker cgroup at 12:57:33,
+`.33` the same moment taking `python3` in its own, `.31` taking `beegfs-storage` at 12:57:42, and the
+head losing eight `global_oom` victims at 12:59:14, ending `user@1000.service: Main process exited,
+code=killed, status=9/KILL`. Two boots, the same memory signature and the same SIGKILL path (exit 137). No throughput or
+accuracy number is obtainable this way, and a repeat attempt is an operator decision: it has twice
+taken the whole user session down on the head.
+
+**The mechanism is still inferred; the fit is measured.** What these boots show is weight load at
+~111.7 GiB available and a host global OOM. They support "the 576→640 pad plus repack overhead does
+not fit the 119.21 GiB pool at TP=4" without proving it — nothing here measures the repacked buffers
+at ~11 % above the nominal 576. Keep the two apart: treating an inferred mechanism as the measurement
+is what has cost this lane its earlier attempts.
+
+**Collateral, and why the row stays blocked rather than held.** The same OOM kills the BeeGFS
+services on the ranks and on the head (`beegfs-mgmtd`, `beegfs-meta` and `beegfs-storage` all
+`status=9/KILL` on the head at 12:59:14; `beegfs-storage` from the rank side on `.31` and `.33`), so
+one failed quartet boot can take the shared pool and the launch plumbing with it — the next boot
+cannot start until those are back, which is a recovery, not a wait.
 
 **Correcting the record on the 2026-10-26 `triton` retry.** That retry did clear the ÷128 geometry
 check and died 16 s into `Load weight begin` with NVRM `NV_ERR_NO_MEMORY` at 108.83 GB available —
