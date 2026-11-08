@@ -73,7 +73,7 @@ log "${MOD_MAINTAINER}"
 #####################################################################
 # Main: find the snapshot, find the Engram file, link it
 #####################################################################
-SHARD1="$(find "${HFHUB}/${CODER_REPO_DIR}/snapshots" -mindepth 2 -maxdepth 2 \
+SHARD1="$(find "${HFHUB}/${CODER_REPO_DIR}/snapshots" -mindepth 3 -maxdepth 3 \
   -name 'DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-IQ2_XXS-00001-of-00006.gguf' \
   -type f -print 2>/dev/null | sort | tail -n 1)"
 if [[ -z "${SHARD1}" ]]; then
