@@ -554,15 +554,22 @@ idol SDK (`python -m idol.sample`; no serving engine) + [`recipes/media/mods/ido
   `speridlabs/idol` plus both encoders, each fetched **by branch so `refs/main` exists** — a
   `hf download --revision <sha>` writes no ref file, and the SDK resolves both encoders by repo id with
   no revision, which in offline mode reads `refs/main` (the same pool trap the Qwen-Image launcher
-  documents). The mod gates on exactly that plus the files it names, and names the fix on failure:
+  documents). **Pool state, read on the head 2026-11-08 (`/mnt/beegfs/huggingface/hub`):**
+  `models--speridlabs--idol` holds snapshot `2731c2291f…` — the recipe's pin — with all five files at
+  their Hub-listed byte sizes (3,006,827 KB = 3.08 GB), so the weights need no re-fetch; each encoder
+  repo holds **only `refs/`** (`c807c9ee…` for DINOv3, `26afe3a7…` for FLUX.2-dev) and **no
+  `snapshots/` directory at all** — zero bytes staged. A ref file with no body is the signature of a
+  resolution that was refused, not of a download in progress. The mod gates on exactly that plus the
+  files it names, and names the fix on failure:
   `hf download facebook/dinov3-vith16plus-pretrain-lvd1689m`,
-  `hf download black-forest-labs/FLUX.2-dev --include "vae/*"`, `hf download speridlabs/idol`.
-- **Why it is not booted (both external):** (1) **neither gate is accepted by the staging account** —
-  probed 2026-11-08: `hf auth whoami` = `twichert`, and `/raw/main/config.json` answers **403** for
-  both `facebook/dinov3-vith16plus-pretrain-lvd1689m` (`gated: manual`) and
-  `black-forest-labs/FLUX.2-dev` (`gated: auto`), so the pool cannot be staged and the SDK would stop
-  before downloading anything; (2) **no node was free** — the campaign holds all six for its serial
-  order. The arm needs one node, not a four-rank window: 7.2 GB peak VRAM is TP=1 by construction.
+  `hf download black-forest-labs/FLUX.2-dev --include "vae/*"`.
+- **Why it is not booted (both external):** (1) **the two encoders are not staged** — their pool repos
+  are refs-only, which matches the account-side probe: `hf auth whoami` = `twichert` and
+  `/raw/main/config.json` answers **403** for both `facebook/dinov3-vith16plus-pretrain-lvd1689m`
+  (`gated: manual`) and `black-forest-labs/FLUX.2-dev` (`gated: auto`), so the staging account has not
+  accepted the gates and the SDK would stop before downloading anything; (2) **no node was free** — the
+  campaign holds all six for its serial order. The arm needs one node, not a four-rank window: 7.2 GB
+  peak VRAM is TP=1 by construction.
 - **Not measured:** everything. No wall time, no peak memory, no Gaussian count, no image quality on
   this hardware — the card's benchmark table is 1 × H100 per model (6.8 s at 50 steps) and its
   across-GPU table has no GB10 row, so nothing here is a GB10 expectation. The registry has no
