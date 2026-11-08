@@ -4998,10 +4998,15 @@ would have been churn for a 2-minute-nearer read. The figures are here instead.
   again. `task-queue.py check` is green with **zero claims**; this tick wrote none of it.
 ## 2026-11-08 08:08 ET — five commits and four queue-mode refusals landed with no board row; the fold kept the peer's 08:04 board
 - **Board:** the 08:04 board (`ff3f1d91`, census 08:02:21) already carried this tick's state, and its
-  census is **newer** than this tick's 08:01:11 read, so no whole-file replace was made. The fold kept
-  every peer In-flight row and re-rendered the queue table verbatim (21 rows against 21 open tasks);
-  only the census cell was rewritten, with this tick's own **08:07:20 ET** read and the peer's content
-  folded in, and eleven landed rows were appended and time-sorted.
+  census was **newer** than this tick's 08:01:11 read, so the fold was composed from the committed copy
+  and kept every peer In-flight row, re-rendered the queue table verbatim (21 rows against 21 open
+  tasks), rewrote only the census cell with this tick's own **08:07:20 ET** read, and appended eleven
+  time-sorted landed rows. **The publish door then landed over a peer's uncommitted board** — it reported
+  `disk was 2026-11-08 08:04:25 ET`, not the `08:02:21` copy the fold was composed from, so the
+  disk-stamp CAS passed on a board this tick had never read. Recovered within two minutes: the peer
+  republished its own rows at 08:08:44 / 08:09:10 and folded this tick's row-keyed content at 08:10:28
+  (`1fed6d08`), so the standing board carries both and no peer fact is lost — but the guarantee given up
+  is a fold over a known peer copy, and a compose→publish gap of minutes is what gave it up.
 - **Five commits had landed with no row anywhere.** `b449a272` (07:12, the arm's first serving cycle
   and the aggregate trap), `a3837191` (07:13, ladder aggregate corrected to `n=5` per cell from
   `runs/*.json` and `ladder.json`), `29b4d164` (07:24, campaign receipt names its ladder evidence),
