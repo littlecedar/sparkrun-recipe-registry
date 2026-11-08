@@ -4476,3 +4476,80 @@ board's state tables:
   30078b4aa125dd7d_62ac562fe0d4 --container sparkrun_…_node_0 --interval 10`, and the previous
   boot's watchdog pid 3842579 (`--task-id …574ac1a0d398`) no longer exists — so the dead quartet's
   gate exited with it rather than lingering against a container that is gone.
+
+## 2026-11-08 02:36 ET — session close-out: the director's state model reconciled before the campaign's first cells
+
+The campaign's first measured cells arrived only after its persisted state was reconciled against the
+register. `2abc5af` fixed five ways `state.json` outlived the decision it recorded: an existing file
+overruled `--retries` on restart, `_adopt` froze an arm's `env` so a register row's later client cell
+and `ARM_RECEIPTS_ROOT` never reached it, a `BLOCKED` arm was never re-evaluated even with its row
+queued again, a status-only unblock could leave `needs_reap` set and then skip the arm in silence, and
+`--receipts-root` never reached an adopted arm. The model now decides by newest decision: `--retries`
+is adopted on open (an omitted flag keeps the stored number), `ARM_RECEIPTS_ROOT` is written into every
+arm that can still run, and an arm adopts its row's fields at `prepare`; `26582bc` then closed the
+gate that made the first reconciliation too narrow — `refresh` froze a record whenever `attempts != 0`,
+so a reopened row with a new readiness ceiling would have carried the previous attempt's env, and it
+now freezes only a `leased`, `measured` or `skipped` arm, while `path`/`tp`/`task` still wait for any
+outstanding reap (the containers a reap must find are labelled with the path that launched them). A
+blocked arm re-opens only on a restart, only when its row is runnable again, and only after `prepare`
+proved the reap — otherwise it prints `queue-blocked: <arm> (row runnable again, but hosts still need
+a verified reap: …)` instead of never assigning it. A lease issued counts as an attempt on the receipt
+but stays out of the `failures` retry budget, so `--retries` remains the only lever over re-boots.
+
+The proof is the state this section follows rather than the tests alone. The 753B arm ran a fourth
+attempt under the new model and still produced no artefact — `rc=4`, `readiness=no` at 01:42:44 ET,
+its receipt `receipts/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.json` beside `.prev-231427`,
+`.prev-002143` and `.prev-010443`, and none of the four directories holds `ladder.*` or `house.*`, so
+the discriminator is the artefact set, not the log size. The house client cell reached the arm it was
+written for instead of the one adopted first: the live Beam house arm's env carries `ARM_EXTRA_CLIENT`,
+`ARM_EXTRA_TIMEOUT`, `ARM_OPTS` and `ARM_RECEIPTS_ROOT`, and the finished GLM-Flash arms' receipts
+landed under `<campaign>/tp12-window/…` rather than a dated `~/benchmarks/tp12-<date>` tree. Arm 3
+stayed `pending` while its row was queued — never leased, never silently assigned. The abandoned lease
+the campaign inherited at the restart was reaped (`reaped … outstanding previous run; 0 container(s)
+found`) before the quartet was re-assigned.
+
+Register work in the same stretch: `7bea7b6` retired the survey parents its live sub-rows supersede;
+`0cbcffd` put the survey lane doc on the single digest the recipes pin; `f1edc47` cleared the pause's
+stale claims (boot2 and 753B back to `queued`, the kill recorded in their notes); `2e27838` closed the
+first client arm on its receipt and carried the house cell onto the 753B boot; `34f677f` documented
+and guarded `tools/h2h-client.py` (README index row, `tests/test_h2h_client.py` with the
+all-transport-error exit-2 rule and its healthy-serve control, and the derived counts); `d947997` added
+the root `## Priority` rule — clean, correct, bug-free code in service of durable, repeatable,
+deterministic model and sparkrun recipe research. The 753B row itself ends this stretch `queued`, held
+open by `351c93c`: `rc=4` is its readiness ceiling, not a model rejection, and it now carries the
+readiness timeout and client hook the next attempt needs.
+
+Measured cells, each with the artefact set that carries it (`n=5` per cell, 2048-prompt decode,
+aggregate t/s then per-request):
+
+- **ds4-1017, second boot** — C1 51.11 ± 16.24 · C2 91.79 ± 3.92 · C5 128.88 ± 4.59 · C10 159.88 ±
+  10.14 (per-request 51.11 / 49.84 / 30.80 / 19.76), monotone rise kept; the same serve ran house at
+  **93**, 15 scenarios, deployability 89 / responsiveness 80.
+  `receipts/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.json`; artefacts in
+  `~/benchmarks/h2h-20261107/deepseek-v4.1-flash-knapcio-tp4-1m-sglang/`.
+- **GLM-Flash, first boot through the recipe path** — C1 103.25 ± 5.46 · C2 109.41 ± 31.29 · C5 94.18
+  ± 2.62 · C10 86.65 ± 1.31 (per-request 103.25 / 65.14 / 29.32 / 20.95); house **100**, 15 scenarios,
+  deployability 92 / responsiveness 75, which is the first quality battery this arm carries through
+  the recipe path rather than the 2026-10-13 trial.
+  `tp12-window/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang/` (`house.json`, `ladder.json`, `client/`,
+  `image.txt`).
+- **GLM-Flash, second boot** — C1 105.90 ± 5.68 · C2 120.46 ± 28.43 · C5 96.80 ± 1.92 · C10 86.87 ±
+  1.16 (per-request 105.90 / 68.07 / 30.63 / 20.94); house identical at 100 / 92 / 75. Per-cell delta
+  against the first boot is +2.65 / +11.05 / +2.62 / +0.22 aggregate, so the C2 peak and the C5/C10
+  fall reproduce across boots — the sigma column the head-to-head table lacked.
+  `tp12-window/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2/`.
+- **Beam-1.0 501B, second boot** — C1 33.09 ± 2.50 · C2 44.91 ± 3.50 · C5 59.71 ± 10.50 · C10 69.86
+  ± 7.41 (rises with concurrency); house **0**, 15 scenarios, deployability 30 / responsiveness 100.
+  The serve is healthy enough to run the battery and fails it end to end; its BFCL category cell has
+  not run. `tp12-window/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2/`.
+- **GLM-753B, second boot** — no cell: four attempts, the fourth characterised at `rc=4` / `readiness=no`,
+  and no `ladder.*`/`house.*` in any of the four directories (see the receipt and `.prev-*` above).
+
+Counts at this close-out, derived rather than remembered: **1329** suite tests (2 skipped), **104**
+tracked recipes, **57** test modules, **35** benchmark profiles, **19** `SKILL.md` dirs.
+
+Still open: **Beam BFCL** (in flight — the live lease is `h2h-beam-house-boot` and its BFCL cell rides
+the same serve), **arm 3 longctx** (`w4-survey-arm3-sm121-boot`: the 1,039,999-token C1 decode cell),
+the **survey triad** (arm 3, arm 5, and arm 5's same-digest control), the **three concurrency rows**
+(`dflash2-k`, `no-drafter`, `scheduler-knob`), and **`tensorfold-metrics-bridge-generalization`** /
+**`h2h-doc-refresh`**, which land behind the rows they summarise.
