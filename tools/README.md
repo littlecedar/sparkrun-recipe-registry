@@ -1641,7 +1641,9 @@ uv run python -B tools/task-queue.py graph       # fenced mermaid block: open ro
     # and the header comment (`12 blocked, 3 edges, 9 prose-gated, 2 question-gated, 1 question`)
     # is how a sparse graph is told from a wrong one: a tick that records real edges moves
     # `edges`. `blocked_by` is a mirror `_relink` rewrites from `blocks`, so `graph` reads
-    # `blocks` and warns when the two disagree.
+    # `blocks` and warns when the two disagree. The global `--file` works before or after
+    # `graph` (`--file X graph` and `graph --file X` read the same register; a subparser default
+    # that clobbered the parent's value was measured 2026-11-08).
 uv run python -B tools/task-queue.py orphans # open items ADDED since the archive-frozen marker
  # --since <rev> overrides the marker; only items added after it count, so the frozen
  # archive's pre-cutover items are never orphans and a removal cannot net one out

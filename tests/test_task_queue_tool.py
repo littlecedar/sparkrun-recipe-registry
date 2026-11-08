@@ -38,6 +38,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 import re
 import sys
 import tempfile
@@ -653,6 +654,59 @@ class DependencyGraph(unittest.TestCase):
         lines = out.getvalue().splitlines()
         self.assertEqual(lines[0], "```mermaid")
         self.assertEqual([l for l in lines if l.startswith("```")], ["```mermaid", "```"])
+
+
+class GraphFileFlag(unittest.TestCase):
+    """`--file` must mean the same thing before and after the `graph` subcommand.
+
+    Measured 2026-11-08 by the board tick: `--file X graph` printed `2 edges, 11 prose-gated`
+    from the default register while `graph --file Y` printed the true `3 edges, 9 prose-gated`.
+    The subparser's own `--file` default overwrote the parent's parsed value, so a plausible
+    diagram was drawn from the wrong file with no error -- and the rows it lost were exactly the
+    ones that make the graph worth drawing.
+    """
+
+    def _write(self, path, rows):
+        path.write_text(json.dumps(qdata(relink(rows), [67])), encoding="utf-8")
+
+    def _graph(self, argv):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(tq.main(argv), 0)
+        return out.getvalue()
+
+    def test_both_positions_read_the_named_file_and_the_outputs_differ(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            two, three = Path(tmp) / "two.json", Path(tmp) / "three.json"
+            self._write(two, [task("row-a", 1.0), task("row-b", 1.0, ["row-a"])])
+            self._write(three, [task("one", 1.0, ["two"]), task("two", 2.0, ["three"]),
+                                task("three", 3.0, state="blocked")])
+            pre = self._graph(["--file", str(two), "graph"])
+            post = self._graph(["graph", "--file", str(two)])
+            self.assertEqual(pre, post, "the flag's position must not change the register read")
+            self.assertIn("row-a", pre)
+            other = self._graph(["graph", "--file", str(three)])
+            self.assertNotEqual(pre, other)
+            self.assertIn("one", other)
+            self.assertIn("2 edges", other)
+
+    def test_the_parent_flag_never_falls_back_to_the_default_register(self):
+        """Negative control: a default register in cwd must not be read when `--file` was given."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "mad-science").mkdir()
+            (root / "mad-science" / "queue.json").write_text(
+                json.dumps(qdata([task("default-row", 1.0)], [])), encoding="utf-8")
+            named = root / "named.json"
+            self._write(named, [task("named-row", 1.0, state="blocked")])
+            cwd = os.getcwd()
+            os.chdir(root)
+            try:
+                text = self._graph(["--file", str(named), "graph"])
+            finally:
+                os.chdir(cwd)
+        self.assertIn("named-row", text)
+        self.assertNotIn("default-row", text, "the pre-subcommand --file must be honoured")
 
 
 class AddressLint(unittest.TestCase):

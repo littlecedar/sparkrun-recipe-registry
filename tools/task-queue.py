@@ -1236,7 +1236,12 @@ def main(argv: list[str] | None = None) -> int:
     p_board.add_argument("--board", action="store_true",
                          help="emit the STATUS.md `## Work queue` table instead of the weighted one")
     p_graph = sub.add_parser("graph", help="fenced mermaid diagram of the open work, from the register")
-    p_graph.add_argument("--file", default=None, help=f"queue JSON (default {DEFAULT_QUEUE})")
+    # SUPPRESS, not None: the subparser parses into the same namespace, so a plain default
+    # here overwrites the value the parent already parsed from `--file X graph` -- measured
+    # 2026-11-08: that order silently read the default register and drew a plausible diagram
+    # from the wrong file.
+    p_graph.add_argument("--file", default=argparse.SUPPRESS,
+                         help=f"queue JSON (default {DEFAULT_QUEUE}); the global --file works too")
     p_graph.add_argument("--max-nodes", type=int, default=GRAPH_BUDGET,
                          help=f"node budget; the remainder collapses into one node "
                               f"(default {GRAPH_BUDGET})")
