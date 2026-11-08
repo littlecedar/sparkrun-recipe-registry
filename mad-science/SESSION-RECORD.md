@@ -4946,3 +4946,33 @@ would have been churn for a 2-minute-nearer read. The figures are here instead.
 - **Register untouched:** `queue.json` still carries `h2h-second-boot-glm-753b` as `running` with prose naming
   attempt 5 against a live attempt 6 — reported on the board and here, not written, because a workstation-side write is
   the registered `task-queue-write-clobbers-live-claim` defect.
+## 2026-11-08 08:04 ET — campaign drained on its last flight measured; the arm close landed in neither board nor ledger until this tick
+- **Board:** published 08:04 ET on this tick's own **08:02:21 ET** census (`publish` reported
+  `disk was 2026-11-08 07:09:59 ET`, so no peer board was overwritten; written sha `f0afbf36…`
+  equals the composed file). `In flight` lost the `.30`–`.33` flight row, which had ended, and gained a
+  queue-mode row; the queue table is `render --board` verbatim at **21 rows** against 21 open tasks.
+- **The 753B arm closed `rc=0 measured` and nobody had recorded it.** Attempt 6's arm log
+  `~/benchmarks/h2h-20261107/logs/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang@6.log` ends
+  `serve logs harvested: 4 (expected one per running rank…)`, `Workload stopped on 4 host(s).`,
+  `ARM DONE glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang rc=0`; its `client/client.json` cell closed
+  **HARD 18/18 = 100 %** (`h2h-client.py --cell house4096` → `quality-battery --tier both
+  --max-tokens 4096`, `rc=0`, 07:11:23) on top of the already-landed house 15/15 and the four-cell
+  ladder. The 07:10 board's last row read the client cell as *still in flight*, and the 07:18/07:26
+  ledger sections stop at "still running 07:10:58", so the close existed only in the receipt. Folded
+  as a landed row **and** here, because a landed row is cleared at session handoff.
+- **The campaign drained and holds nothing.** `director status` at the 08:02 read: unit `active`,
+  `9 measured, 8 blocked` over 17 arms, and **no arm carries a `lease` object**
+  (`state.json` mtime 07:58:54). So the six-node window is declared with a live unit but zero held
+  nodes — the opposite of the wedged-lease signature, and the quartet's containers are indeed all gone.
+- **The fleet is empty and the register explains it.** `sparkrun status` at 08:00:55 lists all six
+  nodes under `Idle hosts` (`No sparkrun containers running`), and the 08:02:21 census reads
+  **0 containers / 0 volumes on all six** (`.34`/`.35` were already 0). Of 21 open register rows,
+  the 10 `queued` ones carry no `recipe`/`tp`/`env`, so a queue-mode director cannot plan any of them,
+  and the 11 bootable ones are `blocked`: an empty eligible set, not a stalled holder.
+- **The register's close-out write, read and not repeated.** `queue.json` on the tree is uncommitted
+  (`107` rows, 29+/21−) and byte-identical on head and workstation (`sha256 087e58b5…`): the campaign
+  flipped `h2h-second-boot-glm-753b` `running`→`done` with `claimed_by` cleared and five bootable rows
+  `queued`→`blocked`, each carrying a named gate (Kimi tokenizer/DSpark `config.json` unresolved,
+  GSQ-RCO image `manifest unknown`, Ripple image digest unresolvable, the reference arm's chat cell),
+  four of them gaining the `house4096` acceptance client so a healthy serve cannot close evidence-free
+  again. `task-queue.py check` is green with **zero claims**; this tick wrote none of it.
