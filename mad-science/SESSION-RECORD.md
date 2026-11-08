@@ -5870,3 +5870,26 @@ that — the `12:57:32` range ends at the close instant, not at "now", and B is 
 - **The gate caveat still travels with every refusal.** `tools/run-arm.sh`'s pool gate is red on healthy
   clients (it demands `mgmtd`/`meta` on *every* host, which `.31`–`.35` never ran), so a receipt refused
   "pool does not answer" is **not** evidence of an outage until a green gate run exists.
+
+## 2026-11-08 — quartet windows are for TP=4 arms; TP1/TP2 run on one or two hosts
+
+Owner directive, recorded so the board's window state can be read correctly. A declared quartet window is **not** a
+prerequisite for TP1/TP2 work, and a TP1/TP2 row blocked "waiting for a window" is a scheduling defect, not a
+waiting state.
+
+- **Quartets are for `tensor_parallel: 4` only.** `.31`–`.33` are the quartet ranks and are used **only while a
+  window is declared**; outside a window they are not a resource a TP1/TP2 arm may take.
+- **TP1 and TP2 arms run non-quartet:** one host for `node_cost: single`, two for `node_cost: pair`. No window, no
+  quartet lease, no all-six reservation — a TP1 arm held for a window is a scheduling defect to name, not a waiting
+  state to report.
+- **Preferred non-quartet hosts: `.34` and `.35`** — client-only storage role, so an overrun there costs the arm and
+  not the fleet's store.
+- **`.30` is avoided for anything that could overrun**: it holds `beegfs-mgmtd` and `beegfs-meta`, so a
+  memory-hungry boot there takes every host's ability to read a weight with it (that is exactly the 11:27:57 and
+  12:59:14 shape above).
+- **Board wording follows from this.** The window cell must read **"reserved for TP=4 arms"**, not "idle" and not
+  "the holder is silent" — an idle quartet is the correct state for a fleet whose remaining work is TP1/TP2, and
+  reading it as an idle fleet is what makes a window-gated TP1 row look legitimate. Where the board and the register
+  disagree about a TP1/TP2 row's window dependency, that divergence is the finding, not a detail to reconcile quietly.
+- **Unchanged by the policy:** a boot still needs a readable pool (§15:29:55 close) and still meets the red pool gate
+  above until that fix is green — this clause changes who an arm may occupy, not whether it can read a weight.
