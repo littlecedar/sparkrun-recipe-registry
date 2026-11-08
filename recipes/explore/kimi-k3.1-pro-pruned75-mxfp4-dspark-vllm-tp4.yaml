@@ -25,15 +25,18 @@ description: >-
   instantiates against it — 5 layers, DSparkMarkovHead + DSparkConfidenceHead, first
   layer `model.layers.93...`, 4,598,107,009 params (8.56 GiB BF16 module tree); the
   Omni-only `n == block_size` check does not run for a Kimi target. So the row's
-  label is "config bind proven, acceptance counters pending", blocked on the
-  target's 442.87 GiB staging (the snapshot is a config-only stub). The open
+  label is "config bind proven, acceptance counters pending", and what blocks it is
+  the TP=4 fit, not staging: the target body is present (442.87 GiB, hf cache verify
+  rc=0) and its shards alone are 110.71 GiB/rank against a 109.67 GiB budget at
+  util 0.92. The open
   question is cross-checkpoint acceptance: the draft was trained against the
   unpruned base, so the card's 3.448 mean acceptance at width 8 is not transferable
   to this 75 %-pruned body and only a real serve measures it. A healthy serve would
   still be markerless: no chat template ships, so the chat instruments cannot score
   it (lane README has the acceptance contract).
-  MEMORY: the draft adds ~4.5 GiB per rank on top of 105.75 GiB of weights, which is
-  why this arm ships 16k context rather than the plain sibling's 32k.
+  MEMORY: the draft adds ~4.5 GiB per rank on top of the target's 110.71 GiB/rank,
+  so even the target alone is ~1 GiB over the util-0.92 budget and the ctx/utilisation
+  pair must be recut before this arm can boot.
 metadata:
   model_url: https://huggingface.co/LithosAI/Kimi-K3.1-Pro-DSpark
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
@@ -72,6 +75,9 @@ defaults:
   host: 0.0.0.0
   tensor_parallel: 4
   served_model_name: vllm-project/Kimi-K3.1-Pro-pruned75
+  # Infeasible as shipped: 110.71 GiB/rank of target weights plus ~4.5 GiB of draft
+  # against a 109.67 GiB budget at 0.92. Recut ctx/utilisation before boot (lane
+  # README fit bullet); the bind is already proven.
   gpu_memory_utilization: 0.92
   max_model_len: 16384
   max_num_seqs: 4

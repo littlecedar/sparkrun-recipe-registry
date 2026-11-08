@@ -15,29 +15,29 @@ description: >-
   layers, router rows and e_score_correction_bias pruned with them) and otherwise
   untouched: attention (KDA 3:1 + DSA indexer), shared experts, dense layer, vision
   tower and the original MXFP4 routed-expert quantisation are the base model's.
-  Four GB10 nodes, TP=4. ATTEMPTED 2026-11-08; no serve, because the pool snapshot
-  was a config-only stub. The engine resolved the architecture
-  (`Resolved architecture: KimiK31ForConditionalGeneration`, `tokenizer_mode='kimi_k3'`)
-  and then failed `VllmConfig` with "Couldn't instantiate the backend tokenizer ...
-  need sentencepiece or tiktoken" — vLLM's generic fallback when no tokenizer file
-  is on disk, not an image gap: the pinned nightly ships tiktoken 0.14.0 and
-  sentencepiece 0.2.3 on /usr/bin/python3 3.12.3. Snapshot `fc72e5a1` holds one
-  entry, `config.json` (7,303 B); the full repo is 112 files, 475,525,935,884 B =
-  442.87 GiB (475.5 GB). So the row's block is "pool snapshot is a config-only
-  stub; real weights unstaged", and no image or recipe change replaces the
-  download. A staged-wheelhouse route is proven and kept only as a template for an
-  image that lacks the backend — tiktoken 0.14.0 + regex 2026.11.7, cp312
-  manylinux_2_28_aarch64, sha256s in the lane README, installed `--no-index` as uid
-  1000 with a 13-token round-trip through the checkpoint's tiktoken.model (note
-  `--no-deps`: under `--no-index` the resolver cannot see tiktoken's `requests`
-  dependency, so stage a `requests` wheel too). No chat template ships, so a
-  healthy serve would answer only /v1/completions and the chat instruments cannot
-  write a marker (see the lane README's acceptance paragraphs).
+  Four GB10 nodes, TP=4. ATTEMPTED 2026-11-08; no serve. The 07:47 failure was a
+  config-only stub in the pool, not a dependency gap; the same snapshot has since
+  been filled (112 entries, 442.87 GiB by an inode-deduped stat walk, hf cache
+  verify rc=0). The row's block is now FIT, not presence: the shards measure
+  442.85 GiB, so TP=4 is 110.71 GiB/rank against a 119.21 GiB pool whose util-0.92
+  budget is 109.67 GiB - over by ~1.0 GiB/rank before one KV block. The shipped
+  32k/0.92 pair is infeasible; the arm needs a recut (shorter context at ~0.95, or
+  a smaller checkpoint), and an OOM on it is a sizing answer, not a checkpoint
+  verdict. A staged-wheelhouse route for tiktoken is proven and kept only as a
+  template for an image that lacks the backend - tiktoken 0.14.0 + regex 2026.11.7,
+  cp312 manylinux_2_28_aarch64, sha256s in the lane README, installed --no-index
+  as uid 1000 with a 13-token round-trip through the checkpoint's tiktoken.model
+  (note --no-deps: under --no-index the resolver cannot see tiktoken's requests
+  dependency, so stage a requests wheel too). No chat template ships, so a healthy
+  serve would answer only /v1/completions and the chat instruments cannot write a
+  marker (see the lane README's acceptance paragraphs).
   FIT: 737.6 B params = U8 680,685,207,552 elements (MXFP4-packed, 340.3 GB) + BF16
-  56,915,256,320 (113.8 GB) + F32 11,060,608 (0.04 GB) = 454.2 GB = 423.0 GiB, i.e.
-  105.75 GiB per rank over TP=4 against ~121 GiB usable per GB10. That is 82.6 % of
-  a 128 GB device before KV and activations, so the arm ships a 32k context and
-  asks 0.92 utilisation; a boot that OOMs at profile is sizing, not the checkpoint.
+  56,915,256,320 (113.8 GB) + F32 11,060,608 (0.04 GB) = 454.2 GB = 423.0 GiB
+  nominal, but the staged shards measure 442.85 GiB, so the real TP=4 load is
+  110.71 GiB/rank against a 119.21 GiB pool whose 0.92 budget is 109.67 GiB —
+  over by ~1.0 GiB/rank before one KV block. The shipped 32k/0.92 pair is therefore
+  infeasible and the arm needs a recut; an OOM at profile is a sizing answer, not
+  the checkpoint.
   The card's own eval is TP=4 (GSM8K 5-shot 43.67 % on four B300s) and it states the
   regression plainly: "expect a large quality regression relative to the source
   model". Berthed beside the lane's other arms only as the servable Kimi body — the
@@ -79,8 +79,9 @@ defaults:
   # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot path,
   # so `GET /v1/models` would advertise the cache path (-n does not show this).
   served_model_name: vllm-project/Kimi-K3.1-Pro-pruned75
-  # 423.0 GiB of weights per TP=4 = 105.75 GiB/rank = 82.6 % of the 128 GB device;
-  # 0.92 leaves ~12 GiB/rank for activations and KV at these widths. Not a tuned value.
+  # The staged shards are 442.85 GiB, so TP=4 holds 110.71 GiB/rank of weights against
+  # a 119.21 GiB pool: 0.92 is a 109.67 GiB budget, i.e. ~1 GiB short before any KV.
+  # Not a tuned value until the fit is recut (shorter context or ~0.95).
   gpu_memory_utilization: 0.92
   max_model_len: 32768
   max_num_seqs: 4

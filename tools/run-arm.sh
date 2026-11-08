@@ -160,7 +160,6 @@ done
 # leaves `marlin` a stray positional, which sparkrun's parser rejects (`--option/-o` is click's
 # `multiple=True`, one value per occurrence; `cli/_common.py:1499-1504`). Measured 2026-11-08:
 # the marlin `-o extra_args=--moe-runner-backend marlin` row would have split exactly that way.
-# Shape is all this fixes: `-o extra_args=` is a vLLM convention that no-ops where `command:` renders no placeholder, so read the engine `server_args`.
 ARM_OPTS_ARR=()
 if [ -n "${ARM_OPTS:-}" ]; then
   if [[ "$ARM_OPTS" == *$'\x1f'* ]]; then
