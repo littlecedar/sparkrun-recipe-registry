@@ -1146,9 +1146,10 @@ rows and `e_score_correction_bias` pruned with them), everything else the base
   `.incomplete` blobs, 475,525,935,884 B = 442.87 GiB** by an inode-deduped `stat` walk,
   `hf cache verify` rc=0, no writer (2026-11-08 11:05 pool read). **Presence is no longer the
   block; fit is.** The shards measure 442.85 GiB, so TP=4 is **110.71 GiB/rank**, and the shipped
-  `gpu_memory_utilization: 0.92` (111.95 GiB of the 121.69 GiB device) cannot hold the weights
-  plus the measured 3.05 GiB of activation/graph overhead: the arm is short by **1.8 GiB before a
-  single KV block**. The envelope, its inputs and the one bootable point are worked out in
+  `gpu_memory_utilization: 0.92` (111.95 GiB of the engine's 121.69 GiB total) leaves 1.24 GiB of
+  slack before overhead and is **2.23 GiB short** once the measured 3.05 GiB of activation/graph
+  overhead and the 0.42 GiB of KDA state are included. The envelope, its inputs and the one bootable
+  point are worked out in
   [Fit arithmetic inside one GB10](#fit-arithmetic-inside-one-gb10-2026-11-08-tp4-accepts-16k-rejects-32k-and-the-drafter);
   the recipe now ships that point. The 423.0 GiB figure in
   [Size / fit](#kimik31-pro-pruned75-mxfp4-vllm-tp4) is nominal parameter arithmetic and stale for
@@ -1282,10 +1283,14 @@ Every input below is checkable from the tree or the fleet.
 
 - **Weights per rank.** The staged shards measure **442.85 GiB**; over TP=4 that is
   **442.85 / 4 = 110.71 GiB/rank**.
-- **Device and free memory.** vLLM on this fleet reports **121.69 GiB** total per GB10, with
-  **112.33–115.02 GiB free at startup** across five measured boots (`gpu_worker.py`
-  "Free memory on device" lines under `~/benchmarks/`). `--gpu-memory-utilization` multiplies the
-  121.69 GiB total.
+- **Device and free memory — two totals, not one.** The engine's own line
+  `Free memory on device (…/121.69 GiB)` reports the **kernel-visible total, 121.69 GiB** (earlyoom's
+  `mem total: 124608 MiB` is the same number), and `--gpu-memory-utilization` multiplies *that*.
+  The other figure in the register rows, **119.21 GiB**, is the nominal `128 GB` label converted at
+  2³⁰ (`128e9 / 2³⁰ = 119.209`): a conservative stand-in 2.48 GiB **below** the measured total, not
+  a measured pool and not a reserved carve-out. What an engine can actually start in is neither —
+  measured **free at startup is 112.33–115.02 GiB** across five boots (`gpu_worker.py` lines under
+  `~/benchmarks/`).
 - **Non-KV overhead, measured on the same boots.** Peak activation **1.41–2.81 GiB** and CUDAGraph
   **0.07–0.24 GiB**, i.e. **1.48–3.05 GiB/rank**. The arithmetic below uses the pessimistic 3.05;
   the optimistic column is noted only where it changes a verdict.
@@ -1313,9 +1318,21 @@ Envelope: `budget(U) = 121.69 × U` and
 | 0.946 | 115.12 | 0.94 | 32,700 | 115.12 — **above the best reading, 115.02** |
 | 0.95 | 115.61 | 1.42 | 49,600 | 115.61 — no measured node reports it |
 
-Verdict, stated plainly: **32k is infeasible at TP=4.** The authored pair missed by 1.8 GiB before
-one KV block, and even at util 0.946 the 32k KV+state (1.36 GiB) needs 115.12 GiB free, 0.10 GiB
-more than the best measured reading. The recipe now ships the one point that holds the weights and
+**Both readings of supply, and the verdict each gives.** Demand is 110.71 GiB of weights +
+3.05 GiB overhead + 0.42 GiB state = **114.18 GiB**. Against the engine's total
+(`0.92 × 121.69 = 111.95 GiB`) the arm has 1.24 GiB of slack before overhead and is 2.23 GiB short
+after it; against the nominal label (`0.92 × 119.21 = 109.67 GiB`) it is 1.04 GiB short before
+overhead and 4.51 GiB after. The shortfall differs by 2.28 GiB — which is the 2.48 GiB between the
+totals scaled by 0.92, not a separate error — but **the verdict does not flip**: no KV
+block, let alone a context, fits under either reading, and no measured free memory
+(112.33–115.02 GiB) clears the 0.92 pair either way. The shipped point is computed on the engine's
+total because that is the quantity `--gpu-memory-utilization` multiplies:
+`0.945 × 121.69 = 115.00 GiB`.
+
+Verdict, stated plainly: **32k is infeasible at TP=4.** The authored pair missed by 2.23 GiB once
+overhead and state are counted (1.24 GiB of slack before them), and even at util 0.946 the 32k
+KV+state (1.36 GiB) needs 115.12 GiB free, 0.10 GiB more than the best measured reading. The recipe
+now ships the one point that holds the weights and
 a usable context: **`gpu_memory_utilization: 0.945`, `max_model_len: 16384`** (needs 114.65 GiB
 free, met by 3 of 5 readings, and leaves 0.35 GiB spare at the pessimistic overhead). A node that
 reports less refuses at startup: sizing, not a checkpoint verdict.

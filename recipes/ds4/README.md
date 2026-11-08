@@ -1229,9 +1229,12 @@ attempt is an operator decision: it has twice taken the whole user session down 
 
 **The mechanism is still inferred; the fit is measured.** What these boots show is weight load at
 ~111.7 GiB available and a host global OOM. They support "the 576→640 pad plus repack overhead does
-not fit the 119.21 GiB pool at TP=4" without proving it — nothing here measures the repacked buffers
-at ~11 % above the nominal 576. Keep the two apart: treating an inferred mechanism as the measurement
-is what has cost this lane its earlier attempts.
+not fit the unified pool at TP=4" without proving it — nothing here measures the repacked buffers
+at ~11 % above the nominal 576. The pool's two totals, their provenance and the budget rule live in
+one place,
+[`recipes/explore/README.md` §Fit arithmetic](../explore/README.md#fit-arithmetic-inside-one-gb10-2026-11-08-tp4-accepts-16k-rejects-32k-and-the-drafter),
+so this lane does not restate a budget. Keep the two apart: treating an inferred mechanism as the
+measurement is what has cost this lane its earlier attempts.
 
 **Collateral, and why the row stays blocked rather than held.** The same OOM kills the BeeGFS
 services on the ranks and on the head (`beegfs-mgmtd`, `beegfs-meta` and `beegfs-storage` all
