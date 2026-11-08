@@ -549,6 +549,14 @@ check `git diff --cached --stat` immediately before committing. Never revert or 
 session's misattributed commit: the bytes are intact, and rewriting shared history is worse than a wrong
 message.
 
+**A temp-index commit's `GIT_INDEX_FILE` must not outlive the command that needs it.** Use the prefix
+form — `GIT_INDEX_FILE=/tmp/idx git commit-tree …` — or `unset GIT_INDEX_FILE` before any suite run and
+before switching to another repository. The export stays in the session shell, so later `git` reads in an
+unrelated clone and suite fixtures that call `git init`/`git add` silently use the wrong index. The
+symptom is a count that disagrees with `git ls-files`, a phantom fixture path inside a census, or
+git-based guard failures that vanish in a clean clone — measured 2026-11-08, three sessions in one
+afternoon, twice as five failures and three errors against a tip that was green.
+
 **`fatal: unable to read <blob>` is a stale index entry, not a dead repository.** A synced `.git/index` can
 reference an object that never arrived, and then every `git status` dies. Rebuild the index from HEAD with
 `git read-tree HEAD`: it rewrites the index only, so the worktree and every uncommitted edit survive. Do not
