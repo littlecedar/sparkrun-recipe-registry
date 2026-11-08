@@ -4232,7 +4232,7 @@ cache behind the transients, LIKELY image unpack, not pool traffic). The push wa
 `373b60d`, so the withdrawal commit and the peer's `d884a74` census board are both ancestors and
 nothing was dropped.
 
-## 2026-11-08 00:30 ET — board tick that read independently and published nothing
+## 2026-11-08 00:31 ET — board tick read independently, published nothing, then withdrew a false escalation
 
 Four peer ticks published inside this hour (00:04, 00:13, 00:19, 00:26), so this tick's contribution is an
 independent census and a verification, not another whole-file write. Its own reads — 00:15:29 (the flash
@@ -4251,6 +4251,13 @@ read, which is why nothing was republished over it.
   paraphrase of that subject; this tick's own `9f7370a` is now unreferenced. No bytes were lost and no
   history was rewritten — the class is the one `status-board-refresh` documents, and the fix is that the
   read and the commit must be inside one bounded window, not twenty seconds of prose apart.
+- **A false escalation was standing in the live doc, and this tick withdrew it.** The window row still
+  read "all six read 0 containers at 00:17:41 with the lock held → escalation: idle window, orphaned
+  lease" three rows under a census that read `1 / 1 / 1 / 1 / 0 / 0` — the 00:31:27 board (`060f243`)
+  retakes the census, `.34`/`.35` and window rows against a fresh read (753B attempt-3 quartet up, ten
+  minutes loading, `/v1/models` 000, free space within 74 kB of the previous read) and states the 00:17
+  zeros as the gap between the director's death and its 00:20:20 restart. Also noted there: the 00:23:31
+  all-zero container read stays unreproduced across five reads between 00:23:14 and 00:31:27.
 - **Register divergence, reported not fixed:** `h2h-second-boot-glm-flash` still holds `running` plus its
   `05:06:56Z` claim for a boot that died at 00:17:41, while `h2h-second-boot-glm-753b` carries the live
   claim (`05:21:41Z`). `mad-science/queue.json` has a peer's uncommitted edit, so the correction belongs
