@@ -1570,15 +1570,20 @@ uv run python -B tools/task-queue.py orphans # open items ADDED since the archiv
  # archive's pre-cutover items are never orphans and a removal cannot net one out
 uv run python -B tools/task-queue.py questions # open owner questions from the register
 uv run python -B tools/task-queue.py lint       # markdown that will not render (default: the board)
- # also takes FILEs: lint tools/README.md recipes/ornith/README.md
- # a table header with no `|---|---|` row is the defect it exists for: GFM then reads the whole
- # block as one paragraph of pipes (the published board's landed table, 2026-11-03)
+    # also takes FILEs: lint tools/README.md recipes/ornith/README.md
+    # a table header with no `|---|---|` row is the defect it exists for: GFM then reads the whole
+    # block as one paragraph of pipes (the published board's landed table, 2026-11-03)
+    # it also refuses a raw cluster address (RFC 1918 `10.x`, `192.168.x`, `172.16`-`172.31`) or
+    # a head/fleet hostname (the `spark-` head and `spark-0N` forms) in the text: the board ships
+    # to third parties and `tests/test_tracked_address_hygiene.py` reds the pushed tip for one.
+    # Write the `.30`-`.35` shorthand instead. Two such leaks reached main on 2026-11-08; publish
+    # refuses them too, and the mirrored patterns are pinned by `tests/test_task_queue_tool.py`.
 uv run python -B tools/task-queue.py publish < new-board  # write the board, refusing a stale one
     # compares the incoming board's `| census |` stamp (title as fallback) against the copy on
     # disk, under `.local/status-board.lock`, and exits 1 without touching it when the disk copy
     # is newer: `flock` serializes writers but cannot stop a slow one that read the census early
     # and wrote late (2026-11-06, a 13:56 ET census landing over a 15:15 ET board). `lint` runs
-    # first, so a board that will not render is never published.
+    # first, so a board that will not render — or carries a raw address — is never published.
 uv run python -B tools/task-queue.py add --id X --title "…" --estimate-h 2 \
     --blocks A,B --model dsv4.1-1017 --node-cost quartet --provenance "TODO.md §ds4"
     # --blocked-by A,B is the reverse edge, for adding a dependent before its blocker exists

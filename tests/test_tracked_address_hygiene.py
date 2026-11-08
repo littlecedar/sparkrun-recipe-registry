@@ -23,7 +23,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Per-branch octet counts on purpose: see the module docstring.
 ADDRESS = re.compile(r"\b(10\.\d+|192\.168|172\.(1[6-9]|2\d|3[01]))\.\d+\.\d+\b")
-HOST = re.compile(r"\bspark-head\b")
+# Head and fleet hostnames (spark-head, spark-01..spark-05): the tools/ copy in
+# task-queue.py is mirrored from here, and tests/test_task_queue_tool.py pins one
+# sample set tripping both.
+HOST = re.compile(r"\bspark-(?:head|0[0-9])\b")
 
 # Path-keyed, never content-keyed: the same bytes are legitimate or not depending on the file.
 EXEMPT = {

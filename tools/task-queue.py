@@ -641,7 +641,22 @@ def address_problems(text: str) -> list[tuple[int, str]]:
 
 
 _ADDRESS_LITERAL = re.compile(r"\b(10\.\d+|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d+\.\d+\b")
-_HEAD_HOST = re.compile(r"\bspark-head\b")
+_HEAD_HOST = re.compile(r"\bspark-(?:head|0[0-9])\b")
+
+
+def lint_addresses(text: str) -> list[tuple[int, str, str]]:
+    """`(line, rule, detail)` for a raw cluster address or head/fleet hostname in prose.
+
+    The board ships to third parties, so the leak is a review and a CI problem, not a
+    rendering one: `tests/test_tracked_address_hygiene.py` reds the pushed tip for it.
+    The patterns are mirrored from that file (this tool is stdlib-only and may not import
+    the test suite); `tests/test_task_queue_tool.py` pins one sample set tripping both.
+    `.30`-`.35` is the allowed shorthand in this tree: a prose host reference is rewritten
+    to it, never exempted.
+    """
+    return [(line, "cluster-address", f"{hit!r} is a raw cluster address or hostname; write the "
+             "`.NN` shorthand instead")
+            for line, hit in address_problems(text)]
 
 
 def _emit(lines: list[str], what: str) -> None:
@@ -714,6 +729,12 @@ def cmd_lint(args, path: Path) -> None:
                   f"{clock:%Y-%m-%d %H:%M} — a stamp ahead of the clock wedges every tick's "
                   "title-regression check until wall time passes it; stamp the real time")
             total += 1
+        # A raw address or hostname in the board reds the pushed tip (test_tracked_address_hygiene),
+        # so lint refuses it the same way publish does — this is the check that runs before commit.
+        addresses = lint_addresses(text)
+        for line, rule, detail in addresses:
+            print(f"{target}:{line}: {rule}: {detail}")
+        total += len(addresses)
     if total:
         raise QueueError(f"{total} markdown problem(s) in {len(paths)} file(s)")
     print(f"ok: {len(paths)} markdown file(s) render")

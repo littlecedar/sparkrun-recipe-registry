@@ -537,6 +537,78 @@ class MarkdownLint(unittest.TestCase):
                 self.assertEqual(tq.lint_markdown(path.read_text(encoding="utf-8")), [])
 
 
+class AddressLint(unittest.TestCase):
+    """`lint` refuses a raw cluster address or hostname, as `publish` already does.
+
+    Measured twice on 2026-11-08: a board quoted a host verbatim and the tip redded every
+    session after it. `lint` is the tick's own last step before the commit, so the refusal
+    belongs there too. The literals are assembled in code, not written out: this test file
+    is itself tracked, and a literal here would trip the guard it proves.
+    """
+
+    @staticmethod
+    def samples() -> tuple[str, ...]:
+        return (
+            ".".join(("10", "0", "4", "30")),
+            ".".join(("192", "168", "1", "7")),
+            ".".join(("172", "20", "0", "9")),
+            "spark-" + "head",
+            "spark-" + "01",
+        )
+
+    def lint(self, text: str) -> tuple[int, str]:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "STATUS.md"
+            path.write_text(text, encoding="utf-8")
+            args = type("Args", (), {"paths": [str(path)]})()
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                try:
+                    tq.cmd_lint(args, path)
+                except tq.QueueError:
+                    return 1, out.getvalue() + err.getvalue()
+            return 0, out.getvalue() + err.getvalue()
+
+    def test_a_raw_address_is_refused(self):
+        code, out = self.lint(f"held {self.samples()[0]} while waiting\n")
+        self.assertEqual(code, 1, out)
+        self.assertIn("cluster-address", out)
+        self.assertIn("`.NN`", out, "the refusal does not say what to write instead")
+
+    def test_the_rank_shorthand_passes(self):
+        code, out = self.lint("held the rank host (`.30`) while waiting\n")
+        self.assertEqual((code, out), (0, "ok: 1 markdown file(s) render\n"))
+
+    def test_a_head_or_fleet_hostname_is_refused(self):
+        for host in ("spark-" + "head", "spark-" + "01", "spark-" + "05"):
+            with self.subTest(host=host):
+                code, out = self.lint(f"launched on {host}\n")
+                self.assertEqual(code, 1, out)
+                self.assertIn("cluster-address", out)
+
+    def test_negative_control_markdown_lint_alone_misses_it(self):
+        # The pre-fix behaviour: the board renders, so only the address rule can refuse it.
+        self.assertEqual(tq.lint_markdown(f"held {self.samples()[0]} while waiting\n"), [])
+
+    def test_the_two_pattern_sources_agree(self):
+        """tools/ may not import tests/, so one sample set must trip both mirrored copies."""
+        spec = importlib.util.spec_from_file_location(
+            "test_tracked_address_hygiene",
+            REPO_ROOT / "tests" / "test_tracked_address_hygiene.py")
+        assert spec is not None and spec.loader is not None
+        hygiene = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(hygiene)
+        for sample in self.samples():
+            with self.subTest(sample=sample):
+                self.assertTrue(tq.address_problems(sample), "the tool copy misses it")
+                self.assertTrue(hygiene.ADDRESS.search(sample) or hygiene.HOST.search(sample),
+                                "the hygiene copy misses it")
+        for allowed in ("rank .31 and .32", "spark-of-the-line"):
+            with self.subTest(allowed=allowed):
+                self.assertEqual(tq.address_problems(allowed), [])
+                self.assertFalse(hygiene.ADDRESS.search(allowed) or hygiene.HOST.search(allowed))
+
+
 def board_text(census, title=None):
     """Minimal board carrying one census stamp — the only part `publish` reads."""
     title = title or census[:16]
@@ -617,6 +689,9 @@ class BoardPublish(unittest.TestCase):
         leaking = board_text(self.NEW).replace(
             "this tick", "held " + ".".join(("10", "0", "4", "30")) + " while waiting")
         self.assertEqual(self.publish(leaking), 1)
+        self.assertEqual(self.board.read_bytes(), before)
+        hostname = board_text(self.NEW).replace("this tick", "launched on " + "spark-" + "01")
+        self.assertEqual(self.publish(hostname), 1)
         self.assertEqual(self.board.read_bytes(), before)
         masked = board_text(self.NEW).replace("this tick", "held the rank host (`.30`)")
         self.assertEqual(self.publish(masked), 0)
