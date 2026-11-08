@@ -43,7 +43,8 @@ def flag(argv: list[str], name: str) -> str:
 
 
 def row(task_id: str, recipe_path: str = "", tp: int = 0, *, state_: str = "queued",
-        node_cost: str = "", claimed_by: str = "", env: dict | None = None) -> dict:
+        node_cost: str = "", claimed_by: str = "", env: dict | None = None,
+        blocked_by: list | None = None) -> dict:
     """A register row as `queue --json` prints it: every schema field, plus the optional two."""
     entry = {
         "id": task_id, "title": task_id, "estimate_h": 1.0, "blocks": [], "blocked_by": [],
@@ -56,6 +57,8 @@ def row(task_id: str, recipe_path: str = "", tp: int = 0, *, state_: str = "queu
         entry["tp"] = tp
     if env:
         entry["env"] = env
+    if blocked_by is not None:
+        entry["blocked_by"] = list(blocked_by)
     return entry
 
 
@@ -112,6 +115,7 @@ class QueueCase(unittest.TestCase):
         self.repo.mkdir()
         recipe(self.repo, "lane", "one")
         recipe(self.repo, "lane", "two")
+        recipe(self.repo, "lane", "good")
         recipe(self.repo, "lane", "negative",
                marker="2026-11-01 \u2014 died at engine load (docs/lane.md:2)")
         lane_doc(self.repo)
@@ -169,18 +173,26 @@ class PlanFromTheRegister(QueueCase):
             row("claimed-task", "recipes/lane/two.yaml", 1, state_="running", node_cost="single",
                 claimed_by="another-session"),
             row("authoring-task"),
-            row("quartet-task", "recipes/lane/one.yaml", 4, node_cost="quartet"),
-            row("good-task", "recipes/lane/one.yaml", 1, node_cost="single"),
+            row("quartet-task", "recipes/lane/negative.yaml", 4, node_cost="quartet"),
+            row("good-task", "recipes/lane/good.yaml", 1, node_cost="single"),
         ]
         leader, campaign = self.build()
         leader.prepare()
         text = self.out.getvalue()
-        self.assertEqual(campaign.order, ["one"])
+        self.assertEqual(campaign.order, ["good"])
         self.assertIn("queue-skip: blocked-task (register state blocked)", text)
         self.assertIn("queue-skip: claimed-task (claimed running by another-session)", text)
         self.assertIn("queue: 1 row(s) queued without a recipe (authoring, not bootable)", text)
         self.assertIn("queue-skip: quartet-task (tp=4 needs 4 hosts, 2 declared)", text)
         self.assertNotIn("queue-skip: good-task", text)
+
+    def test_a_queued_row_with_a_live_blocking_edge_is_excluded(self) -> None:
+        self.shell.rows = [row("held-task", "recipes/lane/one.yaml", 1, node_cost="single",
+                               blocked_by=["a-dependency"])]
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.order, [])
+        self.assertIn("queue-skip: held-task (blocked by a-dependency)", self.out.getvalue())
 
     def test_two_rows_naming_one_recipe_are_refused(self) -> None:
         self.shell.rows = [row("a", "recipes/lane/one.yaml", 1, node_cost="single"),
@@ -557,6 +569,142 @@ class Reconciliation(QueueCase):
         leader.prepare()
         self.assertEqual(campaign.arm("one")["status"], "blocked")
         self.assertIn("no longer a runnable row", campaign.arm("one")["last"]["reason"])
+        self.assertIsNone(leader.handle(protocol.poll("w1")).get("lease"))
+
+
+class Holds(QueueCase):
+    """A register hold is read at assignment time, not remembered from the plan's last read."""
+
+    def single(self, **overrides) -> None:
+        entry = row("task-one", "recipes/lane/one.yaml", 1, node_cost="single")
+        if "state_" in overrides:
+            entry["state"] = overrides.pop("state_")
+        entry.update(overrides)
+        self.shell.rows = [entry]
+
+    def test_a_row_flipped_to_blocked_after_prepare_is_not_assigned(self) -> None:
+        self.single()
+        leader, campaign = self.build()
+        leader.prepare()
+        # A peer writes the hold while the campaign is busy; no re-read of the plan has happened.
+        self.single(state_="blocked",
+                    notes="DECISION 2026-11-08 04:22 ET: BLOCKED, do not re-boot")
+        self.assertIsNone(leader.handle(protocol.poll("w1")).get("lease"))
+        record = campaign.arm("one")
+        self.assertEqual(record["status"], "blocked")
+        self.assertIn("register state 'blocked'", record["last"]["reason"])
+        self.assertIn("state.json had pending", record["last"]["reason"])
+        self.assertIn("the register wins", self.out.getvalue())
+        self.assertEqual(self.shell.states("task-one"), [],
+                         "a held row must not be overwritten by a claim")
+
+    def test_a_queued_row_with_a_blocking_edge_is_never_assigned(self) -> None:
+        self.single()
+        leader, campaign = self.build()
+        leader.prepare()
+        self.single(blocked_by=["dep-task"])
+        self.assertIsNone(leader.handle(protocol.poll("w1")).get("lease"))
+        self.assertIn("blocked by dep-task", campaign.arm("one")["last"]["reason"])
+        self.assertEqual(self.shell.states("task-one"), [])
+
+    def test_a_missing_blocked_by_mirror_is_not_an_edit_that_opens_the_hold(self) -> None:
+        self.single()
+        leader, campaign = self.build()
+        leader.prepare()
+        entry = dict(self.shell.rows[0])
+        del entry["blocked_by"]
+        self.shell.rows = [entry]
+        self.assertIsNone(leader.handle(protocol.poll("w1")).get("lease"))
+        self.assertIn("no blocked_by list", campaign.arm("one")["last"]["reason"])
+
+    def test_a_hold_at_prepare_is_named_and_never_planned(self) -> None:
+        self.single(state_="blocked")
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.order, [])
+        self.assertIn("queue-skip: task-one (register state blocked)", self.out.getvalue())
+
+    def test_a_hold_that_lands_between_the_claim_and_the_lease_wins(self) -> None:
+        self.single()
+        leader, campaign = self.build()
+        leader.prepare()
+        original = leader.register._run
+
+        def flip(command, **kwargs):
+            result = original(command, **kwargs)
+            if "update" in command and flag(command, "--state") == "running":
+                self.single(state_="blocked")   # the peer's hold lands after our claim
+            return result
+
+        leader.register._run = flip
+        self.assertIsNone(leader.handle(protocol.poll("w1")).get("lease"),
+                          "the lease is issued after the re-read, so no boot can have happened")
+        self.assertEqual(campaign.arm("one")["status"], "blocked")
+        self.assertIn("state.json had pending", campaign.arm("one")["last"]["reason"])
+
+    def test_the_control_state_alone_assigns_the_held_row(self) -> None:
+        held = {"tp": 1, "status": "pending", "failures": 0, "needs_reap": []}
+        self.assertEqual(plan.next_assignment(["one"], {"one": held}, ["node-a"]),
+                         ("one", ("node-a",)),
+                         "the cached state cannot see the register; _admit is the guard")
+
+    def test_a_recipe_named_by_a_stricter_row_is_held_at_plan(self) -> None:
+        queued = row("queued-row", "recipes/lane/one.yaml", 1, node_cost="single")
+        blocked = row("blocked-row", "recipes/lane/one.yaml", 1, state_="blocked",
+                      node_cost="single")
+        self.shell.rows = [queued, blocked]
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.order, [])
+        self.assertIn("queue-skip: queued-row (recipe also named by sibling blocked-row "
+                      "is 'blocked')", self.out.getvalue())
+        campaign.close()
+
+        done = dict(blocked, id="done-row", state="done")
+        self.shell.rows = [queued, done]
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.order, [])
+        self.assertIn("sibling done-row is 'done'", self.out.getvalue())
+
+    def test_a_blocked_sibling_holds_the_queued_row_at_assignment(self) -> None:
+        self.single()
+        leader, campaign = self.build()
+        leader.prepare()
+        self.shell.rows.append(row("hold-row", "recipes/lane/one.yaml", 1, state_="blocked",
+                                   node_cost="single"))
+        self.assertIsNone(leader.handle(protocol.poll("w1")).get("lease"))
+        self.assertIn("sibling hold-row is 'blocked'", campaign.arm("one")["last"]["reason"])
+
+    def test_close_out_does_not_requeue_a_row_a_hold_reached_first(self) -> None:
+        self.single()
+        leader, campaign = self.build()
+        leader.prepare()
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        receipt(self.receipts, lease["arm"], cells=0)
+        self.single(state_="blocked")       # the human's hold lands while the arm runs
+        self.assertEqual(leader.handle(protocol.report(lease["id"], 0, "log run.log"))["status"],
+                         "failed")
+        last = self.shell.last_update("task-one")
+        self.assertNotIn("--state", last, "a failed close-out must not requeue over a hold")
+        self.assertIn("campaign:", flag(last, "--notes"))
+        self.assertIn("keeps its blocked hold", self.out.getvalue())
+
+    def test_raising_retries_does_not_arm_a_held_failed_row(self) -> None:
+        self.single()
+        leader, campaign = self.build()
+        leader.prepare()
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        receipt(self.receipts, lease["arm"], cells=0)
+        leader.handle(protocol.report(lease["id"], 0, "log run.log"))
+        self.assertEqual(campaign.arm("one")["status"], "failed")
+        campaign.close()
+
+        self.single(state_="blocked")
+        leader, campaign = self.build(retries=3)
+        leader.prepare()
+        self.assertEqual(campaign.arm("one")["status"], "blocked")
+        self.assertIn("register state blocked", campaign.arm("one")["last"]["reason"])
         self.assertIsNone(leader.handle(protocol.poll("w1")).get("lease"))
 
 

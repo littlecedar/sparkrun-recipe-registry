@@ -87,11 +87,50 @@ class Register:
             argv += [f"--{key.replace('_', '-')}", str(value)]
         self._call(*argv)
 
+    def state(self, task_id: str) -> str:
+        """The row's state as the file says now, or "" when the row is gone."""
+        return next((str(row.get("state", "")) for row in self.rows()
+                     if row.get("id") == task_id), "")
+
     def note(self, task_id: str, why: str) -> str:
         """The row's notes with `why` appended, because `--notes` replaces the whole cell."""
         current = next((str(row.get("notes", "")) for row in self.rows()
                         if row.get("id") == task_id), "")
         return f"{current} — {why}" if current else why
+
+
+def row_arm(row: dict[str, Any]) -> str:
+    """The arm a register row names: its recipe's basename, or "" for an authoring row."""
+    recipe = row.get("recipe")
+    return Path(str(recipe)).stem if recipe else ""
+
+
+def row_runnable(row: dict[str, Any], session: str) -> bool:
+    """A row a campaign may claim now: explicit `queued` (or our own claim), no hold."""
+    state = row.get("state")
+    ours = state == "running" and row.get("claimed_by") == session
+    return (state == "queued" or ours) and row.get("blocked_by") == []
+
+
+def sibling_hold(others: list[dict[str, Any]], session: str) -> str:
+    """The strictest row sharing a recipe that holds it, as a log phrase, or "".
+
+    One recipe named by several rows is one arm, so a `blocked` or `done` sibling holds it even
+    when its own row reads `queued`; the 2026-11-08 survey pair (`done` + `blocked`) showed a
+    queued sibling protecting nothing. `blocked` outranks `done` outranks another session's
+    `running`; two runnable rows are not a hold but an ambiguity `queue_entries` refuses.
+    """
+    order = {"blocked": 0, "done": 1, "running": 2}
+    held = [row for row in others if not row_runnable(row, session)]
+    if not held:
+        return ""
+    worst = min(held, key=lambda row: order.get(str(row.get("state")), 3))
+    state = worst.get("state")
+    if state == "queued":
+        held_by = ", ".join(str(ref) for ref in worst.get("blocked_by") or [])
+        return (f"sibling {worst.get('id', '?')} is held by "
+                f"{held_by or 'a missing blocked_by list'}")
+    return f"sibling {worst.get('id', '?')} is {state!r}"
 
 
 def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
@@ -101,9 +140,14 @@ def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
 
     Only `queued` rows that name a `recipe` and `tp` are work: `blocked`/`done` are somebody else's
     answer, `running` is another session's claim, and a row whose `tp` exceeds the declared host
-    count is skipped by name rather than truncated onto fewer nodes. An authoring row is counted,
-    not listed: the register is mostly prose work and a line per row would bury the exclusions that
-    matter.
+    count is skipped by name rather than truncated onto fewer nodes. A row whose `blocked_by` is
+    not an explicit empty list is held too, whatever its `state`: the mirror is the register's
+    structural hold, and a missing field is not an edit that opens one. A recipe named by several
+    rows is one arm, so a `blocked` or `done` sibling holds it even while the row being read says
+    `queued` (the skip names the sibling and its state); two runnable rows for one recipe stay a
+    plan error, because the register has not said which row the numbers would close. An authoring
+    row is counted, not listed: the register is mostly prose work and a line per row would bury
+    the exclusions that matter.
 
     A `running` row under this campaign's own session id is still offered when `held` (the arms the
     campaign already has) contains it: that is the in-flight arm a restart must finish, and the
@@ -116,6 +160,10 @@ def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
     excluded: dict[str, str] = {}
     owner: dict[str, str] = {}
     authoring = 0
+    by_recipe: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        if row.get("recipe"):
+            by_recipe.setdefault(row_arm(row), []).append(row)
     for row in rows:
         task = str(row.get("id", "?"))
         state = row.get("state")
@@ -125,6 +173,15 @@ def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
                 authoring += 1      # queued prose/work rows: counted, because that is the queue
             continue
         arm = Path(str(recipe)).stem
+        blocked_by = row.get("blocked_by")
+        if blocked_by != []:
+            # An explicit empty mirror is the register's "nothing holds this"; a live edge is a
+            # hold whatever `state` says, and a missing field is not an edit that opens one.
+            reason = ("register row has no blocked_by list" if not isinstance(blocked_by, list)
+                      else f"blocked by {', '.join(str(ref) for ref in blocked_by)}")
+            lines.append(f"queue-skip: {task} ({reason})")
+            excluded[arm] = reason
+            continue
         ours = state == "running" and row.get("claimed_by") == session
         if state != "queued" and not (ours and arm in held):
             reason = (f"claimed running by {session} with no campaign state (stale claim)"
@@ -136,6 +193,13 @@ def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
             continue
         if tp > len(hosts):
             reason = f"tp={tp} needs {tp} hosts, {len(hosts)} declared"
+            lines.append(f"queue-skip: {task} ({reason})")
+            excluded[arm] = reason
+            continue
+        hold = sibling_hold([other for other in by_recipe.get(arm, []) if other is not row],
+                            session)
+        if hold:
+            reason = f"recipe also named by {hold}"
             lines.append(f"queue-skip: {task} ({reason})")
             excluded[arm] = reason
             continue

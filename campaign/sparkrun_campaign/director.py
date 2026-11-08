@@ -265,7 +265,9 @@ class Director:
                 self.campaign.cleared(arm, evidence="register row queued again")
                 print(f"queue-unblocked: {arm} (register row queued again)", file=self.out)
                 continue
-            if record["status"] == PENDING:
+            if record["status"] in (PENDING, FAILED):
+                # A retry is a claim like any other: raising --retries must not reach past a
+                # register hold, so a failed arm whose row is not runnable is stopped here too.
                 reason = excluded.get(arm) or "no longer a runnable row in the register"
                 self.campaign.block(arm, f"register: {reason}")
                 print(f"queue-blocked: {arm} ({reason})", file=self.out)
@@ -327,6 +329,57 @@ class Director:
 
     # --- register claims ---------------------------------------------------------------------
 
+    def _admit(self, arm: str) -> tuple[str | None, bool]:
+        """The register row's verdict on an arm about to be claimed: (refusal, our claim is live).
+
+        Assignment re-reads the row instead of trusting the plan it was built from: a peer can
+        flip `blocked` or add a `blocked_by` edge while this process is busy, and the 2026-11-08
+        leak was exactly one such flip landing after `prepare` had cached a `pending` arm. The
+        `state` must be an explicit `queued` (or this campaign's own running claim) and
+        `blocked_by` an explicit empty list; a missing mirror is not an edit that opens a hold.
+        """
+        task = str(self.campaign.arm(arm).get("task") or "")
+        if not task:
+            return "arm has no register row", False
+        try:
+            rows = self.register.rows()
+        except plan.RegisterError as exc:
+            return f"cannot read the register ({exc})", False
+        row = next((item for item in rows if str(item.get("id")) == task), None)
+        if row is None:
+            return "register row no longer exists", False
+        state = row.get("state")
+        ours = state == "running" and row.get("claimed_by") == self.register.session
+        if state != "queued" and not ours:
+            claimed = f" claimed by {row.get('claimed_by')}" if state == "running" else ""
+            return f"register state {state!r}{claimed}", False
+        blocked_by = row.get("blocked_by")
+        if blocked_by != []:
+            reason = ("register row has no blocked_by list" if not isinstance(blocked_by, list)
+                      else f"blocked by {', '.join(str(ref) for ref in blocked_by)}")
+            return reason, ours
+        siblings = [item for item in rows if item is not row and plan.row_arm(item) == arm]
+        hold = plan.sibling_hold(siblings, self.register.session)
+        if hold:
+            return hold, ours
+        return None, ours
+
+    def _refuse(self, arm: str, refusal: str, cached: str, *, release: bool) -> None:
+        """A hold the cached plan missed: stop the arm and say which record said what.
+
+        `release` is only for a claim this director wrote that a peer's hold has just overridden
+        (it returns the row to `blocked` with the reason); a row another session now owns is left
+        alone.
+        """
+        reason = f"register: {refusal}"
+        if release:
+            self._settle(arm, BLOCKED, reason, "")
+        self.campaign.block(arm, f"{reason} (state.json had {cached})")
+        self._write_receipt(arm, status=BLOCKED, rc=None, note=reason, mdir="", hosts=[],
+                            lease_id="", started=None, leftovers=[])
+        print(f"queue-blocked: {arm} ({refusal}; state.json had {cached}; "
+              f"the register wins)", file=self.out)
+
     def _claim(self, arm: str) -> None:
         """Claim the arm in the register before the boot: a message is not a claim, the row is."""
         if self.register is None:
@@ -347,12 +400,20 @@ class Director:
             if status == MEASURED:
                 self.register.update(task, state="done",
                                      evidence=mdir or str(self.root / "receipts" / f"{arm}.json"))
+                return
+            note = self.register.note(task, f"campaign: {why}")
+            # A human's `blocked`/`done` written while the arm ran outranks the campaign's wish to
+            # retry: requeueing over it is what resurrected the SM121 rows three times on
+            # 2026-11-08. The failed attempt is still recorded in the row's notes.
+            current = self.register.state(task)
+            if current in ("blocked", "done"):
+                self.register.update(task, notes=note)
+                print(f"register: {arm} keeps its {current} hold; the {status} is recorded",
+                      file=self.out)
             elif status == FAILED:
-                self.register.update(task, state="queued",
-                                     notes=self.register.note(task, f"campaign: {why}"))
+                self.register.update(task, state="queued", notes=note)
             else:
-                self.register.update(task, state="blocked",
-                                     notes=self.register.note(task, f"campaign: {why}"))
+                self.register.update(task, state="blocked", notes=note)
         except plan.RegisterError as exc:
             print(f"register: {arm} not updated ({exc}); its row may still read running",
                   file=self.out)
@@ -409,11 +470,20 @@ class Director:
                 return None
             arm, hosts = choice
             measured, _, arm_dir = evidence.find_measurement(self.receipts_root, arm)
-            if not measured:
+            if measured:
+                # The arm answered while its worker was gone; booting it again spends a window for
+                # numbers that are already on disk.
+                self._found_measured(arm, arm_dir, hosts=[], lease_id="", started=None)
+                continue
+            if self.register is None:
                 break
-            # The arm answered while its worker was gone; booting it again spends a window for
-            # numbers that are already on disk.
-            self._found_measured(arm, arm_dir, hosts=[], lease_id="", started=None)
+            cached = self.campaign.arm(arm)["status"]
+            refusal, _ = self._admit(arm)
+            if refusal is None:
+                break
+            # The register is newer than the plan cached at prepare (a peer's hold can land while
+            # this process is busy), and "never assign a held row" outranks a pending record.
+            self._refuse(arm, refusal, cached, release=False)
         try:
             # Before the lease exists, so no worker can launch an arm this campaign has not claimed.
             self._claim(arm)
@@ -424,6 +494,14 @@ class Director:
                                 lease_id="", started=None, leftovers=[])
             print(f"{arm}: BLOCKED, {reason}", file=self.out)
             return None
+        if self.register is not None:
+            cached = self.campaign.arm(arm)["status"]
+            refusal, ours = self._admit(arm)
+            if refusal is not None:
+                # A hold that landed between the read above and this claim wins: the arm has not
+                # been leased, so no boot has happened. Release only a claim this director wrote.
+                self._refuse(arm, refusal, cached, release=ours)
+                return None
         lease = self.campaign.assign(arm, worker or "unknown", list(hosts), now)
         print(f"assign: {arm} -> {lease['worker']} on {','.join(hosts)} (lease {lease['id']})",
               file=self.out)

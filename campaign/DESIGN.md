@@ -74,9 +74,10 @@ Exclusions are named, never truncated:
 | `running`, this campaign's session id, arm already in this campaign | **offered** like a queued row: it is the in-flight arm a restart must finish, and the campaign's own lease/reap record is what makes re-assignment safe |
 | `running`, this campaign's session id, no campaign state holds the arm | refused by name (`stale claim`): a row that claims this session id with no lease record behind it is a root that was lost, and adopting it would boot an arm nobody has verified stopped |
 | `done` | skipped; if this campaign holds no measurement for that arm it is blocked, not booted |
+| `blocked_by` not an explicit empty list | skipped by name (`queue-skip: <row> (blocked by <ids>)`): a live dependency edge holds the row whatever its `state`, and a missing mirror is not an edit that opens it |
 | no `recipe`/`tp` | counted in one line (`authoring, not bootable`): most rows are prose work |
 | `tp` > declared hosts | skipped by name (`tp=4 needs 4 hosts, 2 declared`); a quartet is never cut onto fewer nodes |
-| two rows naming one recipe | a plan error: the register has not said which row the numbers would close |
+| two rows naming one recipe | one arm: any non-runnable sibling (`blocked`, `done`, a live edge, another session's claim) holds it by name (`queue-skip: <row> (recipe also named by sibling <id> is 'blocked')`), so a blocked or done row protects the recipe; two runnable rows remain a plan error, because the register has not said which row the numbers would close |
 
 **Ordering is the register's.** The plan is `tools/task-queue.py queue --json` in the order it
 prints — tier, then weight ascending, then id, which is exactly what the weight is for: a row that
@@ -88,13 +89,23 @@ chooses nodes; what it discovers is *work*.
 **The claim is the lock.** Before a lease exists, the director writes the claim through the same
 tool: `task-queue.py update --id <row> --state running --claimed-by sparkrun-campaign:<campaign>`.
 A worker can only launch from a lease, so no arm boots unclaimed, and the session id is derived from
-the campaign name so the next life recognises its own claim. At the end of the arm:
+the campaign name so the next life recognises its own claim. The claim re-reads the row it is about
+to overwrite, because the plan was cached: the row must carry an explicit `state: queued` (or this
+campaign's own `running` claim) and an explicit empty `blocked_by` list. A row a peer flipped to
+`blocked`, or one given a blocking edge, refuses the lease; `blocked_by` is a structural hold that
+`state` cannot open, and a missing mirror is not an edit that opens one. The refusal blocks the arm,
+records it, and prints the disagreement with the cached record
+(`queue-blocked: <arm> (<hold>; state.json had pending; the register wins)`). The row is read once
+more between the claim and the lease, so a hold landing in that window wins too — a lease is the
+only thing a worker launches from, so no boot has happened yet. The register is last-write-wins, so
+a hold written after a lease exists cannot un-launch that boot; stopping a running arm is the
+lease/reap path, not the register. At the end of the arm:
 
 | Outcome | Register row |
 |---|---|
 | measured (from receipt fields, never the rc) | `--state done --evidence <measurement dir>` |
-| failed | `--state queued`, `--notes` appended with `campaign: <reason>` — the row keeps its own justification text and no evidence pointer is invented; the transition clears `claimed_by`/`claimed_at`, so the row cannot be mistaken for a live claim |
-| blocked (leftover survivor, unverifiable host) | `--state blocked` plus the same note, because a human must look; the claim is cleared the same way |
+| failed | `--state queued` when the row carries no hold, `--notes` appended with `campaign: <reason>` — the row keeps its own justification text and no evidence pointer is invented; the transition clears `claimed_by`/`claimed_at`, so the row cannot be mistaken for a live claim. A `blocked` or `done` state that landed while the arm ran keeps its state and only gains the note: a human's hold outranks the campaign's wish to retry, and requeueing over it is what resurrected the SM121 rows three times on 2026-11-08 |
+| blocked (leftover survivor, unverifiable host) | `--state blocked` plus the same note, because a human must look — unless a `done` state already answers the row, which is preserved; the claim is cleared the same way |
 | recorded negative | `--state done --evidence "<doc>:<line> (measured-rejected)"` — a recorded negative is an answer, and the citation is its evidence |
 | claim refused by the tool | the arm is blocked in the campaign and no lease is issued; the row is left alone |
 
@@ -223,6 +234,7 @@ Three writers can disagree about one arm, so one precedence rule decides, newest
 | The state record | every field of an arm that is leased, measured or skipped | The record is what is running or what ran; rewriting it would make the state disagree with the receipt it produced. A new attempt is a new decision, so the row's `env` applies to it. |
 | The register no longer carrying a state arm | block, never boot | A dropped row means another session or a human closed that work; the campaign's own state cannot see why. |
 | A blocked arm | retried on a restart only (`prepare`), and only with `needs_reap == []` | A running director does not retry a blocked arm; a row flipped back to `queued` says the external gate opened, not that the hosts are clean. |
+| The register row at assignment time | the lease itself | The plan is cached between reads, so the row is re-read before the claim and again before the lease: `queued`/own-claim plus an explicit empty `blocked_by` are required, a non-runnable sibling for the same recipe holds the arm, and a disagreement with `state.json` is logged with the stricter record winning. |
 
 `prepare` proves that reap (step 4) before reconciling, and `Campaign.cleared` is the one transition
 that drops `needs_reap`. A register `unblock` therefore reaches `pending` only through it: a queued
@@ -235,6 +247,11 @@ carries an arm the campaign holds, reconciliation blocks it with the register's 
 An attempt is a lease issued, never a report: a boot killed before it reported is an `attempt` on
 the receipt but not a `failure` in the retry budget, so restarting a killed arm is counted honestly
 and `--retries` remains the only lever over re-boots.
+
+That lever is still bounded by the register. `plan.next_assignment` reads only state.json, so
+reconciliation blocks a `failed` arm whose row is not runnable as well as a `pending` one;
+widening `--retries` therefore cannot reach past a hold, and the assignment re-read (§The claim is
+the lock) is the second gate for a hold written after the last reconcile.
 
 ## What "measured" means
 
