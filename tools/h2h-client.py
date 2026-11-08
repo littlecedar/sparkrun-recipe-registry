@@ -191,6 +191,20 @@ def load_prompts(path: str) -> list[dict[str, object]]:
     return prompts
 
 
+def completion_rate(tokens: object, window_s: float) -> float | None:
+    """tok/s over an arithmetic window. None means no tokens were counted.
+
+    Two decimals round a real rate to 0.0 on a slow runner's wall, which reads as "no
+    throughput" when tokens were produced, so the digits below 0.01 are kept. A window of
+    zero cannot come out of `perf_counter` (nanosecond resolution); it is reported as None
+    rather than as a fabricated number.
+    """
+    if not isinstance(tokens, int) or tokens <= 0 or window_s <= 0:
+        return None
+    rate = tokens / window_s
+    return round(rate, 2) if rate >= 0.01 else round(rate, 6)
+
+
 def _completions_request(base: str, model: str, prompt: str, max_tokens: int,
                          stream: bool, timeout: float, api_key: str) -> dict[str, object]:
     """One /v1/completions call: text, usage counts, wall, and TTFT when streaming."""
@@ -254,16 +268,16 @@ def _completions_request(base: str, model: str, prompt: str, max_tokens: int,
                 rec["text"] = (choices[0].get("text") or "") if choices else ""
     except Exception as exc:  # a stream that dies mid-flight is a failed request, not a cell
         rec["error"] = "%s: %s" % (type(exc).__name__, exc)
-    rec["wall_s"] = round(time.perf_counter() - started, 3)
+    elapsed = time.perf_counter() - started
+    rec["wall_s"] = round(elapsed, 3)
+    # Arithmetic runs on the raw delta: rounding the window first turns a sub-millisecond
+    # stub answer into 0.0 and drops the rate even though tokens were counted.
+    decode_s = elapsed
     if first_token is not None:
-        rec["ttft_s"] = round(first_token - started, 3)
-    decode_s = (rec["wall_s"] - rec["ttft_s"]) if rec["ttft_s"] is not None else rec["wall_s"]
-    tokens = rec["completion_tokens"]
-    if isinstance(tokens, int) and tokens > 0 and decode_s and decode_s > 0:
-        rate = tokens / decode_s
-        # Two decimals would round a real rate to 0.0 on a slow runner's wall, which reads
-        # as "no throughput" when tokens were produced; keep the digits below 0.01.
-        rec["tok_per_s"] = round(rate, 2) if rate >= 0.01 else round(rate, 6)
+        ttft = first_token - started
+        rec["ttft_s"] = round(ttft, 3)
+        decode_s = elapsed - ttft
+    rec["tok_per_s"] = completion_rate(rec["completion_tokens"], decode_s)
     rec["text"] = rec["text"].strip()
     return rec
 

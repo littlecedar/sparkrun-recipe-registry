@@ -265,6 +265,25 @@ class CompletionsCell(unittest.TestCase):
         self.assertGreater(plain["tok_per_s"], 0, plain)
         self.assertLess(plain["tok_per_s"], 0.01, plain)
 
+    def test_a_sub_millisecond_answer_still_reports_a_rate(self):
+        # A load-starved runner answers the stub in 0.0002 s; rounding the window to three
+        # decimals first collapsed it to 0.0 and left the rate None with two tokens counted.
+        ticks = iter([0.0] + [0.0002] * 8)
+        with StubServe(fail=False, text="5") as base, \
+                mock.patch.object(TOOL.time, "perf_counter", lambda: next(ticks)):
+            _rc, _arm, report = self._run(base, "plain", ["Complete the sequence: 1 2 3 4"])
+        plain = report["prompts"][0]["plain"]
+        self.assertEqual(plain["completion_tokens"], 2)
+        self.assertIsInstance(plain["tok_per_s"], float, plain)
+        self.assertGreater(plain["tok_per_s"], 0, plain)
+
+    def test_negative_control_a_rounded_window_drops_the_rate(self):
+        # The CI failure in arithmetic form: round(x, 3) turns that 0.0002 s wall into 0.0,
+        # and a zero divisor used to leave tok_per_s None although tokens were counted.
+        self.assertIsNone(TOOL.completion_rate(2, round(0.0002, 3)))
+        self.assertEqual(TOOL.completion_rate(2, 0.0002), 10000.0)
+        self.assertIsNone(TOOL.completion_rate(0, 0.5), "no tokens must mean no rate")
+
     def test_streaming_accumulates_text_and_yields_a_first_token_time(self):
         with StubServe(fail=False, text="42") as base:
             _rc, _arm, report = self._run(base, "stream", ["Complete the sequence: 1 2 3 4"])
