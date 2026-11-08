@@ -94,14 +94,15 @@ class CampaignCase(unittest.TestCase):
         self.fleet = FakeFleet()
         self.out = io.StringIO()
 
-    def build(self):
+    def build(self, *, receipts_root: Path | None = None, retries: int | None = None):
         campaign = state.Campaign.open(self.root / "state.json", campaign="test",
-                                       hosts=("node-a", "node-b"), max_parallel=2)
+                                       hosts=("node-a", "node-b"), max_parallel=2,
+                                       retries=retries)
         leader = director_module.Director(
             campaign,
             plan.load_manifest(self.manifest_path),
             root=self.root,
-            receipts_root=self.receipts,
+            receipts_root=receipts_root or self.receipts,
             repo_root=self.repo,
             run_arm_sh=self.repo / "tools" / "run-arm.sh",
             clock=self.clock,
@@ -331,6 +332,50 @@ class Draining(CampaignCase):
                                         "doc": "docs/lane.md:2", "since": "2026-11-01"})
         campaign.mark_measured("arm-one", str(self.receipts), "fixture")
         self.assertTrue(leader.drained())
+
+
+class Retries(CampaignCase):
+    def test_a_restart_adopts_the_invocations_retry_budget(self) -> None:
+        leader, campaign = self.build()
+        leader.prepare()
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        receipt(self.receipts, lease["arm"], cells=0)         # partial ladder: failed, not measured
+        self.assertEqual(leader.handle(protocol.report(lease["id"], 0, "log run.log"))["status"],
+                         "failed")
+        self.assertEqual(campaign.arm("arm-one")["failures"], 1)
+        campaign.close()
+
+        resumed = state.Campaign.open(self.root / "state.json", retries=1)
+        self.addCleanup(resumed.close)
+        self.assertEqual(resumed.retries, 1)
+        self.assertEqual(
+            plan.next_assignment(resumed.order, resumed.arms(), ["node-a", "node-b"],
+                                 resumed.retries),
+            ("arm-one", ("node-a", "node-b")),
+            "the arm the stored retries=0 made terminal is inside the new budget")
+
+
+class ReceiptsRoot(CampaignCase):
+    def test_the_receipts_root_is_pinned_into_every_arm_that_can_still_run(self) -> None:
+        leader, campaign = self.build()
+        leader.prepare()
+        for arm in ("arm-one", "arm-two"):
+            self.assertEqual(campaign.arm(arm)["env"]["ARM_RECEIPTS_ROOT"], str(self.receipts))
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        self.assertEqual(lease["env"]["ARM_RECEIPTS_ROOT"], str(self.receipts),
+                         "the executor writes where the evidence reader looks")
+
+    def test_a_later_run_moves_a_pending_arms_receipts_root(self) -> None:
+        leader, campaign = self.build()
+        leader.prepare()
+        campaign.close()
+
+        elsewhere = self.tmp / "elsewhere"
+        leader, campaign = self.build(receipts_root=elsewhere)
+        leader.prepare()
+        self.assertEqual(campaign.arm("arm-two")["env"]["ARM_RECEIPTS_ROOT"], str(elsewhere))
+        self.assertEqual(campaign.arm("negative")["env"]["ARM_RECEIPTS_ROOT"],
+                         str(self.receipts), "a skipped arm's record stays final")
 
 
 if __name__ == "__main__":

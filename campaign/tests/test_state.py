@@ -43,6 +43,28 @@ class Persistence(unittest.TestCase):
         with self.assertRaises(state.StateError):
             state.Campaign.open(self.path)
 
+    def test_an_explicit_retry_budget_overrules_the_stored_one(self) -> None:
+        # The defect: a restart with --retries 1 left a terminal arm terminal because the state's
+        # `retries=0` won. The invocation is the newer decision.
+        self.campaign.add("one", "recipes/lane/one.yaml")
+        self.campaign.assign("one", "w1", ["node-a"], now=10.0)
+        self.campaign.finish("one", status=state.FAILED, rc=0, reason="partial ladder")
+        self.assertEqual(self.campaign.retries, 0)
+        self.campaign.close()
+
+        reopened = state.Campaign.open(self.path, retries=1)
+        self.addCleanup(reopened.close)
+        self.assertEqual(reopened.retries, 1)
+        self.assertEqual(reopened.arm("one")["failures"], 1)
+
+    def test_an_omitted_retry_budget_keeps_the_stored_one(self) -> None:
+        self.campaign.close()
+        first = state.Campaign.open(self.path, retries=2)
+        first.close()
+        reopened = state.Campaign.open(self.path)
+        self.addCleanup(reopened.close)
+        self.assertEqual(reopened.retries, 2)
+
     def test_a_new_campaign_needs_a_name(self) -> None:
         with self.assertRaises(state.StateError):
             state.Campaign.open(self.root / "other.json")

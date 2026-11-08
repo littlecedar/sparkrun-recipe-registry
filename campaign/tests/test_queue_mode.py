@@ -43,7 +43,7 @@ def flag(argv: list[str], name: str) -> str:
 
 
 def row(task_id: str, recipe_path: str = "", tp: int = 0, *, state_: str = "queued",
-        node_cost: str = "", claimed_by: str = "") -> dict:
+        node_cost: str = "", claimed_by: str = "", env: dict | None = None) -> dict:
     """A register row as `queue --json` prints it: every schema field, plus the optional two."""
     entry = {
         "id": task_id, "title": task_id, "estimate_h": 1.0, "blocks": [], "blocked_by": [],
@@ -54,6 +54,8 @@ def row(task_id: str, recipe_path: str = "", tp: int = 0, *, state_: str = "queu
         entry["recipe"] = recipe_path
     if tp:
         entry["tp"] = tp
+    if env:
+        entry["env"] = env
     return entry
 
 
@@ -395,6 +397,147 @@ class Draining(QueueCase):
         leader.register._run = broken
         leader._wait_for_rows()
         self.assertIn("queue: cannot read the register", self.out.getvalue())
+
+
+class Reconciliation(QueueCase):
+    """State, register and CLI precedence on a restart: which side is authoritative for what.
+
+    The register is newer while an arm has never been leased; the state record is newer once it
+    has. `--receipts-root` is newer than both because it is this run's decision, and a row flipped
+    back to `queued` re-opens the gate without proving anything about the hosts.
+    """
+
+    def rows(self, env: dict | None = None, state_: str = "queued") -> None:
+        self.shell.rows = [row("task-one", "recipes/lane/one.yaml", 1, state_=state_,
+                               node_cost="single", env=env)]
+
+    def test_a_pending_arm_adopts_its_rows_current_env_and_the_runs_receipts_root(self) -> None:
+        self.rows({"ARM_EXTRA_CLIENT": "python3 -B tools/old-client.py"})
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.arm("one")["env"],
+                         {"ARM_EXTRA_CLIENT": "python3 -B tools/old-client.py",
+                          "ARM_RECEIPTS_ROOT": str(self.receipts)})
+        campaign.close()
+
+        self.rows({"ARM_EXTRA_CLIENT": "python3 -B tools/new-client.py"})
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.arm("one")["env"],
+                         {"ARM_EXTRA_CLIENT": "python3 -B tools/new-client.py",
+                          "ARM_RECEIPTS_ROOT": str(self.receipts)})
+        self.assertEqual([event["kind"] for event in campaign.arm("one")["history"]],
+                         ["plan", "reconcile"], "one refresh, and a second prepare changes nothing")
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        self.assertEqual(lease["env"]["ARM_EXTRA_CLIENT"], "python3 -B tools/new-client.py")
+
+    def test_a_leased_arm_keeps_the_env_it_ran_with(self) -> None:
+        self.rows({"ARM_EXTRA_CLIENT": "old-client"})
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(leader.handle(protocol.poll("w1"))["lease"]["env"]["ARM_EXTRA_CLIENT"],
+                         "old-client")
+        campaign.close()
+
+        self.clock.now += state.LEASE_TTL + 1
+        self.rows({"ARM_EXTRA_CLIENT": "new-client"})
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.arm("one")["attempts"], 1)
+        self.assertEqual(campaign.arm("one")["env"]["ARM_EXTRA_CLIENT"], "old-client")
+        self.assertEqual(leader.handle(protocol.poll("w1"))["lease"]["env"]["ARM_EXTRA_CLIENT"],
+                         "old-client")
+
+    def test_a_measured_arm_keeps_the_env_it_ran_with(self) -> None:
+        self.rows({"ARM_EXTRA_CLIENT": "old-client"})
+        leader, campaign = self.build()
+        leader.prepare()
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        receipt(self.receipts, lease["arm"], cells=2)
+        self.assertEqual(leader.handle(protocol.report(lease["id"], 0, "log run.log"))["status"],
+                         "measured")
+        campaign.close()
+
+        self.rows({"ARM_EXTRA_CLIENT": "new-client"})
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.arm("one")["status"], "measured")
+        self.assertEqual(campaign.arm("one")["env"]["ARM_EXTRA_CLIENT"], "old-client")
+
+    def test_a_blocked_arm_runs_when_its_row_is_queued_again(self) -> None:
+        self.rows()
+        self.shell.refuse_writes = True        # claim refused: the arm is blocked, never booted
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertIsNone(leader.handle(protocol.poll("w1")).get("lease"))
+        self.assertEqual(campaign.arm("one")["status"], "blocked")
+        self.assertEqual(campaign.arm("one")["attempts"], 0)
+        campaign.close()
+
+        self.shell.refuse_writes = False
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.arm("one")["status"], "pending")
+        self.assertIn("queue-unblocked: one", self.out.getvalue())
+        self.assertEqual(leader.handle(protocol.poll("w1"))["lease"]["arm"], "one")
+        self.assertEqual(flag(self.shell.last_update("task-one"), "--state"), "running")
+
+    def test_a_blocked_arm_stays_blocked_while_its_row_is_blocked(self) -> None:
+        self.rows()
+        self.shell.refuse_writes = True
+        leader, campaign = self.build()
+        leader.prepare()
+        leader.handle(protocol.poll("w1"))
+        self.assertEqual(campaign.arm("one")["status"], "blocked")
+        campaign.close()
+
+        self.rows(state_="blocked")
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.arm("one")["status"], "blocked")
+        self.assertNotIn("queue-unblocked: one", self.out.getvalue())
+        self.assertIsNone(leader.handle(protocol.poll("w1")).get("lease"))
+
+    def test_a_queued_arm_stays_unassignable_until_a_verified_reap(self) -> None:
+        self.rows()
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(leader.handle(protocol.poll("w1"))["lease"]["arm"], "one")
+        campaign.close()                       # the process died mid-arm: no stop, no report
+        self.clock.now += state.LEASE_TTL + 1
+
+        def unreachable(hosts, recipe_path):
+            raise OSError("ssh refused")
+
+        self.fleet.reap = unreachable
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.arm("one")["status"], "blocked")
+        self.assertEqual(campaign.arm("one")["needs_reap"], ["node-a"])
+        self.assertIn("hosts still need a verified reap", self.out.getvalue(),
+                      "a queued row must not silently leave a reaped-none arm unassignable")
+        self.assertIsNone(leader.handle(protocol.poll("w1")).get("lease"))
+        campaign.close()
+
+        self.fleet = FakeFleet()
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.arm("one")["status"], "pending")
+        self.assertEqual(campaign.arm("one")["needs_reap"], [])
+        self.assertEqual(leader.handle(protocol.poll("w1"))["lease"]["id"], "one@2")
+
+    def test_an_arm_the_register_no_longer_carries_is_blocked_not_booted(self) -> None:
+        self.rows()
+        leader, campaign = self.build()
+        leader.prepare()
+        campaign.close()
+
+        self.shell.rows = []
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.arm("one")["status"], "blocked")
+        self.assertIn("no longer a runnable row", campaign.arm("one")["last"]["reason"])
+        self.assertIsNone(leader.handle(protocol.poll("w1")).get("lease"))
 
 
 class RealRegister(unittest.TestCase):

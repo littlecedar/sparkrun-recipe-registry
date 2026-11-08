@@ -101,9 +101,15 @@ class Campaign:
         campaign: str = "",
         hosts: tuple[str, ...] | list[str] = (),
         max_parallel: int = 1,
-        retries: int = 0,
+        retries: int | None = None,
         order: list[str] | None = None,
     ) -> Campaign:
+        """Open or create; `retries=None` (flag omitted) keeps the number the previous life stored.
+
+        An explicit retry budget on the command line is the newer decision -- the operator
+        restarting a campaign to retry a terminal arm must not have that overruled by the
+        `retries=0` the previous invocation recorded.
+        """
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         fd = _acquire(path.with_name(path.name + ".lock"))
@@ -112,7 +118,11 @@ class Campaign:
                 data = json.loads(path.read_text(encoding="utf-8"))
                 if data.get("version") != VERSION:
                     raise StateError(f"{path}: version {data.get('version')!r}, expected {VERSION}")
-                return cls(path, data, fd)
+                instance = cls(path, data, fd)
+                if retries is not None and int(retries) != instance.retries:
+                    data["retries"] = int(retries)
+                    instance.save()
+                return instance
             if not campaign:
                 raise StateError(f"{path} does not exist and no campaign name was given")
             data = {
@@ -121,7 +131,7 @@ class Campaign:
                 "created_at": time.time(),
                 "hosts": list(hosts),
                 "max_parallel": int(max_parallel),
-                "retries": int(retries),
+                "retries": int(retries or 0),
                 "lease_ttl": LEASE_TTL,
                 "order": list(order or []),
                 "arms": {},
@@ -212,6 +222,37 @@ class Campaign:
         self.save()
         return record
 
+    def refresh(self, arm: str, *, path: str, tp: int, env: dict[str, str],
+                task: str) -> bool:
+        """Adopt a register row's current launch fields for an arm this campaign has not started.
+
+        Queue mode's precedence: while no lease has been issued, the register row is the newer
+        decision (it may have gained an `env` cell or changed its recipe/tp), so it replaces the
+        record. An arm that has been leased keeps the record it ran with -- rewriting it would
+        make the state disagree with the receipt it already produced.
+        """
+        record = self.arm(arm)
+        if record["attempts"] or record["status"] not in (PENDING, BLOCKED):
+            return False
+        fresh = {"path": path, "tp": int(tp), "env": dict(env), "task": task}
+        changed = sorted(key for key, value in fresh.items() if record.get(key) != value)
+        if not changed:
+            return False
+        record.update(fresh)
+        self.event(arm, "reconcile", fields=changed)
+        self.save()
+        return True
+
+    def set_env(self, arm: str, key: str, value: str) -> bool:
+        """Pin one env cell on an arm that can still run; a finished arm's record stays final."""
+        record = self.arm(arm)
+        if record["status"] in (MEASURED, SKIPPED) or record["env"].get(key) == value:
+            return False
+        record["env"][key] = value
+        self.event(arm, "env", key=key, value=value)
+        self.save()
+        return True
+
     def record_skip(self, arm: str, verdict: Verdict) -> None:
         record = self.arm(arm)
         if record["status"] in (MEASURED, SKIPPED):
@@ -284,13 +325,18 @@ class Campaign:
         self.event(arm, "reap-needed", hosts=hosts, reason=reason)
         self.save()
 
-    def cleared(self, arm: str) -> None:
-        """A verified reap: the arm is assignable again, including one a failed reap blocked."""
+    def cleared(self, arm: str, *, evidence: str = "reap") -> None:
+        """The one path that drops `needs_reap`: verifiable evidence, never a register row.
+
+        `evidence` names what was verified, so a state file shows a reap separate from a
+        register row that a human flipped back to `queued` (which says the gate opened, not
+        that the hosts are clean).
+        """
         record = self.arm(arm)
         record["needs_reap"] = []
         if record["status"] in (BLOCKED, LEASED):
             record["status"] = PENDING
-        self.event(arm, "reaped")
+        self.event(arm, "cleared", evidence=evidence)
         self.save()
 
     def finish(

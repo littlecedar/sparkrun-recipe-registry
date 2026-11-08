@@ -211,6 +211,31 @@ After a reboot the same path runs: `state.json` is on the head's disk, the lease
 step 3–4 cleans up the containers the reboot did not stop. Nothing about a campaign lives only in
 the director's memory.
 
+### State reconciliation: register, state, CLI
+
+Three writers can disagree about one arm, so one precedence rule decides, newest decision first:
+
+| Writer | Wins for | Why |
+|---|---|---|
+| `--retries` on the command line | every arm, at open | The operator restarting to retry a terminal arm is the newer decision; an omitted flag keeps the number the previous life stored instead of resetting it to `0`. |
+| `--receipts-root` on the command line | `ARM_RECEIPTS_ROOT` in every arm that can still run | It is this run's decision and the evidence readers look under it; an executor writing elsewhere produces numbers the campaign cannot attribute. |
+| The register row (queue mode) | `path`, `tp`, `env`, `task` of an arm that has never been leased | The row may have gained an `env` cell (a client hook, a receipts root) or changed its recipe/tp since adoption; `Campaign.refresh` adopts it, idempotently. |
+| The state record | every field of an arm that has been leased, measured or skipped | The record is what actually ran; rewriting it would make the state disagree with the receipt it produced. |
+| The register no longer carrying a state arm | block, never boot | A dropped row means another session or a human closed that work; the campaign's own state cannot see why. |
+| A blocked arm | retried on a restart only (`prepare`), and only with `needs_reap == []` | A running director does not retry a blocked arm; a row flipped back to `queued` says the external gate opened, not that the hosts are clean. |
+
+`prepare` proves that reap (step 4) before reconciling, and `Campaign.cleared` is the one transition
+that drops `needs_reap`. A register `unblock` therefore reaches `pending` only through it: a queued
+row alone can never turn an unverified host into an assignment, and the arm is named in the log
+(`queue-blocked: <arm> (row runnable again, but hosts still need a verified reap: …)`), so a
+status-only unblock is a stated refusal rather than a silent no-run. When the register no longer
+carries an arm the campaign holds, reconciliation blocks it with the register's own reason
+(`queue-blocked: <arm> (…)`).
+
+An attempt is a lease issued, never a report: a boot killed before it reported is an `attempt` on
+the receipt but not a `failure` in the retry budget, so restarting a killed arm is counted honestly
+and `--retries` remains the only lever over re-boots.
+
 ## What "measured" means
 
 `evidence.done(arm_dir)` reads fields, never presence:
@@ -395,12 +420,16 @@ ps -o lstart= -p "$(systemctl --user show -p MainPID --value sparkrun-campaign.s
 
 Stopping: `systemctl --user stop sparkrun-campaign.service`. SIGTERM goes to the director, which
 signals each worker's process group; `run-arm.sh`'s own trap stops the serve, and whatever it could
-not finish is reaped on the next start. `KillMode=mixed` plus `TimeoutStopSec=180` give the
-director's 100 s worker grace and then that trap time to run `sparkrun stop`. `Restart=on-failure`
-retries a crash (safe: every start resumes), while `RestartPreventExitStatus=2` keeps a refusal — a
-stale citation, a bad host set, a missing executor — failed for a human instead of restarting every
-15 s. A drained manifest campaign exits 0 and stays down, which is the completion signal; a queue
-campaign in poll mode keeps serving (§Queue mode) and is stopped like any other service.
+not finish is reaped on the next start. Every start is a reconcile, not a replay: it adopts an
+explicit `--retries`, writes `--receipts-root` into the arms it can still run, refreshes unstarted
+arms from their register rows, and re-opens a blocked arm only when its row is runnable again and
+its hosts are proven clean (§State reconciliation). `KillMode=mixed` plus `TimeoutStopSec=180` give
+the director's 100 s worker grace and then that trap time to run `sparkrun stop`.
+`Restart=on-failure` retries a crash (safe: every start resumes), while
+`RestartPreventExitStatus=2` keeps a refusal — a stale citation, a bad host set, a missing executor
+— failed for a human instead of restarting every 15 s. A drained manifest campaign exits 0 and
+stays down, which is the completion signal; a queue campaign in poll mode keeps serving (§Queue
+mode) and is stopped like any other service.
 
 While a run owns the state lock, an operator reads it through the same module without disturbing it:
 

@@ -194,8 +194,11 @@ class Director:
             elif arm_dir:
                 print(f"unmeasured: {reason}", file=self.out)
 
+        # The CLI's receipts root is this run's decision, so it lands on every arm that can still
+        # run -- an executor writing elsewhere produces numbers the campaign cannot attribute.
+        self._pin_receipts_root()
         if self.register is not None:
-            self._reconcile(order, excluded)
+            self._reconcile(entries, excluded, unblock=True)
 
     # --- plan source -------------------------------------------------------------------------
 
@@ -206,26 +209,66 @@ class Director:
         return plan.queue_entries(self.register.rows(), list(self.campaign.data.get("hosts", [])),
                                   self.register.session, set(self.campaign.arms()))
 
+    def _env_for(self, env: dict[str, str] | None) -> dict[str, str]:
+        """An arm's executor env: the register row's cells with this run's receipts root on top.
+
+        `--receipts-root` is a campaign-run decision and the evidence readers look under it, so it
+        wins over a register cell: an executor writing elsewhere produces numbers nobody can
+        attribute to this campaign.
+        """
+        out = dict(env or {})
+        out["ARM_RECEIPTS_ROOT"] = str(self.receipts_root)
+        return out
+
     def _adopt(self, entries: list[dict[str, Any]]) -> None:
         for entry in entries:
             if entry["arm"] not in self.campaign.arms():
-                self.campaign.add(entry["arm"], entry["path"], entry["tp"], entry["env"],
-                                  task=entry.get("task", ""))
+                self.campaign.add(entry["arm"], entry["path"], entry["tp"],
+                                  self._env_for(entry.get("env")), task=entry.get("task", ""))
 
-    def _reconcile(self, order: list[str], excluded: dict[str, str]) -> None:
-        """An arm this campaign holds but the register no longer offers is blocked, not booted.
+    def _pin_receipts_root(self) -> None:
+        """Write this invocation's `--receipts-root` into every arm that can still run."""
+        for arm in self.campaign.order:
+            self.campaign.set_env(arm, "ARM_RECEIPTS_ROOT", str(self.receipts_root))
 
-        The dangerous case is another session's claim (`running`), or a row closed as `done`
-        elsewhere: the campaign's own state cannot see either, so it stops the arm and says why.
+    def _reconcile(self, entries: list[dict[str, Any]], excluded: dict[str, str],
+                   *, unblock: bool = False) -> None:
+        """The register's current rows against the arms this campaign already holds.
+
+        Precedence follows who is newer. An arm no lease has started adopts its row's current
+        path/tp/env/task (`Campaign.refresh`); an arm that has been leased keeps the record it
+        ran with. An arm this campaign holds but the register no longer offers is blocked, not
+        booted -- the dangerous case is another session's claim or a row closed elsewhere, which
+        the campaign's own state cannot see.
+
+        `unblock` is set on a restart only (a running director does not retry a blocked arm).
+        A blocked arm whose row is runnable again becomes pending, but only with no reap
+        outstanding: a row flipped back to `queued` says a human opened the external gate, not
+        that the hosts are clean. `prepare` proved or failed that reap before this runs.
         """
-        runnable = set(order)
+        runnable = {entry["arm"]: entry for entry in entries}
         for arm in self.campaign.order:
             record = self.campaign.arms()[arm]
-            if record["status"] != PENDING or not record.get("task") or arm in runnable:
+            if not record.get("task"):
                 continue
-            reason = excluded.get(arm) or "no longer a runnable row in the register"
-            self.campaign.block(arm, f"register: {reason}")
-            print(f"queue-blocked: {arm} ({reason})", file=self.out)
+            if arm in runnable:
+                entry = runnable[arm]
+                self.campaign.refresh(arm, path=str(entry["path"]), tp=int(entry["tp"]),
+                                      env=self._env_for(entry.get("env")),
+                                      task=str(entry.get("task", "")))
+                if record["status"] != BLOCKED or not unblock:
+                    continue
+                if record["needs_reap"]:
+                    print(f"queue-blocked: {arm} (row runnable again, but hosts still need a "
+                          f"verified reap: {','.join(record['needs_reap'])})", file=self.out)
+                    continue
+                self.campaign.cleared(arm, evidence="register row queued again")
+                print(f"queue-unblocked: {arm} (register row queued again)", file=self.out)
+                continue
+            if record["status"] == PENDING:
+                reason = excluded.get(arm) or "no longer a runnable row in the register"
+                self.campaign.block(arm, f"register: {reason}")
+                print(f"queue-blocked: {arm} ({reason})", file=self.out)
 
     def refresh(self) -> bool:
         """Re-read the register and ingest rows that became runnable. True when the plan grew."""
@@ -234,7 +277,7 @@ class Director:
         entries, lines, excluded = self._plan()
         fresh = [entry for entry in entries if entry["arm"] not in self.campaign.arms()]
         if not fresh:
-            self._reconcile([entry["arm"] for entry in entries], excluded)
+            self._reconcile(entries, excluded)
             return False
         for line in lines:
             print(line, file=self.out)
@@ -257,7 +300,7 @@ class Director:
                 self._found_measured(arm, arm_dir, hosts=[], lease_id="", started=None)
             elif arm_dir:
                 print(f"unmeasured: {reason}", file=self.out)
-        self._reconcile([entry["arm"] for entry in entries], excluded)
+        self._reconcile(entries, excluded)
         print(f"queue: {len(fresh)} new runnable row(s): "
               f"{', '.join(entry['arm'] for entry in fresh)}", file=self.out)
         return True
@@ -704,8 +747,9 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--name", default="", help="campaign id (default: the root's name)")
     serve.add_argument("--max-parallel", type=int, default=0,
                        help="worker slots (default: one per host)")
-    serve.add_argument("--retries", type=int, default=0,
-                       help="extra attempts for an arm whose receipt says it did not measure")
+    serve.add_argument("--retries", type=int, default=None,
+                       help="extra attempts for an arm whose receipt says it did not measure "
+                            "(default: the number the campaign stored; 0 when it is new)")
     serve.add_argument("--receipts-root", default=os.path.expanduser("~/benchmarks"),
                        help="where the per-arm executor writes its tp12-* windows")
     serve.add_argument("--repo-root", default=fleet.default_repo_root(),
