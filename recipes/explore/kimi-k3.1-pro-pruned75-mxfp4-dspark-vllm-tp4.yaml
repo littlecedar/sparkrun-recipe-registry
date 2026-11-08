@@ -17,11 +17,15 @@ description: >-
   LM head; the card reports mean acceptance length 3.448 at verify width 8 over ten
   public suites. ATTEMPTED 2026-11-08, stopped before the drafter initialised:
   `SpeculativeConfig` refused `Invalid repository ID or local directory specified:
-  'LithosAI/Kimi-K3.1-Pro-DSpark'` (HF_HUB_OFFLINE=1, drafter not in the pool), so
-  the binding question is still open and the immediate blocker is the draft
-  download plus the plain sibling's tiktoken image gap. A healthy serve would
-  still be markerless: no chat template ships, so the chat instruments cannot
-  score it (lane README has the acceptance contract).
+  'LithosAI/Kimi-K3.1-Pro-DSpark'` (HF_HUB_OFFLINE=1, drafter not in the pool). The
+  row's block is therefore "drafter staged, binding untested", not an engine
+  defect: staging the draft (2.25 B BF16) is the next step, and the plain sibling's
+  pinned-wheel tiktoken route applies here too. The binding test does not need the
+  pruned75 weights — construct Qwen3DSparkModel against the target's shipped
+  config.json (93 layers, hidden 7168, vocab 163840, layers 7/23/67/83/91) and read
+  whether the shapes bind; only acceptance counters need a real target. A healthy
+  serve would still be markerless: no chat template ships, so the chat instruments
+  cannot score it (lane README has the acceptance contract).
   MEMORY: the draft adds ~4.5 GiB per rank on top of 105.75 GiB of weights, which is
   why this arm ships 16k context rather than the plain sibling's 32k.
 metadata:

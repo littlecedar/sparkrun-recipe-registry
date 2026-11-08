@@ -1126,13 +1126,26 @@ rows and `e_score_correction_bias` pruned with them), everything else the base
   `--trust-remote-code` (config `auto_map`) and the card's `kimi_k3` reasoning/tool parsers. The
   pinned digest still resolves in GHCR, but no node held the image before this boot, which paid the
   pull; the checkpoint weights were not staged either (one `config.json` in the pool).
-- **First boot died at the tokenizer, not the model (2026-11-08 07:47 UTC).** After the two
-  resolution lines above, `VllmConfig` failed with `Couldn't instantiate the backend tokenizer …
-  You need to have sentencepiece or tiktoken installed to convert a slow tokenizer to a fast one`
-  — the pinned nightly ships **neither** for this repo's custom `TikTokenTokenizer`. Named image
-  gap: a rebuilt pin with `tiktoken` is the prerequisite, and behind it sits the unstaged 454.2 GB
-  target. Receipt `~/benchmarks/h2h-20261107/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4/` (`serve-0.log`
-  lines 13-14, 63-68; launch failed at 76.1 s).
+- **No `tokenizer.json` ships, by construction.** The repo carries `tokenization_kimi.py` (a slow
+  `PreTrainedTokenizer` subclass), `tiktoken.model` and `tokenizer_class: TikTokenTokenizer` with an
+  `auto_map`; that class builds a `tiktoken.Encoding` from the local BPE file. There is no
+  `tokenizers` serialization to load, so "missing fast tokenizer" is the checkpoint's own shape,
+  **not a defect** — do not file it as one.
+- **First boot died on a missing *dependency*, not on the engine (2026-11-08 07:47 UTC).** After
+  printing `Resolved architecture: KimiK31ForConditionalGeneration` and `tokenizer_mode='kimi_k3'`,
+  `VllmConfig` failed with `Couldn't instantiate the backend tokenizer … You need to have
+  sentencepiece or tiktoken installed to convert a slow tokenizer to a fast one`. The pinned
+  nightly ships **neither**, and `tokenization_kimi.py` imports `tiktoken` only (no sentencepiece
+  path). The intended fix is a lane mod with a **pinned wheel** installed `--no-index` from a staged
+  wheelhouse, never an unpinned `pip install` at boot: **tiktoken 0.14.0** (cp312
+  `manylinux_2_28_aarch64`, sha256 `7db45b98e94adf4173a5cd7422b150999a7ee11ff847783a14f6e1b80cc38cb6`,
+  1,186,355 B) plus its only wheel dependency **regex 2026.11.7** (same tag, sha256
+  `c94b8f2fd73b419d5278b8d08d213d042b91edd5acf24ae7226388e9ef106fd4`, 806,351 B); `requests` is
+  already in the image. Until that mod exists the row's block is **"dependency route missing"**, not
+  an engine defect — an engine-defect label would close a fixable packaging gap. Behind it sits the
+  unstaged 454.2 GB target. Receipt
+  `~/benchmarks/h2h-20261107/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4/` (`serve-0.log` lines 13-14,
+  63-68; launch failed at 76.1 s).
 - **Quality, as the card states it.** GSM8K 5-shot 43.67 % on four B300s at TP=4, with "expect a large
   quality regression relative to the source model" in the card. Not a general-purpose candidate.
 - **Chat template: none on the Hub.** The repo has no `chat_template.jinja` and
@@ -1196,13 +1209,17 @@ the plain arm pays the 454.2 GB target download and the DSpark sibling pays both
 confirmed absent at the pin: `tokenizer_config.json` has no `chat_template` key and the repo ships no
 `chat_template.jinja`, so both arms measure on `/v1/completions`.
 
-**First boot stopped at the *drafter's distribution*, not at binding (2026-11-08 07:46 UTC).** The
-engine resolved the target (`Resolved architecture: KimiK31ForConditionalGeneration`, `tokenizer_mode
-= 'kimi_k3'`) and then failed `SpeculativeConfig` validation with `Invalid repository ID or local
-directory specified: 'LithosAI/Kimi-K3.1-Pro-DSpark'` — `HF_HUB_OFFLINE=1` with the drafter absent
-from the pool. So no drafter initialisation was attempted: the binding question above is still
-open, and the immediate blocker is the draft download (plus the same `tiktoken`/`sentencepiece`
-image gap that stops the plain arm at its tokenizer). Receipt
+**Drafter arm's block: drafter staged, binding untested (2026-11-08 07:46 UTC).** The engine resolved
+the target (`Resolved architecture: KimiK31ForConditionalGeneration`, `tokenizer_mode = 'kimi_k3'`)
+and then failed `SpeculativeConfig` validation with `Invalid repository ID or local directory
+specified: 'LithosAI/Kimi-K3.1-Pro-DSpark'` — `HF_HUB_OFFLINE=1` with the drafter absent from the
+pool, so nothing initialised. The tokenizer dependency route above applies to this arm as well (it
+serves the same target). **The binding test does not need the pruned75 weights**: bind-or-not is a
+class/config compatibility question, answerable by constructing `Qwen3DSparkModel` against the
+target's shipped `config.json` (93 layers, hidden 7168, vocab 163840, target layers
+[7,23,67,83,91]) in the pinned image — or against a tiny randomly-initialised target carrying that
+config — and reading whether the projector, head and layer-index shapes bind. Accepted-length
+counters do need a real target; bind/no-bind does not. Receipt
 `~/benchmarks/h2h-20261107/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4/` (`serve-0.log` lines
 10-71; launch failed at 76.9 s).
 
