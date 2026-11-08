@@ -1,0 +1,82 @@
+recipe_version: "2"
+model: vllm-project/Kimi-K3.1-Pro-pruned75
+model_revision: fc72e5a1dd8819cf722fee249bb166c4cbc8ba38
+runtime: vllm
+# Same pinned nightly as the plain sibling; see that recipe's engine gate.
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:98a2535b5fa227e529f25ed376751b41d8f707200c81fac82d327a9deee93b15
+min_nodes: 4
+max_nodes: 4
+
+description: >-
+  Second Kimi arm: the plain pruned75 body (see
+  kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4.yaml for sizing, engine gate and quality caveat)
+  plus LithosAI/Kimi-K3.1-Pro-DSpark as a vLLM `dspark` speculator, pinned in
+  `defaults.speculative_config` so sparkrun distributes the draft with its own
+  revision. The draft is a 2.25 B BF16 head (4.50 GB), 5 dense GQA layers that read
+  target hidden states of layers 7/23/67/83/91 and share the target's embedding and
+  LM head; the card reports mean acceptance length 3.448 at verify width 8 over ten
+  public suites. AUTHORED-NOT-BOOTED 2026-11-08 (window held by campaign-queue).
+  MEMORY: the draft adds ~4.5 GiB per rank on top of 105.75 GiB of weights, which is
+  why this arm ships 16k context rather than the plain sibling's 32k.
+metadata:
+  model_url: https://huggingface.co/LithosAI/Kimi-K3.1-Pro-DSpark
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "737B"
+  model_dtype: mxfp4
+  model_mtp_dtype: bf16
+  kv_dtype: bf16
+  draft_model: LithosAI/Kimi-K3.1-Pro-DSpark
+  tags: large_context, speculative-decode
+  caveats: >
+    Two unverified links, recorded not hidden. (1) ENGINE: vLLM main maps the draft's
+    `Qwen3DSparkModel` to qwen3_dspark and accepts method `dspark` (verified upstream
+    2026-11-08 in vllm/config/speculative.py + the model registry), and the pinned
+    nightly predates that verification only in the sense that its wheel is unopened
+    here — same first-boot gate as the plain sibling, plus `dspark` in the method
+    literal. (2) CROSS-CHECKPOINT ACCEPTANCE: the draft was trained against
+    moonshotai/Kimi-K3.1-Pro (the card states no base revision) while this target is
+    its 75 %-expert-pruned derivative, so the hidden states it reads come from a
+    different routing distribution; the card's 3.448 acceptance length is for the
+    unpruned base and must not be assumed here. Both drafts' licenses: DSpark ships
+    `other` / `kimi-k3.1-pro`, matching the base, not Apache-2.0.
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  served_model_name: vllm-project/Kimi-K3.1-Pro-pruned75
+  gpu_memory_utilization: 0.92
+  max_model_len: 16384
+  max_num_seqs: 4
+  max_num_batched_tokens: 2048
+  quantization: compressed-tensors
+  kv_cache_dtype: bf16
+  tool_call_parser: kimi_k3
+  reasoning_parser: kimi_k3
+  # vLLM's speculative-config field is `model`, not `draft_model`; the JSON lives here so
+  # sparkrun's draft detection binds and distributes the repo with this revision
+  # (an inline literal in `command:` would reach the engine but never the config chain).
+  # num_speculative_tokens must give gamma = draft block_size: the exported config declares
+  # block_size 5 (1 current + 4 drafts), so 4. The card's width-8 number needs the same
+  # weights at block 8 and is not reachable from this config as exported.
+  speculative_config: '{"method": "dspark", "model": "LithosAI/Kimi-K3.1-Pro-DSpark", "revision": "d791d217d1cc679e07877721761bfcc09d70d514", "num_speculative_tokens": 4}'
+  extra_args: ""
+
+command: >
+  taskset -c 5-9,15-19 vllm serve {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --trust-remote-code
+  --quantization {quantization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --reasoning-parser {reasoning_parser}
+  --tool-call-parser {tool_call_parser}
+  --enable-auto-tool-choice
+  --speculative-config '{speculative_config}'
+  {extra_args}

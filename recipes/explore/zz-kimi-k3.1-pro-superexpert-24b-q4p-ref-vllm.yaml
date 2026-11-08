@@ -1,0 +1,65 @@
+recipe_version: "2"
+model: shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB
+# Pinned to the repo state probed 2026-11-08 (the only revision). The pin selects the
+# snapshot sparkrun prepares and mounts; the command reads that path through {model} and
+# never resolves a hub ref, so there is no --revision to pass (the validator's
+# unpinned-model-revision warning is this lane's known shape for a custom launcher).
+model_revision: b88a90e89430b3fcd59ff1b5f2e629981af8524f
+# vLLM's published arm64 image only as a carrier: torch+transformers+fastapi are what the
+# reference server needs. The engine itself CANNOT load this checkpoint (see description), so
+# `runtime: vllm` here is the launcher/distribution contract, the kokoro/media precedent.
+container: vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  PROBE ARM (`zz-`), authored-not-booted: `shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB`
+  is a 12 GB, 18-shard U8 nibble-packed checkpoint (~24B dense parameters in 12 GB), served
+  here through a transformers REFERENCE server because no engine can load it. Probe evidence
+  (2026-11-08): `architectures: [KimiK31SuperExpertForCausalLM]` exists only in the repo's
+  `auto_map`, so vLLM/SGLang model resolution fails; 581 tensors are dense llama-style
+  (q/k/v/o_proj + gate/up/down_proj per layer, no expert/router tensors, plain SDPA attention),
+  contradicting the card's "2.8T MoE / Gated DSA + KDA / AW-SECD"; the `gguf` tag points at a
+  623 B GGUF with tensor_count 0 and an unknown arch, so llama.cpp cannot load it either; the
+  custom TikTokenTokenizer ships no chat_template, so only /v1/completions is served and
+  /v1/chat/completions answers 400 with that reason. Card claims (94.8 % retention, 8-bit tag,
+  apache-2.0) are recorded as unverified/defective in the mod README: the base model ships the
+  Kimi K3.1-Pro License (license: other) and this repo carries no LICENSE file. Boot blocked
+  2026-11-08 by `.local/fleet-window.lock` (all six nodes held by session campaign-queue,
+  window_stamp 2026-11-08T03:37Z); the register row schedules it into that session's order.
+metadata:
+  model_url: https://huggingface.co/shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "24B"
+  # Storage is U8 nibble-packed (two 4-bit weights per byte) with one F16 scale per tensor;
+  # the card's `8-bit` tag and config `float16` describe something else.
+  model_dtype: int4
+  tags: trial, probe
+
+mods:
+  - "mods/kimi-superexpert-ref-launcher"
+
+executor_config:
+  entrypoint: ""
+  shm_size: 16gb
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # The checkpoint claims 1M positions, but the repo's attention is dense SDPA; a reference
+  # serve caps context so a single prefill cannot dominate the probe.
+  context_length: 8192
+
+command: >
+  python3 /workspace/mods/kimi-superexpert-ref-launcher/serve.py
+  --model {model}
+  --port {port}
+  --host {host}
+  --context-length {context_length}
+
+readiness:
+  # No chat endpoint by design (the repo ships no chat template): readiness is port + /health.
+  inference: false
+  port_timeout_s: 1800
+  health_timeout_s: 900

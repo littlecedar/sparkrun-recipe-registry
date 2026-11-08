@@ -1,0 +1,85 @@
+recipe_version: "2"
+model: vllm-project/Kimi-K3.1-Pro-pruned75
+model_revision: fc72e5a1dd8819cf722fee249bb166c4cbc8ba38
+runtime: vllm
+# Nightly eugr build, pulled 2026-11-08: vLLM 0.33.0rc1.dev1016+g06129ab02, created 2026-11-07.
+# The arm's first-boot gate is that this image carries `KimiK31ForConditionalGeneration`
+# (vLLM main ships it in vllm/models/kimi_k3; the last release tag, v0.33.0rc3, does NOT).
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:98a2535b5fa227e529f25ed376751b41d8f707200c81fac82d327a9deee93b15
+min_nodes: 4
+max_nodes: 4
+
+description: >-
+  Kimi-K3.1-Pro, expert-pruned 75 % (896 -> 224 routed experts per layer, 92 MoE
+  layers, router rows and e_score_correction_bias pruned with them) and otherwise
+  untouched: attention (KDA 3:1 + DSA indexer), shared experts, dense layer, vision
+  tower and the original MXFP4 routed-expert quantisation are the base model's.
+  Four GB10 nodes, TP=4. AUTHORED-NOT-BOOTED 2026-11-08: the fleet window was held
+  by session campaign-queue; sizing, engine and pin evidence below, no receipt yet.
+  FIT: 737.6 B params = U8 680,685,207,552 elements (MXFP4-packed, 340.3 GB) + BF16
+  56,915,256,320 (113.8 GB) + F32 11,060,608 (0.04 GB) = 454.2 GB = 423.0 GiB, i.e.
+  105.75 GiB per rank over TP=4 against ~121 GiB usable per GB10. That is 82.6 % of
+  a 128 GB device before KV and activations, so the arm ships a 32k context and
+  asks 0.92 utilisation; a boot that OOMs at profile is sizing, not the checkpoint.
+  The card's own eval is TP=4 (GSM8K 5-shot 43.67 % on four B300s) and it states the
+  regression plainly: "expect a large quality regression relative to the source
+  model". Berthed beside the lane's other arms only as the servable Kimi body — the
+  sibling zz- SuperExpert arm is the artifact probe, this one is what a runtime can
+  actually load.
+metadata:
+  model_url: https://huggingface.co/vllm-project/Kimi-K3.1-Pro-pruned75
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "737B"
+  model_dtype: mxfp4
+  kv_dtype: bf16
+  tags: large_context
+  caveats: >
+    License `other` / `kimi-k3.1-pro`, inherited from moonshotai/Kimi-K3.1-Pro with
+    the LICENSE linked from the card — not Apache-2.0. Pruning is calibration-free
+    and expert-level: 224 routed experts per layer remain selected by signed router-row
+    sum, which the card says beat its L1 default on GSM8K (43.7 % vs 14.4 %) but is
+    still a large quality regression against the base. Vision tower is retained and
+    the config declares image-text-to-text, but no multimodal path is exercised here.
+    ENGINE GATE (unbooted): the pinned nightly's vLLM must contain
+    `KimiK31ForConditionalGeneration`. Verified upstream 2026-11-08: main's registry
+    maps it to vllm/models/kimi_k3, and the newest release tag v0.33.0rc3 does not
+    have it, so an image built before the K3.1 merge fails at model resolution.
+    Serving pin must also carry `--trust-remote-code` (config auto_map) and the
+    card's `kimi_k3` tool-call/reasoning parsers.
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot path,
+  # so `GET /v1/models` would advertise the cache path (-n does not show this).
+  served_model_name: vllm-project/Kimi-K3.1-Pro-pruned75
+  # 423.0 GiB of weights per TP=4 = 105.75 GiB/rank = 82.6 % of the 128 GB device;
+  # 0.92 leaves ~12 GiB/rank for activations and KV at these widths. Not a tuned value.
+  gpu_memory_utilization: 0.92
+  max_model_len: 32768
+  max_num_seqs: 4
+  max_num_batched_tokens: 2048
+  quantization: compressed-tensors
+  kv_cache_dtype: bf16
+  tool_call_parser: kimi_k3
+  reasoning_parser: kimi_k3
+  extra_args: ""
+
+command: >
+  taskset -c 5-9,15-19 vllm serve {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --trust-remote-code
+  --quantization {quantization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --reasoning-parser {reasoning_parser}
+  --tool-call-parser {tool_call_parser}
+  --enable-auto-tool-choice
+  {extra_args}

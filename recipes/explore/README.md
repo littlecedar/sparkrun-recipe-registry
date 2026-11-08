@@ -42,6 +42,10 @@ the pyannote diarizer. Explore keeps the language and agentic/RAG arms.
 - [zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm](#zz-beam-10-501b-a23b-nvfp4-tp4-vllm)
 - [zz-sage-a1.5-35b-a3b-fp8-sglang](#zz-sage-a15-35b-a3b-fp8-sglang)
 - [zz-sage-a1.5-35b-a3b-q4km-llamacpp](#zz-sage-a15-35b-a3b-q4km-llamacpp)
+- [zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm](#zz-kimi-k31-pro-superexpert-24b-q4p-ref-vllm)
+- [kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4](#kimi-k31-pro-pruned75-mxfp4-vllm-tp4)
+- [kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4](#kimi-k31-pro-pruned75-mxfp4-dspark-vllm-tp4)
+- [Kimi-K3.1-Pro spinoffs: REAPs, drafters and the EXL3 2-bit](#kimi-k31-pro-spinoffs-reaps-drafters-and-the-exl3-2-bit)
 - [Attic index](#attic-index)
 
 ## Easy-traffic selection (2026-10-22)
@@ -1000,6 +1004,116 @@ with `ARM_ALLOW_FEW_SLOTS=1` — ten streams over four slots, which makes **c5 t
 `head:~/benchmarks/tp12-campaign-20261107/receipts/zz-sage-a1.5-35b-a3b-q4km-llamacpp.json`;
 window `head:~/benchmarks/tp12-20261107/zz-sage-a1.5-35b-a3b-q4km-llamacpp/` (`ladder.json`,
 `house.json`, `ladder.yaml`, `serve-solo.log`, `docker-10_0_4_30.log`).
+
+## `zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm`
+
+**Artifact probe, authored-not-booted (2026-11-08).** `shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB`
+pinned `b88a90e8`. No engine loads it: `architectures: [KimiK31SuperExpertForCausalLM]` exists only in
+the repo's own `auto_map`, so vLLM/SGLang resolution fails, and the `gguf` tag points at a 623 B
+GGUF (v3 magic, `tensor_count` 0, arch `kimi_k31_moe`). The only constructible route is the
+transformers reference loader under `trust_remote_code`, which is what the arm runs: the mod
+`mods/kimi-superexpert-ref-launcher` serves a small OpenAI-compatible surface over it.
+
+The artifact itself contradicts its card, recorded rather than fixed in
+[`mods/kimi-superexpert-ref-launcher/README.md`](mods/kimi-superexpert-ref-launcher/README.md):
+581 tensors with dense llama-style names and **no** expert/router tensors (so it is ~24 B logical
+parameters in 12 GB of U8 nibble packing, not a 2.8 T MoE), plain `scaled_dot_product_attention`
+instead of Gated DSA + KDA, a `float16` compute dtype over `8-bit`-tagged U8 storage, and an
+`apache-2.0` claim over a base that ships the Kimi K3.1-Pro licence (`other`). The base-model card is
+`moonshotai/Kimi-K3.1-Pro` (`d9e99b07`, 2.78 T params: 2.7227 T U8 MXFP4 elements + 57.36 B BF16),
+so the tag/quality claims are unverifiable from the artifact and the licence claim is defective.
+
+No boot: `.local/fleet-window.lock` held all six nodes for session `campaign-queue` (window stamped
+2026-11-08T03:37Z). The arm still registers as a `tp: 1` trial because the reference route is
+constructible on one node; the launch gate is the mod's `import transformers, fastapi, uvicorn, torch`
+check against the pinned `vllm/vllm-openai:glm53-flash` image.
+
+## `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4`
+
+**Servable Kimi body, authored-not-booted (2026-11-08).** `vllm-project/Kimi-K3.1-Pro-pruned75`
+pinned `fc72e5a1`: 75 % of the routed experts removed per MoE layer (896 → 224, 92 layers, router
+rows and `e_score_correction_bias` pruned with them), everything else the base
+`moonshotai/Kimi-K3.1-Pro` ships — MLA attention with the DSA indexer on 24 layers, KDA on the rest,
+2 shared experts, dense layer, vision tower, and the original MXFP4 routed-expert quantisation.
+
+- **Size / fit.** 737,611,524,480 parameters = U8 680,685,207,552 MXFP4-packed elements (340.3 GB) +
+  BF16 56,915,256,320 (113.8 GB) + F32 11,060,608 (0.04 GB) = **454.2 GB = 423.0 GiB**. Over TP=4
+  that is 105.75 GiB per rank against ~121 GiB usable, i.e. 82.6 % of the 128 GB device before KV,
+  so the arm ships 32k context at utilisation 0.92. An OOM at profile is sizing, not the checkpoint.
+- **Engine gate (unbooted).** Upstream vLLM main maps `KimiK31ForConditionalGeneration`
+  (`vllm/models/kimi_k3`) and the pinned nightly is `0.33.0rc1.dev1016+g06129ab02`, created
+  2026-11-07; the last release tag `v0.33.0rc3` does **not** carry the K3.1 class, so the first boot
+  must prove the image does. Serving needs `--trust-remote-code` (config `auto_map`) and the card's
+  `kimi_k3` reasoning/tool parsers.
+- **Quality, as the card states it.** GSM8K 5-shot 43.67 % on four B300s at TP=4, with "expect a large
+  quality regression relative to the source model" in the card. Not a general-purpose candidate.
+- **Licence.** `other` / `kimi-k3.1-pro`, inherited with the base's LICENSE link — not Apache-2.0.
+
+## `kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4`
+
+**Drafter sibling of the arm above (authored-not-booted, 2026-11-08).** Same target and image, plus
+`LithosAI/Kimi-K3.1-Pro-DSpark` pinned `d791d217` as a vLLM `dspark` speculator carried in
+`defaults.speculative_config` (so sparkrun distributes the draft repo and its own revision). The
+draft is a 2.25 B BF16 head (4.50 GB): 5 dense GQA layers, hidden 7168, SwiGLU 14336, reading target
+hidden states of layers 7/23/67/83/91 through a `dspark` projector, a rank-256 Markov head and a
+confidence head, sharing the target's embedding and LM head. `num_speculative_tokens: 4` because
+gamma must equal the exported `block_size: 5` (1 current + 4 drafts); the card's width-8 acceptance
+number needs block 8, which this config does not declare. 16k context because the draft adds
+~4.5 GiB/rank over the plain arm's 105.75 GiB.
+
+Two unverified links are in the recipe's caveats, not hidden: (1) the nightly image must also carry
+`dspark` in its method literal and `Qwen3DSparkModel` in its registry (both verified upstream on main
+2026-11-08); (2) the draft was trained against the **unpruned** base (the card declares no base
+revision) while this target has 75 % of its experts pruned, so the card's 3.448 mean acceptance
+length is not transferable to this body — it is a first-boot measurement, not an assumption.
+
+## Kimi-K3.1-Pro spinoffs: REAPs, drafters and the EXL3 2-bit
+
+Surveyed 2026-11-08 through the Hub's tag filter
+(`api/models?filter=base_model:finetune:moonshotai/Kimi-K3.1-Pro&sort=downloads`, 17 repos; the
+free-text `other=` query returns unrelated popular models and was not used). Base for every row is
+`moonshotai/Kimi-K3.1-Pro` at `d9e99b0792a5e93b78ea9bea62a68167e36ddd9e`, 2.78 T parameters,
+licence `other` / `kimi-k3.1-pro`. "Base revision" is the revision the uploader declares it
+finetuned/quantised from — a row that declares none was trained against whatever `main` was, which is
+why the target pin matters.
+
+| Repo | Revision | Size / dtype | Base revision declared | Format our runtime takes |
+|---|---|---|---|---|
+| `vllm-project/Kimi-K3.1-Pro-pruned75` | `fc72e5a1` | 737.6 B: 680.7 B U8 MXFP4 elements + 56.9 B BF16 + 11.1 M F32 = 423.0 GiB | none (repo only) | **Yes** — vLLM `KimiK31ForConditionalGeneration` + compressed-tensors `mxfp4-pack-quantized`; shipped as the TP=4 arm above |
+| `DaoCloud/Kimi-K3.1-Pro-pruned75` | `8b81479c` | identical parameter map to the row above (737,611,524,480; same dtype split) | none (repo only) | Yes, same path — a mirror of the vllm-project conversion, not authored separately |
+| `nota-ai/Kimi-K3.1-Pro-Global-Pruned-30` | `ad8de3c5` | 1.95 T: 1.896 T U8 MXFP4 elements (948.1 GB) + 57.2 B BF16 (114.4 GB) ≈ 1.06 TB / 990 GiB | none | Engine-wise yes, fit-wise no: 990 GiB exceeds 4×~121 GiB; no arm |
+| `RadixArk/Kimi-K3.1-Dflash2-Preview` | `ea257b38` | draft 2.7848 B BF16 = 5.57 GB, `DFlash2DraftModel`, MLA 5 layers, block 5, target layers [7,23,51,67,83,91] | **`535833b1b6099ea85659e047561ed0f22ab38db1`** — *not* the base `main` | Yes — vLLM `dflash` method + `qwen3_dflash2` (`DFlash2DraftModel`); higher reported acceptance (GSM8K 5.780 at width 8) but a Preview trained on a different base commit and carded for SGLang |
+| `LithosAI/Kimi-K3.1-Pro-DSpark` | `d791d217` | draft 2.2493 B BF16 = 4.50 GB, `Qwen3DSparkModel`, block 5, target layers [7,23,67,83,91], rank-256 Markov + confidence head | none | **Yes, chosen** — vLLM `dspark` method + `Qwen3DSparkModel` registry; used by the DSpark sibling above |
+| `lightseekorg/kimi-k3.1-pro-eagle3.1-mla` | `f79e4721` | draft 3.0156 B BF16 = 6.03 GB, `Eagle3DeepseekV2ForCausalLM`, `_torchspec_version 0.1.0`, aux layers [2,46,90] | none | **No** — the card is a pre-release 1/4-epoch checkpoint and validates only its own "K3.1 build" of vLLM (TorchSpec); our image carries neither that build nor the EAGLE class |
+| `audnai/penclaw-Kimi-K3.1-pro-unrestricted` | `4ea2457a` | full 2.78 T body (2.7227 T U8 MXFP4 elements + 57.36 B BF16), abliterated | none (base repo) | Engine-wise yes, fit-wise no — the unpruned body cannot fit TP≤4; no arm |
+
+**Recommended drafter: DSpark.** Both DSpark and DFlash2 are taken by the tree's runtime
+(`--speculative-config` with `method` `dspark`/`dflash`, pinned in `defaults`), but DSpark's card
+declares no competing base revision, its head is the smaller of the two (4.50 GB vs 5.57 GB), and its
+config's `block_size: 5` is what the arm ships; DFlash2 is the fallback if first-boot acceptance on
+the pruned body disappoints, with its declared `base_model_revision` (`535833b1`, not the base
+`main`) on record. Neither
+card's acceptance number was measured on a 75 %-pruned target: that measurement is the arm's job.
+
+**EXL3 2-bit: recorded as not bootable, no recipe file.** `local-inference-lab/Kimi-K3.1-Pro-EXL3-2bit`
+is an `exl3-v1` (`lut_e4m3`) export: 82,432 routed experts uniformly 2-bit, the 2,748 tensors outside
+routed experts at their source bytes, `quant_method: exl3`, `dense_format: bf16`, and — per its card —
+**742.235 GiB ≈ 797 GB** of weights, converted from base revision `6d0a0202` (again not the base
+`main`). Two independent walls:
+
+- **Fit, before any engine question.** The fleet's raw aggregate is 6 × 128 GB = 768 GB, and a
+  TP=4 launch has 512 GB. Even at six ranks the raw sum is 16 GB short of 797 GB, before the usable
+  discount (~121 GiB/node, i.e. ~726 GiB over six) and before KV/activations. No TP≤6
+  configuration holds this checkpoint — arithmetic, not a scheduling preference, so it is
+  authored-not-booted with that reason and gets no queue row.
+- **Runtime.** The card requires an EXL3-aware runtime with Kimi-K3.1 architecture support and says
+  Flare/FlashInfer integration "is being developed". Our tree has no such engine: the EXL3 route in
+  this registry is TensorFold, whose only shipped family is `deepseek_v41`, and no vLLM/SGLang image
+  here implements `quant_method: exl3` for `kimi_k31`. There is nothing to launch, so there is no
+  `zz-` recipe pretending otherwise.
+
+Licences in this section are the base's `kimi-k3.1-pro` (`other`) except `RadixArk`'s draft, which is
+Apache-2.0, and `lightseekorg`'s, which is `other` with no licence name.
 
 ## Attic index
 

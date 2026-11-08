@@ -1,0 +1,90 @@
+recipe_version: "2"
+model: ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF:IQ2_XXS
+model_revision: 54229d38d588a66d1c6cff08af7b281b9326c656
+runtime: llama-cpp
+# upstream-6023692 (2026-11-05) is the first llama.cpp image the lane has that is
+# past the card's b11870 floor (74bca395, 2026-10-25, "model: DSV4.1 flash"): its
+# commit is eleven days later. The lane's pinned upstream-a37cc46 build predates it.
+container: littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  DeepSeek-V4.1-Flash-1017 GSQ-RCO Coder, the IST-DASLab 1-bit build: 192 of 384
+  routed experts per layer removed by RCO, the surviving 192 kept in the IQ2_XXS
+  build's per-tensor types, 763 B total / 551.9 B in the transformer at 72.12 GB
+  (1.05 bpw against the original transformer). One GB10 node, vision path included.
+  RESIDENT vs MAPPED: only the 72.12 GB transformer is resident; the 110.60 GB Engram
+  file (two IQ4_NL lookup tables, shard 6, one row read per token) stays memory-mapped
+  on disk, and on this fleet that disk is the BeeGFS pool mounted at /cache — so every
+  decode step crosses the fabric for one Engram row. Expect the first low decode number
+  to be fabric latency, not engine regression. AUTHORED-NOT-BOOTED 2026-11-08 (the
+  window was held by session campaign-queue; no receipt).
+metadata:
+  model_url: https://huggingface.co/ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "763B"
+  # Not a single type: per-tensor IQ2_XXS build types on the surviving experts, with
+  # denser tensors held higher; the card's own average for retained parameters is 2.06 bpw.
+  model_dtype: iq2_xxs
+  kv_dtype: fp16
+  tags: vision, reasoning, gguf, large_context
+  caveats: >
+    MIT (the base model DeepSeek-V4.1-Flash-1017's licence), no gating. The card's own
+    quality claim is measured at reasoning effort 50: SWE-bench Verified 77.00 vs the
+    base 81.20 (94.8 % retained), LiveCodeBench v6 88.57 vs 89.71 (98.7 %). General-purpose
+    capability outside the code/agentic/long-context/vision calibration set is an
+    accepted loss and is not measured here. ENGINE FLOOR (verified 2026-11-08): llama.cpp
+    b11870 or newer — the image pinned above is commit 6023692 (2026-11-05), past the
+    b11870 tag commit 74bca395 (2026-10-25), whose release is "model: DSV4.1 flash"
+    (#31086). The lane's older upstream-a37cc46 image (2026-10-21) predates it and cannot
+    load this arch. SHARDING: the model spec's `:IQ2_XXS` segment is load-bearing — without
+    it sparkrun's GGUF resolver takes the first `.gguf` in the snapshot, which is the
+    Engram table, not shard 1.
+mods:
+  - "mods/dsv41-engram-shard-link"
+
+executor_config:
+  # The lane's llama.cpp images keep ENTRYPOINT ["/usr/local/bin/llama-server"], which
+  # would swallow sparkrun's appended `bash -c <command>`; clear it (lane-wide shape).
+  entrypoint: ""
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared GGUF shard-1 path.
+  served_model_name: ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF
+  ctx_size: 32768
+  parallel: 2
+  n_gpu_layers: 999
+  flash_attn: auto
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 20
+  load_mode: none
+  # Bound to the prepared projector path; the command passes it, so the runtime's
+  # append-if-absent rule does not double it.
+  mmproj: mmproj-DeepSeek-V4.1-Flash-1017-BF16.gguf
+  extra_args: ""
+
+command: >
+  llama-server -m {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --kv-unified
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --flash-attn {flash_attn}
+  --jinja
+  --reasoning on
+  --reasoning-effort 50
+  --mmproj {mmproj}
+  --no-webui
+  --load-mode {load_mode}
+  --cont-batching
+  {extra_args}

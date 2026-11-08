@@ -172,5 +172,63 @@ class TemplateOverlay(unittest.TestCase):
                          "a symlink here would stage nothing on a fresh node")
 
 
+class InlineSystemShim(unittest.TestCase):
+    """Guard: the shim patches only an image whose caller has no callee.
+
+    ``dsv41-sm121-dg:0.2.1`` forward-ported ``serving_chat.py`` (it calls
+    ``chat_encoding.spec_supports_inline_system``) but kept the older
+    ``chat_encoding.py``, so the OpenAI server died in its lifespan and every
+    survey arm ended rc=4 at ~250 s. The shim must leave a consistent image
+    byte-for-byte alone, because the production canary image has the caller
+    nowhere and a rebuilt image carries the function already.
+    """
+
+    CALLER = "return chat_encoding.spec_supports_inline_system(self.chat_encoding_spec)\n"
+
+    def setUp(self):
+        self.module = load_launcher()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self._saved = self.module.ENGINE_OPENAI_DIR
+        self.module.ENGINE_OPENAI_DIR = str(self.root)
+
+    def tearDown(self):
+        self.module.ENGINE_OPENAI_DIR = self._saved
+        self._tmp.cleanup()
+
+    def stage(self, serving: str, encoding: str) -> Path:
+        (self.root / "serving_chat.py").write_text(serving, encoding="utf-8")
+        encoding_path = self.root / "chat_encoding.py"
+        encoding_path.write_text(encoding, encoding="utf-8")
+        return encoding_path
+
+    def test_a_caller_without_the_callee_gets_upstreams_function(self):
+        encoding = self.stage(self.CALLER, "import os\n")
+        self.module.ensure_inline_system_shim()
+        source = encoding.read_text(encoding="utf-8")
+        self.assertTrue(source.startswith("import os\n"), "the module was rewritten")
+        self.assertIn("def spec_supports_inline_system(spec):", source)
+        self.assertIn('return spec == "kimi_k3"', source)
+
+    def test_patching_is_idempotent(self):
+        encoding = self.stage(self.CALLER, "")
+        self.module.ensure_inline_system_shim()
+        self.module.ensure_inline_system_shim()
+        self.assertEqual(
+            encoding.read_text(encoding="utf-8").count("def spec_supports_inline_system"), 1)
+
+    def test_an_image_that_needs_nothing_stays_byte_for_byte(self):
+        cases = {
+            "production canary (no caller)": ("import os\n", "import os\n"),
+            "rebuilt image (callee present)":
+                (self.CALLER, "def spec_supports_inline_system(spec):\n    return False\n"),
+        }
+        for name, (serving, encoding_text) in cases.items():
+            with self.subTest(name):
+                encoding = self.stage(serving, encoding_text)
+                self.module.ensure_inline_system_shim()
+                self.assertEqual(encoding.read_text(encoding="utf-8"), encoding_text)
+
+
 if __name__ == "__main__":
     unittest.main()

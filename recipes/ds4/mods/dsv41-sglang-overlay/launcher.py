@@ -742,6 +742,50 @@ def ensure_template_overlay(
           f"({TEMPLATE_NAME} from the mod dir)", flush=True)
 
 
+# Image 85c1ffc3's forward-ported ``serving_chat.py`` calls
+# ``chat_encoding.spec_supports_inline_system``; that image's
+# ``chat_encoding.py`` predates the function, so the OpenAI server dies inside
+# its lifespan at ~250 s (``AttributeError: module
+# 'sglang.srt.entrypoints.openai.chat_encoding' has no attribute
+# 'spec_supports_inline_system'``) and the arm is never ready. Upstream main
+# defines it as below; for the ``dsv41`` spec it returns False, which is the
+# branch the pre-port image took, so the served behaviour is unchanged.
+# Patched in place so the image digest stays the measured artifact.
+# shortcut: the image's forward port, drop this when the image is rebuilt with
+# the function (the ``caller`` probe below goes quiet on its own).
+ENGINE_OPENAI_DIR = "/sgl-workspace/sglang/python/sglang/srt/entrypoints/openai"
+INLINE_SYSTEM_SHIM = '''
+
+
+def spec_supports_inline_system(spec):
+    """Native encoders verified to render mid-conversation system messages in place."""
+    return spec == "kimi_k3"
+'''
+
+
+def ensure_inline_system_shim() -> None:
+    """Add the function the image's serving_chat calls but chat_encoding lacks."""
+    serving = os.path.join(ENGINE_OPENAI_DIR, "serving_chat.py")
+    encoding = os.path.join(ENGINE_OPENAI_DIR, "chat_encoding.py")
+    try:
+        with open(serving, encoding="utf-8") as handle:
+            caller = "chat_encoding.spec_supports_inline_system" in handle.read()
+        with open(encoding, encoding="utf-8") as handle:
+            source = handle.read()
+        if not caller or "def spec_supports_inline_system" in source:
+            return
+        with open(encoding, "a", encoding="utf-8") as handle:
+            handle.write(INLINE_SYSTEM_SHIM)
+    except OSError as exc:
+        # Leave the image as shipped: the engine then reports the real
+        # AttributeError, and this line says why the patch is missing.
+        print(f"launcher: chat_encoding shim skipped ({exc!r})", flush=True)
+        return
+    print("launcher: patched chat_encoding.spec_supports_inline_system "
+          "(the image's forward port omitted it; upstream main defines it)",
+          flush=True)
+
+
 def resolve_checkpoint(env: dict[str, str]) -> None:
     """Set MODEL_PATH / DSV41_SOURCE for the checkpoint to serve.
 
@@ -889,6 +933,10 @@ def main(argv: list[str]) -> int:
     # Locate the checkpoint in the fixed HF cache (MODEL_ID from `{model}`).
     # After apply_recipe_env, which is where /cache/runtime paths are set.
     resolve_checkpoint(env)
+
+    # Both the health probe and the serve import the OpenAI server, so the
+    # shim is applied before either execs.
+    ensure_inline_system_shim()
 
     if args.health:
         os.execve(sys.executable, [sys.executable, BOOT, "health"], env)

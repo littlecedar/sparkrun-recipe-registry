@@ -1,7 +1,10 @@
 # DeepSeek V4.1-Flash on DGX Spark — `ds4`
 
-DeepSeek-V4.1-Flash served on NVIDIA DGX Spark (GB10) nodes with SGLang. Two
-shipped recipes, one per engine; both serve the model's full 1M-token window.
+DeepSeek-V4.1-Flash served on NVIDIA DGX Spark (GB10) nodes with SGLang, plus one
+llama.cpp arm (the ISTA-DASLab GSQ-RCO Coder GGUF). Two shipped recipes, one per
+SGLang engine; both serve the model's full 1M-token window, and the llama.cpp arm is
+single-node by construction (see its own section for what it does and does not hold
+resident).
 The retired EXL3/vLLM lane and all lane history — measurements, boot receipts,
 negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 (see the [Attic index](#attic-index)).
@@ -29,6 +32,7 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
   - [Knobs a user cannot infer](#knobs-a-user-cannot-infer-1)
   - [License](#license-1)
   - [Launch caveats](#launch-caveats-1)
+- [deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp](#deepseek-v41-flash-1017-gsq-rco-coder-gguf-llamacpp)
 - [SM121 survey arms (zz-, DeepGEMM gate cleared 2026-11-07)](#sm121-survey-arms-zz--deepgemm-gate-cleared-2026-11-07)
 - [Upgrade candidates (measured elsewhere, not queued)](#upgrade-candidates-measured-elsewhere-not-queued)
 - [Quality benchmarks](#quality-benchmarks)
@@ -951,7 +955,61 @@ inference code (see the fork's `tools/dsv41/ATTRIBUTION.md`). Checkpoint: the
 - Vision rides the launcher's `--vision` flag (this recipe passes it, with the 43-gate
   bias shipped in the mod); see the vision knob above.
 
-## SM121 survey arms (`zz-`, DeepGEMM gate cleared 2026-11-07)
+## deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp
+
+| | |
+|:--|:--|
+| Recipe | `recipes/ds4/deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp.yaml` |
+| Model | [`ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF`](https://huggingface.co/ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF) pinned `54229d38` — card MIT (the base model's licence) |
+| Engine | llama.cpp `llama-server`; image `littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b80…` |
+| Weights | 763.2 B params overall, 551.9 B in the transformer. 192 of 384 routed experts per layer removed by RCO; the surviving 192 keep the IQ2_XXS build's per-tensor types — 72.12 GB on disk, **1.05 bpw** against the original transformer (card's arithmetic; retained parameters average 2.06 bpw) |
+| Engram | 110.60 GB, `DeepSeek-V4.1-Flash-Engram-IQ4_NL.gguf` — the Coder's shard 6, byte-identical to the unpruned release's. Two IQ4_NL lookup tables, read one row per token, memory-mapped, **not resident** |
+| Vision | `mmproj-DeepSeek-V4.1-Flash-1017-BF16.gguf`, 0.97 GB, also the unpruned release's file |
+| Topology | TP=1 — one GB10 node. Resident is the 72 GB transformer plus KV; the 110.60 GB Engram stays on disk |
+| Card accuracy (reasoning effort 50) | SWE-bench Verified 77.00 vs base 81.20 (94.8 % retained); LiveCodeBench v6 88.57 vs 89.71 (98.7 %) |
+| Status | **Authored-not-booted, 2026-11-08.** The fleet window was held by session `campaign-queue`; no receipt, no measured cell |
+
+### What fits, and what is read through the fabric
+
+Do not read this as a 182.72 GB arm. The 182.72 GB is repo bytes; the arm's resident footprint is
+the **72.12 GB transformer** plus KV on one GB10, which is why it is `tp: 1`. The 110.60 GB Engram
+file is `mmap`ed and read one row per token. On this fleet `/cache` is the shared BeeGFS pool, so
+those reads cross the fabric, not a local NVMe. That makes the per-token Engram row read the first
+thing a low decode number should be checked against — `read_bytes` per token and the pool's row-read
+latency — before it is attributed to llama.cpp or to the 1-bit weights.
+
+### The shard-6 link (why a mod, not a step)
+
+The five transformer shards are `IQ2_XXS/…-0000i-of-00006.gguf`, i = 1..5; the Engram file is the
+sixth shard but lives at the repo root, so llama.cpp's shard discovery (it opens 2..6 beside `-m`'s
+directory) needs
+`IQ2_XXS/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-IQ2_XXS-00006-of-00006.gguf` to exist.
+[`mods/dsv41-engram-shard-link`](mods/dsv41-engram-shard-link) creates it pre-exec: idempotent
+`ln -sfn`, fail-closed if no Engram file is on the node, `chown -h` back to the cache owner, no
+network. It also searches the pool for the identical unpruned-release copy so the common case does
+not re-download 110.60 GB.
+
+The recipe's model spec carries `:IQ2_XXS` for the same reason the mod exists: sparkrun's GGUF
+resolver takes the first `.gguf` in a snapshot when no quant segment is given, and in this repo that
+is the Engram table, not shard 1.
+
+### Prerequisites (both verified before the arm may claim bootability)
+
+1. **llama.cpp ≥ b11870**, the release that added DeepSeek-V4.1 support (`74bca395`, 2026-10-25,
+   "model: DSV4.1 flash" #31086). The lane's long-standing `upstream-a37cc46` image (2026-10-21) is
+   **older than that floor** and cannot load the arch. The image pinned here is commit `6023692`
+   (2026-11-05, eleven days past b11870) and carries `--reasoning`, `--reasoning-effort`,
+   `--load-mode`, `--mmproj` and `--jinja` at that commit — checked in `common/arg.cpp`, not assumed
+   from the tag name.
+2. **The Engram shard-6 link**, per the mod above.
+
+Either missing makes the arm authored-not-booted with that exact blocker. What is *not* yet verified
+is the model side: no boot has proved the image's `deepseek4`/DSV4.1 loader agrees with this GGUF's
+per-tensor mix, nor what a decode step costs when one Engram row per token comes off BeeGFS.
+
+
+
+## SM121 survey arms (zz-, DeepGEMM gate cleared 2026-11-07)
 
 Trial arms on two local-only images. Neither is a ship candidate; all ride the production
 environment (`DSV41_C3_EXCLUDES=1`, kernel 0.4.7 held, `--fp8-gemm-backend flashinfer_cutlass`,
