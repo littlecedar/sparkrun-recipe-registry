@@ -29,6 +29,7 @@ negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
   - [Knobs a user cannot infer](#knobs-a-user-cannot-infer-1)
   - [License](#license-1)
   - [Launch caveats](#launch-caveats-1)
+- [SM121 survey arms (zz-, DeepGEMM gate cleared 2026-11-07)](#sm121-survey-arms-zz--deepgemm-gate-cleared-2026-11-07)
 - [Upgrade candidates (measured elsewhere, not queued)](#upgrade-candidates-measured-elsewhere-not-queued)
 - [Quality benchmarks](#quality-benchmarks)
 - [Attic index](#attic-index)
@@ -949,6 +950,60 @@ inference code (see the fork's `tools/dsv41/ATTRIBUTION.md`). Checkpoint: the
   the node's registry clone, so this recipe only launches once the mod is pushed.
 - Vision rides the launcher's `--vision` flag (this recipe passes it, with the 43-gate
   bias shipped in the mod); see the vision knob above.
+
+## SM121 survey arms (`zz-`, DeepGEMM gate cleared 2026-11-07)
+
+Two trial arms on one local-only image, authored for queue rows
+`w4-survey-arm3-indexer-scoring` and `w4-survey-arm5-trtllm-mla`. Neither is a ship candidate;
+both ride the same production environment as the shipped recipe (`DSV41_C3_EXCLUDES=1`, kernel
+0.4.7 held, `--fp8-gemm-backend flashinfer_cutlass`, DSpark k=5, 1M window).
+
+| | |
+|:--|:--|
+| Arm 3 | `zz-ds4-1017-sm121-indexer-scoring.yaml` — candidate-block indexer scoring (DEEPSEEK.md section 10.5); control is the shipped `canary-roce-aff52fa5` line |
+| Arm 5 | `zz-ds4-1017-sm121-arm5-trtllm-mla.yaml` — same image plus `EXTRA_SGLANG_ARGS: "--dsv4-attn-backend trtllm"` (section 10.7); control is arm 3, so the DeepGEMM half is held fixed |
+| Image | `dsv41-sm121-dg:0.2.0`, ID `sha256:1778ec428bc448b4111b2170de3631d7a337da2065d83d3264d198f0fe46c76b` — built on the head from `dsv41-c3-reconciled:103ad321`; Dockerfile and patch provenance in `~/builds/deepgemm-sm121/ctx/` (`Dockerfile.sm121`, `src/PROVENANCE.md`). Local tag only, nothing pushed, so both recipes set `distribution_config.containers.enabled: false`. |
+| Carry | 33.9 GB, image exists only on the head: `docker save dsv41-sm121-dg:0.2.0 \| ssh red@<node> 'docker load'`, once per node that boots a rank; then `docker image inspect -f '{{.Id}}' dsv41-sm121-dg:0.2.0` on each node must print the ID above. A `docker save` of 33.9 GB over the fabric is minutes, not a window. |
+
+### Measurement: one command per arm
+
+`tools/run-arm.sh` stops the serve after its own ladder, so a survey client rides the executor's
+`ARM_EXTRA_CLIENT` hook (runs after ladder/house, before the unconditional stop; the string is
+shell-evaluated there, so `$L`, `$NODE`, `$PORT`, `$SERVED` are in scope). `tools/longctx-cell.py`
+is that one command: it builds a unique synthetic retrieval haystack at the requested length, plants
+one access code at ~50 %, sends it greedily as a streaming request, and reports median ms/step (the
+SSE chunk gap, which is one decode step under speculative decoding), per-request tok/s, aggregate
+tok/s, the server's own `usage.prompt_tokens`, and the needle result. Exit `0` every cell passed,
+`3` a measured cell failed a check (needle miss, prompt shorter than requested, request error).
+
+Arm 3 — 1M decode step plus retrieval:
+
+```sh
+ARM_EXTRA_CLIENT='python3 -B tools/longctx-cell.py --base-url "http://$NODE:$PORT" --model "$SERVED" --context-length 1039999 --concurrency 1 --max-tokens 128 --json "$L/longctx-1m.json"' \
+ARM_EXTRA_TIMEOUT=3600
+```
+
+Arm 5 — 128K at C5 and C10:
+
+```sh
+ARM_EXTRA_CLIENT='python3 -B tools/longctx-cell.py --base-url "http://$NODE:$PORT" --model "$SERVED" --context-length 131072 --concurrency 5,10 --max-tokens 8 --json "$L/longctx-128k.json"'
+```
+
+Falsifiers. Arm 3: 1M ms/step does not fall by >=5 % against the control while the short ladder is
+flat, or the needle stops being found. Arm 5: C5/C10 does not clear the control's range, or the
+needle misses. The 1M cold prefill measured 235-270 s in window 4, so arm 3 needs the raised hook
+timeout; the default 1800 s is enough for 128K.
+
+### Arm 5 preflight gate (read before spending a slot)
+
+The tree refuses the flag on GB10. `srt/arg_groups/deepseek_v4_hook.py` asserts
+`is_sm100_supported()` ("--dsv4-attn-backend trtllm requires an SM100/SM103 (Blackwell) GPU") and
+`srt/utils/common.py` defines that predicate as capability major 10 only, so a GB10 (12,1) launch
+aborts during argument assembly. Verified against the image on the head 2026-11-07
+(`docker run --rm ... python3`), not by boot. Second divergence from section 10.7: `boot.py`
+appends `--enable-decoder-swa-bounded-replay` unconditionally and the arg has no `--no-` form, so
+"replay off in both arms" is not reachable from this launcher. Both need a tree/launcher change
+before arm 5 can measure anything; arm 3 has no such gate.
 
 ## Upgrade candidates (measured elsewhere, not queued)
 

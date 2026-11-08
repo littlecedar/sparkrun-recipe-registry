@@ -1,0 +1,74 @@
+recipe_version: "2"
+model: deepseek-ai/DeepSeek-V4.1-Flash-1017
+# Same launcher contract as the shipped production recipe: SKIP_PREPARE=1 and
+# the snapshot sparkrun renders from {model} decides the weights, so pin -- not
+# the image's baked REVISION. 1017 ships no chat template; the mod stages the
+# patched copy (a template-less checkpoint with no mod template is refused).
+model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
+runtime: sglang
+# Local-only SM121 image (queue row arch-deepgemm-sm12x-paged-sparse, receipt
+# mad-science/SESSION-RECORD.md 2026-11-07 + ~/builds/deepgemm-sm121/ctx):
+# DeepGEMM v0.2.0 with the SM120 paged-sparse MQA-logits kernel backported from
+# deepseek-ai/DeepGEMM nv_dev b64107f2 and the arch gate widened to 10 or 12.
+# Image ID (local, byte-identifies the artifact; nothing pushed):
+#   sha256:1778ec428bc448b4111b2170de3631d7a337da2065d83d3264d198f0fe46c76b
+# It exists only on the head; carry it with the command in recipes/ds4/README.md
+# "SM121 survey arms" before a boot. distribution_config disables sparkrun's
+# image distribution, which would try to pull this local tag from a registry.
+container: dsv41-sm121-dg:0.2.0
+distribution_config:
+  containers:
+    enabled: false
+min_nodes: 4
+description: >-
+  Survey arm 3 (`zz-` trial, queue row w4-survey-arm3-indexer-scoring), now
+  unblocked on the SM121 DeepGEMM image: SGLang main-lineage 103ad321 plus the
+  knapcio adapter set re-ported (c3) and the SM120 paged-sparse MQA-logits
+  kernel. Same production environment as deepseek-v4.1-flash-knapcio-tp4-1m-
+  sglang; the delta under test is the candidate-block indexer-scoring arm
+  (DEEPSEEK.md section 10.5: -17 % step time at 1M decode on 2x GB10). Control
+  is the shipped canary-roce-aff52fa5 line.
+metadata:
+  model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: mxfp4
+  model_mtp_dtype: mxfp4
+  kv_dtype: fp8
+  tags: trial
+mods:
+  - "mods/dsv41-sglang-overlay"
+executor_config:
+  entrypoint: ""
+  shm_size: 32gb
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  max_model_len: 1048576
+  dspark_block_size: 5
+env:
+  # c3 adapter exclusions (see apply_recipe_env in the overlay launcher).
+  DSV41_C3_EXCLUDES: "1"
+  # The candidate tree floors sglang-kernel at 0.4.9, whose aarch64 wheel is ABI-
+  # incompatible with the base's torch 2.13.0+cu130 (undefined
+  # c10::cuda::CUDAErrorLogCapture on import) and no compatible wheel exists, so
+  # this arm holds the shipped kernel (0.4.7) and skips the gate; holding it
+  # also isolates the tree delta in the A/B. Divergence recorded in
+  # ~/builds/ds4-report/c3-NOTES.md.
+  SGLANG_SKIP_SGL_KERNEL_VERSION_CHECK: "1"
+command: >
+  python3 /workspace/mods/dsv41-sglang-overlay/launcher.py
+  --boot
+  --model {model}
+  --port {port}
+  --tp {tensor_parallel}
+  --served-model-name {model}
+  --context-length {max_model_len}
+  --dspark-block-size {dspark_block_size}
+  --fp8-gemm-backend flashinfer_cutlass
+readiness:
+  # inference must stay false: /health answers 200 the moment the server binds.
+  inference: false
+  port_timeout_s: 7200
+  health_timeout_s: 3600
