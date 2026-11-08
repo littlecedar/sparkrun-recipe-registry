@@ -100,6 +100,14 @@ TP_VALUES = (1, 2, 4)
 class QueueError(Exception):
     """A fail-closed queue-data defect; the message names the offending task."""
 
+    exit_code = 1
+
+
+class PeerWriteInFlight(QueueError):
+    """A peer wrote the board between this publisher's read and its write: merge, don't regenerate."""
+
+    exit_code = 3
+
 
 # ---------------------------------------------------------------- loading / validation
 
@@ -766,6 +774,21 @@ def board_stamp(text: str) -> dt.datetime:
     return max(stamps)
 
 
+def dropped_peer_lines(disk_text: str, base_text: str, incoming: str) -> list[str]:
+    """Non-blank lines a peer added on disk after the publisher's read that the incoming body drops.
+
+    Measured against the base the publisher composed from, not the whole disk: retirement is
+    legitimate (a tick clears the landed table and closes work-queue rows), so only lines that
+    appeared on disk *after* that read are peer additions that must survive into the new body.
+    `--expect-sha` catches the same window from the other side (any move at all, exit 1); this one
+    says which lines would be lost and asks for a merge (exit 3).
+    """
+    base = {line for line in base_text.splitlines() if line.strip()}
+    have = {line for line in incoming.splitlines() if line.strip()}
+    return [line for line in disk_text.splitlines()
+            if line.strip() and line not in base and line not in have]
+
+
 def _lock(handle, seconds: float) -> None:
     """Bounded exclusive flock: a wedged holder is reported, never waited on.
 
@@ -813,13 +836,21 @@ def cmd_publish(args, path: Path) -> None:
         raise QueueError(
             f"refusing publish: {len(leaks)} cluster address(es) in board text — mask to "
             "`.30`–`.33`-style shorthand")
+    use_base = bool(getattr(args, "base", ""))
+    if not use_base and not args.expect_sha:
+        # Fail closed: with neither the sha nor the bytes it read, no check can catch a peer write.
+        raise QueueError(
+            "refusing publish: pass --expect-sha <sha256 you read> (exit 1 on a move) or "
+            "--base <file you read> (exit 3 on a dropped peer line), so the write is not unchecked")
+    base_text = Path(args.base).read_text(encoding="utf-8") if use_base else ""
     incoming = board_stamp(text)
     board = Path(args.board)
     lock = Path(args.lock)
     lock.parent.mkdir(parents=True, exist_ok=True)
     with open(lock, "w") as handle:
         _lock(handle, args.lock_wait)
-        disk = board_stamp(board.read_text(encoding="utf-8")) if board.exists() else None
+        disk_text = board.read_text(encoding="utf-8") if board.exists() else ""
+        disk = board_stamp(disk_text) if disk_text else None
         if disk is not None and disk > incoming:
             raise QueueError(
                 f"refusing publish: {board} on disk carries {disk} ET, newer than this read's "
@@ -833,6 +864,13 @@ def cmd_publish(args, path: Path) -> None:
                     f"refusing publish: {board} on disk is sha256 {moved[:12]}, not the "
                     f"{args.expect_sha[:12]} this board was composed from — a peer wrote it in "
                     "between; re-read and re-compose, do not replace their rows")
+        if use_base:
+            peer = dropped_peer_lines(disk_text, base_text, text)
+            if peer:
+                raise PeerWriteInFlight(
+                    f"refusing publish: {len(peer)} line(s) a peer wrote after your read are "
+                    "absent from this body — merge them in, do not regenerate; first missing: "
+                    + " | ".join(peer[:5])[:400])
         tmp = board.with_name(board.name + ".tmp")
         tmp.write_text(text, encoding="utf-8")
         os.replace(tmp, board)
@@ -1058,6 +1096,9 @@ def main(argv: list[str] | None = None) -> int:
     p_pub.add_argument("--expect-sha", default=None,
                        help="sha256 of the board this composition was read from; refuse when the file "
                             "on disk moved (guards a peer's in-place edit carrying the same title)")
+    p_pub.add_argument("--base", default="",
+                       help="board file you read before composing: a non-blank line a peer added "
+                            "after it must survive into stdin, or the publish exits 3")
     p_pub.add_argument("--lock", default=".local/status-board.lock",
                        help="lock file shared with every other board writer (default .local/status-board.lock)")
     p_pub.add_argument("--lock-wait", type=float, default=90.0,
@@ -1074,7 +1115,7 @@ def main(argv: list[str] | None = None) -> int:
             args.fn(args, path)
     except QueueError as exc:
         print(f"task-queue: {exc}", file=sys.stderr)
-        return 1
+        return exc.exit_code
     return 0
 
 

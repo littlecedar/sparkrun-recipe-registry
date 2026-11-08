@@ -1616,7 +1616,16 @@ uv run python -B tools/task-queue.py publish < new-board  # write the board, ref
     # title, so an equal stamp passes both ways and the whole file is replaced (2026-11-08
     # 11:13, bytes no commit held). Pass the sha the composition was read from and publish
     # exits 1, writing nothing, when the disk file moved; fail-closed when the board is absent.
-uv run python -B tools/task-queue.py publish --expect-sha "$SHA" < new-board
+    # --base <file> is that same read kept as bytes, and it catches the merge side rather than any
+    # move: a non-blank line that appeared on disk after the read and is absent from stdin exits 3
+    # and writes nothing, because a peer wrote between the read and the write and those lines must
+    # be merged in, not regenerated over. Lines already in --base may legitimately disappear (a
+    # tick clears the landed table and closes queue rows), so retirement never trips it.
+    # One of the two is required: without either, publish exits 1 instead of writing unchecked.
+uv run python -B tools/task-queue.py publish --expect-sha "$SHA" --base "$READ" < new-board
+    # exit 3 means a merge — re-read the board, fold the named lines in, publish again. Exit 1 is
+    # the tool's other refusal class (bad markdown, a raw cluster address, a newer stamp, a moved
+    # sha, no guard flag) and never means a peer wrote during the publish.
 uv run python -B tools/task-queue.py add --id X --title "…" --estimate-h 2 \
     --blocks A,B --model dsv4.1-1017 --node-cost quartet --provenance "TODO.md §ds4"
     # --blocked-by A,B is the reverse edge, for adding a dependent before its blocker exists

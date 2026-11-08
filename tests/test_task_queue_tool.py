@@ -637,7 +637,11 @@ class BoardPublish(unittest.TestCase):
         self.board = self.dir / "STATUS.md"
         self.lock = self.dir / "board.lock"
 
-    def publish(self, text, wait=None, expect_sha=None):
+    def publish(self, text, wait=None, expect_sha=None, base=None):
+        if base is None and expect_sha is None:
+            # The tick's own read: with no guard flag publish fails closed, so default to --base.
+            base = self.dir / "base.md"
+            base.write_text(self.board.read_text(encoding="utf-8"), encoding="utf-8")
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             saved, sys.stdin = sys.stdin, io.StringIO(text)
             try:
@@ -646,6 +650,8 @@ class BoardPublish(unittest.TestCase):
                     argv += ["--lock-wait", wait]
                 if expect_sha is not None:
                     argv += ["--expect-sha", expect_sha]
+                if base is not None:
+                    argv += ["--base", str(base)]
                 return tq.main(argv)
             finally:
                 sys.stdin = saved
@@ -716,6 +722,59 @@ class BoardPublish(unittest.TestCase):
         composed = hashlib.sha256(self.board.read_bytes()).hexdigest()
         self.assertEqual(self.publish(board_text(self.NEW), expect_sha=composed), 0)
         self.assertIn(self.NEW, self.board.read_text(encoding="utf-8"))
+
+    def _peer_writes_a_row(self, row):
+        """Append a row the way a peer writes the board between a publisher's read and its write."""
+        self.board.write_text(self.board.read_text(encoding="utf-8") + row + "\n", encoding="utf-8")
+
+    def test_a_peer_line_dropped_between_read_and_write_exits_3(self):
+        self.board.write_text(board_text(self.OLD), encoding="utf-8")
+        base = self.dir / "read.md"
+        base.write_text(board_text(self.OLD), encoding="utf-8")
+        self._peer_writes_a_row("| 11:08 | measurement, peer | a row written after the read |")
+        before = self.board.read_bytes()
+        self.assertEqual(self.publish(board_text(self.NEW), base=base), 3)
+        self.assertEqual(self.board.read_bytes(), before)
+
+    def test_identical_body_publishes(self):
+        """Regression: an unchanged rewrite drops nothing, so the containment check stays quiet."""
+        self.board.write_text(board_text(self.OLD), encoding="utf-8")
+        self.assertEqual(self.publish(board_text(self.OLD)), 0)
+
+    def test_retirement_is_legitimate(self):
+        """A tick clears the landed table and closes queue rows: lines already in the base may go."""
+        self.board.write_text(board_text(self.OLD) + "| 10:44 | `92b7503` | retired next tick |\n",
+                              encoding="utf-8")
+        base = self.dir / "read.md"
+        base.write_text(self.board.read_text(encoding="utf-8"), encoding="utf-8")
+        self.assertEqual(self.publish(board_text(self.NEW), base=base), 0)
+        self.assertNotIn("92b7503", self.board.read_text(encoding="utf-8"))
+
+    def test_negative_control_with_the_containment_check_bypassed(self):
+        """The dropped-peer case must publish once the check is bypassed, or its test proves nothing."""
+        self.board.write_text(board_text(self.OLD), encoding="utf-8")
+        base = self.dir / "read.md"
+        base.write_text(board_text(self.OLD), encoding="utf-8")
+        self._peer_writes_a_row("| 11:08 | peer | row |")
+        original = tq.dropped_peer_lines
+        tq.dropped_peer_lines = lambda *a, **k: []  # type: ignore[assignment]
+        try:
+            self.assertEqual(self.publish(board_text(self.NEW), base=base), 0)
+        finally:
+            tq.dropped_peer_lines = original
+
+    def test_publish_without_sha_or_base_is_refused(self):
+        """Neither guard means the write is unchecked, so it fails closed with the ordinary code."""
+        self.board.write_text(board_text(self.OLD), encoding="utf-8")
+        before = self.board.read_bytes()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            saved, sys.stdin = sys.stdin, io.StringIO(board_text(self.NEW))
+            try:
+                rc = tq.main(["publish", "--board", str(self.board), "--lock", str(self.lock)])
+            finally:
+                sys.stdin = saved
+        self.assertEqual(rc, 1)
+        self.assertEqual(self.board.read_bytes(), before)
 
     def test_a_wedged_lock_refuses_instead_of_waiting(self):
         """Measured 2026-11-06: an inherited lock fd held the board lock for over an hour."""
