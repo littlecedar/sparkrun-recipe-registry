@@ -5533,3 +5533,34 @@ proposed with its check and exit code so it lands as its own change with its own
   read, `2/1/1/1/0/0` while attempt 7 was up, volumes `0` throughout, the byte pair 12:02:53 → 12:12:10
   down **53 903 360 B ≈ 51.4 MiB across six nodes**, and the register at 9 queued + 11 blocked with
   zero claims.
+
+## 2026-11-08 12:29 ET — the OOM's third casualty is still failed, and two register notes break the board table
+
+The 11:27:57 head `global_oom` killed three things that got a board row and one that did not. The BeeGFS
+server stack came back in 39 minutes and the pool reads healthy (23 T, 9.0 T avail, all three units
+`active`). What is still broken is the **user unit `syncthing.service`**: `failed (Result: exit-code)`
+since **11:29:32** (19 ms runtime, its start attempt after the kill), while two orphaned
+`/usr/bin/syncthing serve` pids keep running — so the head is still syncing, from processes no unit owns,
+and a restart of the unit is what would put it back under supervision. Not restarted by a tick: it is a
+shared box and the unit's state is the owner's call, which is why the row reads `head clone` on the board
+rather than being repaired silently. Separately, the `bad object HEAD` reading from 12:04 is **closed**:
+`refs/heads/main` realigned at 12:23:50 to `d99c3e2…` (which resolves on the workstation too) and the
+head's checkout answers `ahead 4, behind 3` instead of dying, plus a stale
+`refs/heads/main.sync-conflict-20261108-041329-TOW2T6H` ref left in its `.git`.
+
+Two defects found while folding this hour's board, both cheap to state and neither repaired by a tick:
+
+- **A register note is free text, so a cluster address can reach a tracked file with no gate until CI.**
+  One open row's note briefly carried a literal management address; `git status` read the file clean and
+  the pushed version carried it, which makes `task-queue.py publish` refuse a board built from that
+  register (it lints addresses) and would redden `tests/test_tracked_address_hygiene.py` on the tip. A
+  peer masked it to `.30`–`.33` shorthand and committed while this tick was composing, so nothing was
+  published with it — but the class is that the note field has no writer-side check, only the readers'.
+- **`render --board` does not escape a `|` inside a register note, so three open rows break their own
+  table row.** `w4-survey-arm5-control-boot` (`sm121|sm_121|major == 12`),
+  `glm-flash-concurrency-degradation-search` (`(vllm|sglang|...|python3|python)`) and
+  `h2h-beam-house-and-bfcl-category` (`| DEFERRED`) each gain two to fourteen extra cells; GFM splits the
+  row at every pipe, so the state text lands in columns that do not exist and the row reads misaligned
+  against its 4-cell header. `task-queue.py lint` passes it (`ok: 1 markdown file(s) render`) because the
+  delimiter row is intact — the defect is per-row, not per-table. The fix belongs in the renderer
+  (escape `\|`), not in the notes: a note is prose and an operator will type a pipe again.
