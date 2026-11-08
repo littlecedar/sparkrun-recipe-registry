@@ -6017,3 +6017,35 @@ ended an outage — a reboot is the only one of the two that appeared here.
 - **Verification.** `earlyoom --dryrun` on the installed file prints `sending SIGTERM when mem <= 4.00% and swap <=
   100.00%, SIGKILL when mem <= 1.00% and swap <= 95.00%`; at 95.74 % available it is silent; a forced-threshold dryrun
   (`-m 98`) still selects `python3` (badness 1100) and names none of the running `beegfs-*` pids 2048 / 2168 / 2164.
+
+## 2026-11-08 17:31 ET — the rescued `metrics-land` lineage: one register row, and how to read the bundle
+
+- **The artefact.** `/home/siv/rescued-metrics-land-20261108.bundle` — 17.1 MB, 20 refs
+  (`refs/heads/land 84837a50`, `refs/heads/main fb881d80`, `refs/remotes/origin/main e1c6f31d`, plus 16
+  remote refs), `git bundle verify` → "bundle is okay", created 2026-11-08. **Never pushed and never
+  merged**: 33 of its 35 non-identical commits are dated board/ledger ticks of a superseded lineage, so
+  landing it would rewrite this lineage's ticks without adding a fact. Read it later with
+  `git clone ~/rescued-metrics-land-20261108.bundle /tmp/b && git log --oneline`; its value is
+  provenance, not content.
+- **The one row it held that this lineage lacked is landed**: `board-render-state-truncation`, commit
+  `ef7bae8`. It is a measurement — after the 269-row landed table was retired the board still read
+  82 136 B because `board_rows` restates every open task's notes in the state cell (75 821 B of a
+  23-row table) — and its acceptance is a per-row byte budget with its own guard test. §17:26 here
+  cited the id while `mad-science/queue.json` lacked it, because the row lived only in an unpublished,
+  divergent local `main` and in this bundle. **Nothing else in the lineage is missing.**
+- **Every other difference is provenance, checked against this tree.** The D-state readings
+  (44 / 9 / 5 / 3 / 4 / 16, then `0` on all six at 13:16:21, head load 36.88 → 1.33) are verbatim in
+  `STATUS.md`'s 13:16 row; `dropped_peer_lines`, `--base` and `--expect-sha` are in
+  `tools/task-queue.py:777-858`; the `60ee067` disclosure concerns a commit that is not on this
+  lineage (its objects are still in the shared store); the 274-row "Landed session" table and the
+  13:43 / 14:06 / 14:14 tick sections are superseded ticks.
+- **The `/tmp` adjudication behind the rescue.** Ten clones held commits absent from the shared object
+  store. Nine were redundant: three materially upstream (439–450 of 450 added lines), three
+  patch-identical to `e32253cc` / `8e7cd38f` / `f8d57c7f`, three single-commit snapshots whose every
+  blob was already in the shared store. The three `AGENTS.md` trees were older revisions, lacking the
+  push-gate rule and the `GIT_INDEX_FILE` clause. The sweep freed 2.8 GB (95 % → 77 %), left 152 of
+  today's entries (1.9 GB) for liveness/citation reasons, and left 13 GB of pre-today material to its
+  owners.
+- **The rule that separated them.** A commit absent from the shared object store is unique work; a
+  commit merely off `origin/main` is not, because today's rebases move SHAs. A clean clone whose every
+  ref tip and tree resolves in the shared store is recoverable, and safe for a sweep to remove.
