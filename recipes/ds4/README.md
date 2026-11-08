@@ -726,10 +726,12 @@ owner-authorized one-shot retry with `--moe-runner-backend triton` ALSO failed (
 engine confirmed `moe_runner_backend=triton`, got past the ÷128 geometry check and began weight
 load (108.83 GB available), then died 16 s in with an NVRM `NV_ERR_NO_MEMORY` GPU OOM — the un-fused
 runner cannot materialize the fp4 experts inside the 128 GB unified GPU. So the stock main tree
-(`6563312`) does NOT serve the 1017 on GB10 TP=4 at either in-arm MoE backend: cutlass rejects the
-geometry, triton cannot fit the memory. The corrected conclusion is a memory-fit one as much as a
-geometry one: the vendored fused/packed MoE path is load-bearing for MEMORY FIT on this checkpoint,
-so the adapter set is not optional for boot. Both tracebacks: cutlass
+(`6563312`) does NOT serve the 1017 on GB10 TP=4 at the two backends it was tried with: cutlass
+rejects the geometry, triton cannot fit the memory — and that retry names an unfused runner, so it
+is not evidence against `marlin`, which was never tried there and is the untried lever the SM121
+survey section now carries. The corrected conclusion is a memory-fit one as much as a geometry one:
+the vendored fused/packed MoE path is load-bearing for MEMORY FIT on this checkpoint, so the adapter
+set is not optional for boot in that image. Both tracebacks: cutlass
 `~/benchmarks/tp4-window4-20261026/s0-stock-tree-rank0-serve.log`; the triton retry's
 `s0-retry-node{1..4}-serve.log` saved beside it, its OOM in spark-d325's kernel log and the
 launch-side failure in `s0-retry-launch.log` (record: `mad-science/TODO.md:749-763`; queue verdict
@@ -961,7 +963,7 @@ inference code (see the fork's `tools/dsv41/ATTRIBUTION.md`). Checkpoint: the
 |:--|:--|
 | Recipe | `recipes/ds4/deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp.yaml` |
 | Model | [`ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF`](https://huggingface.co/ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF) pinned `54229d38` — card MIT (the base model's licence) |
-| Engine | llama.cpp `llama-server`; image `littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b80…` — the **digest is the pin**, the tag is only a readable label (GHCR publishes no `-cu130` tags for this repo; a first draft of this arm invented that suffix and the registry returned 404). Re-resolve by digest, and boot receipts must record both the digest and the resolved image id |
+| Engine | llama.cpp `llama-server`; image `littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b80…` — the **digest is the pin**, the tag is only a readable label (the `-cu130` form has never existed in GHCR — `manifest unknown`; a first draft of this arm invented that suffix. Use the bare `upstream-6023692` tag). Re-resolve by digest, and boot receipts must record both the digest and the resolved image id |
 | Weights | 763.2 B params overall, 551.9 B in the transformer. 192 of 384 routed experts per layer removed by RCO; the surviving 192 keep the IQ2_XXS build's per-tensor types — 72.12 GB on disk, **1.05 bpw** against the original transformer (card's arithmetic; retained parameters average 2.06 bpw) |
 | Engram | 110.60 GB, `DeepSeek-V4.1-Flash-Engram-IQ4_NL.gguf` — the Coder's shard 6, byte-identical to the unpruned release's. Two IQ4_NL lookup tables, read one row per token, memory-mapped, **not resident** |
 | Vision | `mmproj-DeepSeek-V4.1-Flash-1017-BF16.gguf`, 0.97 GB, also the unpruned release's file |
@@ -1142,10 +1144,47 @@ stock main tree ([Launch caveats](#launch-caveats) above), so either arm boots `
 measurement — read such a boot as a kernel refusal, never as an MLA or indexer result.
 
 The launcher is not the difference: both arms mount `mods/dsv41-sglang-overlay`, which names no MoE
-backend, and the shipped knapcio arm mounts the same mod and serves this checkpoint at 1M. The open
-question is therefore a tree question — what the shipped image's `boot.py` selects where
-`:0.2.1`'s (base `dsv41-c3-reconciled:103ad321`) lands on `mxfp4_flashinfer_cutlass_moe` — and it is
-the falsifier to settle before another quartet boot is spent on the pair.
+backend, and the shipped knapcio arm mounts the same mod and serves this checkpoint at 1M. So this
+is a launcher/config difference, not an engine capability gap — and it has a lever, untried.
+
+**Where the block actually is.** This image is SGLang-based; the failing class is
+`/sgl-workspace/…/sglang/srt/layers/quantization/mxfp4_flashinfer_cutlass_moe.py:66-73`, a hard
+`raise ValueError` requiring hidden/intermediate multiples of 128 — nothing under `vllm/`. It is
+reachable only because the dispatch is two-stage and honours `auto`:
+`arg_groups/model_overrides/deepseek_v4.py:66-88` sets `moe_runner_backend = "flashinfer_mxfp4"`
+when the value is `auto` and the platform is sm90/sm100/sm120, and `fp8.py:445-451` then routes
+fp4 + `flashinfer_mxfp4` on sm90/sm120 to the cutlass class. **Any explicit backend value makes
+that override a no-op, so the assert never executes.**
+
+**The lever: `--moe-runner-backend marlin`.** It is a legal value in `arg_groups/choices.py:133-153`
+(19 values total), and `fp8.py:436-440` routes it to `Mxfp4MarlinMoEMethod`, gated by
+`check_moe_marlin_supports_layer(layer, 32, allow_tile_padding=True)`: hidden 5120 % 64 = 0,
+intermediate 576 % 32 = 0, group_size 32 is allowed and tile padding applied.
+
+**Device gate: marlin is not excluded on sm_121.** `mxfp4_marlin_moe.py:151-153` requires
+`is_sm90 or is_sm120`, and the platform's `is_sm120` is `is_sm120_supported`, whose major list is
+`[12]` — GB10 answers 121 // 10 = 12 (CUDA 13 ≥ 12.8). `mxfp4_marlin_moe.py:77` then rounds
+intermediate 576 → 640 and leaves hidden 5120 at 5120 on non-sm90 devices, so the 128-alignment
+defect is structurally removed before the kernel sees it; a grep of the whole marlin path for
+`sm121|sm_121|major == 12` returns zero matches. **The trap worth naming:** the module-level
+`is_sm120()` helper in `utils/common.py` is the strict `capability == (12, 0)` variant, commented as
+excluding SM121/GB10 — that is not what the platform exposes, and reading it as the gate is how a
+working lever gets written off. The arm's own crash proves the platform path was taken: it reached
+the sm120 cutlass class. Reachability: `fp8.py:436-441` is the first branch of the MoE-method chain,
+the recipe passes no `--quantization`, `is_fp4_experts=True` is proven by the engine's own
+auto-detect line, and `allow_tile_padding=True` is explicit at the call site. Padding also has a
+memory consequence: repacked buffers are sized on 640 (~11 % above the nominal 576), so a ceiling
+computed from 576 understates the requirement.
+
+The lane's verdict therefore moves from "needs an engine rebuild" to **"config lever,
+device-allowed"** — untried pending the single control boot.
+
+**Correcting the record on the 2026-10-26 `triton` retry.** That retry did clear the ÷128 geometry
+check and died 16 s into `Load weight begin` with NVRM `NV_ERR_NO_MEMORY` at 108.83 GB available —
+an unfused-runner capacity failure, on a different image (stock main tree), with attention never
+exercised. It is not evidence against `marlin`, and the lane should stop citing it as one.
+**Untried is not blocked**: one control boot with `marlin` is ordered, and the arm3/arm5 cells
+unlock on its result.
 
 Arm 3's indexer-scoring arm failed for an unrelated reason on the same digest:
 `AttributeError: module 'sglang.srt.entrypoints.openai.chat_encoding' has no attribute
@@ -1212,7 +1251,7 @@ Nothing here is shipped or covered by `recipes/` guards. Restore a file with
 | `DSPARK-TP3-STUDY.md` | Feasibility study for DSpark speculative decoding at TP=3/TP=6, where the drafter's head and expert counts do not divide the TP degree. Verdict: feasible; implemented and booted 2026-09-27. |
 | `MEMORY-RECLAIM-PLAN.md` | Host-memory reclaim analysis for the EXL3 lane: the `instanttensor` load path is closed (incompatible with this checkpoint) and cache drops are not a mitigation. |
 | `PERF-ISSUES.md` | Long-context performance triage of the EXL3 1M arms: the observed collapse is the cost of a cold deep prefill, not decode starvation. |
-| `zz-ds4-1017-main-tree-sglang.yaml` | Retired 2026-11-03 — the S0 control arm: stock main-tree SGLang `6563312`, no adapter overlay, flag-level survey vehicle. Measured NEGATIVE at both MoE backends (cutlass ÷128 geometry, triton OOM: the 1017 cannot boot without the vendored padding). Its `container:` is a fleet-local tag, never published — why the file moved instead of gaining a registry pin (the publish command is in `AGENTS.md`). |
+| `zz-ds4-1017-main-tree-sglang.yaml` | Retired 2026-11-03 — the S0 control arm: stock main-tree SGLang `6563312`, no adapter overlay, flag-level survey vehicle. Measured NEGATIVE on the two runners tried (cutlass ÷128 geometry, triton OOM; `marlin` untried there): the 1017 did not boot in that image without the vendored padding. Its `container:` is a fleet-local tag, never published — why the file moved instead of gaining a registry pin (the publish command is in `AGENTS.md`). |
 | `deepseek-v4.1-flash-exl3-tp3-vllm.yaml` | Retired EXL3/vLLM recipe — TP=3, 300K context (3 nodes). |
 | `deepseek-v4.1-flash-exl3-tp4-vllm.yaml` | Retired EXL3/vLLM recipe — TP=4, 300K context (4 nodes). |
 | `deepseek-v4.1-flash-exl3-tp4-1m-vllm.yaml` | Retired EXL3/vLLM recipe — TP=4, 1M context (4 nodes). |

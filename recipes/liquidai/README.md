@@ -84,7 +84,7 @@ authored so far.
 
 | recipe | engine / pin | weights | result |
 |---|---|---|---|
-|[`liquidai-lfm3-1.7b-q4km-llamacpp.yaml`](liquidai-lfm3-1.7b-q4km-llamacpp.yaml)|llama.cpp — the registry's own arm64/sm_121 build at upstream `6023692` (2026-11-05), `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692-cu130@sha256:f2579b80…`, built by `llamacpp-engine` run 42361240306|vendor Q4_K_M GGUF, 1,099,627,808 B|**loaded and served `lfm3`** (no unknown-arch), ladder and house below|
+|[`liquidai-lfm3-1.7b-q4km-llamacpp.yaml`](liquidai-lfm3-1.7b-q4km-llamacpp.yaml)|llama.cpp — the registry's own arm64/sm_121 build at upstream `6023692` (2026-11-05), `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b80…`, built by `llamacpp-engine` run 42361240306|vendor Q4_K_M GGUF, 1,099,627,808 B|**loaded and served `lfm3`** (no unknown-arch), ladder and house below|
 
 It ships as an **ordinary arm**, not eval-only: LFM Open License v1.0 (`license: other`) went to
 the owner rather than a lane, and the 2026-11-02 ruling (`mad-science/QUESTIONS.md` `#56`) is ship
@@ -113,7 +113,7 @@ versus left in content is still unrecorded (see below).
 
 **Measurement (2026-11-07).** First boot, `.30`, through the campaign driver (180 s, rc=0). The
 GGUF header reads `general.architecture = lfm3` with 24 blocks and 16 heads, and the pinned
-`upstream-6023692-cu130` image — llama.cpp at `6023692`, the ref that carries `LLM_ARCH_LFM3` —
+`upstream-6023692` image — llama.cpp at `6023692`, the ref that carries `LLM_ARCH_LFM3` —
 loaded and served it, so the engine-support question this arm existed to answer is **yes**. The
 checkpoint is pinned `cd0c74c5` and was pre-staged on the node's shared cache as
 `HuggingFace/LiquidAI/LFM3-1.7B-GGUF@cd0c74c5…` (Q4_K_M, 1,099,627,808 B; `refs/main` and trees
@@ -148,7 +148,7 @@ it also needs the `lfm3vl` projector, which the same pinned llama.cpp build carr
 alone covers the endpoint and head-semantics question that `d1-Omni-2B` then extends with audio.
 
 **Engine routes (2026-11-07 survey).** llama.cpp is the only LFM3-capable *pinned* engine this
-registry holds: the `upstream-6023692-cu130` image carries `LLM_ARCH_LFM3` and covers the whole
+registry holds: the `upstream-6023692` image carries `LLM_ARCH_LFM3` and covers the whole
 family — text, the `lfm3vl` projector, `lfm3a`/`lfm3a_gen` audio, and `d1` through
 `/v1/systemone`. Three other routes are closed at their current pins: the pinned vLLM b12x image
 (`cf5a2a53…`) is vLLM `0.1.dev21830+g8244d1c44` (2026-10-15) and its model registry carries only

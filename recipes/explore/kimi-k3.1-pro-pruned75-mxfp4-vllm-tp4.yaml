@@ -15,17 +15,24 @@ description: >-
   layers, router rows and e_score_correction_bias pruned with them) and otherwise
   untouched: attention (KDA 3:1 + DSA indexer), shared experts, dense layer, vision
   tower and the original MXFP4 routed-expert quantisation are the base model's.
-  Four GB10 nodes, TP=4. ATTEMPTED 2026-11-08, no serve: the engine resolved the
-  architecture (`Resolved architecture: KimiK31ForConditionalGeneration`,
-  `tokenizer_mode='kimi_k3'`) and then failed `VllmConfig` — "Couldn't instantiate
-  the backend tokenizer ... need sentencepiece or tiktoken" — so the pinned nightly
-  lacks the tokenizer dependency this repo's custom TikTokenTokenizer needs (tiktoken;
-  sentencepiece is not used by this class). Fix route is a pinned-wheel mod —
-  tiktoken 0.14.0 + regex 2026.11.7, cp312 manylinux_2_28_aarch64 wheels with
-  sha256s in the lane README — installed --no-index; never an unpinned pip
-  install at boot. Behind it: the 454.2 GB target was not staged. Also no chat template ships, so a healthy
-  serve would answer only /v1/completions and the chat instruments cannot write a
-  marker (see the lane README's acceptance paragraphs).
+  Four GB10 nodes, TP=4. ATTEMPTED 2026-11-08; no serve, because the pool snapshot
+  was a config-only stub. The engine resolved the architecture
+  (`Resolved architecture: KimiK31ForConditionalGeneration`, `tokenizer_mode='kimi_k3'`)
+  and then failed `VllmConfig` with "Couldn't instantiate the backend tokenizer ...
+  need sentencepiece or tiktoken" — vLLM's generic fallback when no tokenizer file
+  is on disk, not an image gap: the pinned nightly ships tiktoken 0.14.0 and
+  sentencepiece 0.2.3 on /usr/bin/python3 3.12.3. Snapshot `fc72e5a1` holds one
+  entry, `config.json` (7,303 B); the full repo is 112 files, 475,525,935,884 B =
+  442.87 GiB (475.5 GB). So the row's block is "pool snapshot is a config-only
+  stub; real weights unstaged", and no image or recipe change replaces the
+  download. A staged-wheelhouse route is proven and kept only as a template for an
+  image that lacks the backend — tiktoken 0.14.0 + regex 2026.11.7, cp312
+  manylinux_2_28_aarch64, sha256s in the lane README, installed `--no-index` as uid
+  1000 with a 13-token round-trip through the checkpoint's tiktoken.model (note
+  `--no-deps`: under `--no-index` the resolver cannot see tiktoken's `requests`
+  dependency, so stage a `requests` wheel too). No chat template ships, so a
+  healthy serve would answer only /v1/completions and the chat instruments cannot
+  write a marker (see the lane README's acceptance paragraphs).
   FIT: 737.6 B params = U8 680,685,207,552 elements (MXFP4-packed, 340.3 GB) + BF16
   56,915,256,320 (113.8 GB) + F32 11,060,608 (0.04 GB) = 454.2 GB = 423.0 GiB, i.e.
   105.75 GiB per rank over TP=4 against ~121 GiB usable per GB10. That is 82.6 % of

@@ -1125,27 +1125,36 @@ rows and `e_score_correction_bias` pruned with them), everything else the base
   class, which is why this nightly is the earliest known pin rather than any release. Serving needs
   `--trust-remote-code` (config `auto_map`) and the card's `kimi_k3` reasoning/tool parsers. The
   pinned digest still resolves in GHCR, but no node held the image before this boot, which paid the
-  pull; the checkpoint weights were not staged either (one `config.json` in the pool).
+  pull; the checkpoint was not staged either — the pool held one stub `config.json`.
 - **No `tokenizer.json` ships, by construction.** The repo carries `tokenization_kimi.py` (a slow
   `PreTrainedTokenizer` subclass), `tiktoken.model` and `tokenizer_class: TikTokenTokenizer` with an
   `auto_map`; that class builds a `tiktoken.Encoding` from the local BPE file. There is no
   `tokenizers` serialization to load, so "missing fast tokenizer" is the checkpoint's own shape,
   **not a defect** — do not file it as one.
-- **First boot died on a missing *dependency*, not on the engine (2026-11-08 07:47 UTC).** After
-  printing `Resolved architecture: KimiK31ForConditionalGeneration` and `tokenizer_mode='kimi_k3'`,
-  `VllmConfig` failed with `Couldn't instantiate the backend tokenizer … You need to have
-  sentencepiece or tiktoken installed to convert a slow tokenizer to a fast one`. The pinned
-  nightly ships **neither**, and `tokenization_kimi.py` imports `tiktoken` only (no sentencepiece
-  path). The intended fix is a lane mod with a **pinned wheel** installed `--no-index` from a staged
-  wheelhouse, never an unpinned `pip install` at boot: **tiktoken 0.14.0** (cp312
+- **First boot died on the pool's config-only stub, not on a missing dependency (2026-11-08
+  07:47 UTC).** After printing `Resolved architecture: KimiK31ForConditionalGeneration` and
+  `tokenizer_mode='kimi_k3'`, `VllmConfig` failed with `Couldn't instantiate the backend tokenizer …
+  You need to have sentencepiece or tiktoken installed to convert a slow tokenizer to a fast one`.
+  That message is vLLM's generic fallback when no tokenizer file is on disk, and the pinned nightly
+  **already carries both backends** — `tiktoken 0.14.0` and `sentencepiece 0.2.3` on
+  `/usr/bin/python3` 3.12.3, the only python in the image (verified `docker run --rm --entrypoint
+  python3 <pinned digest>` 2026-11-08). The staged pool snapshot `fc72e5a1` is a **config-only
+  stub**: one entry, `config.json` (7,303 B), with `refs/main` beside it and no
+  `tokenization_kimi.py`, `tiktoken.model`, `tokenizer_config.json` or weight files. So the row's
+  block is **"pool snapshot is a config-only stub; real weights unstaged"** — the full repo is 112
+  files, 475,525,935,884 B = **442.87 GiB** (475.5 GB), and no wheel, mod or image change can
+  replace it. Receipt `~/benchmarks/h2h-20261107/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4/`
+  (`serve-0.log` lines 13-14, 63-68; launch failed at 76.1 s).
+- **Wheelhouse route: proven and kept as a template, unused on this arm.** Staged pinned wheels
+  installed as uid 1000 with `pip install --no-index --find-links <dir> --no-deps` (rc=0), followed
+  by a real round-trip through the checkpoint's `tiktoken.model`: 13 tokens, decoded text identical
+  to input. It is not needed here because the image ships tiktoken; it stays in the record as the
+  pattern for an image that does not. Pins: **tiktoken 0.14.0** (cp312
   `manylinux_2_28_aarch64`, sha256 `7db45b98e94adf4173a5cd7422b150999a7ee11ff847783a14f6e1b80cc38cb6`,
-  1,186,355 B) plus its only wheel dependency **regex 2026.11.7** (same tag, sha256
-  `c94b8f2fd73b419d5278b8d08d213d042b91edd5acf24ae7226388e9ef106fd4`, 806,351 B); `requests` is
-  already in the image. Until that mod exists the row's block is **"dependency route missing"**, not
-  an engine defect — an engine-defect label would close a fixable packaging gap. Behind it sits the
-  unstaged 454.2 GB target. Receipt
-  `~/benchmarks/h2h-20261107/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4/` (`serve-0.log` lines 13-14,
-  63-68; launch failed at 76.1 s).
+  1,186,355 B) plus **regex 2026.11.7** (same tag, sha256
+  `c94b8f2fd73b419d5278b8d08d213d042b91edd5acf24ae7226388e9ef106fd4`, 806,351 B). Finding worth
+  keeping: under `--no-index` tiktoken's `requests` dependency is invisible to the resolver, so the
+  route needs either a staged `requests` wheel or `--no-deps`.
 - **Quality, as the card states it.** GSM8K 5-shot 43.67 % on four B300s at TP=4, with "expect a large
   quality regression relative to the source model" in the card. Not a general-purpose candidate.
 - **Chat template: none on the Hub.** The repo has no `chat_template.jinja` and
@@ -1166,30 +1175,43 @@ rows and `e_score_correction_bias` pruned with them), everything else the base
 
 ## `kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4`
 
-**Drafter sibling of the arm above (attempted, blocked before the drafter initialises, 2026-11-08).**
+**Drafter sibling of the arm above (attempted 2026-11-08; blocked on target staging, config
+bind proven).**
 Same target and image, plus
 `LithosAI/Kimi-K3.1-Pro-DSpark` pinned `d791d217` as a vLLM `dspark` speculator carried in
 `defaults.speculative_config` (so sparkrun distributes the draft repo and its own revision). The
 draft is a 2.25 B BF16 head (4.50 GB): 5 dense GQA layers, hidden 7168, SwiGLU 14336, reading target
 hidden states of layers 7/23/67/83/91 through a `dspark` projector, a rank-256 Markov head and a
-confidence head, sharing the target's embedding and LM head. `num_speculative_tokens: 4` because
-gamma must equal the exported `block_size: 5` (1 current + 4 drafts); the card's width-8 acceptance
-number needs block 8, which this config does not declare. 16k context because the draft adds
-~4.5 GiB/rank over the plain arm's 105.75 GiB.
+confidence head, sharing the target's embedding and LM head. `num_speculative_tokens: 4` is the
+trained shape (1 current + 4 drafts against the exported `block_size: 5`), and the Omni-only
+`n == block_size` equality check does not run for a Kimi target (bind bullet below); the card's
+width-8 acceptance number needs block 8, which this config does not declare. 16k context because the
+draft adds ~4.5 GiB/rank over the plain arm's 105.75 GiB.
 
 The engine side is verified rather than assumed: the pinned image's `config/speculative.py` declares
 `DSparkModelTypes = Literal["dspark"]` and its registry maps both `Qwen3DSparkModel` → `qwen3_dspark`
-and a Kimi-native `K3DSparkModel` → `vllm/models/kimi_k3/nvidia/dspark_mla`. Two things remain open,
-and neither is papered over:
+and a Kimi-native `K3DSparkModel` → `vllm/models/kimi_k3/nvidia/dspark_mla`. One question is
+answered and one stays open:
 
-1. **The drafter's binding is unproven.** The LithosAI draft declares `architectures:
-   Qwen3DSparkModel` — the Qwen3-shaped DSpark skeleton — while its config targets 93-layer Kimi
-   layers `[7, 23, 67, 83, 91]` and Kimi's 163,840 vocab. The bind half is answerable at
-   config level (construct the class against the target's `config.json`, see the block paragraph
-   below); the counters half needs a real serve. Until both hold, the arm has measured no
-   drafter: a refusal, or zero counters, is the finding "Qwen3-shaped draft is not bindable to a Kimi
-   target", and the route then needs a Kimi-native `K3DSparkModel` checkpoint that vLLM can load but
-   which nobody has published yet. So this arm may not claim speculative acceptance until then.
+1. **The drafter's config binding is proven (2026-11-08 15:21 UTC, no serve).** In an ephemeral
+   container from the pinned nightly, `SpeculativeConfig(method="dspark",
+   num_speculative_tokens=4)` accepted the staged target's `config.json` (93 layers, hidden 7168,
+   vocab 163,840) and the staged LithosAI draft (`d791d217`): the resolved draft config reads
+   `Qwen3DSparkModel`, 5 layers, hidden 7168, `num_target_layers: 93`, `block_size: 5`,
+   `target_layer_ids [7, 23, 67, 83, 91]`, `draft_vocab_size: 163840`. Resolving
+   `Qwen3DSparkForCausalLM` and constructing it inside `set_current_vllm_config(...)` with a
+   one-rank gloo group succeeds: 4,598,107,009 parameters (8.56 GiB BF16 module tree including the
+   full-vocab heads, against the 4.19 GiB on-disk pack), 5 decoder layers, `DSparkMarkovHead` +
+   `DSparkConfidenceHead`, first layer name `model.layers.93.self_attn.attn` (its start layer id is
+   the target's depth, 93), `target_vocab 163840`, `draft_vocab 163840`. The Omni-only
+   `_validate_qwen3_omni_dspark` returns early for a non-Omni target, so its `n == block_size`
+   equality check never runs here: n=4 with block 5 is accepted because 1 current + 4 drafts is the
+   trained shape, not because the target is Omni. The construction needs a device only to pick an
+   attention backend (`--gpus none` dies at `ValueError: Invalid attention backend for None`), no
+   weights load. So the label is **"config bind proven, acceptance counters pending"**: what
+   remains is a real serve — and before that, staging (below). At `max_num_batched_tokens: 2048`
+   the engine also emits its speculative-aware advisory `max_num_scheduled_tokens is set to 2048 …
+   suboptimal performance`; that is a tuning note, not a bind failure.
 2. **Cross-checkpoint acceptance.** The draft was trained against the unpruned base (the card
    declares no base revision) while this target has 75 % of its experts pruned, so the card's 3.448
    mean acceptance length is not transferable to this body — a first-boot measurement, not an
@@ -1200,29 +1222,29 @@ and neither is papered over:
 kv_cache_dtype: 'bf16'. Valid values are: ['auto', 'float16', 'bfloat16', …]` (reaped serve logs
 `serve-reaped-…_node_0.log` of the attempts on `.30`–`.33`, 2026-11-08 05:19–05:32 ET). The value
 renders straight into `--kv-cache-dtype`, so the engine aborted in argument validation and neither
-arm reached model load, let alone speculator init — the drafter-binding question above is therefore
-**still unproven**, not refuted. Both recipes now pass `bfloat16` (2026-11-08 06:05 ET); nothing else
-about them changed.
+arm reached model load, let alone speculator init — the drafter-binding question above was therefore
+**unproven at that point** (it is now answered at config level, bullet 1). Both recipes now pass
+`bfloat16` (2026-11-08 06:05 ET); nothing else about them changed.
 
-**Nothing is staged for either arm.** Checked 2026-11-08: the pool holds a single `config.json` for
-`vllm-project/Kimi-K3.1-Pro-pruned75` (snapshot `fc72e5a1`) and no `models--LithosAI--…` at all, so
-the plain arm pays the 454.2 GB target download and the DSpark sibling pays both. Chat template is
-confirmed absent at the pin: `tokenizer_config.json` has no `chat_template` key and the repo ships no
-`chat_template.jinja`, so both arms measure on `/v1/completions`.
+**Staging: target is a stub, drafter is present.** Checked 2026-11-08: the pool's
+`vllm-project/Kimi-K3.1-Pro-pruned75` (snapshot `fc72e5a1`) is a config-only stub — one
+`config.json`, 7,303 B — so the plain arm still needs the full 442.87 GiB (475.5 GB) repo staged;
+`models--LithosAI--Kimi-K3.1-Pro-DSpark` (`d791d217`) is staged on `.30`/`.31` with its 4.19 GiB
+safetensors. Chat template is confirmed absent at the pin: `tokenizer_config.json` has no
+`chat_template` key (the stub carries no tokenizer files, which the config-only bullet above
+records) and the repo ships no `chat_template.jinja`, so both arms measure on `/v1/completions`.
 
-**Drafter arm's block: drafter staged, binding untested (2026-11-08 07:46 UTC).** The engine resolved
-the target (`Resolved architecture: KimiK31ForConditionalGeneration`, `tokenizer_mode = 'kimi_k3'`)
-and then failed `SpeculativeConfig` validation with `Invalid repository ID or local directory
-specified: 'LithosAI/Kimi-K3.1-Pro-DSpark'` — `HF_HUB_OFFLINE=1` with the drafter absent from the
-pool, so nothing initialised. The tokenizer dependency route above applies to this arm as well (it
-serves the same target). **The binding test does not need the pruned75 weights**: bind-or-not is a
-class/config compatibility question, answerable by constructing `Qwen3DSparkModel` against the
-target's shipped `config.json` (93 layers, hidden 7168, vocab 163840, target layers
-[7,23,67,83,91]) in the pinned image — or against a tiny randomly-initialised target carrying that
-config — and reading whether the projector, head and layer-index shapes bind. Accepted-length
-counters do need a real target; bind/no-bind does not. Receipt
-`~/benchmarks/h2h-20261107/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4/` (`serve-0.log` lines
-10-71; launch failed at 76.9 s).
+**The 07:46 boot's block was staging, not compatibility (2026-11-08).** That boot resolved the target
+(`Resolved architecture: KimiK31ForConditionalGeneration`, `tokenizer_mode = 'kimi_k3'`) and then
+failed `SpeculativeConfig` with `Invalid repository ID or local directory specified:
+'LithosAI/Kimi-K3.1-Pro-DSpark'` — `HF_HUB_OFFLINE=1` with the drafter absent from the pool, so
+nothing initialised. The plain arm's tokenizer message was the same kind of staging artifact (the
+config-only stub), not an image dependency gap. With the drafter staged, the construction path is
+clean: the falsifier at 15:21 UTC built `SpeculativeConfig` and instantiated
+`Qwen3DSparkForCausalLM` against the target's `config.json` alone, so the remaining block is the
+442.87 GiB target staging and the label is **"config bind proven, acceptance counters pending"**.
+Receipt `~/benchmarks/h2h-20261107/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4/` (`serve-0.log`
+lines 10-71; launch failed at 76.9 s).
 
 **What a successful serve can produce here — no marker.** No Jinja template exists anywhere on the
 Hub for this family, so `/v1/chat/completions` refuses; every shipped instrument speaks chat
