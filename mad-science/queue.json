@@ -1350,7 +1350,7 @@
       "state": "queued",
       "model": "glm-5.3",
       "node_cost": "quartet",
-      "notes": "estimate: provisional — controlled second boot; TTR ~42 min on the confirmed NCCL env; ladder only, no extra client. — campaign: glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang: no marker and no machine-readable artefact — campaign: glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang: no marker and no machine-readable artefact — claim cleared 2026-11-08 00:56 ET at operator pause: attempt 3 killed before readiness (loading past 34 min); no receipt — campaign: glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang: no marker and no machine-readable artefact",
+      "notes": "estimate: provisional — controlled second boot; TTR ~42 min on the confirmed NCCL env; ladder only, no extra client. — claim cleared 2026-11-08 00:56 ET at operator pause: attempt 3 killed before readiness (loading past 34 min); no receipt — campaign: glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang: no marker and no machine-readable artefact",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; recipes/glm/README.md §Shipped arm; owner 2026-11-07 window",
       "evidence": "",
       "claimed_by": "",

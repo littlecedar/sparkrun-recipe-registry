@@ -4454,9 +4454,16 @@ board's state tables:
   (`~/benchmarks/h2h-20261107/logs/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang@4.log`, 990 B) reads
   `readiness=no`, four serve logs harvested, `Workload stopped on 4 host(s)`, `rc=4`; the previous
   receipt moved to `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.prev-010443`. The director now records
-  the arm `failed` with the receipt-shaped reason `no marker and no machine-readable artefact`, so
-  four attempts on this 753B 3bpw arm have produced no ladder cell, and its register row
-  `h2h-second-boot-glm-753b` is back to `queued` with `claimed_by` empty.
+  the arm `failed` with the receipt-shaped reason `no marker and no machine-readable artefact`. **No
+  attempt produced a ladder cell, and the discriminator is the artifact, not the log size**: every
+  receipt dir for this arm — the live one plus `.prev-231427`, `.prev-002143` and `.prev-010443` —
+  holds `docker-*.log`, `launch.log`, `watchdog.log` and (on two of them) `serve-0..3.log`, and no
+  `ladder.*`, `house.*` or receipt JSON in any of the four. Attempts 1–3 are therefore not
+  individually characterised here; attempt 4 is. Its register row `h2h-second-boot-glm-753b` is back
+  to `queued` with `claimed_by` empty, and its `notes` carried the same campaign verdict **three
+  times** — the reconciler appends the director's verdict without dedupe, so the board's verbatim
+  copy inherited the triplicated prose. Deduped to one clause textually (JSON round-trip would
+  reformat the shared file), one line changed; the reconciler itself is unfixed and will re-append.
 - **Beam boot2 took the quartet at 01:56:50–53 ET** — task `30078b4aa125dd7d_62ac562fe0d4`, image id
   `58aa975fed12`, recipe `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2.yaml`, ranks
   0–3 on `.30`–`.33`, `vllm serve` with DFlash2 k=7 and `--max-model-len 131072`, register row
@@ -4464,3 +4471,8 @@ board's state tables:
   Loading at t=418 s: `/v1/models` 000, serve child alive on every rank, `launch.log` at
   `25/53` checkpoint shards, watchdog pid 365197. By the 02:10:57 read it was at t=833 s and
   `50/53` shards (12:50 in that phase), still `verdict=loading endpoint=down serve_pid=alive`.
+  **The gate is armed for this boot and for no other**: `ps -eo pid,args | grep boot-watchdog` on the
+  head at 02:14 returns exactly one process, pid 365197 with `--task-id
+  30078b4aa125dd7d_62ac562fe0d4 --container sparkrun_…_node_0 --interval 10`, and the previous
+  boot's watchdog pid 3842579 (`--task-id …574ac1a0d398`) no longer exists — so the dead quartet's
+  gate exited with it rather than lingering against a container that is gone.
