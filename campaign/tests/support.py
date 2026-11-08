@@ -108,3 +108,28 @@ def receipt(
     if watchdog:
         write(arm_dir / "watchdog.log", watchdog)
     return arm_dir
+
+
+def metrics(
+    arm_dir: str | Path,
+    *,
+    hosts: dict[str, tuple[str, str]] | None = None,
+    status_text: str | None = None,
+) -> None:
+    """The metrics scrape `run-arm.sh` writes: `metrics-status.txt` plus one artifact per host.
+
+    `hosts` maps host -> (status, raw body): the same verdict line goes into both files, so a
+    captured verdict with an empty body builds the disagreement the reader must catch.
+    `status_text` writes `metrics-status.txt` verbatim instead, for an artifact with no per-host
+    witness (or a reason the fixture line cannot produce).
+    """
+    if status_text is not None:
+        write(Path(arm_dir) / "metrics-status.txt", status_text)
+        return
+    lines = ["# runtime=vllm port=8000"]
+    for host, (status, body) in (hosts or {}).items():
+        line = (f"{status} host={host} container=- "
+                f"url=http://127.0.0.1:8000/metrics reason=fixture")
+        lines.append(line)
+        write(Path(arm_dir) / f"metrics-{host}.txt", line + "\n" + body)
+    write(Path(arm_dir) / "metrics-status.txt", "\n".join(lines) + "\n")

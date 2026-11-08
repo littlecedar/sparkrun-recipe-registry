@@ -17,7 +17,7 @@ from pathlib import Path
 
 from sparkrun_campaign import evidence
 
-from .support import lane_doc, receipt, recipe, sidecar_receipt
+from .support import lane_doc, metrics, receipt, recipe, sidecar_receipt, write
 
 REPO = Path(__file__).resolve().parents[2]
 MARKER = "2026-11-01 \u2014 died at engine load (docs/lane.md:2)"
@@ -211,6 +211,108 @@ class LadderField(unittest.TestCase):
         self.assertEqual((evidence.marker_fields(arm_dir) or {}).get("ladder", ""), "",
                          "the control must reproduce the blank-ladder receipt")
         self.assertNotEqual(evidence.ladder_status(arm_dir), "")
+
+
+class MetricsField(unittest.TestCase):
+    """The receipt's `metrics_status` field: a sibling reader for the scrape's own artifacts.
+
+    The artifact is read directly, never through `house.yaml`: `marker_fields()` returns only a
+    synthesised dict for a `sparkrun_benchmark` sidecar, so a flat metrics key beside it would be
+    dropped and that arm would read metrics-less. `None` means no artifact -- not `absent`, which
+    is an engine that exposed nothing.
+    """
+
+    def setUp(self) -> None:
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+
+    def test_captured_names_the_hosts_that_carried_a_body(self) -> None:
+        arm_dir = receipt(self.root, "arm")
+        metrics(arm_dir, hosts={
+            "node-a": ("captured", "vllm:num_requests_running 0\n"),
+            "node-b": ("captured", "vllm:num_requests_running 2\n"),
+        })
+        self.assertEqual(evidence.metrics_status(arm_dir), {
+            "status": "captured",
+            "reason": "http://127.0.0.1:8000/metrics fixture",
+            "hosts": 2,
+            "captured": 2,
+        })
+
+    def test_absent_keeps_the_scrapes_reason(self) -> None:
+        arm_dir = receipt(self.root, "arm")
+        metrics(arm_dir, status_text="# runtime=vllm port=8000\n"
+                                    "absent host=node-a container=- url=- reason=http-404\n")
+        self.assertEqual(evidence.metrics_status(arm_dir), {
+            "status": "absent", "reason": "http-404", "hosts": 1, "captured": 0,
+        })
+
+    def test_wrong_port_carries_the_url_and_the_body_first_line(self) -> None:
+        arm_dir = receipt(self.root, "arm")
+        metrics(arm_dir, status_text=(
+            "# runtime=vllm port=8000\n"
+            "wrong_port host=node-a container=abc url=http://127.0.0.1:8000/metrics "
+            "reason=not-prometheus: <html>\n"))
+        verdict = evidence.metrics_status(arm_dir)
+        self.assertEqual(verdict["status"], "wrong_port")
+        self.assertEqual(verdict["reason"],
+                         "http://127.0.0.1:8000/metrics not-prometheus: <html>")
+
+    def test_an_unverifiable_probe_outranks_a_captured_peer(self) -> None:
+        arm_dir = receipt(self.root, "arm")
+        metrics(arm_dir, hosts={
+            "node-a": ("captured", "vllm:num_requests_running 1\n"),
+            "node-b": ("no_probe", ""),
+        })
+        self.assertEqual(evidence.metrics_status(arm_dir), {
+            "status": "no_probe",
+            "reason": "http://127.0.0.1:8000/metrics fixture",
+            "hosts": 2,
+            "captured": 1,
+        })
+
+    def test_no_artifact_reads_none_not_absent(self) -> None:
+        self.assertIsNone(evidence.metrics_status(receipt(self.root, "arm")))
+
+    def test_the_producer_format_is_read_verbatim(self) -> None:
+        # Quoted from what `tools/run-arm.sh` actually emits (its `MetricsScrape` block writes
+        # exactly this line into both files), so a fixture drift cannot green a contract the
+        # producer does not write.
+        header = ("captured host=head.test container=abc123def456 "
+                  "url=http://127.0.0.1:8000/metrics reason=http-200")
+        arm_dir = receipt(self.root, "arm")
+        metrics(arm_dir, status_text=f"# runtime=vllm port=8000\n{header}\n")
+        write(arm_dir / "metrics-head.test.txt",
+              f"{header}\n# TYPE vllm:num_requests_running gauge\n"
+              "vllm:num_requests_running 2\n")
+        self.assertEqual(evidence.metrics_status(arm_dir), {
+            "status": "captured",
+            "reason": "http://127.0.0.1:8000/metrics http-200",
+            "hosts": 1,
+            "captured": 1,
+        })
+
+    def test_the_verdict_survives_a_sidecar_shaped_marker(self) -> None:
+        arm_dir = sidecar_receipt(self.root, "arm", cells=2, score="100")
+        metrics(arm_dir, hosts={"node-a": ("captured", "vllm:num_requests_running 1\n")})
+        self.assertEqual(evidence.metrics_status(arm_dir), {
+            "status": "captured",
+            "reason": "http://127.0.0.1:8000/metrics fixture",
+            "hosts": 1,
+            "captured": 1,
+        })
+
+    def test_negative_control_a_capture_no_body_witnesses_is_a_disagreement(self) -> None:
+        arm_dir = receipt(self.root, "arm")
+        metrics(arm_dir, hosts={"node-a": ("captured", ""),
+                                "node-b": ("captured", "  \n")})
+        self.assertEqual(evidence.metrics_status(arm_dir), {
+            "status": "disagrees",
+            "reason": "metrics-status.txt records captured on 2 host(s), but 0 of 2 host "
+                      "artifacts carried a body",
+            "hosts": 2,
+            "captured": 0,
+        })
 
 
 class NegativeControls(unittest.TestCase):

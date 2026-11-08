@@ -411,8 +411,9 @@ failed module. The totals themselves stay in `AGENTS.md`, which owns them.
 failed, blocked, or found measured on disk at start-up. Fields: campaign, arm, recipe path, tp,
 hosts, lease id, attempt, start/end, `rc`, `status`, `reason`, `measurement_dir`, `measured`,
 `artefacts`, `serve_logs`, `ladder`, `accuracy_status`, `marker_shape`, `house_score`, `client`,
-`watchdog`, `leftovers`. `marker_shape` names the `house.yaml` shape the outcome fields came
-from: `run-arm`'s flat marker (`suite`/`ladder`/`accuracy_status`) or sparkrun's nested
+`metrics_status`, `watchdog`, `leftovers`. `marker_shape` names the `house.yaml` shape the
+outcome fields came from: `run-arm`'s flat marker (`suite`/`ladder`/`accuracy_status`) or
+sparkrun's nested
 `sparkrun_benchmark` sidecar, whose outcome lives under `benchmark`/`results` and which carries
 no ladder field of its own. `house_score` carries the sidecar's own `results.json.final_score`,
 because a fabricated `ladder: ok` would let a sidecar recording a failed run read as measured.
@@ -423,11 +424,16 @@ the defect (`not a measurement — ladder.json parses to no cell`). The 753B sec
 seven rows into `ladder.json` while its receipt read `ladder: ""`, so the cells had to be
 recovered from the CSV; the field is a receipt account, not the verdict — `done()` still decides
 measurability, and a sidecar's house score can measure an arm whose ladder is absent without the
-ladder reading as `ok`. `client` is the arm-scoped extra client's receipt
-(`client/client.json`: cell, image_id, rc), empty when the arm ran no extra client. The numbers
-themselves stay where the executor wrote them (`~/benchmarks/tp12-<date>/<arm>/`); the receipt is
-the campaign's own account of the arm and points at them, so a reader never has to guess which
-window a status refers to.
+ladder reading as `ok`. `metrics_status` is read from the scrape's own artifacts —
+`metrics-status.txt`'s per-host `<status> host=… url=… reason=…` lines and the
+`metrics-<host>.txt` bodies — and never through the marker, because a `sparkrun_benchmark`
+sidecar discards every flat key. `captured` needs that host's own non-empty body or the field
+says `disagrees — …`; a missing artifact is `{"status": "", "reason": "no artifact"}`, so a
+scrape that never ran is never `absent` (the engine exposing nothing). `client` is the
+arm-scoped extra client's receipt (`client/client.json`: cell, image_id, rc), empty when the arm
+ran no extra client. The numbers themselves stay where the executor wrote them
+(`~/benchmarks/tp12-<date>/<arm>/`); the receipt is the campaign's own account of the arm and
+points at them, so a reader never has to guess which window a status refers to.
 
 ## Supervision on the head
 

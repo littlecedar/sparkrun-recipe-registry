@@ -21,7 +21,7 @@ from pathlib import Path
 from sparkrun_campaign import director as director_module
 from sparkrun_campaign import plan, protocol, state
 
-from .support import lane_doc, manifest, receipt, recipe, sidecar_receipt
+from .support import lane_doc, manifest, metrics, receipt, recipe, sidecar_receipt
 
 
 def presence_only(arm_dir: str | Path) -> bool:
@@ -248,6 +248,48 @@ class CompletionIsReadFromReceipts(CampaignCase):
 
         fields = self.receipt_fields("arm-one")
         self.assertEqual(fields["ladder"], "absent \u2014 no ladder artefact in this receipt")
+
+    def test_the_receipt_carries_the_metrics_verdict_and_its_body_count(self) -> None:
+        leader, _ = self.build()
+        leader.prepare()
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        arm_dir = receipt(self.receipts, lease["arm"], cells=2)
+        metrics(arm_dir, hosts={"node-a": ("captured", "vllm:num_requests_running 1\n"),
+                                "node-b": ("absent", "")})
+        leader.handle(protocol.report(lease["id"], 0, "log run.log"))
+
+        self.assertEqual(self.receipt_fields("arm-one")["metrics_status"], {
+            "status": "captured",
+            "reason": "http://127.0.0.1:8000/metrics fixture",
+            "hosts": 2,
+            "captured": 1,
+        })
+
+    def test_a_sidecar_marker_does_not_swallow_the_metrics_artifact(self) -> None:
+        # marker_fields() synthesises only shape/suite/framework/house_score for a
+        # sparkrun_benchmark sidecar, so a metrics field read through it would vanish for every
+        # sidecar-shaped arm; the sibling artifact reader is what keeps it.
+        leader, _ = self.build()
+        leader.prepare()
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        arm_dir = sidecar_receipt(self.receipts, lease["arm"], cells=2, score="100")
+        metrics(arm_dir, hosts={"node-a": ("captured", "vllm:num_requests_running 1\n")})
+        leader.handle(protocol.report(lease["id"], 0, "log run.log"))
+
+        fields = self.receipt_fields("arm-one")
+        self.assertEqual(fields["marker_shape"], "sparkrun_benchmark")
+        self.assertEqual(fields["metrics_status"]["status"], "captured")
+        self.assertEqual(fields["metrics_status"]["captured"], 1)
+
+    def test_a_receipt_without_a_metrics_artifact_says_no_artifact(self) -> None:
+        leader, _ = self.build()
+        leader.prepare()
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        receipt(self.receipts, lease["arm"], cells=2)
+        leader.handle(protocol.report(lease["id"], 0, "log run.log"))
+
+        self.assertEqual(self.receipt_fields("arm-one")["metrics_status"],
+                         {"status": "", "reason": "no artifact"})
 
     def test_the_receipt_keeps_the_serve_log_of_a_watchdog_reaped_arm(self) -> None:
         leader, _ = self.build()

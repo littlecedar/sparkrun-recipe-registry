@@ -38,6 +38,17 @@ MEASURED_ARTEFACTS = ("ladder.json", "ladder.transcribed.json", "house.json", "h
 #: The marker `run-arm.sh` appends outcome fields to; nested `ladder` keys are payload, so only the
 #: unindented keys are read.
 MARKER = "house.yaml"
+#: `run-arm.sh`'s metrics scrape, written before teardown: one `metrics-status.txt` carrying a
+#: `# runtime=… port=…` line then one `<status> host=… container=… url=… reason=…` line per host,
+#: and one `metrics-<host>.txt` per host whose first line repeats that verdict and whose body is
+#: the raw Prometheus exposition. Read directly, never through the marker: `marker_fields()` drops
+#: every flat key of a `sparkrun_benchmark` sidecar, so a sidecar-shaped arm would lose the field.
+METRICS_STATUS = "metrics-status.txt"
+_METRICS_FILES = "metrics-*.txt"
+_METRICS_LINE = re.compile(r"^(captured|absent|no_probe|wrong_port)\s+(.*)$")
+#: Severity order `run-arm.sh` aggregates with: an unverifiable probe outranks a wrong listener,
+#: which outranks a capture, which outranks "the engine exposes nothing".
+_METRICS_RANK = {"absent": 0, "captured": 1, "wrong_port": 2, "no_probe": 3}
 #: The flat marker's own keys. A house.yaml carrying only `sparkrun_benchmark` is sparkrun's nested
 #: sidecar instead: it has no ladder/accuracy field, and reading one into existence would be a
 #: fabricated verdict.
@@ -321,6 +332,89 @@ def ladder_status(arm_dir: str | Path) -> str:
         rows = _ladder_rows(path)
         return f"measured — {name} ({rows} rows)" if rows is not None else f"measured — {name}"
     return "absent — no ladder artefact in this receipt"
+
+
+def _metrics_verdict(line: str) -> dict[str, str] | None:
+    """One scrape line as ``{status, host, url, reason}``, or None for a comment/other line."""
+    found = _METRICS_LINE.match(line.strip())
+    if not found:
+        return None
+    rest = found.group(2)
+    host = re.search(r"\bhost=(\S+)", rest)
+    url = re.search(r"\burl=(\S+)", rest)
+    reason = re.search(r"\breason=(.*)$", rest)
+    return {
+        "status": found.group(1),
+        "host": host.group(1) if host else "",
+        "url": url.group(1) if url else "",
+        "reason": reason.group(1).strip() if reason else "",
+    }
+
+
+def _metrics_body(arm_dir: str | Path, host: str) -> bool:
+    """Did this host's own artifact carry anything beyond its verdict line?"""
+    if not host:
+        return False
+    path = Path(arm_dir) / f"metrics-{host}.txt"
+    try:
+        _, _, body = path.read_text(encoding="utf-8", errors="replace").partition("\n")
+    except OSError:
+        return False
+    return bool(body.strip())
+
+
+def metrics_status(arm_dir: str | Path) -> dict[str, object] | None:
+    """The receipt's ``metrics_status`` field: the arm's metrics scrape, or None when it left none.
+
+    A sibling reader to ``client_receipt`` for a sibling artifact: it reads
+    ``metrics-status.txt`` (a ``# runtime=… port=…`` line, then one
+    ``<status> host=<h> container=<c> url=<u> reason=<r>`` line per host) plus the matching
+    ``metrics-<host>.txt`` files, whose first line repeats the verdict and whose body is the raw
+    Prometheus exposition. ``run-arm.sh`` writes it before teardown, from inside the arm's own
+    container, because ``--rm`` takes the socket with the container.
+
+    Never through the marker: ``marker_fields()`` returns only a synthesised ``shape``/``suite``/
+    ``framework``/``house_score`` dict for a ``sparkrun_benchmark`` sidecar, so a flat metrics key
+    beside it would be discarded and that arm would read metrics-less.
+
+    Statuses are ``captured`` / ``absent`` / ``no_probe`` / ``wrong_port``; the aggregate is the
+    highest-severity host verdict (``no_probe`` > ``wrong_port`` > ``captured`` > ``absent``), the
+    same ranking the scrape uses. A ``captured`` verdict is only reported as captured when the
+    host's own artifact actually carries a body: the aggregate over empty bodies is the one shape
+    a later reader would take for data, so it reads ``disagrees`` with both sides named instead.
+    ``None`` means *no artifact* -- not ``absent``, which is an engine that exposed nothing.
+    """
+    only = Path(arm_dir) / METRICS_STATUS
+    source = only.name
+    try:
+        if only.exists():
+            lines = only.read_text(encoding="utf-8", errors="replace").splitlines()
+        else:
+            source = _METRICS_FILES
+            lines = []
+            for path in sorted(Path(arm_dir).glob(_METRICS_FILES)):
+                if path.name == METRICS_STATUS:
+                    continue
+                lines.append(path.read_text(encoding="utf-8", errors="replace").split("\n", 1)[0])
+    except OSError as exc:
+        return {"status": "", "reason": f"unreadable metrics artifact: {exc}",
+                "hosts": 0, "captured": 0}
+    verdicts = [verdict for verdict in map(_metrics_verdict, lines) if verdict]
+    if not verdicts:
+        if not only.exists() and source == _METRICS_FILES:
+            return None
+        return {"status": "", "reason": f"no host verdict in {source}", "hosts": 0, "captured": 0}
+    top = max(verdicts, key=lambda verdict: _METRICS_RANK[verdict["status"]])
+    declared = [verdict for verdict in verdicts if verdict["status"] == "captured"]
+    witnessed = sum(1 for verdict in declared if _metrics_body(arm_dir, verdict["host"]))
+    if declared and witnessed < len(declared):
+        return {"status": "disagrees",
+                "reason": (f"{source} records captured on {len(declared)} host(s), but "
+                           f"{witnessed} of {len(verdicts)} host artifacts carried a body"),
+                "hosts": len(verdicts), "captured": witnessed}
+    detail = " ".join(part for part in (top["url"], top["reason"]) if part and part != "-")
+    return {"status": top["status"], "reason": detail or "no reason",
+            "hosts": len(verdicts), "captured": witnessed}
 
 
 def done(arm_dir: str | Path) -> tuple[bool, str]:

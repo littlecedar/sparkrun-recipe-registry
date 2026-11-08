@@ -756,6 +756,11 @@ class Director:
             "serve_logs": [],
             "ladder": "",
             "accuracy_status": "",
+            # The metrics scrape, read from its own artifacts (`metrics-status.txt` and the
+            # per-host bodies) beside the marker, never through it: a sidecar-shaped house.yaml
+            # discards flat keys. `None` is an absent artifact and is stated as such -- it is not
+            # `absent`, which is the engine exposing nothing.
+            "metrics_status": {},
             # Which house.yaml shape the outcome fields came from (`run-arm` or
             # `sparkrun_benchmark`, empty when there is no marker). The nested sidecar has no
             # ladder field of its own, so the field is read from the artefact instead (below):
@@ -776,6 +781,8 @@ class Director:
                 fields["marker_error"] = str(exc)
             fields["ladder"] = ladder
             fields["accuracy_status"] = marker.get("accuracy_status", "")
+            fields["metrics_status"] = evidence.metrics_status(mdir) or {
+                "status": "", "reason": "no artifact"}
             fields["marker_shape"] = marker.get("shape", "")
             fields["house_score"] = marker.get("house_score", "")
             try:
