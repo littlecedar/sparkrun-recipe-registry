@@ -4626,3 +4626,49 @@ Three facts this tick measured that no board carries, each stamped with its own 
   category cell stays open in the register (`h2h-beam-house-and-bfcl-category`, `queued`). The arm's own
   receipt did land: `measured: true`, `rc: 0`, `artefacts: [ladder.json, house.json, ladder.yaml]`,
   `accuracy_status: ''`, `ladder: ''`.
+
+## 2026-11-08 04:15 ET — tick published no board (two peer boards are fresher); the SM121 arm's death is attributable and the harvest line is blind
+
+This cycle's census is **04:06:57–04:07:01 ET**, and two peer ticks published boards with fresher
+reads in the same window — 04:06 ET on the 04:05:55 census (`57d376c`) and 04:12 ET on a 04:09:50
+read. An older census must not replace a newer one, so this tick wrote no board; its figures are here.
+
+- **Census (own read, 04:06:57–04:07:01 ET):** containers `.30`→`.35` **1 / 1 / 1 / 1 / 0 / 0**,
+  volumes **0** on every node. `.30`–`.33` carry one `oci-relay-receiver-*` each (images
+  `9a876c399945` on `.30` and `.33`, `a7f76ae9f18c` on `.31`, `e90182b5c973` on `.32`), Up about two
+  minutes, `sparkrun.recipe` label **empty** — sparkrun's image-distribution relay, not a serve —
+  and `/v1/models` read `000` on all six nodes. Root avail bytes: `.30` 1392637394944,
+  `.31` 1803911442432, `.32` 1850582147072, `.33` 1732787273728, `.34` 1182453669888,
+  `.35` 1430629912576 — **−32,433,270,784 B (−30.21 GiB) across the fleet over 251 s** against the
+  04:02:46–49 read, and `.34` (−5.07 GiB) and `.35` (−3.63 GiB) hold **no container at all**, so the
+  write is pool-side (the BeeGFS targets live on node roots), not a per-container write; this tick
+  did not attribute the writer.
+- **The arm-5 death has engine evidence; the board's "0 serve logs" reading is the harness, not the
+  arm.** `zz-ds4-1017-sm121-arm5-trtllm-mla` attempt 2's watchdog observed `serve_pid=gone` at t=96 s
+  (`cause='RuntimeError'`) and captured
+  `~/benchmarks/h2h-20261107/zz-ds4-1017-sm121-arm5-trtllm-mla/serve-reaped-sparkrun_1c0dffa45afa6e47_33f27b31bbcd_node_0.log`
+  (31,250 B, mtime 04:01:35). Its tail: `ValueError: Mxfp4FlashinferCutlassMoEMethod requires
+  hidden_size and intermediate_size_per_partition to be multiples of 128 (got hidden=5120,
+  intermediate=576)` at `sglang/srt/layers/quantization/mxfp4_flashinfer_cutlass_moe.py:68`, then
+  `/opt/dsv41/boot.py:530 RuntimeError: Server failed to become healthy`. That is the **same terminal
+  class as `w4-s0-control` (2026-10-26)**: the 0.2.1 tree's arch-assert and replay gates being gone
+  does not make the arm servable — it dies at MoE weight creation, before any kernel runs, and the
+  paired control on the *same* digest and backend would fail identically. Register notes now carry
+  that on both rows so no quartet boot is spent before the backend changes.
+- **Defect: `tools/run-arm.sh:548-561` harvests only *running* containers.** The loop greps
+  `docker ps` (no `-a`) for the task id and `docker cp`s `/tmp/sparkrun_serve.log`; by harvest time
+  the watchdog has already stopped the task, so the loop finds nothing and line 562 prints
+  `serve logs harvested: 0 (…; 0 means the log was gone)`. The log was not gone — the watchdog's own
+  capture in the receipt dir held it. Tonights's rc=4 rows carrying that line: arm-5 ×2 and
+  `zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm` ×2. Fix is two lines (`docker ps -a`, plus counting
+  `$L/serve-reaped-*.log`); **not landed by this tick** because the harness owner is mid-campaign in
+  that file (last write 02:41, `e557ce7`) — recorded here so a future tick does not re-derive it.
+- **Kimi SuperExpert probe attribution:** attempt 2's reaped serve log (241 B) reads `usage: serve.py
+  [-h] --model MODEL [--port PORT] [--host HOST] [--context-length CONTEXT_LENGTH]` /
+  `serve.py: error: unrecognized arguments: --served-model-name shashanth-27xA9/…`, and its
+  `launch.log` ends `RuntimeError: head container is not running` at 34.4 s total. The reference
+  server refuses the flag sparkrun appends; attempts are exhausted (2 of 2).
+- **Register reconciled in place** (textual edits, `check` green): `w4-survey-arm5-sm121-boot` returned
+  from `running` to `queued` with its stale `sparkrun-campaign:h2h-20261107` claim cleared and the
+  failure clause appended, and the Kimi probe and arm-5 control rows carry their attribution —
+  **17 open of 102: 14 queued + 3 blocked, 0 running**, 85 done.
