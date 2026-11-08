@@ -34,6 +34,25 @@ and no 110.60 GB transfer is needed. A mod that downloaded would hide that fact 
 node. When the file is genuinely absent the mod exits `3` with the one `hf download` line in its
 log; staging it into the pool is an explicit, once-per-pool operation.
 
+## Offline self-check (run before any boot)
+
+The resolver is the part that can silently mis-point, so exercise it against a synthetic tree.
+This is the harness that caught the first draft's wrong `find` depth:
+
+```bash
+T=/tmp/engram-selftest; rm -rf "$T"
+H="$T/hub/models--ISTA-DASLab--DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF/snapshots/rev1/IQ2_XXS"
+mkdir -p "$H" && : > "$H/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-IQ2_XXS-00001-of-00006.gguf"
+MOD_HF_HUB="$T/hub" MOD_LOGDIR="$T/logs" ./run.sh; echo "rc=$?"          # 3: no Engram on the node
+truncate -s 91G "$T/hub/models--ISTA-DASLab--DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF/snapshots/rev1/DeepSeek-V4.1-Flash-Engram-IQ4_NL.gguf"
+MOD_HF_HUB="$T/hub" MOD_LOGDIR="$T/logs" ./run.sh; echo "rc=$?"          # 0: link created
+MOD_HF_HUB="$T/hub" MOD_LOGDIR="$T/logs" ./run.sh; echo "rc=$?"          # 0: idempotent no-op
+mkdir -p "$T/empty-hub" && MOD_HF_HUB="$T/empty-hub" MOD_LOGDIR="$T/logs" ./run.sh; echo "rc=$?"   # 2: no snapshot
+```
+
+`truncate -s` keeps the 91 GiB floor check honest without writing 91 GiB. The second run must
+log `already links ... - no-op`, not re-create.
+
 ## Read path this exposes
 
 The Engram tables stay memory-mapped (llama.cpp's default) and are read one row per decode token.

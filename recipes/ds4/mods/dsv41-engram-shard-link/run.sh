@@ -73,9 +73,28 @@ log "${MOD_MAINTAINER}"
 #####################################################################
 # Main: find the snapshot, find the Engram file, link it
 #####################################################################
-SHARD1="$(find "${HFHUB}/${CODER_REPO_DIR}/snapshots" -mindepth 3 -maxdepth 3 \
-  -name 'DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-IQ2_XXS-00001-of-00006.gguf' \
-  -type f -print 2>/dev/null | sort | tail -n 1)"
+REPO_DIR="${HFHUB}/${CODER_REPO_DIR}"
+# Resolve the snapshot the runtime actually serves: sparkrun prepares by revision and
+# writes no refs/ for a SHA-keyed download, so `refs/main` may be absent — try it, then
+# every snapshot directory, then fall back to a bounded depth walk. The refs/ path is
+# first because a depth constant is only correct for one nesting shape.
+SHARD_NAME='DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-IQ2_XXS-00001-of-00006.gguf'
+SHARD1=""
+REF="$(cat "${REPO_DIR}/refs/main" 2>/dev/null || true)"
+if [[ -n "${REF}" && -f "${REPO_DIR}/snapshots/${REF}/IQ2_XXS/${SHARD_NAME}" ]]; then
+  SHARD1="${REPO_DIR}/snapshots/${REF}/IQ2_XXS/${SHARD_NAME}"
+fi
+if [[ -z "${SHARD1}" ]]; then
+  for candidate in "${REPO_DIR}"/snapshots/*/IQ2_XXS/"${SHARD_NAME}"; do
+    if [[ -f "${candidate}" ]]; then
+      SHARD1="${candidate}"
+    fi
+  done
+fi
+if [[ -z "${SHARD1}" ]]; then
+  SHARD1="$(find "${REPO_DIR}/snapshots" -mindepth 1 -maxdepth 4 \
+    -name "${SHARD_NAME}" -type f -print 2>/dev/null | sort | tail -n 1 || true)"
+fi
 if [[ -z "${SHARD1}" ]]; then
   log "FATAL: no prepared snapshot holds shard 1 under ${HFHUB}/${CODER_REPO_DIR}/snapshots."
   log "       The recipe's model spec must select the IQ2_XXS shard set, and the model"
@@ -92,7 +111,7 @@ log_var LINK
 SOURCE="${SNAPSHOT_DIR}/${ENGRAM_NAME}"
 if [[ ! -s "${SOURCE}" ]]; then
   SOURCE="$(find "${HFHUB}" -mindepth 4 -maxdepth 4 -name "${ENGRAM_NAME}" -type f \
-    -size +1G -printf '%s %p\n' 2>/dev/null | sort -rn | head -n 1 | cut -d' ' -f2-)"
+    -size +1G -printf '%s %p\n' 2>/dev/null | sort -rn | head -n 1 | cut -d' ' -f2- || true)"
 fi
 if [[ -z "${SOURCE}" || ! -s "${SOURCE}" ]]; then
   log "FATAL: no ${ENGRAM_NAME} on this node. Shard 6 is the Engram table set and the"
