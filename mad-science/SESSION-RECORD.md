@@ -4672,3 +4672,76 @@ read. An older census must not replace a newer one, so this tick wrote no board;
   from `running` to `queued` with its stale `sparkrun-campaign:h2h-20261107` claim cleared and the
   failure clause appended, and the Kimi probe and arm-5 control rows carry their attribution —
   **17 open of 102: 14 queued + 3 blocked, 0 running**, 85 done.
+
+## 2026-11-08 04:20 ET — tick published no board (a peer's 04:17 copy sits uncommitted, 7 min newer than any read I could beat); the fleet-wide byte fall is **named**: three staging downloads into the shared pool
+
+This cycle's census is **04:15:14 ET** with a confirming third read at **04:19:40 ET**. A peer board
+composed at 04:17 on a 04:13:05 read was on disk uncommitted when this tick's composition was ready,
+and its `census`/`campaign`/`register` rows already carry this cycle's state, so a whole-file replace
+would have been churn for a 2-minute-nearer read. The figures are here instead.
+
+- **Census (own reads):** containers **0** and volumes **0** on every node at both 04:15:14 and
+  04:19:40 — the `.30`–`.33` `oci-relay-receiver-*` set seen at 04:11:16 was torn down between then
+  and 04:12:46 with **no engine container ever started**, so that launch never reached a serve.
+  Root avail bytes 04:15:14: `.30` 1386322694144, `.31` 1795063455744, `.32` 1842547163136,
+  `.33` 1722638618624, `.34` 1174942879744, `.35` 1422588153856; 04:19:40: `.30` 1381728583680,
+  `.31` 1789033238528, `.32` 1837755400192, `.33` 1716563984384, `.34` 1174318108672,
+  `.35` 1419790610432.
+- **The falling byte series is a live writer, and it is staging, not a leak — the discriminator the
+  04:15 entry recorded as missing.** Three successive reads 395 s apart (04:13:05 peer read →
+  04:15:14 → 04:19:40) fall on **every** node, including `.34`/`.35` which hold no container:
+  +12.97 GiB pooled in the first 129 s and +23.20 GiB in the next 266 s, **+36.17 GiB in 395 s
+  (5.49 GiB/min)** — `.30` +2.64/+4.28, `.31` +2.94/+5.62, `.32` +2.57/+4.46, `.33` +2.92/+5.66,
+  `.34` +0.93/+0.58, `.35` +0.96/+2.61 GiB. The writers are three `hf download` processes on the
+  head with `HF_HOME=/mnt/beegfs/huggingface`: `ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF`
+  `--revision 54229d38…` (pid 1997128/1997159, etime 9:27), `ricursiveAI/Ripple-65B-Preview-DFlash2`
+  `--revision 35609b3b…` (pid 2060210, etime 1:58), and a `ricursiveAI/Ripple-65B-Preview:da94cc01…`
+  spec loop (pid 1400633, etime 54:16). The pool hub's own repo dirs agree: GSQ-RCO mtime 04:10:42,
+  Ripple-65B-Preview 04:10:44, Ripple-65B-Preview-DFlash2 04:18:08. So the fall is bodies landing in
+  `/mnt/beegfs/huggingface/hub`, whose chunk store lives on the six node roots — the idle fleet is
+  **staging prerequisites**, not idle.
+- **Those three bodies are what the queued rows are waiting on:** GSQ-RCO is
+  `ds4-gsq-rco-coder-llamacpp-boot`'s own model and its Engram shard
+  (`recipes/ds4/…gsq-rco-coder-gguf-llamacpp.yaml:2-3`, `mods/dsv41-engram-shard-link/run.sh:37-41`);
+  Ripple-65B-Preview is `ripple-65b-bf16-tp2`'s checkpoint
+  (`recipes/explore/zz-ripple-65b-preview-bf16-tp2-vllm.yaml:2-3`) and the DFlash2 repo is the
+  drafter the blocked NVFP4 pair pins (`…nvfp4-tp1-dflash2-vllm.yaml:29,58`).
+- **Campaign, own read 04:15:16:** `8 measured, 9 failed, 0 leased, 0 pending`, **no live lease
+  object** in `state.json` (mtime 04:11:17), unit `active` since 01:04:38 (MainPID 3838066,
+  `NRestarts=0`) — the plan is drained and the service is polling. The obstruction the 04:09 read
+  named has cleared: launcher pid 1883449 is gone and `sparkrun daemon resources list` printed `[]`
+  at 04:12:46, so the `Execution resources are busy` refusals that burned the last three arms were
+  transient against a live launcher, not a wedged fleet.
+- **Register, own read 04:15:16:** 102 tasks, **85 done + 14 queued + 3 blocked = 17 open**,
+  **no `running` row and no row carrying a claim** — the arm-5 claim the 04:09 board flagged was
+  released by the campaign's own transition at 04:11:17; `tools/task-queue.py check` green on this
+  read. The workstation and head copies of `mad-science/queue.json` were byte-identical by 04:13
+  (`17b22b72…`) after the brief divergence that made the 04:04 head claim look absent on the
+  workstation; no divergent claim survived.
+
+## 2026-11-08 04:24 ET — the same tick published a board twice, and one commit carries a peer's census
+
+- **Board publishes:** `6bf6ef1` (census 04:12:47, an own six-node read) and `2a9e1cd` (cause
+  correction). `6bf6ef1` read the `Execution resources are busy … held by pid 1883449` refusals as a
+  stale claim that had cleared; that reading was wrong. The discriminator is
+  `kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4.prev-040944/launch.log`: the launcher ran 414.7 s
+  and ended `Registry image distribution failed on: 10.0.4.30, .31, .32, .33` (637.1 MiB at
+  1.6 MiB/s, 2.4 GiB delivered) at 04:11:25, while `run-arm.sh` had already declared
+  `no container appeared` at 04:09:09 — an executor that stops observing and leaves its launcher
+  holding four hosts. `ps -p 1883449` returning NO_SUCH_PID at 04:13 only proves it had exited.
+- **`2a9e1cd` is misattributed and is not rewritten** (pushed, shared history): its board bytes are
+  a peer's 04:18:34 census under a 04:19 title, carried under my subject because a peer republished
+  between my publish and my `git commit -- mad-science/STATUS.md`. The content is coherent and
+  nothing was lost; the defect is that the commit reads as if I took that read. Recorded here per
+  the named-path rule rather than force-pushed.
+- **Third SM121 arm's cause, corrected in place on the board:** `zz-ds4-1017-sm121-indexer-scoring`
+  is not a readiness-ceiling kill. Its 64 KB reaped log shows the engine loaded
+  (`load_weight=85.15`, `tokenizer_e2e=174.91`, `max_total_num_tokens=2459904` at
+  `context_len=1048576`) and the HTTP server aborting on
+  `AttributeError: module 'sglang.srt.entrypoints.openai.chat_encoding' has no attribute
+  'spec_supports_inline_system'` — the image forward-port gap `e20cc88`/`7c39c02` fixed. So the
+  survey's kills split two ways: one MXFP4 kernel limit (arm-5 control and TRT-LLM MLA,
+  `hidden=5120, intermediate=576`) and one already-fixed image gap (arm 3). The
+  `zero serve logs harvested` line under-counts logs that exist for all three.
+- **Register at 04:24:** 102 tasks, 85 done, **17 open = 14 queued + 3 blocked**, no `running` row,
+  no claims, `tools/task-queue.py check` green.
