@@ -1088,6 +1088,32 @@ flat, or the needle stops being found. Arm 5: C5/C10 does not clear the control'
 needle misses. The 1M cold prefill measured 235-270 s in window 4, so arm 3 needs the raised hook
 timeout; the default 1800 s is enough for 128K.
 
+### Boot-gate negative 2026-11-08 — the pair dies before any attention backend
+
+The survey cannot answer its own question yet. Run on `:0.2.1` (all three arms pin it), arm 5 and its
+paired control both died at engine init, in `mxfp4_flashinfer_cutlass_moe.create_weights`, so no
+`--dsv4-attn-backend` comparison and no indexer measurement was ever reached:
+
+`ValueError: Mxfp4FlashinferCutlassMoEMethod requires hidden_size and intermediate_size_per_partition
+to be multiples of 128 (got hidden=5120, intermediate=576)` — in
+`zz-ds4-1017-sm121-arm5-trtllm-mla`'s `launch.log` plus its reaped serve log
+(`serve-reaped-sparkrun_1c0dffa45afa6e47_33f27b31bbcd_node_0.log`), and in
+`zz-ds4-1017-sm121-arm3-control`'s (`serve-reaped-sparkrun_1c0dffa45afa6e47_5e7827f34c76_node_0.log`).
+The 576 is the checkpoint's own 2304/TP4, the divisibility case the 2026-10-26 S0 control hit on the
+stock main tree ([Launch caveats](#launch-caveats) above), so either arm boots `rc=4` with no
+measurement — read such a boot as a kernel refusal, never as an MLA or indexer result.
+
+The launcher is not the difference: both arms mount `mods/dsv41-sglang-overlay`, which names no MoE
+backend, and the shipped knapcio arm mounts the same mod and serves this checkpoint at 1M. The open
+question is therefore a tree question — what the shipped image's `boot.py` selects where
+`:0.2.1`'s (base `dsv41-c3-reconciled:103ad321`) lands on `mxfp4_flashinfer_cutlass_moe` — and it is
+the falsifier to settle before another quartet boot is spent on the pair.
+
+Arm 3's indexer-scoring arm failed for an unrelated reason on the same digest:
+`AttributeError: module 'sglang.srt.entrypoints.openai.chat_encoding' has no attribute
+'spec_supports_inline_system'`, the forward-port gap the overlay launcher now shims on
+`PYTHONPATH`; its next boot is what says whether indexer scoring is reachable at all.
+
 ## Upgrade candidates (measured elsewhere, not queued)
 
 A 2026-10-19 search of upstream SGLang / FlashInfer / DeepGEMM / DeepEP work, DeepSeek-V4.1 PRs, and
