@@ -4545,8 +4545,10 @@ aggregate t/s then per-request):
 - **GLM-753B, second boot** — no cell: four attempts, the fourth characterised at `rc=4` / `readiness=no`,
   and no `ladder.*`/`house.*` in any of the four directories (see the receipt and `.prev-*` above).
 
-Counts at this close-out, derived rather than remembered: **1329** suite tests (2 skipped), **104**
-tracked recipes, **57** test modules, **35** benchmark profiles, **19** `SKILL.md` dirs.
+Counts at this close-out, derived rather than remembered: **1341** suite tests (2 skipped), **104**
+tracked recipes, **57** test modules, **35** benchmark profiles, **19** `SKILL.md` dirs. The suite
+total is 1341 in the tree this section lands against — `34f677f`'s `tools/h2h-client.py` guard and the
+campaign's state tests moved it after the brief's 1329 was taken, and AGENTS.md states 1341.
 
 Still open: **Beam BFCL** (in flight — the live lease is `h2h-beam-house-boot` and its BFCL cell rides
 the same serve), **arm 3 longctx** (`w4-survey-arm3-sm121-boot`: the 1,039,999-token C1 decode cell),
