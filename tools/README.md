@@ -1533,6 +1533,7 @@ Commands (`uv run python -B tools/task-queue.py <command>`; `--file` overrides t
 
 ```sh
 uv run python -B tools/task-queue.py queue        # the ordered queue: tier, weight, est, blocked sum
+uv run python -B tools/task-queue.py queue --json # the same ordering as JSON — a scheduler's plan source
 uv run python -B tools/task-queue.py check        # validate only
 uv run python -B tools/task-queue.py weight --id X  # one task's arithmetic, line by line
 uv run python -B tools/task-queue.py render       # weighted table, for a human
@@ -1555,6 +1556,9 @@ uv run python -B tools/task-queue.py add --id X --title "…" --estimate-h 2 \
     --blocks A,B --model dsv4.1-1017 --node-cost quartet --provenance "TODO.md §ds4"
     # --blocked-by A,B is the reverse edge, for adding a dependent before its blocker exists
     # --evidence PATH records the receipt that proves the task landed
+    # --recipe PATH --tp N --env KEY=VALUE (repeatable) make the row machine-runnable: a campaign
+    # boots exactly those rows, so `recipe` must be a tracked `recipes/<lane>/<arm>.yaml`, `tp`
+    # 1/2/4 and equal to --node-cost, and half a triple (tp without recipe) is refused
 uv run python -B tools/task-queue.py update --id X --state running --claimed-by <session>
  # claiming stamps claimed_at (UTC); --estimate-h/--title/--notes/--blocks/--model also update
 uv run python -B tools/task-queue.py done --id X      # state=done, claim fields cleared
@@ -1565,8 +1569,9 @@ uv run python -B tools/task-queue.py unblock --id X   # back to queued
 Exit codes: 0 ok, 1 data/validation error (message on stderr), 2 usage error (argparse). The tool
 fails closed — duplicate ids, a dangling `blocks`/`blocked_by` ref, a cycle (message prints the
 cycle path), a missing/non-numeric/negative `estimate_h`, a bad `state`/`node_cost`, a stored
-`blocked_by` drifted from its derived mirror, or a `done` task still carrying claim fields all
-exit 1 naming the offending id. There are no silent defaults: the queue never guesses an estimate
+`blocked_by` drifted from its derived mirror, a `done` task still carrying claim fields, or an
+unresolvable/untracked `recipe`, a bad `tp`, a `tp`/`node_cost` disagreement and a non-string
+`env` all exit 1 naming the offending id. There are no silent defaults: the queue never guesses an estimate
 or invents a dependency.
 
 Caveats:

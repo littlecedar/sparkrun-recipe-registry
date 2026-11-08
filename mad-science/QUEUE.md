@@ -33,8 +33,9 @@ carries the command reference and exit codes). Since **2026-11-03 the queue is t
 ## Task schema
 
 Top level of `queue.json`: `priority_models` (the tier list, below) and `tasks` (the list). Every
-task carries every field — no field is optional in the file, because a missing field must fail
-`check`, not default silently:
+task carries every field — a missing field must fail `check`, not default silently. The one
+deliberate exception is the machine-runnable triple below (`recipe`/`tp`/`env`), which is absent on
+every row a scheduler may not boot:
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -45,10 +46,39 @@ task carries every field — no field is optional in the file, because a missing
 | `blocked_by` | list of ids | The stored mirror: every task whose `blocks` names this one. Maintained by the tool on every mutation; `check` fails if it drifts from the derived mirror. Structural only — a task whose blockers are all `done` is runnable even if `blocked_by` is non-empty. |
 | `state` | `queued` / `running` / `blocked` / `done` | `blocked` is a manual annotation for an *external* gate (an owner decision, a missing authorization) — it is not the same as having entries in `blocked_by`. |
 | `model` | string, free tag | The model the task serves, e.g. `dsv4.1-1017`, `glm-5.3`, `glm-5.3-flash`, or empty. Drives tiering (below). |
-| `node_cost` | `` / `single` / `quartet` | Fleet cost of the task's run. |
+| `node_cost` | `` / `single` / `pair` / `quartet` | Fleet cost of the task's run; with a `recipe` it must equal the row's `tp` (1/2/4 nodes). |
 | `notes` | string | Caveats, claim stamps, `estimate: provisional` markers. |
 | `provenance` | string | Pointer into the work record (`TODO.md` §section, `DEEPSEEK.md` §…, `GUIDANCE.md` §…). A queued task with no provenance is a defect. |
 | `claimed_by`, `claimed_at` | strings, optional | Set by `update --claimed-by` (the tool stamps the UTC timestamp); cleared by `done`. A `done` task carrying either fails `check`. |
+| `recipe` | string, optional | **Machine-runnable rows only**: the arm's recipe, relative to the repo root (`recipes/<lane>/<arm>.yaml`). Must be a *tracked* file in the register's checkout and present in the worktree — a row naming a recipe a clone cannot resolve is a defect, never a row a scheduler skips in silence. |
+| `tp` | integer, optional | Machine-runnable rows only, required once `recipe` is given: nodes the arm takes, one of `1`/`2`/`4`, equal to `node_cost`'s count (`single`=1, `pair`=2, `quartet`=4). A mismatch is refused: the row would disagree with itself about how much fleet it holds. |
+| `env` | object of strings, optional | Machine-runnable rows only: environment overrides for the launch (`ARM_OPTS`, `ARM_TAG`, …). Absent means none. |
+
+### Machine-runnable rows
+
+Most rows are authoring, docs or analysis work: no `recipe`/`tp`, `check` stays green, and **no
+scheduler may boot them**. A row with both fields is a unit of fleet work — a campaign director uses
+the register as its plan source (`campaign/DESIGN.md` §Queue mode) and boots exactly these, in the
+ordering below.
+
+The three fields are optional *as a set*: `tp` without `recipe` names no arm, `recipe` without `tp`
+asks a scheduler to guess a node count, each a defect. `env` defaults to empty. Every other schema
+field stays required.
+
+Add or change them through the tool, never by hand:
+
+```sh
+uv run python -B tools/task-queue.py add --id X --title "…" --estimate-h 3 \
+    --node-cost pair --recipe recipes/3d/zz-arm.yaml --tp 2 --env ARM_TAG=d4
+uv run python -B tools/task-queue.py update --id X --env "ARM_OPTS=--serve-debug acceptance"
+```
+
+`update --env` merges pairs into the existing object, so one override changes without restating the
+rest. `queue --json` prints the same ordering as the human table, machine-readable — that is the plan
+source, so a scheduler never re-derives the weight arithmetic. A campaign that boots a row claims it
+through the tool (`update --state running --claimed-by sparkrun-campaign:<campaign>`) and closes it
+with `--state done --evidence <measurement dir>` or, for a recorded negative,
+`--evidence "<doc>:<line> (measured-rejected)"`; the tool stays the register's only writer.
 
 ## Weight
 
@@ -97,13 +127,17 @@ tier 2 = GLM-5.3-Flash, tier 3 = everything else. To change the policy, edit `pr
    `claimed_at` (UTC). A task claimed `running` in the file is the claim — a message is not.
 3. **On completion**: `done --id X`. The tool clears the claim fields; the next `queue` recomputes
    every weight the finished task was inflating.
-4. **When adding work**, state the estimate (with `estimate: provisional` in `notes` if
+4. **A scheduler's claim is the campaign's claim.** A campaign director writes `running` with its
+   own stable `claimed_by` (`sparkrun-campaign:<campaign>`) before it boots the row; another
+   campaign skips that row and names the holder. Do not "help" a campaign by flipping the row — its
+   state is what stops a double boot.
+5. **When adding work**, state the estimate (with `estimate: provisional` in `notes` if
    uncertain) and what the task blocks (`--blocks` for dependents, `--blocked-by` for blockers —
    the mirror is derived either way). Refuse to queue work whose estimate you cannot state; the
    whole mechanism runs on estimates.
-5. **External gates** use `block --id X` / `unblock --id X` (a state flip, not an edge) plus a
+6. **External gates** use `block --id X` / `unblock --id X` (a state flip, not an edge) plus a
    `notes` line naming the gate, e.g. an owner decision in `TODO.md` §"Retry queue — window 4".
-6. **Escalation**: when the queue and reality disagree — a task has been `running` with no
+7. **Escalation**: when the queue and reality disagree — a task has been `running` with no
    heartbeat across sessions, a blocker turned out to be unmeasurable, or the ordering contradicts
    what actually ran — fix the queue first (`update` the state/estimate), then say so in the
    session report. The queue is the scheduler's source of truth; leaving it stale is the defect
@@ -115,7 +149,12 @@ tier 2 = GLM-5.3-Flash, tier 3 = everything else. To change the policy, edit `pr
 the offending id) on: duplicate ids; a dangling id in `blocks` or `blocked_by`; a cycle in
 `blocks` (no well-defined weight exists); a missing, non-numeric, or negative `estimate_h`; a bad
 `state` or `node_cost`; a stored `blocked_by` out of sync with the derived mirror; a `done` task
-still carrying claim fields. There are no silent defaults anywhere in the tool.
+still carrying claim fields. The machine-runnable fields are held to the same rule: a `recipe` that
+is not a tracked `recipes/<lane>/<arm>.yaml` in the register's checkout (or is tracked but gone from
+the worktree), a `tp` outside 1/2/4, a `tp` that disagrees with `node_cost`, an `env` that is not an
+object of strings, or only half of `recipe`/`tp` — each exits non-zero naming the row. A register
+outside a git checkout cannot carry a `recipe` at all, because "tracked" would be unverifiable.
+There are no silent defaults anywhere in the tool.
 
 ## Deliberate omission: `decisions` is not a JSON array
 

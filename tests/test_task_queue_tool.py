@@ -617,3 +617,153 @@ class BoardPublish(unittest.TestCase):
             fcntl.flock(holder, fcntl.LOCK_EX)
             self.assertEqual(self.publish(board_text(self.NEW), wait="0"), 1)
         self.assertEqual(self.board.read_bytes(), before)
+
+def git_repo(root: Path, *files: str) -> Path:
+    """A checkout holding `files` as tracked paths: a `recipe` field must resolve to one of these."""
+    import subprocess
+    for name in files:
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("container: example/image:tag\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(root)], check=True)
+    subprocess.run(["git", "-C", str(root), "add", "--", *files], check=True)
+    return root
+
+
+class BootableRows(unittest.TestCase):
+    """The optional `recipe`/`tp`/`env` fields: a scheduler must never have to guess an arm.
+
+    These are what a queue campaign (the director's `--queue` mode) boots, so each defect is a
+    data error naming the row — a row that looks bootable and is not is how a campaign would boot
+    the wrong recipe or half a quartet.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = git_repo(Path(self.tmp.name), "recipes/lane/arm.yaml",
+                             "recipes/lane/other.yaml")
+        self.queue = self.root / "mad-science" / "queue.json"
+        self.queue.parent.mkdir()
+
+    def write(self, *rows) -> Path:
+        self.queue.write_text(json.dumps(data(list(rows))), encoding="utf-8")
+        return self.queue
+
+    def bootable(self, **fields) -> dict:
+        row = task("a", 1.0)
+        row["node_cost"] = "single"
+        row.update(fields)
+        return row
+
+    def refusal(self, row) -> str:
+        with self.assertRaises(tq.QueueError) as ctx:
+            tq.validate({"priority_models": [], "tasks": [row]}, self.queue)
+        return str(ctx.exception)
+
+    def test_a_bootable_row_validates(self) -> None:
+        rows = tq.validate(data([self.bootable(recipe="recipes/lane/arm.yaml", tp=1)]), self.queue)
+        self.assertEqual(rows[0]["recipe"], "recipes/lane/arm.yaml")
+
+    def test_an_untracked_recipe_is_refused(self) -> None:
+        # A path that exists nowhere and a path that exists but is untracked are both defects: a
+        # clone must be able to resolve the row, and a boot must not depend on a local-only file.
+        (self.root / "recipes" / "lane" / "untracked.yaml").write_text("container: x\n",
+                                                                      encoding="utf-8")
+        for recipe in ("recipes/lane/ghost.yaml", "recipes/lane/untracked.yaml"):
+            message = self.refusal(self.bootable(recipe=recipe, tp=1))
+            self.assertIn("not a tracked file", message, recipe)
+            self.assertIn("a:", message)
+
+    def test_a_tracked_recipe_missing_from_the_worktree_is_refused(self) -> None:
+        (self.root / "recipes" / "lane" / "other.yaml").unlink()
+        self.assertIn("not in the worktree",
+                      self.refusal(self.bootable(recipe="recipes/lane/other.yaml", tp=1)))
+
+    def test_a_path_outside_recipes_is_refused(self) -> None:
+        git_repo(self.root, "docs/lane.yaml")
+        self.assertIn("recipes/<lane>/<arm>.yaml",
+                      self.refusal(self.bootable(recipe="docs/lane.yaml", tp=1)))
+
+    def test_tp_must_be_a_legal_node_count(self) -> None:
+        for tp in (3, 0, True):
+            self.assertIn("'tp' must be one of", self.refusal(self.bootable(
+                recipe="recipes/lane/arm.yaml", tp=tp)))
+
+    def test_tp_must_agree_with_node_cost(self) -> None:
+        row = self.bootable(recipe="recipes/lane/arm.yaml", tp=2)
+        self.assertIn("disagrees with node_cost", self.refusal(row))
+        row = self.bootable(recipe="recipes/lane/arm.yaml", tp=1)
+        row["node_cost"] = "pair"
+        self.assertIn("disagrees with node_cost", self.refusal(row))
+
+    def test_a_quartet_row_validates_on_a_quartet_cost(self) -> None:
+        row = self.bootable(recipe="recipes/lane/arm.yaml", tp=4)
+        row["node_cost"] = "quartet"
+        self.assertEqual(tq.validate(data([row]), self.queue)[0]["tp"], 4)
+
+    def test_env_must_be_an_object_of_strings(self) -> None:
+        for env in (["ARM_TAG=d4"], {"ARM_TAG": 4}, {"ARM_TAG": None}):
+            self.assertIn("'env' must be an object of string values",
+                          self.refusal(self.bootable(recipe="recipes/lane/arm.yaml", tp=1, env=env)))
+
+    def test_half_a_bootable_row_is_refused(self) -> None:
+        # Neither half may stand alone: tp without a recipe names no arm, and a recipe without tp
+        # asks the scheduler to guess how many nodes it takes.
+        self.assertIn("without 'recipe'", self.refusal(self.bootable(tp=1)))
+        self.assertIn("without 'tp'", self.refusal(self.bootable(recipe="recipes/lane/arm.yaml")))
+
+    def test_a_register_outside_a_checkout_cannot_carry_a_recipe(self) -> None:
+        with tempfile.TemporaryDirectory() as outside_dir:
+            outside = Path(outside_dir) / "mad-science" / "queue.json"
+            outside.parent.mkdir()
+            with self.assertRaises(tq.QueueError) as ctx:
+                tq.validate({"priority_models": [], "tasks": [
+                    self.bootable(recipe="recipes/lane/arm.yaml", tp=1)]}, outside)
+        self.assertIn("not a git worktree", str(ctx.exception))
+
+    def test_rows_without_the_fields_stay_legal(self) -> None:
+        self.assertEqual(tq.validate(data([task("authoring", 1.0)]), self.queue)[0]["id"],
+                         "authoring")
+
+    def test_add_and_update_round_trip_the_bootable_fields(self) -> None:
+        self.write(task("keep", 1.0))
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(tq.main(["--file", str(self.queue), "add", "--id", "a", "--title", "a",
+                                      "--estimate-h", "2", "--node-cost", "pair",
+                                      "--recipe", "recipes/lane/arm.yaml", "--tp", "2",
+                                      "--env", "ARM_OPTS=--serve-debug acceptance",
+                                      "--env", "ARM_TAG=d4"]), 0)
+            self.assertEqual(tq.main(["--file", str(self.queue), "check"]), 0)
+        row = self.row("a")
+        self.assertEqual((row["recipe"], row["tp"], row["env"]),
+                         ("recipes/lane/arm.yaml", 2,
+                          {"ARM_OPTS": "--serve-debug acceptance", "ARM_TAG": "d4"}))
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(tq.main(["--file", str(self.queue), "update", "--id", "a",
+                                      "--env", "ARM_TAG=d8"]), 0)
+        # `update --env` merges: the other overrides and tp survive.
+        self.assertEqual(self.row("a")["env"],
+                         {"ARM_OPTS": "--serve-debug acceptance", "ARM_TAG": "d8"})
+        self.assertEqual(self.row("a")["tp"], 2)
+
+    def test_the_cli_refuses_a_bootable_row_that_cannot_run(self) -> None:
+        self.write(self.bootable(recipe="recipes/lane/ghost.yaml", tp=1))
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(tq.main(["--file", str(self.queue), "check"]), 1)
+        self.assertIn("ghost.yaml", err.getvalue())
+
+    def test_queue_json_is_the_same_ordering(self) -> None:
+        """The scheduler reads `queue --json`: it must be the ordering the human table prints."""
+        seed = REPO_ROOT / "mad-science" / "queue.json"
+        ordered = tq.ordering(tq.load(seed), seed)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(tq.main(["queue", "--json"]), 0)
+        self.assertEqual([row["id"] for row in json.loads(out.getvalue())],
+                         [task_row["id"] for task_row in ordered])
+
+    def row(self, task_id: str) -> dict:
+        tasks = json.loads(self.queue.read_text(encoding="utf-8"))["tasks"]
+        return next(entry for entry in tasks if entry["id"] == task_id)

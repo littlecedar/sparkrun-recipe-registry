@@ -31,13 +31,20 @@ deterministic tie-break.  `done` tasks drop out of the ordering entirely.
 
 Everything fails closed: a cycle in `blocks`, a dangling id, a missing or non-numeric estimate,
 a bad state, or an out-of-sync `blocked_by` mirror exits non-zero with the offending id — no
-silent defaults anywhere.
+silent defaults anywhere.  A *bootable* row (the optional `recipe`/`tp`/`env` fields a scheduler
+reads) is held to the same rule: the recipe must be a tracked `recipes/<lane>/<arm>.yaml` in the
+register's checkout, `tp` must be 1/2/4 and agree with `node_cost`, and `env` must be an object of
+strings.  A row without those fields is authoring, docs or analysis work and no scheduler may boot
+it.
 
 Stdlib only.  Usage:
 
     uv run python -B tools/task-queue.py queue                 # the ordered queue
+    uv run python -B tools/task-queue.py queue --json          # same ordering, for a scheduler
     uv run python -B tools/task-queue.py add --id X --title "..." --estimate-h 2 \
         --blocks A,B --model dsv4.1-1017 --node-cost quartet --provenance "TODO.md §ds4"
+    uv run python -B tools/task-queue.py add --id Y --title "..." --estimate-h 3 \
+        --node-cost pair --recipe recipes/3d/zz-arm.yaml --tp 2 --env ARM_OPTS=--tag=d4
     uv run python -B tools/task-queue.py update --id X --estimate-h 3 --state running \
         --claimed-by <session>                                  # claim: stamps claimed_at
     uv run python -B tools/task-queue.py done --id X           # recompute on next read
@@ -79,6 +86,12 @@ DEFAULT_BOARD = Path("mad-science/STATUS.md")
 STATES = ("queued", "running", "blocked", "done")
 NODE_COSTS = ("", "single", "pair", "quartet")
 REQUIRED_STR = ("id", "title", "model", "node_cost", "notes", "provenance")
+#: The optional machine-runnable fields: a row that names a recipe and its node count can be
+#: launched by a scheduler (a campaign reads `queue --json`); a row without them is authoring,
+#: docs or analysis work that no scheduler may boot. Present means all of `recipe`/`tp`
+#: (`env` defaults to empty), and `tp` must agree with `node_cost`.
+COST_NODES = {"single": 1, "pair": 2, "quartet": 4}
+TP_VALUES = (1, 2, 4)
 
 
 class QueueError(Exception):
@@ -128,10 +141,69 @@ def derived_blocked_by(tasks: list[dict]) -> dict[str, set[str]]:
     return mirror
 
 
-def validate(data: dict) -> list[dict]:
-    """Fail closed: every defect exits with a message naming the task.  Returns tasks."""
+def parse_env(pairs: list[str]) -> dict[str, str]:
+    """`["KEY=VALUE", ...]` -> object. A pair without `=` is a usage defect, never a silent drop."""
+    out: dict[str, str] = {}
+    for pair in pairs:
+        key, sep, value = pair.partition("=")
+        if not sep or not key.strip():
+            raise QueueError(f"--env expects KEY=VALUE, got {pair!r}")
+        out[key.strip()] = value
+    return out
+
+
+def tracked_recipes(root: Path) -> set[str]:
+    """Every tracked path under `recipes/` in the checkout at `root`."""
+    proc = subprocess.run(["git", "-C", str(root), "ls-files", "--", "recipes"],
+                          capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise QueueError(f"{root}: not a git checkout — a 'recipe' field must resolve to a tracked file")
+    return set(proc.stdout.splitlines())
+
+
+def _bootable(task: dict, root: Path | None, tracked: set[str] | None) -> None:
+    """Validate the optional machine-runnable fields; absence means the row cannot be launched."""
+    tid = task["id"]
+    recipe, tp, env = task.get("recipe"), task.get("tp"), task.get("env")
+    if recipe is None and tp is None and env is None:
+        return
+    if recipe is None:
+        raise QueueError(f"{tid}: 'tp'/'env' without 'recipe' — a bootable row names the recipe it launches")
+    if tp is None:
+        raise QueueError(f"{tid}: 'recipe' without 'tp' — the scheduler will not guess a node count")
+    if not isinstance(recipe, str) or not recipe.startswith("recipes/") or not recipe.endswith(".yaml"):
+        raise QueueError(f"{tid}: 'recipe' must be a `recipes/<lane>/<arm>.yaml` path relative to the "
+                         f"repo root, got {recipe!r}")
+    if isinstance(tp, bool) or tp not in TP_VALUES:
+        raise QueueError(f"{tid}: 'tp' must be one of {TP_VALUES}, got {tp!r}")
+    nodes = COST_NODES.get(task.get("node_cost"))
+    if nodes != tp:
+        raise QueueError(f"{tid}: tp={tp} disagrees with node_cost={task.get('node_cost')!r} "
+                         f"({nodes or 'no'} node(s))")
+    if env is not None and (not isinstance(env, dict) or not all(
+        isinstance(key, str) and isinstance(value, str) for key, value in env.items()
+    )):
+        raise QueueError(f"{tid}: 'env' must be an object of string values, got {env!r}")
+    if root is None:
+        raise QueueError(f"{tid}: 'recipe' cannot be resolved — no register path to find the checkout from")
+    if recipe not in (tracked if tracked is not None else tracked_recipes(root)):
+        raise QueueError(f"{tid}: recipe {recipe} is not a tracked file under {root}")
+    if not (root / recipe).is_file():
+        raise QueueError(f"{tid}: recipe {recipe} is tracked but not in the worktree")
+
+
+def validate(data: dict, path: Path | None = None) -> list[dict]:
+    """Fail closed: every defect exits with a message naming the task.  Returns tasks.
+
+    `path` is the register file: a row that names a `recipe` must resolve against the checkout that
+    file lives in, so the scheduler-shaped fields are verified where they are read. Without it
+    (pure data in a unit test) the shapes are checked and the filesystem resolution is not.
+    """
     tasks = data["tasks"]
     seen: set[str] = set()
+    root: Path | None = None
+    tracked: set[str] | None = None
+    resolved = False
     for i, task in enumerate(tasks):
         where = f"tasks[{i}]"
         if not isinstance(task, dict):
@@ -166,6 +238,12 @@ def validate(data: dict) -> list[dict]:
                 raise QueueError(f"{tid}: '{field}' must be a list of task ids")
         if task["state"] == "done" and (task.get("claimed_by") or task.get("claimed_at")):
             raise QueueError(f"{tid}: a done task cannot still carry claimed_by/claimed_at")
+        if not resolved and any(task.get(key) is not None for key in ("recipe", "tp", "env")):
+            resolved = True
+            if path is not None:
+                root = repo_root(path)
+                tracked = tracked_recipes(root)
+        _bootable(task, root, tracked)
 
     known = seen
     for task in tasks:
@@ -255,8 +333,8 @@ def compute_weight(task: dict, tasks: list[dict]) -> tuple[float, dict[str, floa
     return task["estimate_h"] - total, {b: estimates[b] for b in sorted(blocked)}
 
 
-def ordering(data: dict) -> list[dict]:
-    tasks = validate(data)
+def ordering(data: dict, path: Path | None = None) -> list[dict]:
+    tasks = validate(data, path)
     tiers = _tiers(data["priority_models"])
     rows = []
     for task in tasks:
@@ -303,7 +381,7 @@ def _find(tasks: list[dict], task_id: str) -> dict:
 
 def cmd_add(args, path: Path) -> None:
     data = load(path)
-    tasks = validate(data)
+    tasks = validate(data, path)
     if any(t["id"] == args.id for t in tasks):
         raise QueueError(f"{args.id}: id already exists")
     task = {
@@ -315,11 +393,17 @@ def cmd_add(args, path: Path) -> None:
         "evidence": getattr(args, "evidence", "") or "",
         "claimed_by": "", "claimed_at": "",
     }
+    if getattr(args, "recipe", None):
+        task["recipe"] = args.recipe
+    if getattr(args, "tp", None) is not None:
+        task["tp"] = args.tp
+    if getattr(args, "env", None):
+        task["env"] = parse_env(args.env)
     for b in (args.blocked_by.split(",") if args.blocked_by else []):
         _find(tasks, b)["blocks"].append(args.id)
     tasks.append(task)
     _relink(tasks)
-    validate({"tasks": tasks, "priority_models": data["priority_models"]})
+    validate({"tasks": tasks, "priority_models": data["priority_models"]}, path)
     _save(path, data, tasks)
     print(f"added {args.id} (weight recomputed on next `queue`)")
 
@@ -338,14 +422,17 @@ def cmd_update(args, path: Path) -> None:
     tasks = data.get("tasks")
     if isinstance(tasks, list):
         _relink(tasks)
-    tasks = validate(data)
+    tasks = validate(data, path)
     task = _find(tasks, args.id)
     flips = {"state": args.state, "title": args.title, "model": args.model,
              "node_cost": args.node_cost, "notes": args.notes, "provenance": args.provenance,
-             "evidence": getattr(args, "evidence", None)}
+             "evidence": getattr(args, "evidence", None), "recipe": getattr(args, "recipe", None),
+             "tp": getattr(args, "tp", None)}
     for field, value in flips.items():
         if value is not None:
             task[field] = value
+    if getattr(args, "env", None):
+        task["env"] = {**task.get("env", {}), **parse_env(args.env)}
     if args.estimate_h is not None:
         task["estimate_h"] = args.estimate_h
     if args.blocks is not None:
@@ -356,7 +443,7 @@ def cmd_update(args, path: Path) -> None:
     if task["state"] == "done":
         task["claimed_by"] = task["claimed_at"] = ""
     _relink(tasks)
-    validate(data)
+    validate(data, path)
     _save(path, data, tasks)
     print(f"updated {args.id}: state={task['state']} estimate_h={task['estimate_h']}")
 
@@ -366,7 +453,12 @@ def cmd_update(args, path: Path) -> None:
 
 def cmd_queue(args, path: Path) -> None:
     data = load(path)
-    ordered = ordering(data)
+    ordered = ordering(data, path)
+    if getattr(args, "json", False):
+        # The scheduler-shaped read: the same ordering, machine-readable, so a plan source
+        # (the campaign director) never re-derives the weight arithmetic in a second place.
+        print(json.dumps(ordered, indent=1, ensure_ascii=False))
+        return
     tasks = {t["id"]: t for t in data["tasks"]}
     tiers = _tiers(data["priority_models"])
     print(f"{'tier':<4} {'weight':>8} {'est_h':>6} {'blk_h':>7}  {'state':<8} {'model':<22} "
@@ -386,7 +478,7 @@ def enumerate_tasks_with_tier(ordered, tiers):
 def cmd_questions(args, path: Path) -> None:
     """The open owner questions, from the register rather than the markdown."""
     data = load(path)
-    validate(data)
+    validate(data, path)
     rows = data.get("questions") or []
     open_rows = [q for q in rows if not q["status"].startswith("answered")]
     print("| # | summary | status | provenance | asked |")
@@ -400,11 +492,11 @@ def cmd_questions(args, path: Path) -> None:
 
 def cmd_weight(args, path: Path) -> None:
     data = load(path)
-    tasks = validate(data)
+    tasks = validate(data, path)
     task = _find(tasks, args.id)
     weight, blocked = compute_weight(task, tasks)
     tiers = _tiers(data["priority_models"])
-    ordered = ordering(data)
+    ordered = ordering(data, path)
     position = next(i for i, t in enumerate(ordered, 1) if t["id"] == args.id)
     print(f"{args.id}: weight = estimate_h - sum(estimate_h of transitively blocked)")
     print(f"  estimate_h          = {task['estimate_h']:.2f}")
@@ -423,7 +515,7 @@ def cmd_weight(args, path: Path) -> None:
 
 def cmd_check(args, path: Path) -> None:
     data = load(path)
-    tasks = validate(data)
+    tasks = validate(data, path)
     print(f"ok: {len(tasks)} task(s), priority_models={data['priority_models']}")
 
 
@@ -661,9 +753,9 @@ def cmd_publish(args, path: Path) -> None:
 def cmd_render(args, path: Path) -> None:
     data = load(path)
     if getattr(args, "board", False):
-        _emit(board_rows(data), "board table")
+        _emit(board_rows(data, path), "board table")
         return
-    ordered = ordering(data)
+    ordered = ordering(data, path)
     tasks = {t["id"]: t for t in data["tasks"]}
     tiers = _tiers(data["priority_models"])
     lines = ["| Tier | Weight | Est (h) | Blocked (h) | State | Model | Node | Task |",
@@ -677,7 +769,7 @@ def cmd_render(args, path: Path) -> None:
     _emit(lines, "weighted table")
 
 
-def board_rows(data: dict) -> list[str]:
+def board_rows(data: dict, path: Path | None = None) -> list[str]:
     """The STATUS.md `## Work queue` table, derived from the register.
 
     Columns are the board's own: job, node cost, holds, state.  `holds` is the task's
@@ -685,7 +777,7 @@ def board_rows(data: dict) -> list[str]:
     because that justification text IS the row's notes — a second copy in TODO.md is the
     drift this replaces, not a convenience.
     """
-    ordered = ordering(data)
+    ordered = ordering(data, path)
     tiers = _tiers(data["priority_models"])
     lines = ["| job | node cost | holds | state |", "|---|---|---|---|"]
     for _tier, task in enumerate_tasks_with_tier(ordered, tiers):
@@ -762,7 +854,7 @@ def repo_root(path: Path) -> Path:
 
 def cmd_orphans(args, path: Path) -> None:
     data = load(path)
-    tasks = validate(data)
+    tasks = validate(data, path)
     todo = Path(args.todo)
     try:
         text = todo.read_text(encoding="utf-8")
@@ -811,6 +903,10 @@ def main(argv: list[str] | None = None) -> int:
     p_add.add_argument("--provenance", default="")
     p_add.add_argument("--evidence", default="", help="receipt path that proves the task landed")
     p_add.add_argument("--blocked-by", default="", help="comma-separated ids that block this task")
+    p_add.add_argument("--recipe", help="bootable row: tracked `recipes/<lane>/<arm>.yaml` path")
+    p_add.add_argument("--tp", type=int, help="bootable row: nodes the arm takes (1/2/4), must match --node-cost")
+    p_add.add_argument("--env", action="append", metavar="KEY=VALUE",
+                       help="bootable row: environment override for the launch (repeatable)")
     p_add.set_defaults(fn=cmd_add)
     p_upd = sub.add_parser("update", help="update fields / claim (--claimed-by stamps claimed_at)")
     p_upd.add_argument("--id", required=True)
@@ -823,6 +919,10 @@ def main(argv: list[str] | None = None) -> int:
     p_upd.add_argument("--provenance")
     p_upd.add_argument("--evidence", help="receipt path that proves the task landed")
     p_upd.add_argument("--claimed-by")
+    p_upd.add_argument("--recipe")
+    p_upd.add_argument("--tp", type=int)
+    p_upd.add_argument("--env", action="append", metavar="KEY=VALUE",
+                       help="bootable row: merge KEY=VALUE pairs into `env` (repeatable)")
     p_upd.add_argument("--state", choices=STATES)
     p_upd.set_defaults(fn=cmd_update)
     for name, state in (("done", "done"), ("block", "blocked"), ("unblock", "queued")):
@@ -854,7 +954,10 @@ def main(argv: list[str] | None = None) -> int:
     p_w = sub.add_parser("weight", help="explain one task's arithmetic")
     p_w.add_argument("--id", required=True)
     p_w.set_defaults(fn=cmd_weight)
-    sub.add_parser("queue", help="print the ordered queue with computed weights").set_defaults(fn=cmd_queue)
+    p_queue = sub.add_parser("queue", help="print the ordered queue with computed weights")
+    p_queue.add_argument("--json", action="store_true",
+                         help="the same ordering as JSON (a scheduler's plan source)")
+    p_queue.set_defaults(fn=cmd_queue)
     sub.add_parser("questions", help="open owner questions from the register").set_defaults(fn=cmd_questions)
     sub.add_parser("check", help="validate: ids, refs, cycles, estimates").set_defaults(fn=cmd_check)
     p_lint = sub.add_parser("lint", help="markdown that will not render (tables, fences)")
