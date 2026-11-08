@@ -1073,19 +1073,22 @@ next reader does not read the absence as a model defect:
 - **The recipe's `command:` shape does not bypass the ladder.** `run-arm.sh` launches through
   sparkrun and then runs both legs against the live serve; they fail on the endpoint's own 400, not
   on being skipped. The proof is the two failed leg logs beside a `serve-*.log` carrying the 400s.
-- **`ARM_EXTRA_CLIENT` is supported, and was proven here.** The hook runs after the cells and before
-  the unconditional stop (the live attempt's `extra-client.log` shows it ran with
-  `image=sha256:4ceb…`). It wrote `client/client.json` (cell `house4096`, `image_id`,
-  `rc=2`) and `client/house.json` — and that house cell is **0/37 with 37 HTTP 400 transport
-  errors**: a chat cell against a completions-only serve is an instrument-gap artifact, never a
-  quality score. A markerless arm therefore *does* get a client measurement attempt, but not a
-  usable one.
+- **`ARM_EXTRA_CLIENT` is supported, was proven here, and is deliberately absent from the row.**
+  The hook runs after the cells and before the unconditional stop (the live attempt's
+  `extra-client.log` shows it ran with `image=sha256:4ceb…`). It wrote `client/client.json` (cell
+  `house4096`, `image_id`, `rc=2`) and `client/house.json` — and that house cell is **0/37 with 37
+  HTTP 400 transport errors**: a chat cell against a completions-only serve is an instrument-gap
+  artifact, never a quality score. Leaving the hook set would only manufacture that log on every
+  boot, so it stays out of the row until a `/v1/completions` client cell exists — do not "restore"
+  it as a fix. A markerless arm therefore *can* get a client measurement attempt, but with the
+  current cells the result is always these 400s.
 - **What acceptance is, then.** A boot-verified probe: watchdog `healthy` + `/v1/models` 200 with
-  the served id + `image.txt` + the two failed instrument logs + `client.client.json` with its
-  `image_id` and `rc`. That receipt is the arm's result (the dequant path loads and serves); it is
-  not a quality or throughput cell. To get one, a completions-speaking cell has to exist — the only
-  shipped completions instrument is `humanizer-measure.py` (rewrite-integrity, off-brief here), so
-  that is a tool change, not a recipe knob. Retrying unchanged reproduces
+  the served id + `image.txt` (image id) + the two failed instrument logs. The one run with the
+  hook also left `client/client.json` with `image_id` and `rc` — the receipt shape a future
+  completions cell should reuse. That receipt is the arm's result (the dequant path loads and
+  serves); it is not a quality or throughput cell. To get one, a completions-speaking cell has to
+  exist — the only shipped completions instrument is `humanizer-measure.py` (rewrite-integrity,
+  off-brief here), so that is a tool change, not a recipe knob. Retrying unchanged reproduces
   healthy → no marker → stopped, forever; do not attribute that loop to the model.
 
 **Read any future number as the dense ~24 B artifact's, never as a 2.8 T result.** The arm
