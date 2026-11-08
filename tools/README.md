@@ -209,7 +209,12 @@ memory controller, so `CONSTRAINT_MEMCG` can never fire for an engine OOM: a boo
 **global** OOM (`oom-kill:constraint=CONSTRAINT_NONE,…,global_oom`) that picks its victim by `oom_badness`,
 and the same day's quartet boot lost `ssh` and `NetworkManager` on `.30` that way while the engine's own badness
 was ≈0 — its victim-table row read `75356775` total_vm against `28169` kB rss, because GPU memory is not in
-RSS. `sparkrun run --memory-limit`, and the portable `executor_config.memory_limit` behind it, exists and
+RSS. It also took `user@1000.service` down twice that afternoon (`Main process exited, code=killed,
+status=9/KILL`), and systemd's teardown of the user manager kills everything under it — every tmux session,
+and every `sparkrun cluster monitor` or TUI that a shell on that host started — so run monitors and
+interactive work from a node outside the boot set, or from the workstation; journald dropped 30225 kernel
+messages in the second event, so a process absent from `journalctl -k` has not been shown to survive.
+`sparkrun run --memory-limit`, and the portable `executor_config.memory_limit` behind it, exists and
 bounds only the container's host-side anonymous memory: useful against a repack copy, never against the
 weight load. `sparkrun run` has no `--oom-score-adj` channel either — only the API's `extra_docker_opts`
 reaches `docker run` — so a recipe cannot even ask to be the kernel's preferred victim. The containments
