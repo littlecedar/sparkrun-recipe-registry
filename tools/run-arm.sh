@@ -246,22 +246,30 @@ if [ ${#DP_DOWN[@]} -gt 0 ]; then
 fi
 # daemon-preflight: end
 
-# The shared cache presents an empty mount, not an error, when BeeGFS is unhealthy: after a slow
-# pool mount a container can see an empty `/cache` instead of a failure, so a boot can pass
-# readiness and hand the engine a model that is not there (AGENTS.md, shared-cache section). The
-# live case is sharp: with `beegfs-storage` down, every path under `/mnt/beegfs` answered
-# `Communication error on send` while the launch went on to plan.
-# The host path is the same one sparkrun resolves: `<hf_cache>/hub/models--<org>--<name>/snapshots/
-# <revision>` (`models/acquisition.py:49`, `models/_cache_agent.py:68`; GGUF specs drop their
-# `:quant` suffix, `models/download.py:model_cache_path`). `<hf_cache>` comes from the cluster
-# profile's `distribution.hf_cache` (this script already launches with `--cluster WOPR`), which is
-# the host dir bind-mounted at the container's `/cache/huggingface` (`runtimes/base.py:787`).
-# Three outcomes, matching the daemon preflight's style: the probe times out or the mount answers
-# ECOMM ("pool not answering", exit 11); the pool answers but the snapshot is absent or empty
-# ("never staged", exit 12); the snapshot is present (proceed). `timeout` bounds a hung `ls`, so a
-# wedged pool can never be read as a missing model -- the inversion that would make this gate
-# blame the recipe. The probe is HOST-SIDE by construction: no container exists yet, so it cannot
-# see a container-only mount divergence, and model-preflight.txt records `view=host` to say so.
+# The shared cache presents an empty mount, not an error: after a slow pool mount a container can
+# see an empty `/cache`, a boot can pass readiness and hand the engine a model that is not there,
+# and a launch can freeze in planning while a probe returns zero snapshots (AGENTS.md, shared-cache
+# section; measured 2026-11-08 with `beegfs-storage` down).
+# But a client-side `df`/`ls` is NOT a verdict on the pool: the BeeGFS client only retries within
+# `connCommRetrySecs=600`, so an `ECOMM` seconds after mgmtd returns is normal on a healthy pool
+# and calling it dead is the instrument talking (tools/README.md:217-226). Authority is
+# server-side -- `systemctl is-active` on the mgmtd, meta and storage units plus the listening
+# ports (`8008` mgmtd, `8003` storage) -- because `beegfs-ctl` and `beegfs-check-servers` are not
+# installed on this fleet. The snapshot `ls` is a bounded follow-up inside a reconnect window,
+# never a one-shot refusal.
+# Three pool verdicts, then the model verdict:
+#   pool-unhealthy      an installed unit is not active, or mgmtd/storage is not listening: exit 11
+#   pool-reconnecting   the server side is healthy and the client still cannot read the snapshot
+#                       inside `ARM_POOL_WAIT` (default 60 s): exit 13, never called dead
+#   pool-ready          a snapshot `ls` succeeded
+# and the model path `<hf_cache>/hub/models--<org>--<name>/snapshots/<revision>`
+# (`models/acquisition.py:49`, `models/_cache_agent.py:68`; a GGUF spec drops its `:quant`,
+# `models/download.py:model_cache_path`). `<hf_cache>` is the cluster profile's
+# `distribution.hf_cache` (this script launches with `--cluster WOPR`), the host dir bind-mounted
+# at the container's `/cache/huggingface` (`runtimes/base.py:787`). Exit 12 is the model verdict:
+# the pool answered and the snapshot is absent or empty.
+# The probe is HOST-SIDE by construction: no container exists yet, so a host-side `ls` passing
+# does not prove the container's `/cache` is populated, and both evidence files say `view=host`.
 # model-path: start
 MP_MODEL=$(sed -n 's/^model:[[:space:]]*//p' "$RECIPE" | head -1)
 MP_MODEL=${MP_MODEL%%:*}   # a GGUF spec is repo:quant; the snapshot lives under the repo
@@ -273,33 +281,81 @@ MP_PATH=
 if [ -n "$MP_HUB" ] && [ -n "$MP_MODEL" ]; then
   MP_PATH="$MP_HUB/hub/models--${MP_MODEL%%/*}--${MP_MODEL#*/}/snapshots${MP_REV:+/$MP_REV}"
 fi
+POOL_WAIT=${ARM_POOL_WAIT:-60}
+POOL_POLL=${ARM_POOL_POLL:-10}
+: > "$L/pool-preflight.txt"
 : > "$L/model-preflight.txt"
-printf '# hub=%s model=%s revision=%s path=%s view=host\n' \
-  "${MP_HUB:--}" "${MP_MODEL:--}" "${MP_REV:--}" "${MP_PATH:--}" >> "$L/model-preflight.txt"
+printf '# hub=%s model=%s revision=%s path=%s wait=%ss view=host\n' \
+  "${MP_HUB:--}" "${MP_MODEL:--}" "${MP_REV:--}" "${MP_PATH:--}" "$POOL_WAIT" > "$L/model-preflight.txt"
+printf '# wait=%ss view=host\n' "$POOL_WAIT" > "$L/pool-preflight.txt"
 if [ -z "$MP_PATH" ]; then
   echo "ARM REFUSED $NAME: the model path could not be resolved (hub=${MP_HUB:--}," \
        "model=${MP_MODEL:--}); a boot would hand the engine whatever an empty cache holds."
   echo "  Probe evidence: $L/model-preflight.txt"
   exit 11
 fi
-MP_BAD=() MP_MISS=()
+MP_BAD=() MP_CONN=() MP_MISS=()
 for hn in $(echo "$HOSTS" | tr ',' ' '); do
-  mp_out=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" "MP='$MP_PATH' sh -s" 2>/dev/null <<'PROBE'
-out=$(timeout 10 ls -A "$MP" 2>&1); rc=$?
-if [ "$rc" -eq 124 ]; then echo "POOL=timeout"; exit 0; fi
-case "$out" in
-  *"Communication error on send"*|*"Transport endpoint is not connected"*|\
-  *"Stale file handle"*|*"Input/output error"*)
-    echo "POOL=unhealthy:$(printf '%s' "$out" | head -1 | cut -c1-100)"; exit 0 ;;
-  *"No such file or directory"*) echo "POOL=absent"; exit 0 ;;
-esac
-if [ "$rc" -ne 0 ]; then
-  echo "POOL=unhealthy:ls-rc-$rc:$(printf '%s' "$out" | head -1 | cut -c1-100)"; exit 0
+  mp_out=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+             "MP='$MP_PATH' WAIT='$POOL_WAIT' POLL='$POOL_POLL' sh -s" 2>/dev/null <<'PROBE'
+units= fault=
+for u in beegfs-mgmtd beegfs-meta beegfs-storage; do
+  s=$(systemctl is-active "$u" 2>&1 | head -1)
+  case "$s" in
+    active) units="$units $u=active" ;;
+    *"could not be found"*|*"not-found"*|*"No such file"*) units="$units $u=absent" ;;
+    *) units="$units $u=$s"; fault="$fault,unit-$u-$s" ;;
+  esac
+done
+mgmtd=$(mount 2>/dev/null | sed -n 's/.*sysMgmtdHost=\([0-9.]*\).*/\1/p' | head -1)
+mport=n/a
+if [ -n "$mgmtd" ]; then
+  if timeout 4 python3 -c 'import socket,sys
+socket.create_connection((sys.argv[1], int(sys.argv[2])), 2).close()' "$mgmtd" 8008 2>/dev/null; then
+    mport=open
+  else
+    mport=closed; fault="$fault,mgmtd-port"
+  fi
 fi
-echo "POOL=entries:$(printf '%s\n' "$out" | grep -c .)"
+sport=n/a
+case "$units" in
+  *beegfs-storage=active*)
+    if timeout 4 python3 -c 'import socket
+socket.create_connection(("127.0.0.1", 8003), 2).close()' 2>/dev/null; then
+      sport=open
+    else
+      sport=closed; fault="$fault,storage-port"
+    fi ;;
+esac
+echo "UNITS=$units"
+echo "PORTS=mgmtd=$mport storage=$sport"
+if [ -n "$fault" ]; then echo "POOL=pool-unhealthy"; echo "DETAIL=$fault"; exit 0; fi
+deadline=$(( $(date +%s) + WAIT ))
+while :; do
+  out=$(timeout 10 ls -A "$MP" 2>&1); rc=$?
+  if [ "$rc" -eq 0 ]; then echo "POOL=entries:$(printf '%s\n' "$out" | grep -c .)"; exit 0; fi
+  case "$out" in
+    *"No such file or directory"*) echo "POOL=absent"; exit 0 ;;
+  esac
+  if [ "$(date +%s)" -ge "$deadline" ]; then
+    echo "POOL=pool-reconnecting"; echo "DETAIL=$(printf '%s' "$out" | head -1 | cut -c1-100)"
+    exit 0
+  fi
+  sleep "$POLL"
+done
 PROBE
 )
-  mp_kind=${mp_out#POOL=}
+  mp_units=$(printf '%s\n' "$mp_out" | sed -n 's/^UNITS=//p' | head -1)
+  mp_ports=$(printf '%s\n' "$mp_out" | sed -n 's/^PORTS=//p' | head -1)
+  mp_detail=$(printf '%s\n' "$mp_out" | sed -n 's/^DETAIL=//p' | head -1)
+  mp_kind=$(printf '%s\n' "$mp_out" | sed -n 's/^POOL=//p' | head -1)
+  case "${mp_kind%%:*}" in
+    entries) mp_status=pool-ready ;;
+    *) mp_status=${mp_kind%%:*} ;;
+  esac
+  printf '%s units=%s ports=%s status=%s detail=%s view=host\n' "$hn" \
+    "${mp_units:-unknown}" "${mp_ports:-unknown}" "${mp_status:-unknown}" "${mp_detail:--}" \
+    >> "$L/pool-preflight.txt"
   case "$mp_kind" in
     entries:0) printf '%s status=empty path=%s entries=0 view=host\n' "$hn" "$MP_PATH" \
                  >> "$L/model-preflight.txt"; MP_MISS+=("$hn (entries=0)") ;;
@@ -307,25 +363,34 @@ PROBE
                  "$hn" "$MP_PATH" "${mp_kind#entries:}" >> "$L/model-preflight.txt" ;;
     absent) printf '%s status=absent path=%s entries=- view=host\n' "$hn" "$MP_PATH" \
               >> "$L/model-preflight.txt"; MP_MISS+=("$hn (absent)") ;;
-    timeout) printf '%s status=pool-unhealthy path=%s entries=- detail=timeout view=host\n' \
-               "$hn" "$MP_PATH" >> "$L/model-preflight.txt"; MP_BAD+=("$hn (timeout)") ;;
-    unhealthy:*) printf '%s status=pool-unhealthy path=%s entries=- detail=%s view=host\n' \
-                   "$hn" "$MP_PATH" "${mp_kind#unhealthy:}" >> "$L/model-preflight.txt"
-                 MP_BAD+=("$hn (${mp_kind#unhealthy:})") ;;
-    *) printf '%s status=pool-unhealthy path=%s entries=- detail=ssh-or-empty view=host\n' \
+    pool-reconnecting) printf '%s status=unread path=%s entries=- detail=%s view=host\n' \
+                         "$hn" "$MP_PATH" "${mp_detail:--}" >> "$L/model-preflight.txt"
+                       MP_CONN+=("$hn (${mp_detail:-client ECOMM})") ;;
+    pool-unhealthy) printf '%s status=pool-unhealthy path=%s entries=- detail=%s view=host\n' \
+                      "$hn" "$MP_PATH" "${mp_detail:--}" >> "$L/model-preflight.txt"
+                    MP_BAD+=("$hn (${mp_detail:--server-side fault})") ;;
+    *) printf '%s status=pool-unhealthy path=%s entries=- detail=probe-unreadable view=host\n' \
          "$hn" "$MP_PATH" >> "$L/model-preflight.txt"; MP_BAD+=("$hn (probe unreadable)") ;;
   esac
 done
 if [ ${#MP_BAD[@]} -gt 0 ]; then
-  echo "ARM REFUSED $NAME: the shared model cache does not answer on ${MP_BAD[*]};"
-  echo "  the mount is unhealthy, so an empty cache is indistinguishable from a missing model."
-  echo "  Check the BeeGFS pool before blaming the recipe. Path: $MP_PATH"
-  echo "  Probe evidence: $L/model-preflight.txt"
+  echo "ARM REFUSED $NAME: the shared model cache is unhealthy on ${MP_BAD[*]};"
+  echo "  the server side says so (unit state / listening port), so this is the pool and not the"
+  echo "  recipe. Path: $MP_PATH"
+  echo "  Probe evidence: $L/pool-preflight.txt, $L/model-preflight.txt"
   exit 11
+fi
+if [ ${#MP_CONN[@]} -gt 0 ]; then
+  echo "ARM REFUSED $NAME: the pool is up and this host has not reconnected on ${MP_CONN[*]};"
+  echo "  the snapshot read still failed inside ${POOL_WAIT}s (the client retries for up to 600 s:"
+  echo "  tools/README.md:217-226). Re-run with ARM_POOL_WAIT=<seconds> to wait longer -- this is"
+  echo "  neither a missing model nor a dead pool. Path: $MP_PATH"
+  echo "  Probe evidence: $L/pool-preflight.txt, $L/model-preflight.txt"
+  exit 13
 fi
 if [ ${#MP_MISS[@]} -gt 0 ]; then
   echo "ARM REFUSED $NAME: the model snapshot is missing or empty on ${MP_MISS[*]};"
-  echo "  the pool answers, so the model was never staged at this revision."
+  echo "  the pool answered, so the model was never staged at this revision."
   echo "  Path: $MP_PATH (revision=${MP_REV:--})"
   echo "  Probe evidence: $L/model-preflight.txt"
   exit 12
@@ -736,21 +801,35 @@ fi
 # so no per-lane mod change is needed and every runtime gets one uniform probe. curl exists in
 # the sglang and vLLM images (measured 2026-11-08); an image without one -- the llama.cpp tiers
 # carry neither curl nor wget -- reads no_probe with the exec's exit code, never absent.
-# The port is resolved per runtime, never guessed: sglang PORT+3 and only with --enable-metrics
-# (sparkrun maps that key at runtimes/sglang.py:95, so a `defaults:` key counts as well as a
-# command token); vLLM the OpenAI port; llama.cpp the serve port and only with --metrics
-# (mad-science/LLAMACPP-GGUF.md:37). One exec per host, connect 3 s / total 5 s, no retries.
+# The port is resolved per runtime from the engine's own source, not from folklore: sglang mounts
+# Prometheus on the SERVED app when --enable-metrics is set (`srt/entrypoints/http_server.py:301-304`
+# `add_prometheus_middleware(app)`, `/metrics` attached at `srt/utils/common.py:2797-2804`), so it is
+# the API port -- the old `port_base + 3` was the scheduler's ZMQ metrics channel
+# (`srt/server_args.py:829-833`), not HTTP. sparkrun maps that key at runtimes/sglang.py:95, so a
+# `defaults:` key counts as well as a command token. The tensorfold launcher ships /metrics
+# unconditionally (`server/http.py:106`, `server/metrics.py`), so those arms are probed on the serve
+# port with no flag to look for. llama.cpp serves it only with --metrics
+# (mad-science/LLAMACPP-GGUF.md:37), on the port it launched with. One exec per host, connect 3 s /
+# total 5 s, no retries.
 # Four states, never conflated. captured: a Prometheus body -- a `# TYPE`/`# HELP` line or a
 # known runtime family prefix -- so a 200 from something that is not the engine is wrong_port.
 # absent: the probe ran in the container and the engine exposes nothing (404, an empty 200, or
-# a refusal on the metrics port while the serve was ready). no_probe: the probe could not run or
-# could not read (no container, exec failure, no curl, a timeout, or a refusal on a boot that
-# never readied). wrong_port: a listener answered with something that is not a metrics surface.
+# a refusal on the metrics port while the serve was ready), or the recipe carries no metrics flag.
+# no_probe: the probe could not run or could not read (no container, exec failure, no curl, a
+# timeout, or a refusal on a boot that never readied). wrong_port: a listener answered with
+# something that is not a metrics surface.
 # metrics-scrape: start
 M_RUNTIME=$(sed -n 's/^[[:space:]]*runtime:[[:space:]]*//p' "$RECIPE" | head -1)
 M_PORT= M_SKIP=
 case "$M_RUNTIME" in
-  sglang) grep -q -- '--enable-metrics' "$RECIPE" && M_PORT=$((PORT + 3)) || M_SKIP=recipe-has-no-flag ;;
+  sglang)
+    if grep -q 'tensorfold' "$RECIPE"; then
+      M_PORT=$PORT            # tensorfold's shim serves /metrics unconditionally
+    elif grep -q -- '--enable-metrics' "$RECIPE"; then
+      M_PORT=$PORT            # sglang mounts /metrics on the served app
+    else
+      M_SKIP=recipe-has-no-flag
+    fi ;;
   llama-cpp) grep -q -- '--metrics' "$RECIPE" && M_PORT=$PORT || M_SKIP=recipe-has-no-flag ;;
   *) M_PORT=$PORT ;;
 esac

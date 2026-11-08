@@ -462,14 +462,17 @@ class OverrideEvidence(unittest.TestCase):
             stub = bins / "sparkrun"
             stub.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$ARGV\"\nexit 0\n")
             stub.chmod(0o755)
-            # The slice now begins at the daemon preflight and the model-path gate, which ask each
+            # The slice now begins at the daemon preflight and the pool/model gate, which ask each
             # host for its daemon state and its snapshot. Neither probe is what this harness
             # measures, so both answer healthy here; each probe's own behaviour is executed in
-            # DaemonPreflight and ModelPathGate.
+            # DaemonPreflight and ModelPathGate. `#!/usr/bin/env bash` and no `${@: -1}`: the CI
+            # runner's /bin/sh is dash, where a negative index is a bad substitution and the stub
+            # said nothing -- which surfaced as exit 10, the daemon preflight's unreadable code.
             ssh_stub = bins / "ssh"
             ssh_stub.write_text(
-                "#!/bin/sh\n"
-                'case "${@: -1}" in\n'
+                "#!/usr/bin/env bash\n"
+                'last=; for a in "$@"; do last=$a; done\n'
+                'case "$last" in\n'
                 '  *"sh -s"*) echo "POOL=entries:3" ;;\n'
                 '  *) echo "EXE=/usr/bin/sparkrun"\n'
                 '     echo "HOME=/home/stub"\n'
@@ -1645,13 +1648,36 @@ ex=$(sed -n 1p "$f"); sed -n '2,$p' "$f"; exit "${ex:-0}"
 """
 
 # Fixture lines for a node's `ls -A <snapshot>`: <exit code>, then what ls prints (stdout when 0,
-# stderr otherwise). No fixture is a pool-less node: the path does not exist.
+# stderr otherwise). `<host>.ls.<n>` answers attempt n, `<host>.ls` every other one, so a retrying
+# probe can be shown recovering without a live pool. No fixture is a pool-less node.
 NODE_LS_STUB = """#!/usr/bin/env bash
-f="$NODES/${DP_HOST:-?}.ls"
+host="${DP_HOST:-?}"
+n=$(sed -n 1p "$NODES/.attempt.$host" 2>/dev/null || echo 0); n=$((n + 1))
+echo "$n" > "$NODES/.attempt.$host"
+f="$NODES/$host.ls.$n"; [ -f "$f" ] || f="$NODES/$host.ls"
 [ -f "$f" ] || { echo "ls: cannot access '$2': No such file or directory" >&2; exit 2; }
 ex=$(sed -n 1p "$f"); out=$(sed -n '2,$p' "$f")
 if [ "${ex:-0}" -eq 0 ]; then printf '%s\\n' "$out"; else printf '%s\\n' "$out" >&2; fi
 exit "${ex:-0}"
+"""
+
+# Server-side authority stubs: a unit table, the mount line that names the mgmtd host, and the
+# socket connect the probe runs through python3.
+NODE_SYSTEMCTL_STUB = """#!/usr/bin/env bash
+u="${@: -1}"
+s=$(sed -n "s/^$u=//p" "$NODES/${DP_HOST:-?}.units" 2>/dev/null | head -1)
+[ -n "$s" ] || { echo "Unit $u.service could not be found." >&2; exit 4; }
+echo "$s"
+[ "$s" = active ] && exit 0 || exit 3
+"""
+
+NODE_MOUNT_STUB = """#!/usr/bin/env bash
+sed -n 1p "$NODES/${DP_HOST:-?}.mount" 2>/dev/null
+exit 0
+"""
+
+NODE_PYTHON_STUB = """#!/usr/bin/env bash
+exit "$(sed -n 1p "$NODES/${DP_HOST:-?}.port" 2>/dev/null || echo 0)"
 """
 
 POOL_PRESENT = "0\nconfig.json\nmodel-00001-of-00002.safetensors\nmodel-00002-of-00002.safetensors\n"
@@ -1659,6 +1685,11 @@ POOL_ABSENT = "2\nls: cannot access '/fake/pool/huggingface': No such file or di
 POOL_ECOMM = "2\nls: cannot access '/fake/pool/huggingface': Communication error on send\n"
 POOL_TIMEOUT = "124\n"
 POOL_EMPTY = "0\n"
+UNITS_ACTIVE = "beegfs-mgmtd=active\nbeegfs-meta=active\nbeegfs-storage=active\n"
+UNITS_STORAGE_FAILED = "beegfs-mgmtd=active\nbeegfs-meta=active\nbeegfs-storage=failed\n"
+MOUNT_LINE = "192.0.2.10:/mnt/beegfs on /mnt/beegfs type beegfs (rw,sysMgmtdHost=192.0.2.10)\n"
+PORT_OK = "0\n"
+PORT_CLOSED = "1\n"
 HUB_CONFIG = "distribution:\n  hf_cache: /fake/pool/huggingface\n"
 MODEL_RECIPE = (
     "runtime: vllm\n"
@@ -1682,7 +1713,7 @@ class ExecutedBlock(unittest.TestCase):
             self.skipTest("bash not on PATH")
 
     def run_block(self, body, hosts=("head.test",), files=None, recipe="runtime: vllm\n",
-                  ready="yes", house=False, hub=True, timeout=60):
+                  ready="yes", house=False, hub=True, env_extra=None, timeout=60):
         files = files or {}
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
@@ -1695,7 +1726,9 @@ class ExecutedBlock(unittest.TestCase):
                 clusters.mkdir(parents=True)
                 (clusters / "WOPR.yaml").write_text(HUB_CONFIG)
             for name, stub in (("ssh", SSH_STUB), ("docker", DOCKER_STUB), ("curl", CURL_STUB),
-                               ("sparkrun", NODE_SPARKRUN_STUB), ("ls", NODE_LS_STUB)):
+                               ("sparkrun", NODE_SPARKRUN_STUB), ("ls", NODE_LS_STUB),
+                               ("systemctl", NODE_SYSTEMCTL_STUB), ("mount", NODE_MOUNT_STUB),
+                               ("python3", NODE_PYTHON_STUB)):
                 stub_path = bins / name
                 stub_path.write_text(stub)
                 stub_path.chmod(0o755)
@@ -1714,10 +1747,12 @@ class ExecutedBlock(unittest.TestCase):
                 f"HOSTS={','.join(hosts)}\nTID=abc123\nRECIPE={recipe_path}\nready={ready}\n"
                 + body + "\necho NEXT\necho AGG=${M_AGG:-none}\n"
             )
+            run_env = {**os.environ, "PATH": f"{bins}:{os.environ['PATH']}", "NODES": str(nodes),
+                       "BINS": str(bins), "CURL_CALLS": str(calls), "HOME": str(home)}
+            run_env.update(env_extra or {})
             out = subprocess.run(
                 ["bash", str(script)], capture_output=True, text=True, check=False, timeout=timeout,
-                env={**os.environ, "PATH": f"{bins}:{os.environ['PATH']}", "NODES": str(nodes),
-                     "BINS": str(bins), "CURL_CALLS": str(calls), "HOME": str(home)},
+                env=run_env,
             )
             receipt_files = {p.name: p.read_text(errors="replace")
                              for p in sorted(receipt.iterdir())}
@@ -1848,14 +1883,30 @@ class MetricsScrape(ExecutedBlock):
             self.assertIn("vllm:num_requests_running", files[f"metrics-{host}.txt"],
                           f"{host}'s verdict arrived without a body")
 
-    def test_sglang_is_probed_on_the_metrics_port_inside_the_container(self):
+    def test_sglang_is_probed_on_the_api_port_inside_the_container(self):
+        """sglang mounts Prometheus on the served app; `port_base + 3` is its ZMQ IPC channel."""
         rc, out, files, _ = self.run_metrics(
             "0\n200\n# TYPE sglang:num_requests_running gauge\n",
             recipe=self.sglang())
         self.assertEqual(rc, 0, out)
         self.assertIn("AGG=captured", out, "a TYPE line alone is a metrics body")
-        self.assertIn("url=http://127.0.0.1:8003/metrics",
-                      files["metrics-status.txt"], "the +3 offset was not used")
+        self.assertIn("url=http://127.0.0.1:8000/metrics",
+                      files["metrics-status.txt"], "the API port was not probed")
+
+    def test_tensorfold_is_probed_without_a_flag(self):
+        """The tensorfold shim serves /metrics unconditionally; skipping it reads as absent."""
+        tick = "`"
+        recipe = ("runtime: sglang\nmods:\n"
+                  '  - "mods/tensorfold-glm-exl3-launcher"\n'
+                  "command: python3 /workspace/mods/tensorfold-glm-exl3-launcher/launcher.py --boot\n")
+        rc, out, files, calls = self.run_metrics(
+            "0\n200\n# HELP tensorfold:requests_running ...\ntensorfold:requests_running 1\n",
+            recipe=recipe)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("AGG=captured", out, "an instrumented-by-default arm read as absent")
+        self.assertIn("url=http://127.0.0.1:8000/metrics", files["metrics-status.txt"])
+        self.assertEqual(len(calls), 1, "the arm was skipped without a probe")
+        self.assertNotIn(tick + "recipe-has-no-flag" + tick, out)
 
     def test_a_200_that_is_not_prometheus_is_wrong_port_not_data(self):
         rc, out, files, _ = self.run_metrics("0\n200\n<html><body>proxy error</body></html>",
@@ -1944,70 +1995,90 @@ class MetricsScrape(ExecutedBlock):
         self.assertLess(at, text.index('\nsparkrun stop "$TID"'), "the scrape is after the stop")
 
 
-class ModelPathGate(ExecutedBlock):
-    """An empty shared cache must refuse the launch, not be read as an empty reply or a bad recipe.
+class PoolGate(ExecutedBlock):
+    """The pool verdict is server-side; a client `ls` is a bounded follow-up, never a verdict.
 
-    Live 2026-11-08: with `beegfs-storage` down every path under the pool answered
-    `Communication error on send`, and a boot would have handed the engine a model that was not
-    there. A hung `ls` must read as "pool not answering" (11), never as "model missing" (12).
+    Live 2026-11-08: `beegfs-storage` down made every path under the pool answer `Communication
+    error on send`, while the BeeGFS client only retries within `connCommRetrySecs=600` -- so a
+    client-side `df`/`ls` alone would refuse a pool that is merely reconnecting
+    (tools/README.md:217-226). Units and listening ports decide; the snapshot read only follows.
     """
 
     def block(self):
         return block_region(read_tool(), MP_START, MP_END)
 
-    def run_model(self, pool_fixture, **kwargs):
+    def run_pool(self, ls_fixture, units=UNITS_ACTIVE, mount=MOUNT_LINE, port=PORT_OK, **kwargs):
         kwargs.setdefault("recipe", MODEL_RECIPE)
-        kwargs.setdefault("files", {"head.test.ls": pool_fixture})
-        return self.run_block(self.block(), **kwargs)
+        files = {"head.test.ls": ls_fixture, "head.test.units": units,
+                 "head.test.mount": mount, "head.test.port": port}
+        files.update(kwargs.pop("files", {}))
+        return self.run_block(self.block(), files=files, **kwargs)
 
-    def test_a_present_snapshot_proceeds_and_records_the_path(self):
-        rc, out, files, _ = self.run_model(POOL_PRESENT)
+    def test_a_present_snapshot_proceeds_and_records_both_verdicts(self):
+        rc, out, files, _ = self.run_pool(POOL_PRESENT)
         self.assertEqual(rc, 0, out)
         self.assertIn("NEXT", out, "a staged snapshot did not reach the launch")
-        probe = files["model-preflight.txt"]
+        model = files["model-preflight.txt"]
         self.assertIn(
             "models--deepseek-ai--DeepSeek-V4.1-Flash-1017/snapshots/1bae0e1088993b9b82de08f59de5be5a34e42170",
-            probe)
-        self.assertIn("status=present", probe)
-        self.assertIn("entries=3", probe)
-        self.assertIn("view=host", probe)
+            model)
+        self.assertIn("status=present", model)
+        self.assertIn("entries=3", model)
+        self.assertIn("view=host", model)
+        pool = files["pool-preflight.txt"]
+        self.assertIn("status=pool-ready", pool)
+        self.assertIn("beegfs-storage=active", pool)
 
     def test_an_absent_snapshot_refuses_at_12_naming_the_path(self):
-        rc, out, files, _ = self.run_model(POOL_ABSENT)
+        rc, out, files, _ = self.run_pool(POOL_ABSENT)
         self.assertEqual(rc, 12, out)
         self.assertIn("missing or empty", out)
         self.assertIn("models--deepseek-ai--DeepSeek-V4.1-Flash-1017", out)
         self.assertIn("status=absent", files["model-preflight.txt"])
-        self.assertNotIn("NEXT", out)
 
     def test_an_empty_snapshot_is_not_present(self):
         """An empty `/cache` is the failure this gate exists for, and it reads as entries=0."""
-        rc, out, files, _ = self.run_model(POOL_EMPTY)
+        rc, out, files, _ = self.run_pool(POOL_EMPTY)
         self.assertEqual(rc, 12, out)
         self.assertIn("status=empty", files["model-preflight.txt"])
 
-    def test_a_hung_pool_refuses_at_11_and_is_never_a_missing_model(self):
-        rc, out, files, _ = self.run_model(POOL_TIMEOUT)
+    def test_a_failed_storage_unit_refuses_at_11_from_the_server_side(self):
+        rc, out, files, _ = self.run_pool(POOL_PRESENT, units=UNITS_STORAGE_FAILED)
         self.assertEqual(rc, 11, out)
-        self.assertIn("does not answer", out)
-        self.assertNotIn("missing or empty", out,
-                         "a hung mount was reported as a missing model")
-        self.assertIn("status=pool-unhealthy", files["model-preflight.txt"])
+        self.assertIn("unhealthy", out)
+        self.assertIn("unit-beegfs-storage-failed", files["pool-preflight.txt"])
+        self.assertNotIn("NEXT", out)
 
-    def test_an_ecomm_pool_refuses_at_11(self):
-        rc, out, files, _ = self.run_model(POOL_ECOMM)
+    def test_a_closed_mgmtd_port_refuses_at_11(self):
+        rc, out, files, _ = self.run_pool(POOL_PRESENT, port=PORT_CLOSED)
         self.assertEqual(rc, 11, out)
-        self.assertIn("Communication error on send", files["model-preflight.txt"])
+        self.assertIn("mgmtd-port", files["pool-preflight.txt"])
+
+    def test_a_client_ecomm_with_healthy_units_is_reconnecting_not_dead(self):
+        rc, out, files, _ = self.run_pool(POOL_ECOMM, env_extra={"ARM_POOL_WAIT": "0"})
+        self.assertEqual(rc, 13, out)  # a reconnecting client was refused as a dead pool
+        self.assertIn("has not reconnected", out)
+        self.assertNotIn("unhealthy", out)
         self.assertNotIn("missing or empty", out)
+        self.assertIn("status=pool-reconnecting", files["pool-preflight.txt"])
+
+    def test_one_failed_client_read_does_not_decide_the_verdict(self):
+        """The negative control for the instrument: the retry window lets a reconnect through."""
+        rc, out, files, _ = self.run_pool(
+            POOL_PRESENT, env_extra={"ARM_POOL_WAIT": "2", "ARM_POOL_POLL": "0"},
+            files={"head.test.ls.1": POOL_ECOMM})
+        self.assertEqual(rc, 0, out)  # a single ECOMM decided the pool's state
+        self.assertIn("NEXT", out)
+        self.assertIn("status=present", files["model-preflight.txt"])
 
     def test_an_unresolvable_hub_refuses_rather_than_skipping(self):
-        rc, out, files, _ = self.run_model(POOL_PRESENT, hub=False)
+        rc, out, files, _ = self.run_pool(POOL_PRESENT, hub=False)
         self.assertEqual(rc, 11, out)
         self.assertIn("could not be resolved", out)
         self.assertIn("# hub=-", files["model-preflight.txt"])
 
     def test_a_gguf_spec_drops_its_quant_suffix(self):
-        rc, out, files, _ = self.run_model(
+        rc, out, files, _ = self.run_pool(
             POOL_PRESENT, recipe="runtime: llama-cpp\nmodel: LiquidAI/d1-2B-GGUF:Q8_0\n"
                                  "model_revision: 4a181094d1b6addfaa3a0956f78e7ab2aa406a0c\n")
         self.assertEqual(rc, 0, out)
@@ -2015,17 +2086,25 @@ class ModelPathGate(ExecutedBlock):
         self.assertNotIn("Q8_0", files["model-preflight.txt"])
 
     def test_a_multi_host_lease_probes_every_host(self):
-        rc, out, files, _ = self.run_model(
+        rc, out, files, _ = self.run_pool(
             POOL_PRESENT, hosts=("head.test", "rank1.test"),
-            files={"head.test.ls": POOL_PRESENT, "rank1.test.ls": POOL_ABSENT})
-        self.assertEqual(rc, 12, out)
-        self.assertIn("rank1.test (absent)", out)
-        self.assertIn("head.test status=present", files["model-preflight.txt"])
+            files={"head.test.ls": POOL_PRESENT, "rank1.test.ls": POOL_PRESENT,
+                   "rank1.test.units": UNITS_STORAGE_FAILED, "rank1.test.mount": MOUNT_LINE,
+                   "rank1.test.port": PORT_OK})
+        self.assertEqual(rc, 11, out)
+        self.assertIn("rank1.test", out)
+        self.assertIn("head.test units=", files["pool-preflight.txt"])
+
+    def test_the_verdict_is_not_a_df(self):
+        """`df`/`ls` are client-connectivity probes; the verdict must come from units and ports."""
+        block = self.block()
+        self.assertIn("systemctl is-active", block, "the server side is not consulted")
+        self.assertIn("socket.create_connection", block, "no listening-port check")
+        self.assertNotIn("df ", block, "a df was read as a verdict")
 
     def test_negative_control_without_the_block_a_missing_snapshot_proceeds(self):
         self.assertIn(MP_START, read_tool(), "the gate is gone; this control would be vacuous")
-        rc, out, _, _ = self.run_block("", recipe=MODEL_RECIPE,
-                                       files={"head.test.ls": POOL_ABSENT})
+        rc, out, _, _ = self.run_block("", recipe=MODEL_RECIPE)
         self.assertEqual(rc, 0, out)
         self.assertIn("NEXT", out)
 

@@ -600,9 +600,10 @@ SGLang column:
   above ~0.80–0.85 wedges nodes on unified memory — a `0.90` probe wedged three of four nodes
   (ping alive, SSH banner timeout) and bricked one into a manual power cycle; on GB10 GPU
   memory *is* host memory. — src: `.swival/HISTORY.md:1792-1809,4469-4473`.
-- **`/metrics` is served on `port_base + 3`, not the API port**, and only exists if the recipe
-  sets `--enable-metrics` — check the recipe, not the node. — src:
-  `.swival/memory/bench-artifact-metrics.md:88-91`.
+- **`/metrics` is served on the API port** when the recipe sets `--enable-metrics` — sglang mounts
+  Prometheus on the served app (`srt/entrypoints/http_server.py:301-304`,
+  `srt/utils/common.py:2797-2804`). `port_base + 3` is the scheduler's ZMQ metrics IPC channel
+  (`srt/server_args.py:829-833`), not HTTP. Check the recipe for the flag, not the node.
 - **`#queue-req` is informative only on `Prefill batch` lines; it is always 0 on `Decode
   batch` lines** (a false null indistinguishable from a real zero — contradict any all-zero
   parser column with a bare `re.findall`). Capacity claims read decode lines, admission claims
