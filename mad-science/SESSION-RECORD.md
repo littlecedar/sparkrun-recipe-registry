@@ -5448,7 +5448,7 @@ proposed with its check and exit code so it lands as its own change with its own
   ticket.
 - **Register hygiene, reported and not edited.** `mad-science/queue.json` is modified against HEAD
   and that uncommitted edit carries a **raw cluster address** in the arm5-control row's notes
-  (`…the sparkrun daemons were INACTIVE on 10.0.4.30-33…`), which
+  (`…the sparkrun daemons were INACTIVE on .30–.33…`), which
   `tests/test_tracked_address_hygiene.py` will fail the moment anyone commits it. The board's queue
   table masks it to `.30`–`.33` (its own `publish` door refuses an address, which is how the leak was
   found), and the row itself is another session's text, so it is reported, not rewritten. The
