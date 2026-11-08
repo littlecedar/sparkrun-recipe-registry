@@ -837,3 +837,57 @@ class ClaimLifecycle(unittest.TestCase):
         code, text = self.cli("check")
         self.assertEqual(code, 1)
         self.assertIn("claim exists only on a running row", text)
+
+    def stale(self) -> None:
+        """The row a peer's pre-fix `update` left claimed: a queued row carrying a claim."""
+        payload = json.loads(self.queue.read_text(encoding="utf-8"))
+        payload["tasks"][0].update(claimed_by="peer", claimed_at="2026-11-07T00:00:00Z")
+        self.queue.write_text(json.dumps(payload), encoding="utf-8")
+
+    def test_update_repairs_a_stale_claim_before_validating(self) -> None:
+        # The second instance of the relink defect: the pre-validate refused the very row the
+        # error text told the reader to repair, so `update --state queued` could not run at all.
+        for state in ("queued", "blocked"):
+            self.stale()
+            code, text = self.cli("update", "--id", "a", "--state", state)
+            self.assertEqual(code, 0, text)
+            self.assertEqual(self.claim(), (state, "", ""))
+            self.assertEqual(self.cli("check")[0], 0)
+
+        # A running target keeps exactly the claim the flips wrote, never the stale one.
+        self.stale()
+        self.assertEqual(self.cli("update", "--id", "a", "--state", "running",
+                                  "--claimed-by", "s")[0], 0)
+        state, claimed_by, claimed_at = self.claim()
+        self.assertEqual((state, claimed_by), ("running", "s"))
+        self.assertNotEqual(claimed_at, "2026-11-07T00:00:00Z")
+        self.assertEqual(self.cli("check")[0], 0)
+
+        # A notes-only update (no --state) is the same repair path.
+        self.assertEqual(self.cli("update", "--id", "a", "--state", "queued")[0], 0)
+        self.stale()
+        self.assertEqual(self.cli("update", "--id", "a", "--notes", "repaired")[0], 0)
+        self.assertEqual(self.claim(), ("queued", "", ""))
+        self.assertEqual(self.row()["notes"], "repaired")
+
+    def test_the_repair_touches_only_the_named_row(self) -> None:
+        payload = json.loads(self.queue.read_text(encoding="utf-8"))
+        other = task("b", 1.0)
+        other.update(claimed_by="peer", claimed_at="2026-11-07T00:00:00Z")
+        payload["tasks"].append(other)
+        self.queue.write_text(json.dumps(payload), encoding="utf-8")
+
+        # `a` is repairable, `b` is not: updating `a` must not launder another row's defect.
+        code, text = self.cli("update", "--id", "a", "--state", "queued")
+        self.assertEqual(code, 1)
+        self.assertIn("b: a claim exists only on a running row", text)
+        # Nothing was written, including the in-memory repair of `a`.
+        self.assertEqual(self.claim(), ("queued", "", ""))
+        rows = {entry["id"]: entry for entry in json.loads(self.queue.read_text())["tasks"]}
+        self.assertEqual(rows["a"].get("claimed_by", ""), "")
+        self.assertEqual(rows["b"]["claimed_by"], "peer")
+
+        # Each row's own update is the repair; after `b`'s, `a`'s goes through too.
+        self.assertEqual(self.cli("update", "--id", "b", "--state", "queued")[0], 0)
+        self.assertEqual(self.cli("update", "--id", "a", "--state", "queued")[0], 0)
+        self.assertEqual(self.cli("check")[0], 0)

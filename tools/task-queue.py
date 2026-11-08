@@ -419,6 +419,19 @@ def _relink(tasks: list[dict]) -> None:
         t["blocked_by"] = sorted(mirror.get(t["id"], set()))
 
 
+def _release_stale_claim(tasks: list[dict], task_id: str) -> None:
+    """Clear a claim a non-running *target* row still carries, so `update` can repair it.
+
+    The second instance of the relink defect: validation refuses a claim outside `running`, so a
+    row a peer's pre-fix `update` left claimed failed on the line before its repair and the
+    advertised repair (`rerun update`) was unreachable. Only the row `update` was asked about is
+    excused; every other row stays fail-closed, and `check`/`queue` still refuse the file.
+    """
+    for task in tasks:
+        if isinstance(task, dict) and task.get("id") == task_id and task.get("state") != "running":
+            task["claimed_by"] = task["claimed_at"] = ""
+
+
 def cmd_update(args, path: Path) -> None:
     data = load(path)
     # Relink BEFORE validating: `blocked_by` is derived from `blocks`, so a register whose mirror
@@ -427,6 +440,7 @@ def cmd_update(args, path: Path) -> None:
     tasks = data.get("tasks")
     if isinstance(tasks, list):
         _relink(tasks)
+        _release_stale_claim(tasks, args.id)
     tasks = validate(data, path)
     task = _find(tasks, args.id)
     flips = {"state": args.state, "title": args.title, "model": args.model,

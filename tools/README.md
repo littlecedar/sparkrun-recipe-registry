@@ -1569,7 +1569,8 @@ uv run python -B tools/task-queue.py unblock --id X   # back to queued
 Exit codes: 0 ok, 1 data/validation error (message on stderr), 2 usage error (argparse). The tool
 fails closed — duplicate ids, a dangling `blocks`/`blocked_by` ref, a cycle (message prints the
 cycle path), a missing/non-numeric/negative `estimate_h`, a bad `state`/`node_cost`, a stored
-`blocked_by` drifted from its derived mirror, a `done` task still carrying claim fields, or an
+`blocked_by` drifted from its derived mirror, any non-`running` task still carrying claim fields
+(repair with `update --id <id>`, which clears them before validating), or an
 unresolvable/untracked `recipe`, a bad `tp`, a `tp`/`node_cost` disagreement and a non-string
 `env` all exit 1 naming the offending id. There are no silent defaults: the queue never guesses an estimate
 or invents a dependency.

@@ -49,7 +49,7 @@ every row a scheduler may not boot:
 | `node_cost` | `` / `single` / `pair` / `quartet` | Fleet cost of the task's run; with a `recipe` it must equal the row's `tp` (1/2/4 nodes). |
 | `notes` | string | Caveats, claim stamps, `estimate: provisional` markers. |
 | `provenance` | string | Pointer into the work record (`TODO.md` §section, `DEEPSEEK.md` §…, `GUIDANCE.md` §…). A queued task with no provenance is a defect. |
-| `claimed_by`, `claimed_at` | strings, optional | Set by `update --claimed-by --state running` (the tool stamps the UTC timestamp). A claim exists only on a `running` row: the tool clears the pair on **every** transition out of `running` (back to `queued`, `blocked`, `done`), `--claimed-by` without `--state running` is refused, and `check` fails on any non-`running` row that still carries either field. |
+| `claimed_by`, `claimed_at` | strings, optional | Set by `update --claimed-by --state running` (the tool stamps the UTC timestamp). A claim exists only on a `running` row: the tool clears the pair on **every** transition out of `running` (back to `queued`, `blocked`, `done`), `--claimed-by` without `--state running` is refused, and `check` fails on any non-`running` row that still carries either field. The repair is `update --id <row>` on that row, which clears the pair before validating — `check`/`queue` still refuse the file, so a claim left by a peer's older tool version is repaired, not laundered. |
 | `recipe` | string, optional | **Machine-runnable rows only**: the arm's recipe, relative to the repo root (`recipes/<lane>/<arm>.yaml`). Must be a *tracked* file in the register's checkout and present in the worktree — a row naming a recipe a clone cannot resolve is a defect, never a row a scheduler skips in silence. |
 | `tp` | integer, optional | Machine-runnable rows only, required once `recipe` is given: nodes the arm takes, one of `1`/`2`/`4`, equal to `node_cost`'s count (`single`=1, `pair`=2, `quartet`=4). A mismatch is refused: the row would disagree with itself about how much fleet it holds. |
 | `env` | object of strings, optional | Machine-runnable rows only: environment overrides for the launch (`ARM_OPTS`, `ARM_TAG`, …). Absent means none. |
@@ -127,7 +127,9 @@ tier 2 = GLM-5.3-Flash, tier 3 = everything else. To change the policy, edit `pr
    `claimed_at` (UTC). A task claimed `running` in the file is the claim — a message is not. Every
    exit from `running` releases it: returning a failed arm to `queued`, `block`, `unblock` and
    `done` all clear `claimed_by`/`claimed_at`, because a queued row that still looked claimed
-   would be read as somebody else's work and never run.
+   would be read as somebody else's work and never run. A row left claimed by an older tool
+   version is repaired by any `update` of that row (it clears the pair before validating); until
+   then `check`, `queue` and every scheduler read refuse the file, naming the row.
 3. **On completion**: `done --id X`. The tool clears the claim fields; the next `queue` recomputes
    every weight the finished task was inflating.
 4. **A scheduler's claim is the campaign's claim.** A campaign director writes `running` with its
