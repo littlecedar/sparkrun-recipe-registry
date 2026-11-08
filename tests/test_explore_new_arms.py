@@ -28,9 +28,10 @@ Each invariant below is silent when broken:
   G  the GGUF arm declares `runtime: llama-cpp`, carries the `:quant` colon form
      on `model:`, and pins the fork image: stock llama.cpp has no `kolibri1`
      architecture at all.
-  N  Laguna-M.1 is the ONLY two-node explore arm (min/max 2, TP=2); the GGUF
-     arm is 1/1/TP1. Asserted as an exception so a copy-paste cannot quietly
-     make a solo arm two-node, or the two-node arm solo.
+  N  the two-node arms are exactly the declared set (Laguna-M.1 and the BF16
+     TP=2 Ripple probe, min/max 2, TP=2); every other arm is 1/1/TP1. Asserted as
+     an explicit map so a copy-paste cannot quietly make a solo arm two-node, or
+     a two-node arm solo.
 
 Recipes are parsed as text (stdlib only, no PyYAML) by the parser the other
 lane guards use; an empty parse RAISES rather than returning empty collections.
@@ -42,6 +43,7 @@ Run:
 
 from __future__ import annotations
 
+import json
 import re
 import unittest
 from pathlib import Path
@@ -54,11 +56,29 @@ EXPLORE = REPO_ROOT / "recipes" / "explore"
 ARMS = (
     "kolibri-1-apex-24bpw-llamacpp.yaml",
     "poolside-laguna-m1-nvfp4-vllm-tp2.yaml",
+    "zz-ripple-65b-preview-nvfp4-tp1-vllm.yaml",
+    "zz-ripple-65b-preview-nvfp4-tp1-dflash2-vllm.yaml",
+    "zz-ripple-65b-preview-bf16-tp2-vllm.yaml",
 )
 
 GGUF_ARMS = ("kolibri-1-apex-24bpw-llamacpp.yaml",)
 GGUF_QUANT = "APEX-2.4bpw"
 LAGUNA_M1 = "poolside-laguna-m1-nvfp4-vllm-tp2.yaml"
+
+# The 2026-11-08 Ripple probes (authored, not booted). An architecture newer
+# than every release in the fleet needs one engine pin shared by all three
+# cells, or a C1 on one build cannot be compared with a C5 on another.
+RIPPLE_ARMS = (
+    "zz-ripple-65b-preview-nvfp4-tp1-vllm.yaml",
+    "zz-ripple-65b-preview-nvfp4-tp1-dflash2-vllm.yaml",
+    "zz-ripple-65b-preview-bf16-tp2-vllm.yaml",
+)
+RIPPLE_DFLASH = "zz-ripple-65b-preview-nvfp4-tp1-dflash2-vllm.yaml"
+RIPPLE_DRAFT = "ricursiveAI/Ripple-65B-Preview-DFlash2"
+RIPPLE_ENGINE = "sha256:390a656b54e12144ad15ff32244c6e848408b0ee94f2c4c5a84451e7430f1aa7"
+
+# The arms allowed to declare two nodes (min/max 2, TP=2).
+TWO_NODE = (LAGUNA_M1, "zz-ripple-65b-preview-bf16-tp2-vllm.yaml")
 
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 DIGEST = re.compile(r"@sha256:[0-9a-f]{64}\b")
@@ -134,6 +154,32 @@ def foreign_repo_violations(r: dict) -> list[str]:
     return sorted(found - declared)
 
 
+def dflash_violations(r: dict) -> list[str]:
+    """A drafter cell must pin method dflash, the draft repo and its 40-hex revision.
+
+    sparkrun's vLLM draft binding rewrites the object's `revision` from the
+    prepared draft manifest, so an absent revision silently serves the repo's
+    `main` — the pin is the only thing that makes the cell reproducible.
+    """
+    raw = r["defaults"].get("speculative_config")
+    if not raw:
+        return ["no speculative_config"]
+    try:
+        spec = json.loads(raw)
+    except ValueError:
+        return [f"speculative_config is not JSON: {raw!r}"]
+    bad: list[str] = []
+    if spec.get("method") != "dflash":
+        bad.append(f"method {spec.get('method')!r} is not dflash")
+    if spec.get("model") != RIPPLE_DRAFT:
+        bad.append(f"model {spec.get('model')!r} is not {RIPPLE_DRAFT}")
+    if not SHA40.match(str(spec.get("revision", ""))):
+        bad.append(f"revision {spec.get('revision')!r} not 40-hex SHA")
+    if "{speculative_config}" not in r["command"]:
+        bad.append("command does not pass {speculative_config}")
+    return bad
+
+
 def gguf_violations(r: dict) -> list[str]:
     bad: list[str] = []
     if r["top"].get("runtime") != "llama-cpp":
@@ -153,8 +199,8 @@ def gguf_violations(r: dict) -> list[str]:
 
 
 def node_violations(name: str, r: dict) -> list[str]:
-    """Laguna-M.1 is the ONE 2/2/TP2 arm; the GGUF arm is 1/1/TP1."""
-    want = "2" if name == LAGUNA_M1 else "1"
+    """The two-node arms are exactly TWO_NODE; every other arm is 1/1/TP1."""
+    want = "2" if name in TWO_NODE else "1"
     bad: list[str] = []
     for key in ("min_nodes", "max_nodes"):
         got = r["top"].get(key)
@@ -233,15 +279,32 @@ class GgufArm(unittest.TestCase):
         )
 
 
+class RippleArms(unittest.TestCase):
+    """The 2026-11-08 Ripple probes stay comparable to each other."""
+
+    def test_engine_pin_is_shared_by_all_three_cells(self):
+        pins = {arm(n)["top"]["container"] for n in RIPPLE_ARMS}
+        self.assertEqual(pins, {"vllm/vllm-openai:nightly@" + RIPPLE_ENGINE})
+
+    def test_the_drafter_cell_pins_the_draft(self):
+        self.assertEqual(dflash_violations(arm(RIPPLE_DFLASH)), [])
+
+    def test_no_other_ripple_arm_carries_a_drafter(self):
+        for name in RIPPLE_ARMS:
+            if name == RIPPLE_DFLASH:
+                continue
+            self.assertNotIn("speculative_config", arm(name)["defaults"], name)
+
+
 class NodeShape(unittest.TestCase):
-    def test_laguna_m1_is_the_only_two_node_arm(self):
+    def test_node_shapes_match_the_declared_map(self):
         for name in ARMS:
             with self.subTest(arm=name):
                 self.assertEqual(node_violations(name, arm(name)), [])
 
-    def test_exactly_one_arm_is_two_node(self):
+    def test_two_node_arms_are_the_declared_pair(self):
         two_node = [n for n in ARMS if arm(n)["top"]["min_nodes"] != "1"]
-        self.assertEqual(two_node, [LAGUNA_M1])
+        self.assertEqual(sorted(two_node), sorted(TWO_NODE))
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +362,11 @@ class NegativeControls(unittest.TestCase):
             foreign_repo_violations(parse_text(raw)),
             ["mistralai/Mistral-Small-4-119B-2603-NVFP4"],
         )
+
+    def test_unpinned_draft_fails_the_drafter_guard(self):
+        raw = (EXPLORE / RIPPLE_DFLASH).read_text(encoding="utf-8")
+        raw = mutate(raw, '"revision": "35609b3b', '"rev": "35609b3b')
+        self.assertTrue(dflash_violations(parse_text(raw)))
 
     def test_stock_runtime_on_a_gguf_arm_fails(self):
         name = GGUF_ARMS[0]
