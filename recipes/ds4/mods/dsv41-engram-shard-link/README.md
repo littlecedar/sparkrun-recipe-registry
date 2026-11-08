@@ -53,6 +53,13 @@ mkdir -p "$T/empty-hub" && MOD_HF_HUB="$T/empty-hub" MOD_LOGDIR="$T/logs" ./run.
 `truncate -s` keeps the 91 GiB floor check honest without writing 91 GiB. The second run must
 log `already links ... - no-op`, not re-create.
 
+Two guard shapes here are deliberate, because both silently converted an intended exit into `rc 1`
+during the first draft's own testing: an unmatched glob in a `for` body (`[[ -f "$x" ]] && y=…`)
+leaves a failing status behind and `set -e` exits, and a failing `find` used as an assignment
+(`X="$(find …)"`) makes the assignment itself fail. Both now use explicit `if`s and `|| true` on the
+probes, so the exit codes stay meaningful — a guard whose failure mode is indistinguishable from a
+crash cannot be debugged from its log.
+
 ## Read path this exposes
 
 The Engram tables stay memory-mapped (llama.cpp's default) and are read one row per decode token.
