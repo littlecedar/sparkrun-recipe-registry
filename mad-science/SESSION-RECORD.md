@@ -5217,8 +5217,8 @@ verdict with no falsifier behind it is a guess wearing the register's vocabulary
 - **Attempt 6's marlin lever was never in the engine's argv, verified twice over.** Its
   `arm_opts.txt` holds `-oextra_args=--moe-runner-backend marlin` verbatim, but the launcher printed
   `Override(s) -o extra_args have no effect: the 'sglang' runtime does not understand it, so nothing
-  is added to the serve command` (`launch.log:41`), and the reaped serve log (31,127 B) carries no
-  `moe-runner-backend` and dies on the same `ValueError: Mxfp4FlashinferCutlassMoEMethod requires
+  is added to the serve command` (`launch.log:41`), and the reaped serve log (31,127 B) dumps
+  `'moe_runner_backend': 'flashinfer_mxfp4'` with zero `marlin` occurrences and dies on the same `ValueError: Mxfp4FlashinferCutlassMoEMethod requires
   hidden_size and intermediate_size_per_partition to be multiples of 128 (got hidden=5120,
   intermediate=576)`; watchdog `dead_candidate` t=95 s, `dead` (cause `RuntimeError`, ranks=4,
   peer_moved=3) t=107 s, `ARM DONE ... rc=4`. `-o extra_args` is simply not a channel the sglang
@@ -5235,3 +5235,34 @@ verdict with no falsifier behind it is a guess wearing the register's vocabulary
   recipes/tests, tools/README.md), which `git reset --hard` — the obvious reflex — would have
   destroyed. The unreachable local commits had no readable objects, so nothing was lost with the
   ref move; a local tip that git cannot read is not work to preserve, it is work to re-derive.
+
+## 2026-11-08 11:20 ET — the 11:13 board publish landed over an uncommitted peer edit, and `.30` gained an unowned container
+
+- **`publish`'s newer-stamp refusal does not see an in-place edit of a board carrying the same
+  title.** The 11:13 tick composed from sha `cbd26eb9` (the 11:08 board, which is `HEAD`'s copy)
+  and published at 11:13:00; `publish` printed `(disk was 2026-11-08 11:08:00 ET)` while the file
+  had already moved to sha `437f78fb` — a peer's edit under the **same** 11:08 title. The
+  comparison is the newest `| census |` row against the title, so an equal stamp passes in both
+  directions and the whole file is replaced. The compose-time sha compare-and-swap the skill
+  prescribes cannot fire for a write that lands between compose and `publish`.
+- **`437f78fb`'s bytes are unrecoverable**: nothing in `/tmp/board-*.md` matches that hash and no
+  commit carried it, so whatever row the peer added in place is gone. The next tick had already
+  republished a 11:17 board folded on the 11:13 one and corrected two of its cells (register
+  `10 queued / 10 blocked` → `9 queued / 11 blocked`; its campaign row, since attempt 6 was a
+  re-run of a register-blocked arm), so the loss is bounded to that one edit. A tick cannot fix
+  this class by reading harder — only a publish-time CAS on the disk sha can, and `publish` does
+  not take one.
+- **`f71c1d1` carries the 11:13 board under a peer's subject** ("Board: the pruned75 arm is
+  present…"): a peer's `git commit -- mad-science/STATUS.md` published the worktree bytes this
+  tick had written. Nothing was lost — the committed board is exactly the 11:13 composition —
+  but that commit's subject describes one clause of what it contains.
+- **`.30` holds a container nothing owns**: `sm121m`, image `dsv41-sm121-dg:0.2.1` (config
+  `sha256:85c1ffc3…`), `Created` 10:32:33 ET, `State.StartedAt` zero, `Cmd` `[run]`, no
+  `sglang.launch_server` process — a bare `docker create` that no lease, campaign arm or lock row
+  names, and the fleet's only container at every read 11:00–11:19. Left in place, because a tick
+  removes no container; its owner should either start it or remove it, since any census counting
+  `docker ps -aq` reads it as a live workload.
+- **Register at 11:19**: 109 tasks, 89 done, 9 queued, 11 blocked, zero claims, `check` green.
+  Campaign unit active, `state.json` 11:11:15, plan 9 measured / 8 blocked over 17 arms, no lease
+  — every bootable row is blocked, so the poller has nothing to place and all six nodes stay
+  idle. That is the empty-eligible-set state, not a drained campaign.
