@@ -5975,3 +5975,19 @@ mechanisms, because tuning earlyoom only changes *when* a victim is chosen — t
   `/proc/$(pgrep -o earlyoom)/cmdline` showing the raised minimums on every node in the lease, plus an
   `earlyoom --dryrun` quote for that node. The argv quoted above is that read-back, one per host, and the dryrun line
   is that quote; the clause's other half (permission is not re-runnability) is untouched by this change.
+
+## 2026-11-08 — correction: window B closed on a clean fleet reboot, and the close instant is unchanged
+
+The section `## 2026-11-08 15:29:55 ET — window B closes on a verified read, not on a restart` (landed `d706087`)
+contrasts its close with window A's interactive `systemctl start`. A later read of the same instant falsifies the
+contrast: **all six nodes rebooted cleanly at 15:29:15–15:29:17** (`Reached target reboot.target`, `Finished
+systemd-reboot.service` on `.30` at 15:29:17 and `.31` at 15:29:15; `uptime -s` 15:29:30–15:30:30), so the pool
+units' `ActiveEnterTimestamp 15:29:55` and the campaign user unit's `MainPID` are **boot-time starts**, not a manual
+restart and not a self-healing service.
+
+**What changes and what does not.** The *proof* stands unchanged — all six hosts read 111 hub entries and a shipped
+recipe's snapshot rc=0, `df -B1` answered on every host, `.30` storage stayed byte-identical, and those reads sit at
+or after 15:29:55. The **admissibility boundary therefore stays 15:29:55**: `12:57:32`–`15:29:54` remains invalid —
+window B. What changes is the mechanism line: "not on a restart" should read **"closed on a reboot, with verified
+reads after it"**, and any future reader should not infer from the original heading that a service restart is what
+ended an outage — a reboot is the only one of the two that appeared here.
