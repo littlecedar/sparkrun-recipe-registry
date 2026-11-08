@@ -20,7 +20,7 @@ still add no row, because an accuracy declaration belongs inside `metadata:` whe
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1411 tests (derived by discovery, guard-checked) and 2 skipped, the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
+suite 1416 tests (derived by discovery, guard-checked) and 2 skipped, the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -901,7 +901,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1411 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1416 tests,
   2 skipped on 2026-11-08:** the IFM research docs absent on a
   fresh clone and the
   qwen3-VL validation guard, which runs only where `sparkrun` is importable or on PATH; the

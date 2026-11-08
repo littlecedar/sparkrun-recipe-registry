@@ -1708,6 +1708,79 @@ class SglangLaneNegativeControls(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------
+# The SM121 survey's marlin variant: one flag, one channel.
+# --------------------------------------------------------------------------
+
+MARLIN_RECIPE = RECIPE_DIR / "zz-ds4-1017-sm121-arm3-control-marlin.yaml"
+ARM3_CONTROL = RECIPE_DIR / "zz-ds4-1017-sm121-arm3-control.yaml"
+MARLIN_FLAG = "--moe-runner-backend"
+
+
+def _marlin_channels(r: Recipe) -> tuple[str, str]:
+    """(the backend value in env, the rendered command) for one recipe.
+
+    The two channels a serve flag can take in this lane, and only the first
+    exists: a recipe's `command:` execs the overlay launcher, whose parser is
+    `parse_known_args` and discards everything it does not declare
+    (launcher.py:922, "Everything else (unused sglang flags, the recipe's own
+    args) is ignored"), while `extra_sglang_args()` (launcher.py:471-502)
+    appends a supplied EXTRA_SGLANG_ARGS verbatim to boot.py's argv (assembled
+    at :971) and prints it in the receipt line (:1013).
+    """
+    return r.env.get("EXTRA_SGLANG_ARGS", ""), r.rendered()
+
+
+class MarlinVariantRidesEnv(unittest.TestCase):
+    """The marlin backend must ride EXTRA_SGLANG_ARGS, never the launcher argv.
+
+    launcher.py:922 discards unknown flags, so `--moe-runner-backend marlin`
+    written on `command:` renders, boots, and serves the previous backend with
+    no error: the recipe looks right and measures the control. 2026-11-08 that
+    edit landed (env entry dropped, flag moved onto `command:`, and a comment
+    claiming the launcher forwards no EXTRA_SGLANG_ARGS, which is false) and
+    made the variant a no-op against a boot that had just proven the env route
+    reaches the engine.
+    """
+
+    def test_env_carries_the_marlin_backend(self):
+        env_value, _argv = _marlin_channels(load(MARLIN_RECIPE))
+        self.assertIn(
+            "--moe-runner-backend marlin", env_value,
+            "the marlin variant must declare its backend in env:EXTRA_SGLANG_ARGS")
+
+    def test_command_does_not_carry_the_marlin_backend(self):
+        _env_value, argv = _marlin_channels(load(MARLIN_RECIPE))
+        self.assertNotIn(
+            MARLIN_FLAG, argv,
+            "launcher.py:922 discards unknown argv flags, so a serve flag on "
+            "command: is a silent no-op")
+
+    def test_launcher_passthrough_is_real(self):
+        # The positive control for the channel the recipe relies on.
+        mod = _launcher_module()
+        self.assertEqual(
+            mod.extra_sglang_args({"EXTRA_SGLANG_ARGS": "--moe-runner-backend marlin"}),
+            "--moe-runner-backend marlin")
+
+    def test_control_carries_neither(self):
+        env_value, argv = _marlin_channels(load(ARM3_CONTROL))
+        self.assertEqual(env_value, "", "the control must stay byte-comparable")
+        self.assertNotIn(MARLIN_FLAG, argv)
+
+    def test_negative_control_argv_borne_flag_is_rejected(self):
+        # The regression rebuilt in memory: env entry gone, flag on `command:`.
+        # Both guards above must fail on it, or they cannot catch it again.
+        broken = MARLIN_RECIPE.read_text().replace(
+            '  EXTRA_SGLANG_ARGS: "--moe-runner-backend marlin"\n', "")
+        broken = broken.replace(
+            "--fp8-gemm-backend flashinfer_cutlass",
+            "--fp8-gemm-backend flashinfer_cutlass\n  --moe-runner-backend marlin")
+        env_value, argv = _marlin_channels(Recipe(broken, "argv-borne"))
+        self.assertNotIn("--moe-runner-backend marlin", env_value)
+        self.assertIn(MARLIN_FLAG, argv)
+
+
+# --------------------------------------------------------------------------
 # The TensorFold TP=2 lane: bertholomus' deepseek_v41 engine over the Mia-AiLab
 # EXL3 checkpoint (AGENTS.md §12). A separate engine and a separate mod, sharing
 # only the shim pattern with the knapcio lane above: `runtime: sglang` carries no

@@ -58,8 +58,9 @@ env:
   SGLANG_SKIP_SGL_KERNEL_VERSION_CHECK: "1"
   # The control half of section 10.7's replay-off requirement.
   SWA_BOUNDED_REPLAY: "0"
-  # The marlin variant of this control: a sglang-runtime `command:` has no
-  # {extra_args} slot for `-o`; boot.py whitespace-splits this, so both tokens.
+  # The marlin variant of this control: `command:` reaches launcher.py, whose
+  # parser ignores unknown argv flags (`:922`), so engine flags ride
+  # EXTRA_SGLANG_ARGS (`:471-502`), which boot.py splits on whitespace.
   EXTRA_SGLANG_ARGS: "--moe-runner-backend marlin"
 command: >
   python3 /workspace/mods/dsv41-sglang-overlay/launcher.py
