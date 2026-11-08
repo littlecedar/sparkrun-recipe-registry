@@ -1320,6 +1320,13 @@ a usable context: **`gpu_memory_utilization: 0.945`, `max_model_len: 16384`** (n
 free, met by 3 of 5 readings, and leaves 0.35 GiB spare at the pessimistic overhead). A node that
 reports less refuses at startup: sizing, not a checkpoint verdict.
 
+**Boot safety, not just fit.** The recut makes this arm arithmetically bootable, not safe to boot:
+a quartet attempt that overruns the unified pool takes the **host** down — the 2026-11-08 11:27
+kernel OOM killed `ssh`, NetworkManager, syncthing and a dashboard service on a loading node while
+earlyoom's swap term was unreachable. Until `QUESTIONS.md` **#67** (whether host memory policy may
+change on all nodes) is answered, a TP=4 attempt on this arm is an operator decision with a named
+risk, not a routine drain.
+
 **Drafter variant: rejected at TP=4.** The drafter is loaded at its own TP=1, so `rank 0` carries
 its **4.19 GiB** on top of the target's 110.71 GiB: 114.90 GiB of weights before any overhead, and
 `114.90 + 3.05 + 0.42 = 118.37 GiB` for a no-KV boot at util 0.973 — **3.35 GiB above the best
