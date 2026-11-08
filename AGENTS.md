@@ -792,6 +792,9 @@ uncommitted file is neither traceable nor recoverable: journal work under `.loca
 shared `.git/config`, after which every git command in every session dies on `fatal: Invalid path …`
 until that line is deleted — use `git clone --no-hardlinks <repo> /tmp/<dir>` for a throwaway
 checkout, or `git archive HEAD | tar -x -C /tmp/<dir>` when only the tree is needed.
+A stale registration is harmless — `git worktree prune` clears it — but a live one means another
+session's scratch checkout shares this object store, so prune the metadata and never delete the
+directory to force it.
 
 **A named path is the worktree's content, not yours.** `git commit -- <paths>` publishes whatever is
 *in the file* at that moment, so if two sessions edit the same file in overlapping turns, whoever
