@@ -1,4 +1,4 @@
-# Board — generated 2026-11-08 03:20 ET
+# Board — generated 2026-11-08 03:24 ET
 ## In flight
 | where | owner | what |
 |---|---|---|
@@ -7,8 +7,8 @@
 | `.31` | same arm, rank 1 | **live research boot, TP worker** — 03:18:05 ET: `1` container `…_node_1`, `Up 2 minutes (health: starting)`, `0` volumes; no API port on a worker rank |
 | `.32` | same arm, rank 2 | **live research boot, TP worker** — 03:18:04 ET: `1` container `…_node_2`, `Up 2 minutes (health: starting)`, `0` volumes |
 | `.33` | same arm, rank 3 | **live research boot, TP worker** — 03:18:03 ET: `1` container `…_node_3`, `Up 2 minutes (health: starting)`, `0` volumes |
-| `.34` | — | **nothing live (no reservation)** — census 03:04:23 ET: `0` containers, `0` volumes; holds 35 images, both survey digests among them (`dsv41-sm121-dg:0.2.0` and `:0.2.1`, re-checked 03:08) |
-| `.35` | — | **nothing live (no reservation)** — census 03:04:23 ET: `0` containers, `0` volumes; holds 43 images, both survey digests among them (`dsv41-sm121-dg:0.2.0` and `:0.2.1`, re-checked 03:08) |
+| `.34` | — | **nothing live (no reservation)** — census 03:15:50 ET: `0` containers, `0` volumes; holds 35 images, both survey digests among them (`dsv41-sm121-dg:0.2.0` and `:0.2.1`, re-checked 03:08) |
+| `.35` | — | **nothing live (no reservation)** — census 03:15:50 ET: `0` containers, `0` volumes; holds 43 images, both survey digests among them (`dsv41-sm121-dg:0.2.0` and `:0.2.1`, re-checked 03:08) |
 | campaign | `campaign-queue` (root `/home/red/benchmarks/h2h-20261107` on `.30`) | **active and moving: 5 measured, 1 failed, 1 leased, 5 pending.** Unit `sparkrun-campaign.service` **active since 01:04:38**, MainPID 3838066, `NRestarts=0`; one worker slot, `max_parallel 1`, all six hosts; `state.json` mtime **03:17:50**. **Measured:** `deepseek-v4.1-flash-knapcio-tp4-1m-sglang` (23:00), `glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang` (house 100 / 92 / 75), its `-boot2` twin (C2-peak shape reproduced; its house 0 / 30 / 100 is the transport artefact the last board named, not a model result), Beam `-boot2`, and now **the Beam house arm itself**. **Failed:** `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang` — attempt 4, no artefact; its register row stays `queued` behind `ARM_READY_TIMEOUT=3000`. **Leased:** `zz-ds4-1017-sm121-indexer-scoring` on `.30`–`.33`, booting. **Pending (5):** the three GLM-Flash lever arms and the two remaining ds4 survey arms (arm-3 control, arm-5 trtllm). The `-- register: register state blocked` trailing prose is gone with the reassignment |
 | window | `campaign-queue` | **declared 22:37:33 ET and in use** — `.local/fleet-window.lock`: `session: campaign-queue`, `window_stamp 2026-11-08T03:37Z`, all six nodes under research, `stop_rule: only containers this campaign starts`. The quartet lease above sits under it; `.34`/`.35` are declared and hold nothing. |
 | register | — | **12 open: 1 running + 11 queued, 0 blocked**, 94 tasks (**82 done**); `check` green on this read and **no non-running row carries a claim**. `h2h-beam-house-boot` **closed to `done`** on the arm's receipt (`measured: true`, rc 0); the receipt's `accuracy_status` and `ladder` fields are both empty strings, so that close is artefact-based, not accuracy-based. `w4-survey-arm3-sm121-boot` is the `running` row, claimed by `sparkrun-campaign:h2h-20261107`; `h2h-beam-house-and-bfcl-category` stays `queued` because its BFCL half never wrote a summary. Work queue below is the live `render --board`, 12 rows |
@@ -41,3 +41,4 @@
 | 02:49 | `88b4b34` | session close-out in the ledger and the board published on the 02:45:07 census |
 | 02:52 | `d4c3ffe` | the close-out's suite count stated as 1341 against the tree it lands on |
 | 02:55 | `b74094f` | the receipt shape arms actually write read, and the measured h2h cells landed against it |
+| 03:15 | receipt `zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.json` | Beam-1.0 501B TP=4 arm landed `rc=0` with house **15/15 = 100** and client HARD **18/18 = 100 %**, workload stopped on 4 hosts; its BFCL category cell ended `rc=241` with no `bfcl.json` (log stops mid-`multiple` at `multiple_196`, two `[FAIL] … value_error:string` before it), so that cell stays open in the register rather than being read as a result |
