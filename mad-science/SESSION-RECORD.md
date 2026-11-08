@@ -5831,3 +5831,42 @@ evidence behind it.
   clients** — it demands `mgmtd`/`meta` on *every* host, which `.31`–`.35` never ran — so until that fix lands a receipt
   refused "pool does not answer" is **not** evidence of an outage, and reading it as one would contradict the units above.
   Another session owns the fix; the clause stays until a green gate run exists.
+
+## 2026-11-08 — the pool-window admissibility rule, stood up in this lineage
+
+The rule below was pre-registered at **13:22** as one row of a board table in a lineage this file could not see,
+so until now the fleet had the gate row (`pool-window-invalid-cells`, register) and no rule text to enforce it.
+It is written out in full here. The section above already closes window B at 15:29:55; nothing below contradicts
+that — the `12:57:32` range ends at the close instant, not at "now", and B is not open.
+
+- **What the rule forbids.** A cell timestamped inside a pool-down window is **invalid, not weak**: a dead mount
+  presents as an empty `/cache`, so an arm can pass readiness and produce a cell against weights it could not
+  read. Such a receipt is not quoted as a measurement; the lane and the board say "invalid — pool window"
+  rather than leaving a number standing.
+- **Window A — `11:27:56`–`12:07:30`:** the head's `mgmtd`/`meta`/`storage` killed at 11:27:57 by the head global
+  OOM, restarted 12:06:46 and 12:07:21, last client transient 12:07:28 (`Communication error. Node:
+  node_storage_1`), and no verified snapshot read inside the gap.
+- **Window B — `12:57:32`–`15:29:54`:** degradation with the arm's own OOM (`.31` storage `oom-kill` 12:57:42,
+  `.33` `oom-kill` 12:57:33, while `.32`/`.34`/`.35` storage stayed up), then full outage at 12:59:14 when the
+  head's three units exited `Result=signal` with `Restart=no` and `NRestarts=0`. **Closed at 15:29:55** — the
+  close and its proof are the section above.
+- **Admissible middle — `12:07:30`–`12:57:31`:** the interval in which marlin `@8` ran. It died host-side from
+  the 12:57 OOM, a separate cause already recorded, so its failure is not a pool artefact.
+- **Admissible from the close on:** a cell **at or after `15:29:55` on a host that read the snapshot** is
+  admissible. The close proof is not a word: all six units `active (running)` since that instant with an empty
+  `ExecMainExitTimestamp` and `NRestarts=0`, registrations complete at 15:29:55, **111 hub entries and a
+  shipped recipe's snapshot read rc=0 on all six hosts**, `df -B1` answering 22.0 TiB / 9.0 TiB on every host,
+  no host in either ECOMM error class, `.30` storage byte-identical at `1,377,231,104,535 B`, and no stale
+  `lock.pid`.
+- **What closes a window, should another open.** Not "the pool is back": **all three of** `timeout 10 ls
+  /mnt/beegfs/huggingface/hub/<a model the recipe names>/snapshots/` succeeding, `df -h /mnt/beegfs` answering,
+  and `systemctl is-active beegfs-storage` reading `active`, on the host that will boot, after the owner
+  authorises the restart. **"The mount exists" is not the proof** — `/proc/self/mountinfo` carried
+  `/mnt/beegfs` for the whole of window B, so a mount-listed check would have said "serving" while every read
+  failed.
+- **Candidates at registration: none.** Every `ladder.*`/`house.*`/`client.json` on the shared root predated
+  11:27, and a later enumeration found no cell inside either window, so nothing was retracted — the rule
+  changed no number, which is exactly why it was worth writing before it could.
+- **The gate caveat still travels with every refusal.** `tools/run-arm.sh`'s pool gate is red on healthy
+  clients (it demands `mgmtd`/`meta` on *every* host, which `.31`–`.35` never ran), so a receipt refused
+  "pool does not answer" is **not** evidence of an outage until a green gate run exists.
