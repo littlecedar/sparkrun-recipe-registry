@@ -772,6 +772,10 @@ matching.
   only — never `git add -A`, directory adds, or bare globs — and review `git diff --cached --stat`
   first.
 
+Syncthing file versioning is **off** in this tree (no `.stversions` anywhere), so an overwrite of an
+uncommitted file is neither traceable nor recoverable: journal work under `.local/` or the
+`**/*-WORK.md` forms and commit real work promptly, rather than relying on file history to return it.
+
 **A named path is the worktree's content, not yours.** `git commit -- <paths>` publishes whatever is
 *in the file* at that moment, so if two sessions edit the same file in overlapping turns, whoever
 commits first takes the other's half-finished edit and ships it under their own message. Measured
