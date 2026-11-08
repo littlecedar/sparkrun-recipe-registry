@@ -1044,10 +1044,11 @@ claim-by-claim probe in
   (`kimi-k3.1-pro`), so the licence claim is defective. Quality claims (94.8 % retention, the
   benchmark table) have no harness, fixtures or receipt in the repo.
 
-**Two attempts, one recipe defect, no measurement.** Both launches in the 2026-11-08
-`campaign-queue` window died on `serve.py: error: unrecognized arguments:
---served-model-name shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB`: sparkrun's vllm runtime
-appends that flag to any vllm command it renders, and the launcher's argparse did not accept it.
+**Two attempts, one recipe defect, no measurement.** Both launches failed in the 2026-11-08
+`campaign-queue` window, and the retained second attempt's log names the cause: `serve.py: error:
+unrecognized arguments: --served-model-name shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB`.
+sparkrun's vllm runtime appends that flag to any vllm command it renders, and the launcher's
+argparse did not accept it.
 The retained receipt has a 241 B reaped serve log with that usage text and a `launch.log` totalling
 34.4 s (run 16.8 s + launch 14.7 s); watchdog verdict was `dead` with `serve_pid=gone` at 11 s.
 Nothing loaded, so no cell exists. `serve.py` now parses `--served-model-name` and reports it from

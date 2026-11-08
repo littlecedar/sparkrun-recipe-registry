@@ -50,10 +50,10 @@ could add the arch (out of scope for a probe).
 Until 2026-11-08 this arm is **authored-not-booted** — and it was attempted twice in that window
 without producing a measurement, for a recipe reason now identified and fixed.
 
-- **Attempts.** Both launches in the `campaign-queue` window died the same way:
-  `serve.py: error: unrecognized arguments: --served-model-name
+- **Attempts.** Both launches in the `campaign-queue` window failed; the retained second attempt's
+  log names the cause: `serve.py: error: unrecognized arguments: --served-model-name
   shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB`, followed by `head container not running`. The
-  retained second attempt's receipt (`zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm/`) carries a
+  receipt (`zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm/`) carries a
   241 B reaped serve log with that usage text and a `launch.log` whose timings total 34.4 s
   (run 16.8 s + launch 14.7 s); the watchdog's line is `verdict=dead serve_pid=gone` at 11 s.
   Nothing loaded, so there is no cell and no quality number.
