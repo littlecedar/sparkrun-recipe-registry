@@ -3783,3 +3783,35 @@ download in flight.
 Carried forward as a rule for the next tick: a pair's average means nothing if a known boundary falls
 inside it — check the previous row's absolutes before folding a new pair into the same sentence — and one
 pair cannot separate a burst from a writer without a later read showing the rate stopped.
+
+## 2026-11-07 20:22 ET — board landed rows homed (session boundary)
+
+The board this tick read had an empty `Landed session` table, and four commits landed between 19:15 and
+19:52 ET that no row and no section here carried: `4472983`, `7cc9aff`, `fdea9c7`, `88ecd24`.
+`git grep -c <sha> -- mad-science/SESSION-RECORD.md` returned nothing for all four, and the board on
+disk (`6416fc4`, generated 20:14 ET) rowed none of them, so they are carried here verbatim-adjacent so
+that the table can stay empty without orphaning anything.
+
+This tick published no board of its own: a peer tick committed `6416fc4` at 20:17:01 ET on a 20:14 ET
+board, so its rows are kept and this tick's measurements folded onto them rather than replacing the file
+(a whole-file write two minutes behind a peer is the equal-stamp clobber the publish tool cannot refuse).
+Folded, all measured at 20:15: the battery's two indices (**`.30` 129/157 with 113 produced**, **`.35`
+29/56 with 29 rows whose ids reconcile both ways** against its log), both cgroups (9.42 GiB and 9.40
+GiB), both slot timings (`tg 62.2` and `tg 64.7 t/s`), a three-point root-avail decomposition
+(20:04:23 → 20:05:56 → 20:09:03 ET) showing the two ~9 MB rank falls happened in **different** windows —
+one burst migrating between `.32` and `.31`, not a twin event — the two new discriminators on it
+(`.32`'s host serve log is 804,324 B total, too small to be the writer; the container's docker json log
+under `/var/lib/docker` is root-owned, so that read is VOID), the receipt-dir reconciliation (a 118,100 B
+minute against the peer's 4,380 B minute disagree only because one reply flush per ~124 s falls inside
+one window and not the other), and the register's drift clause (the one `running` row carries no
+`recipe`/`tp`/`env`, so under the register-pull mode it is an authoring row the scheduler skips and no
+open row is bootable yet). The peer's split claim was re-verified rather than inherited: `subset-30.jsonl`
+157 ∪ `subset-35.jsonl` 56 = 213 ids with **zero overlap**, and every reply id falls inside its own
+subset.
+
+| time ET | commit | one clause |
+|---|---|---|
+| 19:15 ET | `4472983` | Read the watchdog as the gate it is: the 3D arm's row had called a completed boot gate an instrument defect, where `main()` returns 0 on the first probe whose verdict is `healthy` (`tools/boot-watchdog.py:513-514`), so a ready arm is unguarded by design; a re-armed instance exited on its own first `healthy` probe, both probe logs were removed, and the row now names the mechanism and the driver's request loop as what notices a mid-battery serve death. |
+| 19:19 ET | `7cc9aff` | Settled `.30`'s burst with a pair and sized its writer rather than inferring it: the 19:03:52 → 19:04:55 pair caught **184.6 kB/s on `.30` alone** while `.31`–`.35` sat at 1,365–1,560 B/s, a 19:09:16 → 19:10:17 pair put `.30` back on the floor, and the r2 receipt dir grew **96,632 B in 60 s = 1,610 B/s** — with the container's writable layer (+1 kB in 45 s) and unchanged pool mtimes as negative discriminators and the root-owned docker json log recorded as a VOID read. |
+| 19:51 ET | `fdea9c7` | Added the machine-runnable triple to the register so a director can boot from it: `tools/task-queue.py` takes optional `recipe`/`tp`/`env` (recipe must be a tracked `recipes/<lane>/<arm>.yaml`, `tp` one of 1/2/4 and equal to `node_cost`'s host count, env an object of strings), every read path validates, `queue --json` prints the table's own weighted order, and absence means an authoring row no scheduler may boot; verified on the workstation (suite 1,291 tests / 2 skipped, `check` green over 82 rows) with no existing row rewritten. |
+| 19:52 ET | `88ecd24` | Taught the campaign director to pull the register: `serve --queue [path]` builds its plan from queued rows that name a recipe and `tp`, in the register's own weighted order, writes its claim through the tool **before** any lease exists, resumes an in-flight claim as `running`, and in drained state polls every 30 s printing "no runnable rows" once per quiet spell (`--once` runs one pass and exits 0); the declared-host rule stays, and blocked rows, other sessions' running claims, authoring rows and `tp` beyond the declared host count are skipped by name rather than truncated. |
