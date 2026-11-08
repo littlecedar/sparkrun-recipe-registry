@@ -4151,3 +4151,16 @@ lease was live.
   recovery around the failed import that the relay's own log line does not account for (`5.1 GiB`
   downloaded, `up to 10.6 GiB` needed, `up to 64.0 GiB scratch` declared). Attribution stays open; what is
   measured is that the bytes came back to the 23:44 level rather than staying spent.
+
+## 2026-11-08 00:13 ET — the published board's own commit names the wrong census
+
+The 00:13 ET board (census **00:11:03 ET**) was published through `publish` on top of a peer's
+00:07:26 board and committed by that peer's `2155b5b`, whose subject reads "Publish board on the
+00:07 census: the h2h director is back, arm on attempt 3". A commit subject is the only index most
+readers use, so it is recorded here rather than rewritten: `2155b5b` carries this tick's **00:11:03**
+census board (bytes `02e63c6d288876a0fb19802c321e85e67652d1043a29f4d57783ea1454b70e88`), not a 00:07
+one. **The 00:07:26 board is lost**: `publish` overwrote it while it was still uncommitted (its own
+report: `disk was 2026-11-08 00:07:26 ET`, this census 00:11:03), and the tick had read the disk board
+at 00:09, before that publish, so its rows were never read for a fold. Nothing material went with it —
+the same state is in the 00:11 census: director back, arm on attempt 3, four ranks at the image-carry
+stage.
