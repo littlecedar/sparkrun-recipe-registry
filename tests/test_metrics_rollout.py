@@ -28,7 +28,10 @@ Text parsing, never PyYAML, so the guard survives a sparkrun upgrade and runs
 anywhere.  Whole-line comments are stripped before matching (AGENTS.md
 §"Recipe comments"), and the omission of a flag from a *comment* is not a pass.
 Every predicate takes TEXT so a negative control can feed it a mutated copy of
-a real recipe; an empty parse raises rather than passing vacuously.
+a real recipe; an empty parse raises rather than passing vacuously.  The
+script-shaped arms (a project launcher or server in `command:`) have no engine
+flag to set and are outside the four families; `benchmarking/README.md`
+§"Instrumentation and comparability" says what that means for their numbers.
 """
 
 from __future__ import annotations

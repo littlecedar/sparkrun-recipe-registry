@@ -280,6 +280,14 @@ The pre-instrumentation record is everything measured before 2026-11-08: the qwe
 flags without that marker is instrumented by definition. The guard is
 `tests/test_metrics_rollout.py`.
 
+The four engine families cover the recipes whose command reaches an engine CLI. The script-shaped
+arms (the CPU decision serves, the diffusers/ComfyUI media scripts, the `vllm-srun` shim, the
+Kokoro/Pyannote/Phonon serves and the reference-server probe) run a project launcher or server of
+their own, so no engine flag exists to add; they are neither instrumented nor declared, and their
+numbers stay uninstrumented like any pre-rollout baseline. The tensorfold and vLLM-Omni arms need
+no flag because their `/metrics` surface (the Omni arms through the metrics bridge) is
+unconditional.
+
 ## Non-qwen4
 
 | profile | use |
