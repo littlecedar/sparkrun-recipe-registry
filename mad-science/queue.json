@@ -1610,6 +1610,23 @@
       "env": {
         "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
       }
+    },
+    {
+      "id": "media-idol-3dgs-boot",
+      "title": "Idol single-image 3DGS trial: SDK on the tracked fixture, receipt = .ply 3DGS header + Gaussian count + wall, one node",
+      "estimate_h": 2.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "Authored, not booted. Two external prerequisites: (1) both gated encoders unaccepted for the staging account (403 on /raw/main/config.json for facebook/dinov3-vith16plus-pretrain-lvd1689m and black-forest-labs/FLUX.2-dev, probed 2026-11-08); (2) a free single node (campaign holds all six). Stage before boot, by branch so refs/main exists: hf download speridlabs/idol, hf download facebook/dinov3-vith16plus-pretrain-lvd1689m, hf download black-forest-labs/FLUX.2-dev --include 'vae/*'. estimate: provisional",
+      "provenance": "recipes/media/README.md §idol-1.8b-bf16-3dgs-script (authored 2026-11-08)",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/media/idol-1.8b-bf16-3dgs-script.yaml",
+      "tp": 1
     }
   ],
   "questions": []
