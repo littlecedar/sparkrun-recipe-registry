@@ -5937,3 +5937,41 @@ produce, not a box already ticked**.
   (no reservation)** and carries no reason. The only role-shaped statement in force is the narrative above: a boot
   whose per-rank fit is unproven prefers a client-only host, because an overrun there costs one storage target instead
   of the mgmtd+meta pair.
+
+## 2026-11-08 — the pool survives an overrun: `OOMScoreAdjust=-1000` on the BeeGFS units, earlyoom at 20 %
+
+Owner authorisation: "fix the earlyoom config so the kernel's OOM killer does not reap BeeGFS processes again." Two
+mechanisms, because tuning earlyoom only changes *when* a victim is chosen — the kernel still chooses when it fires.
+
+- **The pool's processes are off both killers' lists.** `/etc/systemd/system/beegfs-{mgmtd,meta,storage}.service.d/oom.conf`
+  exists on all six hosts with `OOMScoreAdjust=-1000`, `Restart=on-failure`, `RestartSec=5` (drop-ins, not the packaged
+  units, so a BeeGFS upgrade cannot overwrite them), followed by `systemctl daemon-reload`. Read back on every host:
+  `OOMScoreAdjust=-1000 restart=on-failure restartusec=5s`. **No unit was restarted, and none needed to be:** the
+  running daemons were protected in place by writing `-1000` into `/proc/<pid>/oom_score_adj` (mgmtd 2048, meta 2168,
+  storage 2164 on `.30`; storage 3243 / 3249 / 3256 / 3226 / 3250 on `.31`–`.35`), each verified by read-back with the
+  units still `active/running`.
+- **earlyoom now fires before the kernel does.** `/etc/default/earlyoom` went from `-m 1 -s 70` to
+  `-m 20,10 -s 100,95 --prefer '(vllm|VLLM|sglang|llama-server|llama-cli|trtllm|tritonserver|ray|python3|python)' --avoid '(beegfs|mgmtd|meta|storage|systemd|sshd|dockerd|containerd|dbus-daemon|NetworkManager|syncthing)'`,
+  restarted 16:10:45–16:10:53 and read back from the **live argv** on all six, never from the file. `-m 20` is ~24 GiB
+  of headroom on a 119 GiB node; `-s 100` removes the swap conjunct that silenced the memory term (measured 11:27 —
+  45 s at 0.34–0.45 % available while swap-free bottomed at 71.02 %, one point above `-s 70`), and the SIGKILL rung
+  keeps a real swap backstop at 95 %. The pre-change file is kept as `/etc/default/earlyoom.bak-pre-fix-20261108`.
+- **Bootless proof.** `earlyoom --dryrun` on the installed file prints `sending SIGTERM when mem <= 20.00% and swap <=
+  100.00%, SIGKILL when mem <= 10.00% and swap <= 95.00%`. A forced-threshold dryrun (`-m 98`) carrying the same avoid
+  list selected `python3` (badness 1100) and named none of the three running `beegfs-*` pids, so the avoid list holds.
+  Two traps for whoever reads this next: `comm` is truncated to 15 characters (`beegfs-storage/`), and `beegfs`
+  matches every pool process by prefix, so the `mgmtd|meta|storage` tokens are belt-and-braces rather than the
+  load-bearing part.
+- **Still unprotected, owner decision pending:** `ssh.service`, `NetworkManager.service` and `user@1000.service` carry
+  no negative adj, and those are the three the 12:59:14 event killed — the user-manager teardown is what took the
+  interactive session and the `sparkrun cluster monitor` with it. `OOMScoreAdjust=-900` drop-ins for them are the
+  missing half and are **not** applied.
+- **What this does not fix.** It changes the victim list, not the engine's footprint: a quartet boot can still overrun,
+  and `docker --memory` still cannot bound a GB10 GPU allocation (`tools/README.md` §"run-arm.sh pooling receipts").
+  `QUESTIONS.md` #67's candidate (a) is now executed at different numbers than it proposed; candidates (b) and (c)
+  remain open, and the pool's `Restart=on-failure` closes the `beegfs-units-restart-no` half.
+
+- **This is the proof the section above demanded.** That clause gated the first TP=4 boot on
+  `/proc/$(pgrep -o earlyoom)/cmdline` showing the raised minimums on every node in the lease, plus an
+  `earlyoom --dryrun` quote for that node. The argv quoted above is that read-back, one per host, and the dryrun line
+  is that quote; the clause's other half (permission is not re-runnability) is untouched by this change.
