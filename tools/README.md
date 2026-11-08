@@ -200,6 +200,22 @@ is therefore not a contradiction: the bench scored and the ladder died afterward
 carries an accuracy number and no cells. Each field means exactly what it says — never derive one
 from the other, and do not invent a sixth state for the pair.
 
+**A container's memory limit does not bound its GPU allocations on GB10, so no lane may be sized for a
+container-bounded death.** Measured 2026-11-08 on a free node: a container launched with `--memory=8g
+--memory-swap=8g` held **20 GiB** of resident CUDA while its cgroup reported `memory.max` 8589934592 and
+`memory.current` 482091008 (anon 335241216), and it was not killed; the same shape at `--memory=4g` with
+10 GiB of CUDA exited 0. Unified-memory GPU pages are charged to the driver rather than to the container's
+memory controller, so `CONSTRAINT_MEMCG` can never fire for an engine OOM: a boot that overruns ends in a
+**global** OOM (`oom-kill:constraint=CONSTRAINT_NONE,…,global_oom`) that picks its victim by `oom_badness`,
+and the same day's quartet boot lost `ssh` and `NetworkManager` on `.30` that way while the engine's own badness
+was ≈0 — its victim-table row read `75356775` total_vm against `28169` kB rss, because GPU memory is not in
+RSS. `sparkrun run --memory-limit`, and the portable `executor_config.memory_limit` behind it, exists and
+bounds only the container's host-side anonymous memory: useful against a repack copy, never against the
+weight load. `sparkrun run` has no `--oom-score-adj` channel either — only the API's `extra_docker_opts`
+reaches `docker run` — so a recipe cannot even ask to be the kernel's preferred victim. The containments
+that do work are host-side (earlyoom minimums, `OOMScoreAdjust` on `ssh.service` and `NetworkManager.service`)
+and are the owner's call in `mad-science/QUESTIONS.md` `#67`.
+
 ## eval-suite.py (the SOP pass)
 
 One live OpenAI-compatible endpoint in, one receipt directory out. Axes are chosen with `--checks`
