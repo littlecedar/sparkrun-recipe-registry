@@ -5322,3 +5322,17 @@ proposed with its check and exit code so it lands as its own change with its own
 - **The stated suite total followed discovery, not arithmetic**: a peer's 25-test module landed
   under 1383, the `SuiteTotal` guard reddened the tip, and both statements moved to 1405 with my two
   new cases counted in the same commit (`d23b871`).
+- **A pathspec commit can silently *revert* a path it does not name — measured this hour.**
+  `a8eaa5b` carries my `AGENTS.md` totals change and simultaneously drops `publish --expect-sha` and
+  its tests from `tools/task-queue.py`/`tests/test_task_queue_tool.py`, so `origin/main` had no
+  `expect_sha` at all while the worktree still had it. The mechanism is the one the shared-index
+  rules describe from the other side: a commit whose tree is assembled for one path took the other
+  paths' content from an index older than the last commit, and the delta is invisible in the commit
+  subject. Detection is cheap and belongs in the same breath as the `git show HEAD:<path>` check a
+  session already owes its own commit — for a landed change, `git show origin/main:<path> | grep
+  <the symbol>` — and the remedy is a re-land (`af6ded8`), never a rewrite.
+- **Two zero-byte files in the repo root are a shell accident, not content**: `-` and
+  `command: rendered from defaults + placeholders` (plus `reads`, `writes, then reown() to cache
+  owner`, `mods: pre_exec, in order, as root`), all created 11:55 by a command whose unquoted
+  arguments word-split. They are untracked and empty, so nothing was lost, but any directory add
+  would sweep them into a registry that ships to third parties. Left for their session to remove.
