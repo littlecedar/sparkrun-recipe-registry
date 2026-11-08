@@ -18,12 +18,17 @@ description: >-
   Four GB10 nodes, TP=4. ATTEMPTED 2026-11-08; no serve. The 07:47 failure was a
   config-only stub in the pool, not a dependency gap; the same snapshot has since
   been filled (112 entries, 442.87 GiB by an inode-deduped stat walk, hf cache
-  verify rc=0). The row's block is now FIT, not presence: the shards measure
-  442.85 GiB, so TP=4 is 110.71 GiB/rank against a 119.21 GiB pool whose util-0.92
-  budget is 109.67 GiB - over by ~1.0 GiB/rank before one KV block. The shipped
-  32k/0.92 pair is infeasible; the arm needs a recut (shorter context at ~0.95, or
-  a smaller checkpoint), and an OOM on it is a sizing answer, not a checkpoint
-  verdict. A staged-wheelhouse route for tiktoken is proven and kept only as a
+  verify rc=0). The row's block is now FIT, not presence. Envelope, per rank, checkable against the
+  lane README's fit section: shards 442.85 GiB / 4 = 110.71 GiB of weights; the device reports
+  121.69 GiB with 112.33-115.02 GiB free at startup; measured non-KV overhead is 1.48-3.05 GiB
+  (peak activation + CUDAGraph); KV is 24 full layers x ((512+64)x2 + (128+4)) B = 30,816 B/token,
+  plus 0.105 GiB per sequence of KDA state (x4 seqs = 0.42 GiB). At the previously authored
+  util 0.92 the budget is 111.95 GiB, i.e. short by 1.8 GiB before one KV block, and 32k needs
+  115.12 GiB free - more than any measured reading. The recipe ships the one point that holds:
+  gpu_memory_utilization 0.945 (115.00 GiB, needs >=114.65 GiB free and leaves 0.35 GiB spare)
+  with max_model_len 16384. A startup refusal on a busier node is a sizing answer, not a
+  checkpoint verdict.
+  A staged-wheelhouse route for tiktoken is proven and kept only as a
   template for an image that lacks the backend - tiktoken 0.14.0 + regex 2026.11.7,
   cp312 manylinux_2_28_aarch64, sha256s in the lane README, installed --no-index
   as uid 1000 with a 13-token round-trip through the checkpoint's tiktoken.model
@@ -33,11 +38,11 @@ description: >-
   marker (see the lane README's acceptance paragraphs).
   FIT: 737.6 B params = U8 680,685,207,552 elements (MXFP4-packed, 340.3 GB) + BF16
   56,915,256,320 (113.8 GB) + F32 11,060,608 (0.04 GB) = 454.2 GB = 423.0 GiB
-  nominal, but the staged shards measure 442.85 GiB, so the real TP=4 load is
-  110.71 GiB/rank against a 119.21 GiB pool whose 0.92 budget is 109.67 GiB —
-  over by ~1.0 GiB/rank before one KV block. The shipped 32k/0.92 pair is therefore
-  infeasible and the arm needs a recut; an OOM at profile is a sizing answer, not
-  the checkpoint.
+  nominal, but the staged shards measure 442.85 GiB, i.e. 110.71 GiB/rank. At
+  util 0.945 the 121.69 GiB device gives 115.00 GiB, leaving 0.82 GiB after the
+  pessimistic 3.05 GiB overhead and the 0.42 GiB of KV state: 28,400 tokens of
+  geometric maximum, so 16k ships with margin. The card's 1M context is not
+  reachable at TP=4 on this hardware; it needs TP=8 or a larger unified pool.
   The card's own eval is TP=4 (GSM8K 5-shot 43.67 % on four B300s) and it states the
   regression plainly: "expect a large quality regression relative to the source
   model". Berthed beside the lane's other arms only as the servable Kimi body — the
@@ -79,11 +84,13 @@ defaults:
   # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot path,
   # so `GET /v1/models` would advertise the cache path (-n does not show this).
   served_model_name: vllm-project/Kimi-K3.1-Pro-pruned75
-  # The staged shards are 442.85 GiB, so TP=4 holds 110.71 GiB/rank of weights against
-  # a 119.21 GiB pool: 0.92 is a 109.67 GiB budget, i.e. ~1 GiB short before any KV.
-  # Not a tuned value until the fit is recut (shorter context or ~0.95).
-  gpu_memory_utilization: 0.92
-  max_model_len: 32768
+  # Envelope (lane README §fit): 110.71 GiB/rank of shards + 3.05 GiB measured
+  # activation/CUDAGraph overhead + 0.42 GiB of KDA state (4 seqs) = 114.18 GiB.
+  # 0.945 x 121.69 = 115.00 GiB leaves 0.82 GiB -> 28.4k tokens of headroom, so
+  # 16k ships with margin. Needs >=114.65 GiB free at startup; 0.92 could not
+  # even hold the weights (short 2.23 GiB).
+  gpu_memory_utilization: 0.945
+  max_model_len: 16384
   max_num_seqs: 4
   max_num_batched_tokens: 2048
   quantization: compressed-tensors

@@ -25,18 +25,22 @@ description: >-
   instantiates against it — 5 layers, DSparkMarkovHead + DSparkConfidenceHead, first
   layer `model.layers.93...`, 4,598,107,009 params (8.56 GiB BF16 module tree); the
   Omni-only `n == block_size` check does not run for a Kimi target. So the row's
-  label is "config bind proven, acceptance counters pending", and what blocks it is
-  the TP=4 fit, not staging: the target body is present (442.87 GiB, hf cache verify
-  rc=0) and its shards alone are 110.71 GiB/rank against a 109.67 GiB budget at
-  util 0.92. The open
-  question is cross-checkpoint acceptance: the draft was trained against the
+  label is "config bind proven, acceptance counters pending", and the arm is a
+  FIT REJECTION at TP=4, not a staging wait: the target body is present (442.87 GiB,
+  hf cache verify rc=0), its shards are 110.71 GiB/rank, and the drafter loads at
+  its own TP=1, so rank 0 carries 4.19 GiB more -> 114.90 GiB of weights before any
+  overhead against 112.33-115.02 GiB free measured on this fleet. A no-KV boot needs
+  118.37 GiB (util >=0.973), 3.35 GiB above the best reading, so it cannot boot here
+  at any context. Feasible shapes: TP=8 (55.4 GiB/rank), a smaller pruned target, or
+  a larger unified pool. The open
+  question stays cross-checkpoint acceptance: the draft was trained against the
   unpruned base, so the card's 3.448 mean acceptance at width 8 is not transferable
   to this 75 %-pruned body and only a real serve measures it. A healthy serve would
   still be markerless: no chat template ships, so the chat instruments cannot score
   it (lane README has the acceptance contract).
-  MEMORY: the draft adds ~4.5 GiB per rank on top of the target's 110.71 GiB/rank,
-  so even the target alone is ~1 GiB over the util-0.92 budget and the ctx/utilisation
-  pair must be recut before this arm can boot.
+  MEMORY: 110.71 GiB/rank of target + 4.19 GiB of drafter on rank 0 = 114.90 GiB;
+  with the measured 3.05 GiB overhead and 0.42 GiB of KDA state the arm needs
+  118.37 GiB, so no utilisation value makes it fit at TP=4.
 metadata:
   model_url: https://huggingface.co/LithosAI/Kimi-K3.1-Pro-DSpark
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
@@ -75,9 +79,10 @@ defaults:
   host: 0.0.0.0
   tensor_parallel: 4
   served_model_name: vllm-project/Kimi-K3.1-Pro-pruned75
-  # Infeasible as shipped: 110.71 GiB/rank of target weights plus ~4.5 GiB of draft
-  # against a 109.67 GiB budget at 0.92. Recut ctx/utilisation before boot (lane
-  # README fit bullet); the bind is already proven.
+  # FIT REJECTION at TP=4: target 110.71 GiB/rank + drafter 4.19 GiB on rank 0 +
+  # 3.05 GiB overhead + 0.42 GiB KDA state = 118.37 GiB, above the best free
+  # memory this fleet measured (115.02 GiB). Kept at a placeholder; boot it only
+  # after a TP=8 recut or a smaller target (lane README §fit).
   gpu_memory_utilization: 0.92
   max_model_len: 16384
   max_num_seqs: 4

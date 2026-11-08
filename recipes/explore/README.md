@@ -1145,10 +1145,12 @@ rows and `e_score_correction_bias` pruned with them), everything else the base
   then filled: the same snapshot now holds **112 entries, 96/96 safetensors shards, zero
   `.incomplete` blobs, 475,525,935,884 B = 442.87 GiB** by an inode-deduped `stat` walk,
   `hf cache verify` rc=0, no writer (2026-11-08 11:05 pool read). **Presence is no longer the
-  block; fit is.** The shards measure 442.85 GiB, so TP=4 is **110.71 GiB/rank**, and a 119.21 GiB
-  pool at `gpu_memory_utilization: 0.92` is a **109.67 GiB budget** — the weights exceed it by
-  ~1.0 GiB/rank before one KV block, so the shipped util/ctx pair is infeasible and the arm needs a
-  recut (shorter context at ~0.95, or a smaller checkpoint). The 423.0 GiB figure in
+  block; fit is.** The shards measure 442.85 GiB, so TP=4 is **110.71 GiB/rank**, and the shipped
+  `gpu_memory_utilization: 0.92` (111.95 GiB of the 121.69 GiB device) cannot hold the weights
+  plus the measured 3.05 GiB of activation/graph overhead: the arm is short by **1.8 GiB before a
+  single KV block**. The envelope, its inputs and the one bootable point are worked out in
+  [Fit arithmetic inside one GB10](#fit-arithmetic-inside-one-gb10-2026-11-08-tp4-accepts-16k-rejects-32k-and-the-drafter);
+  the recipe now ships that point. The 423.0 GiB figure in
   [Size / fit](#kimik31-pro-pruned75-mxfp4-vllm-tp4) is nominal parameter arithmetic and stale for
   fit. An OOM on this arm is therefore a **sizing answer**, not an engine or checkpoint verdict.
   **Measure presence with `du -sL` or an inode-deduped `stat` walk:** `du -sb` reads 8,179 B even
@@ -1196,9 +1198,10 @@ hidden states of layers 7/23/67/83/91 through a `dspark` projector, a rank-256 M
 confidence head, sharing the target's embedding and LM head. `num_speculative_tokens: 4` is the
 trained shape (1 current + 4 drafts against the exported `block_size: 5`), and the Omni-only
 `n == block_size` equality check does not run for a Kimi target (bind bullet below); the card's
-width-8 acceptance number needs block 8, which this config does not declare. 16k context is moot
-until the fit is recut: the plain arm's 442.85 GiB of shards is already 110.71 GiB/rank at TP=4
-against a 109.67 GiB budget at util 0.92, and the draft adds ~4.5 GiB/rank more.
+width-8 acceptance number needs block 8, which this config does not declare. Context is moot until
+the fit is worked out: the plain arm's 442.85 GiB of shards is already 110.71 GiB/rank at TP=4,
+and the drafter adds its 4.19 GiB on rank 0 (draft TP=1) — see the fit section below, which rejects
+this arm at TP=4 outright.
 
 The engine side is verified rather than assumed: the pinned image's `config/speculative.py` declares
 `DSparkModelTypes = Literal["dspark"]` and its registry maps both `Qwen3DSparkModel` → `qwen3_dspark`
@@ -1242,8 +1245,9 @@ arm reached model load, let alone speculator init — the drafter-binding questi
 `vllm-project/Kimi-K3.1-Pro-pruned75` (snapshot `fc72e5a1`) holds the full body — 112 entries,
 442.87 GiB by an inode-deduped stat walk, `hf cache verify` rc=0 — and
 `models--LithosAI--Kimi-K3.1-Pro-DSpark` (`d791d217`) is staged on `.30`/`.31` with its 4.19 GiB
-safetensors. Nothing here waits on a download any more: what blocks both arms is the TP=4 fit
-(110.71 GiB/rank of target weights alone against 109.67 GiB at util 0.92). Chat template is
+safetensors. Nothing here waits on a download any more: what blocks the pair is the TP=4 fit
+(110.71 GiB/rank of target weights against a 121.69 GiB device, and the drafter's 4.19 GiB on
+rank 0), worked out in the fit section below. Chat template is
 confirmed absent at the pin: `tokenizer_config.json` has no `chat_template` key and the repo ships
 no `chat_template.jinja`, so both arms measure on `/v1/completions`.
 
@@ -1271,6 +1275,57 @@ DSpark acceptance counters in the serve log (drafts, accepted tokens, mean accep
 settle the binding gate above. That is where the drafter's verdict is read — never from a marker.
 "The serve is healthy and no marker appeared" is the expected shape for both Kimi arms (this one and
 the plain `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4`); it is not an engine failure.
+
+### Fit arithmetic inside one GB10 (2026-11-08): TP=4 accepts 16k, rejects 32k and the drafter
+
+Every input below is checkable from the tree or the fleet.
+
+- **Weights per rank.** The staged shards measure **442.85 GiB**; over TP=4 that is
+  **442.85 / 4 = 110.71 GiB/rank**.
+- **Device and free memory.** vLLM on this fleet reports **121.69 GiB** total per GB10, with
+  **112.33–115.02 GiB free at startup** across five measured boots (`gpu_worker.py`
+  "Free memory on device" lines under `~/benchmarks/`). `--gpu-memory-utilization` multiplies the
+  121.69 GiB total.
+- **Non-KV overhead, measured on the same boots.** Peak activation **1.41–2.81 GiB** and CUDAGraph
+  **0.07–0.24 GiB**, i.e. **1.48–3.05 GiB/rank**. The arithmetic below uses the pessimistic 3.05;
+  the optimistic column is noted only where it changes a verdict.
+- **KV per token, from `config.json` (`text_config`).** **24 full-attention layers**
+  (`dsa_config.dsa_layers`) with MLA latent `kv_lora_rank 512 + qk_rope_head_dim 64` at BF16, plus
+  the DSA indexer key of `index_head_dim 128 + 4 B` scale (`indexer_cache_entry_bytes` returns
+  `head_dim + 4` for the bf16/fp8 default):
+  `24 × ((512 + 64) × 2 B + (128 + 4) B) = 24 × 1,284 B = 30,816 B = 30.1 KiB/token.`
+- **KDA state, from `linear_attn_config`.** The other **69 layers** are linear attention
+  (`num_heads 96`, `head_dim 128`, `short_conv_kernel_size 4`) and hold a **per-sequence** state,
+  not a per-token cache: recurrent `96/4 × 128 × 128 × 4 B` plus conv
+  `((96 × 128 + 2 × 96 × 128) / 4) × 3 × 2 B` per layer →
+  `69 × (1,572,864 + 55,296) B = 0.105 GiB per sequence`. The recipe's `max_num_seqs: 4` therefore
+  reserves **0.42 GiB**.
+
+Envelope: `budget(U) = 121.69 × U` and
+`KV(U) = budget(U) − 110.71 − 3.05 − 0.42`, giving `ctx = KV × 2³⁰ / 30,816`.
+
+| util | budget | after weights + overhead + state | max ctx | free memory it requires |
+|---|---|---|---|---|
+| 0.92 (as previously authored) | 111.95 | **−2.23 GiB** | 0 | 111.95 |
+| 0.935 | 113.78 | −0.40 | 0 | 113.78 |
+| 0.94 | 114.39 | 0.21 | 7,200 | 114.39 |
+| 0.945 (shipped now) | 115.00 | 0.82 | 28,400 | 115.00 |
+| 0.946 | 115.12 | 0.94 | 32,700 | 115.12 — **above the best reading, 115.02** |
+| 0.95 | 115.61 | 1.42 | 49,600 | 115.61 — no measured node reports it |
+
+Verdict, stated plainly: **32k is infeasible at TP=4.** The authored pair missed by 1.8 GiB before
+one KV block, and even at util 0.946 the 32k KV+state (1.36 GiB) needs 115.12 GiB free, 0.10 GiB
+more than the best measured reading. The recipe now ships the one point that holds the weights and
+a usable context: **`gpu_memory_utilization: 0.945`, `max_model_len: 16384`** (needs 114.65 GiB
+free, met by 3 of 5 readings, and leaves 0.35 GiB spare at the pessimistic overhead). A node that
+reports less refuses at startup: sizing, not a checkpoint verdict.
+
+**Drafter variant: rejected at TP=4.** The drafter is loaded at its own TP=1, so `rank 0` carries
+its **4.19 GiB** on top of the target's 110.71 GiB: 114.90 GiB of weights before any overhead, and
+`114.90 + 3.05 + 0.42 = 118.37 GiB` for a no-KV boot at util 0.973 — **3.35 GiB above the best
+measured free memory**, so it is impossible here regardless of context. What would make it
+feasible: TP=8 (55.4 GiB/rank of target plus 4.19 GiB of draft on rank 0), a smaller pruned
+checkpoint, or a host with a larger unified pool.
 
 ## Kimi-K3.1-Pro spinoffs: REAPs, drafters and the EXL3 2-bit
 
