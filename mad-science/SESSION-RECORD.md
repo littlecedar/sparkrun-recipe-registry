@@ -5591,3 +5591,31 @@ Two defects found while folding this hour's board, both cheap to state and neith
 - **The rule both halves share.** An arm's failure class is only as good as the instrument that
   observed it: name the instrument in the receipt (a daemon status, a capture window), and when the
   instrument did not run or quit early, the row says `unattributable`/`untried`, never `failed`.
+
+---
+
+## 2026-11-08 12:45 ET — the pruned75 body is complete the way a boot needs, and `.30`'s storage server is the quartet's co-tenant
+- **The entry count the board quotes both ways is one file, and that file is hidden.** The board
+  carries **112** entries from the 11:05 pre-outage read and **111** from the post-recovery reads,
+  which reads like the outage cost something. It did not: `ls -a` on
+  `snapshots/fc72e5a1dd88…` gives 114 lines, minus `.` and `..` = **112 entries**, one of which is
+  `.gitattributes` — hidden, so a plain `ls` shows 111. Of the 112, **96 are `.safetensors` shards**
+  and the visible remainder is 15 files: `config.json`, `configuration_kimi_k3.py`, `encoding_k3.py`,
+  `generation_config.json`, `kimi_k3_processor.py`, `kimi_k3_vision_processing.py`, `media_utils.py`,
+  `model.safetensors.index.json`, `preprocessor_config.json`, `tiktoken.model`, `tokenization_kimi.py`,
+  `tokenizer_config.json`, `LICENSE`, `README.md`, `assets/`.
+- **The sizes are the load-bearing part, not the count.** `model.safetensors.index.json` measures
+  **15,114,413 B** and `config.json` **7,303 B**; **there is no `tokenizer.json` and none is expected**,
+  because this checkpoint's tokenizer is Python code (`tokenization_kimi.py` plus `tiktoken.model`) —
+  precisely the config-only-stub shape the 10:45 entry mistook for a truncated download. So
+  `kimi-pruned75-tp4-boot`'s pool gate closes on a real 15 MB shard index plus a code-based tokenizer,
+  not on the shard count alone.
+- **`.30`'s storage server shares the host with any rank placed on it, and that is the next quartet
+  boot's real budget.** The 11:27:57 `global_oom` killed `beegfs-storage` with a **38.2 G** memory
+  peak — `beegfs-meta` and `beegfs-mgmtd` died with it (`journalctl -u beegfs-*` on `.30`) on a
+  121 GiB box that at that moment also held the marlin quartet's rank 0. A quartet boot that puts a
+  rank on `.30` therefore sizes the engine's `gpu_memory_utilization` against the GB10's unified pool
+  but not against the 38 G a storage server there can claim, and the cost of getting that wrong is
+  fleet-wide: the OOM took the weights away from every node, not just that arm. Either move storage
+  off `.30` or budget the host explicitly before the next quartet boot.
+---
