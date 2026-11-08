@@ -371,9 +371,7 @@
       "id": "h2h-glm-flash-house-recipe",
       "title": "GLM-5.3-Flash 4bpw TP=4 house battery @4096 thinking-on through the recipe path",
       "estimate_h": 2.0,
-      "blocks": [
-        "h2h-doc-refresh"
-      ],
+      "blocks": [],
       "blocked_by": [
         "h2h-glm-flash-house-boot"
       ],
@@ -421,9 +419,7 @@
       "blocks": [
         "h2h-doc-refresh"
       ],
-      "blocked_by": [
-        "h2h-beam-house-boot"
-      ],
+      "blocked_by": [],
       "state": "queued",
       "model": "",
       "node_cost": "quartet",
@@ -454,12 +450,7 @@
       "blocks": [
         "h2h-doc-refresh"
       ],
-      "blocked_by": [
-        "h2h-second-boot-beam",
-        "h2h-second-boot-ds4-1017",
-        "h2h-second-boot-glm-753b",
-        "h2h-second-boot-glm-flash"
-      ],
+      "blocked_by": [],
       "state": "queued",
       "model": "",
       "node_cost": "quartet",
@@ -503,7 +494,6 @@
       "blocks": [],
       "blocked_by": [
         "h2h-beam-house-and-bfcl-category",
-        "h2h-glm-flash-house-recipe",
         "h2h-second-boot-ladder"
       ],
       "state": "queued",
@@ -533,11 +523,7 @@
       "title": "Search for GLM-5.3-Flash variants that do not degrade as concurrency increases",
       "estimate_h": 5.0,
       "blocks": [],
-      "blocked_by": [
-        "glm-flash-conc-dflash2-k",
-        "glm-flash-conc-no-drafter",
-        "glm-flash-conc-scheduler-knob"
-      ],
+      "blocked_by": [],
       "state": "queued",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
@@ -622,13 +608,14 @@
       "estimate_h": 1.5,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "SEQUENCED per owner answers 12+1: the SGLang-shaped line format is confirmed wanted ('Avg generation throughput: X tokens/s', 'gen throughput (token/s): X', 'Running: N reqs', 'Waiting: N reqs'), but generalization happens ONLY after the fixed bridge (7c42590) is verified printing matched lines on the NEXT TensorFold boot (the 3bpw arm's next boot; the live one predates the bridge). Then: (a) copy the fixed bridge into the 4bpw lane launcher recipes/glm/mods/tensorfold-glm-exl3-launcher/launcher.py — mods ship per-directory so the code is a bundled copy (the engram-builder precedent), same env gates; (b) author the vLLM-OMNI media equivalent ONLY after a live omni serve publishes its real metric names — do NOT invent names (the no-fabrication rule that shaped 7c42590 applies); verify on that lane's next boot too. Guards extend the same way.",
+      "notes": "SEQUENCED per owner answers 12+1: the SGLang-shaped line format is confirmed wanted ('Avg generation throughput: X tokens/s', 'gen throughput (token/s): X', 'Running: N reqs', 'Waiting: N reqs'), but generalization happens ONLY after the fixed bridge (7c42590) is verified printing matched lines on the NEXT TensorFold boot (the 3bpw arm's next boot; the live one predates the bridge). Then: (a) copy the fixed bridge into the 4bpw lane launcher recipes/glm/mods/tensorfold-glm-exl3-launcher/launcher.py — mods ship per-directory so the code is a bundled copy (the engram-builder precedent), same env gates; (b) author the vLLM-OMNI media equivalent ONLY after a live omni serve publishes its real metric names — do NOT invent names (the no-fabrication rule that shaped 7c42590 applies); verify on that lane's next boot too. Guards extend the same way.\n\nLanded 4aabfc87 — both TensorFold launchers print the SGLang-shaped lines from the rank's own /metrics (Avg generation throughput: N tokens/s, gen throughput (token/s), Running: N reqs, Waiting: N reqs) in recipes/glm/mods/tensorfold-glm-exl3-launcher/launcher.py:294-299 and recipes/glm/mods/tensorfold-glm53-3bpw-launcher/launcher.py:124-129, and the media lane's equivalent is recipes/media/mods/vllm-omni-metrics-bridge/ (launcher.py + run.sh, wired into qwen-image-2.1-turbo-7b-bf16-vllm-omni.yaml; pinned by tests/test_qwen_image_omni_metrics_bridge.py) whose names come from the live serve's /metrics, never invented. The reading half landed in b74094f: evidence.marker_fields records marker_shape (run-arm vs sparkrun_benchmark) and evidence.client_receipt() reads client/ receipts, so an arm that carries a bridge is reported by shape instead of an invented ladder: ok.",
       "provenance": "owner answers 12+1 (survey 2026-10-26 night); bridge base de99b52 + fixes 7c42590",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "evidence": "4aabfc87 recipes/glm/mods/tensorfold-glm-exl3-launcher/launcher.py:294-299, recipes/glm/mods/tensorfold-glm53-3bpw-launcher/launcher.py:124-129, recipes/media/mods/vllm-omni-metrics-bridge/; b74094f shape-aware evidence.marker_fields + client_receipt"
     },
     {
       "id": "mellum-horizon-probe",
@@ -1275,9 +1262,7 @@
       "id": "h2h-beam-house-boot",
       "title": "Beam-1.0 501B NVFP4 TP=4 boot: house @4096 + BFCL category summary through the recipe path",
       "estimate_h": 2.0,
-      "blocks": [
-        "h2h-beam-house-and-bfcl-category"
-      ],
+      "blocks": [],
       "blocked_by": [],
       "state": "done",
       "model": "",
@@ -1300,9 +1285,7 @@
       "id": "h2h-second-boot-ds4-1017",
       "title": "ds4-1017 TP=4 second-boot ladder (C1/C2/C5/C10) — sigma column",
       "estimate_h": 2.5,
-      "blocks": [
-        "h2h-second-boot-ladder"
-      ],
+      "blocks": [],
       "blocked_by": [],
       "state": "done",
       "model": "dsv4.1-1017",
@@ -1322,9 +1305,7 @@
       "id": "h2h-second-boot-glm-flash",
       "title": "GLM-5.3-Flash 4bpw TP=4 second-boot ladder — sigma column",
       "estimate_h": 2.0,
-      "blocks": [
-        "h2h-second-boot-ladder"
-      ],
+      "blocks": [],
       "blocked_by": [],
       "state": "done",
       "model": "glm-5.3-flash",
@@ -1344,18 +1325,16 @@
       "id": "h2h-second-boot-glm-753b",
       "title": "GLM-5.3 753B 3bpw TP=4 second-boot ladder — sigma column",
       "estimate_h": 3.0,
-      "blocks": [
-        "h2h-second-boot-ladder"
-      ],
+      "blocks": [],
       "blocked_by": [],
-      "state": "running",
+      "state": "done",
       "model": "glm-5.3",
       "node_cost": "quartet",
       "notes": "Gate green: gh run 42473474929 on 3e6c8ed9 succeeded (group-scoped boot-watchdog, per-rank pre-stop logs). Attempt 5 boots with ARM_READY_TIMEOUT=3000 against the measured 2538.9 s TTR; expected receipt: per-rank docker-<rank>.log + serve-<rank>.log and watchdog ranks=4 lines.",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; recipes/glm/README.md §Shipped arm; owner 2026-11-07 window",
-      "evidence": "receipts/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.json",
-      "claimed_by": "sparkrun-campaign:h2h-20261107",
-      "claimed_at": "2026-11-08T11:22:23Z",
+      "evidence": "receipts/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.json: attempt 6, rc 0, status measured, marker_shape sparkrun_benchmark, watchdog \"stalled\" no longer present. House client cell: house4096 rc 0, house_score 100 (tool-eval-bench 15 scenarios, 15 pass, 0 partial, 0 fail, 287.4 s), artefacts house.yaml/json/csv 07:09. Concurrency ladder (llama-benchy 0.4.0, served GLM-5.3-EXL3-3.0bpw): tg128 c1 30.27 t/s +-1.88, c2 18.90, c5 15.95, c10 15.16; pp2048 c2 301.42, c5 256.25, c10 243.25 t/s; ladder.yaml/json/csv 07:04. Receipt fidelity gap: the receipt's ladder field is empty although the ladder row exists in ladder.csv, so the numbers above are read from that CSV. Watchdog: t=2539s verdict=healthy endpoint=ok ranks=4 peer_moved=3 unprobeable=0 after ~60 s (t=2457-2516 s) of rank-0 io_delta=0 log_delta=0 with peer_moved 3->1, i.e. the exact state that false-stopped attempt 5 at t=2532 s; per-rank snapshots now captured (docker-0..3.log plus host-named set, serve-0..3.log, rank 0 27 KB).",
+      "claimed_by": "",
+      "claimed_at": "",
       "recipe": "recipes/glm/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml",
       "tp": 4,
       "env": {
@@ -1370,9 +1349,7 @@
       "id": "h2h-second-boot-beam",
       "title": "Beam-1.0 501B TP=4 second-boot ladder — sigma column",
       "estimate_h": 2.0,
-      "blocks": [
-        "h2h-second-boot-ladder"
-      ],
+      "blocks": [],
       "blocked_by": [],
       "state": "done",
       "model": "",
@@ -1399,7 +1376,7 @@
       "state": "blocked",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "Window declared 2026-11-08: owner put all six nodes under research, so the quartet lease gates are satisfied. Boot only when no own quartet lease is live; serial order after the current boot2/753B/arm3 work; record the image id in the receipt. Recipe repinned to dsv41-sm121-dg:0.2.1 (sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7), the same digest as the arm-5 pair, so one digest covers all three survey boots. Cell: 1039999-token C1 decode, image id in the receipt. Original gate note: 0.2.0/0.2.1 tag-form inspect on all six, survey-transfer carry rc=0 (156 s). — campaign: zz-ds4-1017-sm121-indexer-scoring: no marker and no machine-readable artefact — campaign: zz-ds4-1017-sm121-indexer-scoring: no marker and no machine-readable artefact — DECISION 2026-11-08 04:22 ET (campaign-ops): BLOCKED, do not re-boot. Attempts 2 of zz-ds4-1017-sm121-indexer-scoring carried the chat_encoding sitecustomize shim (launch log line: launcher: inline-system shim on PYTHONPATH) and then died at MoE weight creation with ValueError: Mxfp4FlashinferCutlassMoEMethod requires hidden_size and intermediate_size_per_partition to be multiples of 128 (got hidden=5120, intermediate=576), reached because get_platform().is_sm120 maps to is_sm120_supported (capability major 12, so GB10 is in that branch). That is an engine/route defect of digest 85c1ffc3, not a readiness ceiling and not this arm's knob; both arms of the pair (control and treatment) show it, so the pair is unbootable until the SM121 MXFP4-MoE route is decided or the image is rebuilt. The chat_encoding defect the first attempts hit is fixed in the mod (commit 7c39c02). — campaign: zz-ds4-1017-sm121-indexer-scoring: no marker and no machine-readable artefact",
+      "notes": "Window declared 2026-11-08: owner put all six nodes under research, so the quartet lease gates are satisfied. Boot only when no own quartet lease is live; serial order after the current boot2/753B/arm3 work; record the image id in the receipt. Recipe repinned to dsv41-sm121-dg:0.2.1 (sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7), the same digest as the arm-5 pair, so one digest covers all three survey boots. Cell: 1039999-token C1 decode, image id in the receipt. Original gate note: 0.2.0/0.2.1 tag-form inspect on all six, survey-transfer carry rc=0 (156 s). — campaign: zz-ds4-1017-sm121-indexer-scoring: no marker and no machine-readable artefact — campaign: zz-ds4-1017-sm121-indexer-scoring: no marker and no machine-readable artefact — DECISION 2026-11-08 04:22 ET (campaign-ops): BLOCKED, do not re-boot. Attempts 2 of zz-ds4-1017-sm121-indexer-scoring carried the chat_encoding sitecustomize shim (launch log line: launcher: inline-system shim on PYTHONPATH) and then died at MoE weight creation with ValueError: Mxfp4FlashinferCutlassMoEMethod requires hidden_size and intermediate_size_per_partition to be multiples of 128 (got hidden=5120, intermediate=576), reached because get_platform().is_sm120 maps to is_sm120_supported (capability major 12, so GB10 is in that branch). That is an engine/route defect of digest 85c1ffc3, not a readiness ceiling and not this arm's knob; both arms of the pair (control and treatment) show it, so the pair is unbootable until the SM121 MXFP4-MoE route is decided or the image is rebuilt. The chat_encoding defect the first attempts hit is fixed in the mod (commit 7c39c02). — campaign: zz-ds4-1017-sm121-indexer-scoring: no marker and no machine-readable artefact — campaign: zz-ds4-1017-sm121-indexer-scoring: no marker and no machine-readable artefact — 2026-11-08 07:20 ET (campaign-ops): HOLD RESTORED after the director leased this row again. Cause: plan.next_assignment (plan.py:233) decides eligibility from the campaign's own plan record (status pending, or failed with failures <= retries) and never reads the register's state, while director close-out (director.py:351) writes state=queued on every failure, so the written BLOCKED decision could not survive. --retries 3 (added for the 753B fourth attempt) also made failures=2 eligible. Result: arm zz-ds4-1017-sm121-arm3-control stopped by task id 1c0dffa45afa6e47_67f7e141f5f5, all four ranks verified 0 containers after. Do not re-boot until the Mxfp4FlashinferCutlassMoEMethod 128-multiple defect has an engine/tree route or a rebuilt image.",
       "provenance": "queue w4-survey-arm3-indexer-scoring; mad-science/DEEPSEEK.md §10.5; recipes/ds4/zz-ds4-1017-sm121-indexer-scoring.yaml; owner 2026-11-07 window",
       "evidence": "receipts/zz-ds4-1017-sm121-indexer-scoring.json",
       "claimed_by": "",
@@ -1423,7 +1400,7 @@
       "state": "blocked",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "Window declared 2026-11-08: owner put all six nodes under research, so the quartet lease gates are satisfied. Boot only when no own quartet lease is live; serial order after the current boot2/753B/arm3 work; record the image id in the receipt. Boots dsv41-sm121-dg:0.2.1 (sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7); the two 0.2.1 tree gates that blocked this arm are gone (arch assert admits major 12; replay flag negatable, recipe sets SWA_BOUNDED_REPLAY=0). Control is w4-survey-arm5-control-boot on the SAME digest. — campaign: zz-ds4-1017-sm121-arm5-trtllm-mla failed twice (rc=4, no marker/artefact); attempt 2's watchdog saw the serve child gone at t=96 s and the reaped serve log names ValueError in mxfp4_flashinfer_cutlass_moe.create_weights — hidden=5120, intermediate=576 not multiples of 128, the same terminal negative as w4-s0-control — 2026-11-08 04:02 ET. — DECISION 2026-11-08 04:22 ET (campaign-ops): BLOCKED, do not re-boot. Attempts 2 of zz-ds4-1017-sm121-arm5-trtllm-mla carried the chat_encoding sitecustomize shim (launch log line: launcher: inline-system shim on PYTHONPATH) and then died at MoE weight creation with ValueError: Mxfp4FlashinferCutlassMoEMethod requires hidden_size and intermediate_size_per_partition to be multiples of 128 (got hidden=5120, intermediate=576), reached because get_platform().is_sm120 maps to is_sm120_supported (capability major 12, so GB10 is in that branch). That is an engine/route defect of digest 85c1ffc3, not a readiness ceiling and not this arm's knob; both arms of the pair (control and treatment) show it, so the pair is unbootable until the SM121 MXFP4-MoE route is decided or the image is rebuilt. The chat_encoding defect the first attempts hit is fixed in the mod (commit 7c39c02). — campaign: zz-ds4-1017-sm121-arm5-trtllm-mla: no marker and no machine-readable artefact",
+      "notes": "Window declared 2026-11-08: owner put all six nodes under research, so the quartet lease gates are satisfied. Boot only when no own quartet lease is live; serial order after the current boot2/753B/arm3 work; record the image id in the receipt. Boots dsv41-sm121-dg:0.2.1 (sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7); the two 0.2.1 tree gates that blocked this arm are gone (arch assert admits major 12; replay flag negatable, recipe sets SWA_BOUNDED_REPLAY=0). Control is w4-survey-arm5-control-boot on the SAME digest. — campaign: zz-ds4-1017-sm121-arm5-trtllm-mla failed twice (rc=4, no marker/artefact); attempt 2's watchdog saw the serve child gone at t=96 s and the reaped serve log names ValueError in mxfp4_flashinfer_cutlass_moe.create_weights — hidden=5120, intermediate=576 not multiples of 128, the same terminal negative as w4-s0-control — 2026-11-08 04:02 ET. — DECISION 2026-11-08 04:22 ET (campaign-ops): BLOCKED, do not re-boot. Attempts 2 of zz-ds4-1017-sm121-arm5-trtllm-mla carried the chat_encoding sitecustomize shim (launch log line: launcher: inline-system shim on PYTHONPATH) and then died at MoE weight creation with ValueError: Mxfp4FlashinferCutlassMoEMethod requires hidden_size and intermediate_size_per_partition to be multiples of 128 (got hidden=5120, intermediate=576), reached because get_platform().is_sm120 maps to is_sm120_supported (capability major 12, so GB10 is in that branch). That is an engine/route defect of digest 85c1ffc3, not a readiness ceiling and not this arm's knob; both arms of the pair (control and treatment) show it, so the pair is unbootable until the SM121 MXFP4-MoE route is decided or the image is rebuilt. The chat_encoding defect the first attempts hit is fixed in the mod (commit 7c39c02). — campaign: zz-ds4-1017-sm121-arm5-trtllm-mla: no marker and no machine-readable artefact — 2026-11-08 07:20 ET (campaign-ops): HOLD RESTORED after the director leased this row again. Cause: plan.next_assignment (plan.py:233) decides eligibility from the campaign's own plan record (status pending, or failed with failures <= retries) and never reads the register's state, while director close-out (director.py:351) writes state=queued on every failure, so the written BLOCKED decision could not survive. --retries 3 (added for the 753B fourth attempt) also made failures=2 eligible. Result: arm zz-ds4-1017-sm121-arm3-control stopped by task id 1c0dffa45afa6e47_67f7e141f5f5, all four ranks verified 0 containers after. Do not re-boot until the Mxfp4FlashinferCutlassMoEMethod 128-multiple defect has an engine/tree route or a rebuilt image.",
       "provenance": "queue w4-survey-arm5-trtllm-mla; mad-science/DEEPSEEK.md §10.7; recipes/ds4/zz-ds4-1017-sm121-arm5-trtllm-mla.yaml; owner 2026-11-07 window",
       "evidence": "receipts/zz-ds4-1017-sm121-arm5-trtllm-mla.json",
       "claimed_by": "",
@@ -1440,9 +1417,7 @@
       "id": "glm-flash-conc-no-drafter",
       "title": "GLM-Flash concurrency lever: no-drafter",
       "estimate_h": 2.0,
-      "blocks": [
-        "glm-flash-concurrency-degradation-search"
-      ],
+      "blocks": [],
       "blocked_by": [],
       "state": "done",
       "model": "glm-5.3-flash",
@@ -1463,9 +1438,7 @@
       "id": "glm-flash-conc-dflash2-k",
       "title": "GLM-Flash concurrency lever: dflash2-k",
       "estimate_h": 2.0,
-      "blocks": [
-        "glm-flash-concurrency-degradation-search"
-      ],
+      "blocks": [],
       "blocked_by": [],
       "state": "done",
       "model": "glm-5.3-flash",
@@ -1487,9 +1460,7 @@
       "id": "glm-flash-conc-scheduler-knob",
       "title": "GLM-Flash concurrency lever: scheduler-knob",
       "estimate_h": 2.0,
-      "blocks": [
-        "glm-flash-concurrency-degradation-search"
-      ],
+      "blocks": [],
       "blocked_by": [],
       "state": "done",
       "model": "glm-5.3-flash",
@@ -1519,7 +1490,7 @@
       "state": "blocked",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "Window declared 2026-11-08: owner put all six nodes under research, so the quartet lease gates are satisfied. Boot only when no own quartet lease is live; serial order after the current boot2/753B/arm3 work; record the image id in the receipt. Boots dsv41-sm121-dg:0.2.1 (sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7), replay off (SWA_BOUNDED_REPLAY=0), same measurement as the treatment. Must not be replaced by the 0.2.0 arm-3 run: that one is indexer-scoring evidence. — campaign: zz-ds4-1017-sm121-arm3-control: no marker and no machine-readable artefact — campaign: zz-ds4-1017-sm121-arm3-control: no marker and no machine-readable artefact — 2026-11-08 04:14 ET: the treatment died at MoE weight creation on this exact digest and backend (mxfp4_flashinfer_cutlass_moe.py:68 ValueError, hidden=5120 / intermediate=576 not multiples of 128, reaped serve log in its receipt dir), so this control would fail identically — do not spend a quartet boot on it until the MoE backend changes. — DECISION 2026-11-08 04:22 ET (campaign-ops): BLOCKED, do not re-boot. Attempts 2 of zz-ds4-1017-sm121-arm3-control carried the chat_encoding sitecustomize shim (launch log line: launcher: inline-system shim on PYTHONPATH) and then died at MoE weight creation with ValueError: Mxfp4FlashinferCutlassMoEMethod requires hidden_size and intermediate_size_per_partition to be multiples of 128 (got hidden=5120, intermediate=576), reached because get_platform().is_sm120 maps to is_sm120_supported (capability major 12, so GB10 is in that branch). That is an engine/route defect of digest 85c1ffc3, not a readiness ceiling and not this arm's knob; both arms of the pair (control and treatment) show it, so the pair is unbootable until the SM121 MXFP4-MoE route is decided or the image is rebuilt. The chat_encoding defect the first attempts hit is fixed in the mod (commit 7c39c02). — campaign: zz-ds4-1017-sm121-arm3-control: no marker and no machine-readable artefact",
+      "notes": "Window declared 2026-11-08: owner put all six nodes under research, so the quartet lease gates are satisfied. Boot only when no own quartet lease is live; serial order after the current boot2/753B/arm3 work; record the image id in the receipt. Boots dsv41-sm121-dg:0.2.1 (sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7), replay off (SWA_BOUNDED_REPLAY=0), same measurement as the treatment. Must not be replaced by the 0.2.0 arm-3 run: that one is indexer-scoring evidence. — campaign: zz-ds4-1017-sm121-arm3-control: no marker and no machine-readable artefact — campaign: zz-ds4-1017-sm121-arm3-control: no marker and no machine-readable artefact — 2026-11-08 04:14 ET: the treatment died at MoE weight creation on this exact digest and backend (mxfp4_flashinfer_cutlass_moe.py:68 ValueError, hidden=5120 / intermediate=576 not multiples of 128, reaped serve log in its receipt dir), so this control would fail identically — do not spend a quartet boot on it until the MoE backend changes. — DECISION 2026-11-08 04:22 ET (campaign-ops): BLOCKED, do not re-boot. Attempts 2 of zz-ds4-1017-sm121-arm3-control carried the chat_encoding sitecustomize shim (launch log line: launcher: inline-system shim on PYTHONPATH) and then died at MoE weight creation with ValueError: Mxfp4FlashinferCutlassMoEMethod requires hidden_size and intermediate_size_per_partition to be multiples of 128 (got hidden=5120, intermediate=576), reached because get_platform().is_sm120 maps to is_sm120_supported (capability major 12, so GB10 is in that branch). That is an engine/route defect of digest 85c1ffc3, not a readiness ceiling and not this arm's knob; both arms of the pair (control and treatment) show it, so the pair is unbootable until the SM121 MXFP4-MoE route is decided or the image is rebuilt. The chat_encoding defect the first attempts hit is fixed in the mod (commit 7c39c02). — campaign: zz-ds4-1017-sm121-arm3-control: no marker and no machine-readable artefact — campaign: zz-ds4-1017-sm121-arm3-control: no marker and no machine-readable artefact — 2026-11-08 07:20 ET (campaign-ops): HOLD RESTORED after the director leased this row again. Cause: plan.next_assignment (plan.py:233) decides eligibility from the campaign's own plan record (status pending, or failed with failures <= retries) and never reads the register's state, while director close-out (director.py:351) writes state=queued on every failure, so the written BLOCKED decision could not survive. --retries 3 (added for the 753B fourth attempt) also made failures=2 eligible. Result: arm zz-ds4-1017-sm121-arm3-control stopped by task id 1c0dffa45afa6e47_67f7e141f5f5, all four ranks verified 0 containers after. Do not re-boot until the Mxfp4FlashinferCutlassMoEMethod 128-multiple defect has an engine/tree route or a rebuilt image.",
       "provenance": "queue w4-survey-arm5-trtllm-mla; arm-author-2 commit 6bc48f8; DEEPSEEK.md §10.7",
       "evidence": "receipts/zz-ds4-1017-sm121-arm3-control.json",
       "claimed_by": "",
@@ -1538,10 +1509,10 @@
       "estimate_h": 1.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "blocked",
       "model": "kimi-k3.1-superexpert",
       "node_cost": "single",
-      "notes": "estimate: provisional — boot gate is the mod's import check (transformers+fastapi+uvicorn+torch) against the pinned vllm-openai image; no engine loads KimiK31SuperExpertForCausalLM, so the arm is the reference server only. Measure: boot, one chat completion, and whether the U8 nibble-dequant path answers coherently at all — quality is not comparable to the 2.8T base. — campaign: zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm failed twice (rc=4, no artefact); attempt 2's reaped serve log reads serve.py: error: unrecognized arguments: --served-model-name, i.e. the probe's reference server refuses the flag sparkrun appends, and the launch ended head container is not running at 34.4 s — 2026-11-08 04:04 ET. — ATTEMPT CAUSE 2026-11-08 04:50 ET (campaign-ops): both attempts died at 43-44 s with the serve exiting before readiness, and the executor launch log names a recipe argument mismatch, not a model failure: 'serve.py: error: unrecognized arguments: --served-model-name shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB'. The transformers reference launcher does not accept the flag the recipe's command passes, so a retry without that recipe fix re-measures the same argument error. — campaign: zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm: no marker and no machine-readable artefact",
+      "notes": "estimate: provisional — boot gate is the mod's import check (transformers+fastapi+uvicorn+torch) against the pinned vllm-openai image; no engine loads KimiK31SuperExpertForCausalLM, so the arm is the reference server only. Acceptance = boot verified (watchdog healthy, /v1/models 200, image id) and client.json; no marker is possible — llama-benchy/tool-eval-bench/quality-battery are chat-only and this arm speaks /v1/completions only. A house cell here is 0/37 transport 400s, not a score. Still ask whether the U8 nibble-dequant path answers coherently at all — quality is not comparable to the 2.8T base. — campaign: zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm failed twice (rc=4, no artefact); attempt 2's reaped serve log reads serve.py: error: unrecognized arguments: --served-model-name, i.e. the probe's reference server refuses the flag sparkrun appends, and the launch ended head container is not running at 34.4 s — 2026-11-08 04:04 ET. — ATTEMPT CAUSE 2026-11-08 04:50 ET (campaign-ops): both attempts died at 43-44 s with the serve exiting before readiness, and the executor launch log names a recipe argument mismatch, not a model failure: 'serve.py: error: unrecognized arguments: --served-model-name shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB'. The transformers reference launcher does not accept the flag the recipe's command passes, so a retry without that recipe fix re-measures the same argument error. — campaign: zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm: no marker and no machine-readable artefact — campaign: zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm: no marker and no machine-readable artefact — 2026-11-08 07:58 ET (campaign-ops, acceptance review): marker absence is EXPECTED for this arm, not a failure — the recipe has no benchmarking block, so a transformers reference launcher cannot emit a llama-benchy/tool-eval marker by construction. The @4 boot reached watchdog healthy and was torn down with no client cell, producing zero evidence. Acceptance is now the client cell (ARM_EXTRA_CLIENT house4096 + ARM_RECEIPTS_ROOT), so the receipt carries $L/client/{house.json,client.json,house.log} plus the image id; a row with a successful serve that cannot produce its acceptance evidence had an authoring defect. — campaign: zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm: no marker and no machine-readable artefact — 2026-11-08 08:05 ET (campaign-ops): ATTEMPT 5 RAN WITH THE CLIENT CELL AND THE VERDICT IS AN ACCEPTANCE-PATH DEFECT, NOT A MODEL RESULT. Serve healthy at t=117 s (endpoint ok, served name 'shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB', image sha256:4ceb6c60eed2 = vllm/vllm-openai:v0.32.0, 327 tensors loaded). The launcher's own line 30 says: 'ready: served name …, no chat template (completions only)'. The beam-style house4096 cell posts to /v1/chat/completions, so vLLM answered 400 Bad Request to every request: house cell 0/37 tasks, HARD 0/18, client rc=2, receipt client {cell house4096, image_id 4ceb6c60…, rc 2}. Marker absence remains expected for a reference launcher. Next attempt needs a /v1/completions cell (tools/decision-ladder.py, tools/jev-decision-bench.py and tools/humanizer-measure.py speak that API) instead of any chat cell; ARM_EXTRA_CLIENT removed because a chat cell on this serve is a guaranteed 400. — ARM_EXTRA_CLIENT DELIBERATELY ABSENT (2026-11-08 08:12 ET, campaign-ops): the 07:57 attempt proved a chat cell cannot answer on this serve — house4096 posted to /v1/chat/completions and got 400 Bad Request on all 37 tasks (0/18 hard, client rc 2), because the launcher serves 'no chat template (completions only)'. The hook was therefore removed rather than left as a guaranteed-400 generator. Keep it out until a /v1/completions client cell exists — do not restore it.",
       "provenance": "arm-author-2 2026-11-08; probe evidence in mods/kimi-superexpert-ref-launcher/README.md",
       "evidence": "receipts/zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm.json",
       "claimed_by": "",
@@ -1558,10 +1529,10 @@
       "estimate_h": 3.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "blocked",
       "model": "kimi-k3.1-pruned75",
       "node_cost": "quartet",
-      "notes": "estimate: provisional — first boot carries the engine gate: the pinned nightly's vLLM must resolve KimiK31ForConditionalGeneration (image digest sha256:98a2535b5fa227e529f25ed376751b41d8f707200c81fac82d327a9deee93b15; release tag v0.33.0rc3 lacks it). 423.0 GiB over TP=4 = 105.75 GiB/rank, so an OOM at profile is sizing, not the checkpoint: if it profile-OOMs at 0.92 util, drop ctx_size 32768 -> 16384 before touching the checkpoint. The checkpoint ships NO chat template (tokenizer_config has no chat_template key; formatting is a Python apply_chat_template), so /v1/chat/completions is expected to refuse — test it once as a diagnostic and measure the ladder on /v1/completions. Receipt must carry the digest, the resolved image id, and which endpoint answered. — ATTEMPT HISTORY 2026-11-08 04:42 ET (campaign-ops): the first attempt produced no boot and no measurement because a FOREIGN sparkrun claim held the hosts ('Execution resources are busy: ... held by running pid 1883449', another session's manual sparkrun run of recipes/explore/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4); 'claim busy ... waiting for the holder to release the rank host' in the executor log. That holder is gone and 'sparkrun daemon resources list' is empty, so a retry is safe; it is not an arm or model defect. — campaign: kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4: no marker and no machine-readable artefact",
+      "notes": "estimate: provisional — first boot carries the engine gate: the pinned nightly's vLLM must resolve KimiK31ForConditionalGeneration (image digest sha256:98a2535b5fa227e529f25ed376751b41d8f707200c81fac82d327a9deee93b15; release tag v0.33.0rc3 lacks it). 423.0 GiB over TP=4 = 105.75 GiB/rank, so an OOM at profile is sizing, not the checkpoint: if it profile-OOMs at 0.92 util, drop ctx_size 32768 -> 16384 before touching the checkpoint. The checkpoint ships NO chat template (tokenizer_config has no chat_template key; formatting is a Python apply_chat_template), so /v1/chat/completions is expected to refuse — test it once as a diagnostic and measure the ladder on /v1/completions. Receipt must carry the digest, the resolved image id, and which endpoint answered. — ATTEMPT HISTORY 2026-11-08 04:42 ET (campaign-ops): the first attempt produced no boot and no measurement because a FOREIGN sparkrun claim held the hosts ('Execution resources are busy: ... held by running pid 1883449', another session's manual sparkrun run of recipes/explore/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4); 'claim busy ... waiting for the holder to release the rank host' in the executor log. That holder is gone and 'sparkrun daemon resources list' is empty, so a retry is safe; it is not an arm or model defect. — campaign: kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4: no marker and no machine-readable artefact — campaign: kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4: no marker and no machine-readable artefact — 2026-11-08 07:58 ET (campaign-ops): engine defect, not a model result. serve-reaped rank-0 log: pydantic ValidationError for VllmConfig — 'Couldn't instantiate the backend tokenizer … You need to have sentencepiece or tiktoken installed to convert a slow tokenizer to a fast one'. The engine dies at config validation, which is why /v1/models never answered within 2250 s and only rank 0 left a serve log. The recipe also has no benchmarking block, so a healthy serve here would still produce no marker: acceptance cell added (house4096 client). Blocked until the image carries the tokenizer deps or the checkpoint ships a fast tokenizer.",
       "provenance": "arm-author-2 2026-11-08; vllm-project/Kimi-K3.1-Pro-pruned75 fc72e5a1",
       "evidence": "receipts/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4.json",
       "claimed_by": "",
@@ -1569,7 +1540,9 @@
       "recipe": "recipes/explore/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4.yaml",
       "tp": 4,
       "env": {
-        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
+        "ARM_EXTRA_CLIENT": "python3 -B tools/h2h-client.py --cell house4096 --base-url http://$NODE:$PORT --outdir $L",
+        "ARM_EXTRA_TIMEOUT": "3600"
       }
     },
     {
@@ -1578,10 +1551,10 @@
       "estimate_h": 3.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "blocked",
       "model": "kimi-k3.1-pruned75",
       "node_cost": "quartet",
-      "notes": "estimate: provisional — DRAFTER-BINDING GATE FIRST: the LithosAI draft declares architectures Qwen3DSparkModel (vLLM's Qwen3-shaped skeleton) while targeting 93-layer Kimi layers [7,23,67,83,91]; until a boot shows the speculator initialising against this target AND acceptance counters moving, the arm has measured no drafter — a refusal or zero counters is the finding 'Qwen3-shaped draft not bindable to a Kimi target', and the route then needs a Kimi-native K3DSparkModel checkpoint (arch is in the pinned image, checkpoint unpublished). Run AFTER kimi-pruned75-tp4-boot, same image digest sha256:98a2535b5fa227e529f25ed376751b41d8f707200c81fac82d327a9deee93b15, so the comparison is same-image. Chat template absent as on the plain arm: acceptance counters come off /v1/completions. Receipt: digest, image id, whether the speculator bound, acceptance counters, and the 4.50 GiB/rank draft cost. — ATTEMPT HISTORY 2026-11-08 04:42 ET (campaign-ops): the first attempt produced no boot and no measurement because a FOREIGN sparkrun claim held the hosts ('Execution resources are busy: ... held by running pid 1883449', another session's manual sparkrun run of recipes/explore/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4); 'claim busy ... waiting for the holder to release the rank host' in the executor log. That holder is gone and 'sparkrun daemon resources list' is empty, so a retry is safe; it is not an arm or model defect. — campaign: kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4: no marker and no machine-readable artefact",
+      "notes": "estimate: provisional — DRAFTER-BINDING GATE FIRST: the LithosAI draft declares architectures Qwen3DSparkModel (vLLM's Qwen3-shaped skeleton) while targeting 93-layer Kimi layers [7,23,67,83,91]; until a boot shows the speculator initialising against this target AND acceptance counters moving, the arm has measured no drafter — a refusal or zero counters is the finding 'Qwen3-shaped draft not bindable to a Kimi target', and the route then needs a Kimi-native K3DSparkModel checkpoint (arch is in the pinned image, checkpoint unpublished). Run AFTER kimi-pruned75-tp4-boot, same image digest sha256:98a2535b5fa227e529f25ed376751b41d8f707200c81fac82d327a9deee93b15, so the comparison is same-image. Chat template absent as on the plain arm: acceptance counters come off /v1/completions. Receipt: digest, image id, whether the speculator bound, acceptance counters, and the 4.50 GiB/rank draft cost. — ATTEMPT HISTORY 2026-11-08 04:42 ET (campaign-ops): the first attempt produced no boot and no measurement because a FOREIGN sparkrun claim held the hosts ('Execution resources are busy: ... held by running pid 1883449', another session's manual sparkrun run of recipes/explore/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4); 'claim busy ... waiting for the holder to release the rank host' in the executor log. That holder is gone and 'sparkrun daemon resources list' is empty, so a retry is safe; it is not an arm or model defect. — campaign: kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4: no marker and no machine-readable artefact — campaign: kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4: no marker and no machine-readable artefact — 2026-11-08 07:58 ET (campaign-ops): engine defect, and the zero-acceptance finding is NOT established. serve-reaped log: value_error asking for a valid Hugging Face repository ID or a local directory holding a recognised configuration file (config.json), i.e. the checkpoint path/repo never resolved, so speculative decode never bound. Needs the repo/path fixed before any DSpark binding claim; acceptance cell added (house4096 client) and the recipe gains a benchmarking block before the next attempt.",
       "provenance": "arm-author-2 2026-11-08; LithosAI/Kimi-K3.1-Pro-DSpark d791d217",
       "evidence": "receipts/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4.json",
       "claimed_by": "",
@@ -1589,7 +1562,9 @@
       "recipe": "recipes/explore/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4.yaml",
       "tp": 4,
       "env": {
-        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
+        "ARM_EXTRA_CLIENT": "python3 -B tools/h2h-client.py --cell house4096 --base-url http://$NODE:$PORT --outdir $L",
+        "ARM_EXTRA_TIMEOUT": "3600"
       }
     },
     {
@@ -1598,10 +1573,10 @@
       "estimate_h": 2.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "blocked",
       "model": "dsv4.1-1017-gsq-rco-coder",
       "node_cost": "single",
-      "notes": "estimate: provisional — two boot gates: (1) image must be >= llama.cpp b11870 (pinned upstream-6023692, 2026-11-05; the lane's old a37cc46 image CANNOT load the arch), (2) mods/dsv41-engram-shard-link must find the 110.60 GB Engram file on the node (the unpruned GSQ-RCO release's copy is the same bytes; if absent the mod exits 3 and the arm stays authored-not-booted). Measure: boot, one chat answer, one image, decode ladder, and the fabric-read attribution — read_bytes per token plus Engram row-read latency off /cache — before any slow verdict. Receipt must carry the image digest sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288 AND the resolved container image id, so a future tag move cannot silently re-point the arm. — REQUIREMENT 2026-11-08 04:22 ET (campaign-ops): the receipt must record the Engram file's absolute path and that it is memory-mapped (the 110.60 GB IQ4_NL Engram on the BeeGFS pool under /cache), alongside the decode token rate. A poor decode's first hypothesis is Engram read latency over the fabric, and a receipt without path plus rate cannot distinguish that from an engine regression. Also: both attempts were refused before boot (rc=8, ARM REFUSED: the ladder includes c10 but the grant is parallel=2). The row carries no ARM_ALLOW_FEW_SLOTS and the recipe's parallel default is 2, so a boot needs ARM_ALLOW_FEW_SLOTS=1 (a deliberately slot-limited cell) or ARM_OPTS=-o parallel=10 first. — ENV FIX 2026-11-08 04:42 ET (campaign-ops): ARM_ALLOW_FEW_SLOTS=1 added to this row. The rc=8 pair was the recipe-class refusal 'ladder includes c10 but the grant is parallel=2' (the recipe's defaults pin parallel: 2), not a model failure; the slot-limited cell is deliberate and recorded as such. Audit for the same guard: this is the only queued/running row whose recipe pins a small parallel under a c10 ladder. — campaign: deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp: no marker and no machine-readable artefact",
+      "notes": "estimate: provisional — two boot gates: (1) image must be >= llama.cpp b11870 (pinned upstream-6023692, 2026-11-05; the lane's old a37cc46 image CANNOT load the arch), (2) mods/dsv41-engram-shard-link must find the 110.60 GB Engram file on the node (the unpruned GSQ-RCO release's copy is the same bytes; if absent the mod exits 3 and the arm stays authored-not-booted). Measure: boot, one chat answer, one image, decode ladder, and the fabric-read attribution — read_bytes per token plus Engram row-read latency off /cache — before any slow verdict. Receipt must carry the image digest sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288 AND the resolved container image id, so a future tag move cannot silently re-point the arm. — REQUIREMENT 2026-11-08 04:22 ET (campaign-ops): the receipt must record the Engram file's absolute path and that it is memory-mapped (the 110.60 GB IQ4_NL Engram on the BeeGFS pool under /cache), alongside the decode token rate. A poor decode's first hypothesis is Engram read latency over the fabric, and a receipt without path plus rate cannot distinguish that from an engine regression. Also: both attempts were refused before boot (rc=8, ARM REFUSED: the ladder includes c10 but the grant is parallel=2). The row carries no ARM_ALLOW_FEW_SLOTS and the recipe's parallel default is 2, so a boot needs ARM_ALLOW_FEW_SLOTS=1 (a deliberately slot-limited cell) or ARM_OPTS=-o parallel=10 first. — ENV FIX 2026-11-08 04:42 ET (campaign-ops): ARM_ALLOW_FEW_SLOTS=1 added to this row. The rc=8 pair was the recipe-class refusal 'ladder includes c10 but the grant is parallel=2' (the recipe's defaults pin parallel: 2), not a model failure; the slot-limited cell is deliberate and recorded as such. Audit for the same guard: this is the only queued/running row whose recipe pins a small parallel under a c10 ladder. — campaign: deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp: no marker and no machine-readable artefact — campaign: deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp: no marker and no machine-readable artefact — 2026-11-08 07:58 ET (campaign-ops): dead image pin plus premature teardown, so the earlier 'no marker' was not a verdict. Arm log: 'launcher exited with no container … Failed to pull image littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b80…: manifest unknown'. It never reached the logging probe. Needs: (1) a live pin or a local copy of that image, (2) the Engram path/mmap/decode-rate evidence plus whatever cell llama.cpp can actually produce, (3) acceptance cell (house4096 client) so a healthy serve leaves evidence.",
       "provenance": "arm-author-2 2026-11-08; ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF 54229d38",
       "evidence": "receipts/deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp.json",
       "claimed_by": "",
@@ -1610,7 +1585,9 @@
       "tp": 1,
       "env": {
         "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
-        "ARM_ALLOW_FEW_SLOTS": "1"
+        "ARM_ALLOW_FEW_SLOTS": "1",
+        "ARM_EXTRA_CLIENT": "python3 -B tools/h2h-client.py --cell house4096 --base-url http://$NODE:$PORT --outdir $L",
+        "ARM_EXTRA_TIMEOUT": "3600"
       }
     },
     {
@@ -1659,10 +1636,10 @@
       "estimate_h": 3.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "blocked",
       "model": "ricursiveAI/ripple-65b",
       "node_cost": "pair",
-      "notes": "The unquantized control and the only cell that can hold the card's 1M context: 129.6 GB BF16 (~120.7 GiB) does not fit one Spark at util 0.90, so TP=2 is the floor for BF16 (~60.4 GiB/rank, ~42 GiB/rank of KV at 0.85 = ~1.36M tokens at 32 KiB/token/rank). No drafter, so it is a clean quality reference for both NVFP4 cells. Distribution is ~260 GB across the pair; the engine digest is the same nightly pin as the TP=1 arms. — ATTEMPT HISTORY 2026-11-08 04:42 ET (campaign-ops): the first attempt produced no boot and no measurement because a FOREIGN sparkrun claim held the hosts ('Execution resources are busy: ... held by running pid 1883449', another session's manual sparkrun run of recipes/explore/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4); 'claim busy ... waiting for the holder to release the rank host' in the executor log. That holder is gone and 'sparkrun daemon resources list' is empty, so a retry is safe; it is not an arm or model defect. — campaign: zz-ripple-65b-preview-bf16-tp2-vllm: no marker and no machine-readable artefact",
+      "notes": "The unquantized control and the only cell that can hold the card's 1M context: 129.6 GB BF16 (~120.7 GiB) does not fit one Spark at util 0.90, so TP=2 is the floor for BF16 (~60.4 GiB/rank, ~42 GiB/rank of KV at 0.85 = ~1.36M tokens at 32 KiB/token/rank). No drafter, so it is a clean quality reference for both NVFP4 cells. Distribution is ~260 GB across the pair; the engine digest is the same nightly pin as the TP=1 arms. — ATTEMPT HISTORY 2026-11-08 04:42 ET (campaign-ops): the first attempt produced no boot and no measurement because a FOREIGN sparkrun claim held the hosts ('Execution resources are busy: ... held by running pid 1883449', another session's manual sparkrun run of recipes/explore/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4); 'claim busy ... waiting for the holder to release the rank host' in the executor log. That holder is gone and 'sparkrun daemon resources list' is empty, so a retry is safe; it is not an arm or model defect. — campaign: zz-ripple-65b-preview-bf16-tp2-vllm: no marker and no machine-readable artefact — campaign: zz-ripple-65b-preview-bf16-tp2-vllm: no marker and no machine-readable artefact — 2026-11-08 07:58 ET (campaign-ops): IMAGE IDENTITY UNNAMEABLE, boot stopped rather than measuring bytes that cannot be named. The live container ran local image sha256:e84c490d39a5fb09b06afc25fa0926447a568c5fa64b94be7573c1ca636f8d3d (26.96 GB) whose only tag is oci-relay/pinned:4856ba8c07d52fa0df316413a70d8a14ea8e75a9e9590962bd80a71c4cc7d16f and which carries NO RepoDigests; the recipe pins vllm/vllm-openai:nightly@sha256:390a656b54e12144ad15ff32244c6e848408b0ee94f2c4c5a84451e7430f1aa7. The three local vllm/vllm-openai tags (v0.32.0 befccf0e…, reflection-beam c1a6be6a…, glm53-flash 819ec9c0…) are none of them this image. Stopped by task id b631dae1dc7bf3d6_d2eb381a93a2 ('Workload stopped on 2 host(s)', 0 containers). Blocked until the recipe pins an image that can be resolved to a digest, or the relay tag is proven to be that digest.",
       "provenance": "owner directive 2026-11-08; Ripple config (80 layers, 16 global, 8 KV heads at 128); recipes.vllm.ai bf16 variant",
       "evidence": "receipts/zz-ripple-65b-preview-bf16-tp2-vllm.json",
       "claimed_by": "",
@@ -1670,7 +1647,9 @@
       "recipe": "recipes/explore/zz-ripple-65b-preview-bf16-tp2-vllm.yaml",
       "tp": 2,
       "env": {
-        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
+        "ARM_EXTRA_CLIENT": "python3 -B tools/h2h-client.py --cell house4096 --base-url http://$NODE:$PORT --outdir $L",
+        "ARM_EXTRA_TIMEOUT": "3600"
       }
     },
     {
@@ -1696,12 +1675,12 @@
       "estimate_h": 1.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "The runner prints `serve logs harvested: 0 (expected one per running rank; 0 means log gone)` by globbing its own capture name, while tools/boot-watchdog.py copies the container /tmp/sparkrun_serve.log to `serve-reaped-<container>.log` beside its own --log BEFORE it stops the task. Three arms this hour were closed as \"no engine evidence\" while their crash text sat in the receipt dir: zz-ds4-1017-sm121-arm5-trtllm-mla (31 KB, `ValueError: Mxfp4FlashinferCutlassMoEMethod requires hidden_size and intermediate_size_per_partition to be multiples of 128 (got hidden=5120, intermediate=576)`), zz-ds4-1017-sm121-arm3-control (same ValueError), zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm (`serve.py: error: unrecognized arguments: --served-model-name`). Fix: count and list `serve-reaped-*.log` in the harvest line and in the receipt, so \"0 harvested\" can only mean the capture itself failed. Precedent: the cyankiwi AWQ arm 2026-11-03 was misread the same way.",
+      "notes": "The runner prints `serve logs harvested: 0 (expected one per running rank; 0 means log gone)` by globbing its own capture name, while tools/boot-watchdog.py copies the container /tmp/sparkrun_serve.log to `serve-reaped-<container>.log` beside its own --log BEFORE it stops the task. Three arms this hour were closed as \"no engine evidence\" while their crash text sat in the receipt dir: zz-ds4-1017-sm121-arm5-trtllm-mla (31 KB, `ValueError: Mxfp4FlashinferCutlassMoEMethod requires hidden_size and intermediate_size_per_partition to be multiples of 128 (got hidden=5120, intermediate=576)`), zz-ds4-1017-sm121-arm3-control (same ValueError), zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm (`serve.py: error: unrecognized arguments: --served-model-name`). Fix: count and list `serve-reaped-*.log` in the harvest line and in the receipt, so \"0 harvested\" can only mean the capture itself failed. Precedent: the cyankiwi AWQ arm 2026-11-03 was misread the same way.\n\nLanded 3e6c8ed9 — tools/run-arm.sh:572-583 snapshots each rank's `docker logs` into docker-<rank>.log while the container still exists and writes `# capture failed: … no engine stdout survives` when it cannot, so a reaped arm's crash text survives the reap and a silent no-op is visible. 08843fa is unrelated (Engram shard link), cited for nothing here. Residual: the harvest line still counts only serve-*.log copies, so it does not enumerate serve-reaped-*.log; the snapshot and the marker are what make a 0 unambiguous.",
       "provenance": "mad-science/STATUS.md 2026-11-08 04:13 ET landed rows; mad-science/SESSION-RECORD.md 2026-11-08 tick",
-      "evidence": "",
+      "evidence": "3e6c8ed9 tools/run-arm.sh:572-583 per-rank pre-stop docker logs snapshot + '# capture failed' marker",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -1714,7 +1693,7 @@
       "state": "queued",
       "model": "",
       "node_cost": "single",
-      "notes": "Measured 2026-11-08 04:09-04:13 ET: kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4 attempt 1 launcher (pid 1883449) held .30-.33 while its own registry distribution failed at 414.7 s (637.1 MiB at 1.6 MiB/s from docker.io, then `Registry image distribution failed on: the four rank hosts (`.30`–`.33`), addresses masked`), and run-arm.sh had already declared `no container appeared` at 04:09:09. The next three arms were refused rc=5 on `Error: Execution resources are busy ... held by running pid 1883449` (dspark @2, kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4 @1..2, zz-ripple-65b-preview-bf16-tp2-vllm @1..2), so the plan tail measured nothing. By 04:14 the pid was gone and `sparkrun daemon resources list` read [] - the claim was released by process exit, not by the executor. Fix: when a launch produces no container, wait for or kill the launcher and verify `sparkrun daemon resources list` is empty before the next arm is leased; a refused claim should end the arm as a distinct holder-busy code instead of retrying into a failed measurement.",
+      "notes": "Measured 2026-11-08 04:09-04:13 ET: kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4 attempt 1 launcher (pid 1883449) held .30-.33 while its own registry distribution failed at 414.7 s (637.1 MiB at 1.6 MiB/s from docker.io, then `Registry image distribution failed on: the four rank hosts (`.30`–`.33`), addresses masked`), and run-arm.sh had already declared `no container appeared` at 04:09:09. The next three arms were refused rc=5 on `Error: Execution resources are busy ... held by running pid 1883449` (dspark @2, kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4 @1..2, zz-ripple-65b-preview-bf16-tp2-vllm @1..2), so the plan tail measured nothing. By 04:14 the pid was gone and `sparkrun daemon resources list` read [] - the claim was released by process exit, not by the executor. Fix: when a launch produces no container, wait for or kill the launcher and verify `sparkrun daemon resources list` is empty before the next arm is leased; a refused claim should end the arm as a distinct holder-busy code instead of retrying into a failed measurement.\n\nVerified at 4927a7fe, still unfixed: no code releases a sparkrun host claim when its launcher dies. tools/run-arm.sh:177-190 retries `Execution resources are busy` three times with five-minute waits and then walks into the appearance loop with the launcher still alive; the only distinct exit is :215's `launcher exited with no container` (rc=5), and nothing kills $LAUNCH to drop the claim. A holder-busy code does not exist.",
       "provenance": "mad-science/STATUS.md 2026-11-08 04:13/04:19 ET rows; mad-science/SESSION-RECORD.md 2026-11-08 tick",
       "evidence": "",
       "claimed_by": "",
@@ -1726,12 +1705,12 @@
       "estimate_h": 1.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "Measured 2026-11-08 05:09:20 on the GLM-5.3 753B 3bpw attempt 5 (task 7d9a3a61b33a29e4_7e44b438d751, .30-.33): the serve was stopped by tools/boot-watchdog.py's own stall rule (watchdog.log ends `WATCHDOG t=2532s verdict=stalled endpoint=down serve_pid=alive io_delta=0 log_delta=0 idle=603s`), and because the watchdog exits 3 for dead AND for stalled, run-arm.sh prints `watchdog: serve dead and stopped (rc=3) at t=2532s -- never ready` and closes rc=4. So the arm receipt and any register note read as an engine death for a healthy boot cut 7 s short of its measured 2538.9 s TTR. Fix: read the last `verdict=` in the watchdog log (or give stalled its own exit code) and write 'stalled' into the receipt, naming the reaped serve log as still-loading evidence. Same class as run-arm-harvest-counts-reaped-log: healthy silence reported as death.",
+      "notes": "Measured 2026-11-08 05:09:20 on the GLM-5.3 753B 3bpw attempt 5 (task 7d9a3a61b33a29e4_7e44b438d751, .30-.33): the serve was stopped by tools/boot-watchdog.py's own stall rule (watchdog.log ends `WATCHDOG t=2532s verdict=stalled endpoint=down serve_pid=alive io_delta=0 log_delta=0 idle=603s`), and because the watchdog exits 3 for dead AND for stalled, run-arm.sh prints `watchdog: serve dead and stopped (rc=3) at t=2532s -- never ready` and closes rc=4. So the arm receipt and any register note read as an engine death for a healthy boot cut 7 s short of its measured 2538.9 s TTR. Fix: read the last `verdict=` in the watchdog log (or give stalled its own exit code) and write 'stalled' into the receipt, naming the reaped serve log as still-loading evidence. Same class as run-arm-harvest-counts-reaped-log: healthy silence reported as death.\n\nLanded 3e6c8ed9 — the watchdog now judges the whole lease (a --rank arg per node, group_stalled) instead of rank 0 alone, and memory counts only past MEM_PROGRESS_FLOOR = 128 MiB, so a boot whose ranks stream tens of GiB at zero io/log growth is no longer declared `stalled`: the verdict that cut this healthy boot at t=2532 s against a measured 2538.9 s TTR cannot fire on a loading lease. Residual, so the row is not over-credited: boot-watchdog.py still exits 3 for dead AND stalled, and tools/run-arm.sh:342 still prints `watchdog: serve dead and stopped (rc=3)`, so a genuine stall still reaches the receipt as a death — the instrument is no longer wrong, the wording still is.",
       "provenance": "tools/run-arm.sh:319-330; tools/boot-watchdog.py:28,408-409; recipes/glm/README.md §Harness: the stall rule cannot see this arm (2026-11-08); board 05:09 row",
-      "evidence": "",
+      "evidence": "3e6c8ed9 tools/boot-watchdog.py group_stalled + MEM_PROGRESS_FLOOR=128 MiB; tools/run-arm.sh --rank per node",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -1744,7 +1723,7 @@
       "state": "queued",
       "model": "",
       "node_cost": "single",
-      "notes": "Measured 2026-11-08 05:27-05:39 ET on zz-ripple-65b-preview-bf16-tp2-vllm attempt 3 (.30/.31, task b631dae1dc7bf3d6_693d01660f8b): tools/run-arm.sh's appearance loop is `seq 1 60` x `sleep 5` = 300 s (tools/run-arm.sh:199-219) and it exits 1 at :225 with 'no container appeared' BEFORE it parses TID at :228 -- so the stop-trap is not yet installed and the launcher runs on. Its receipt log (zz-ripple-65b-preview-bf16-tp2-vllm@3.log, 05:32) reads ARM FAIL while the launch completed: containers started 10:32:47Z, launch.log records 'Endpoint ready ... TTR port-open 409.921s, HTTP-ready 409.948s' and /v1/models answers {id: ricursiveAI/Ripple-65B-Preview, max_model_len: 1048576}, rank1 'Extended KV cache 20416 blocks (39.88 GiB)'. Result: a boot that reached readiness was recorded 'no marker and no machine-readable artefact' by the director and left an unowned live serve on .30/.31 while the register row ripple-65b-bf16-tp2 still reads queued. Fix: derive the appearance ceiling from the launch's own distribution time (ARM_CONTAINER_APPEAR_TIMEOUT, default >= 900 s for a multi-rank body), require the launcher pid to be gone AND no container before failing, and install the stop-trap before the appearance loop so an abandoned launch cannot outlive the executor -- and have that trap kill the launcher pid too, not only the task: launch_arm backgrounds `sparkrun run` and keeps it in `$LAUNCH` (tools/run-arm.sh:173-177), while the trap at :238 stops only `$TID`, which is unset on this path, so an earlier trap alone still leaves the launcher running and its containers unowned.",
+      "notes": "Measured 2026-11-08 05:27-05:39 ET on zz-ripple-65b-preview-bf16-tp2-vllm attempt 3 (.30/.31, task b631dae1dc7bf3d6_693d01660f8b): tools/run-arm.sh's appearance loop is `seq 1 60` x `sleep 5` = 300 s (tools/run-arm.sh:199-219) and it exits 1 at :225 with 'no container appeared' BEFORE it parses TID at :228 -- so the stop-trap is not yet installed and the launcher runs on. Its receipt log (zz-ripple-65b-preview-bf16-tp2-vllm@3.log, 05:32) reads ARM FAIL while the launch completed: containers started 10:32:47Z, launch.log records 'Endpoint ready ... TTR port-open 409.921s, HTTP-ready 409.948s' and /v1/models answers {id: ricursiveAI/Ripple-65B-Preview, max_model_len: 1048576}, rank1 'Extended KV cache 20416 blocks (39.88 GiB)'. Result: a boot that reached readiness was recorded 'no marker and no machine-readable artefact' by the director and left an unowned live serve on .30/.31 while the register row ripple-65b-bf16-tp2 still reads queued. Fix: derive the appearance ceiling from the launch's own distribution time (ARM_CONTAINER_APPEAR_TIMEOUT, default >= 900 s for a multi-rank body), require the launcher pid to be gone AND no container before failing, and install the stop-trap before the appearance loop so an abandoned launch cannot outlive the executor -- and have that trap kill the launcher pid too, not only the task: launch_arm backgrounds `sparkrun run` and keeps it in `$LAUNCH` (tools/run-arm.sh:173-177), while the trap at :238 stops only `$TID`, which is unset on this path, so an earlier trap alone still leaves the launcher running and its containers unowned.\n\nVerified at 4927a7fe, still unfixed: the appearance loop is `seq 1 60` × `sleep 5` = 300 s (tools/run-arm.sh:201-218), the hard failure prints at :225 `no container appeared` before TID is parsed at :228, and the stop trap is installed at :236 — after that exit. There is no ARM_CONTAINER_APPEAR_TIMEOUT, no `launcher pid gone AND no container` requirement, and the trap stops $TID and kills $WD but never $LAUNCH.",
       "provenance": "board tick 2026-11-08 06:00 ET; /home/red/benchmarks/h2h-20261107/logs/zz-ripple-65b-preview-bf16-tp2-vllm@3.log + its launch.log",
       "evidence": "benchmarks/h2h-20261107/zz-ripple-65b-preview-bf16-tp2-vllm/launch.log",
       "claimed_by": "",
@@ -1752,14 +1731,14 @@
     },
     {
       "id": "task-queue-write-clobbers-live-claim",
-      "title": "Any task-queue.py write from a stale syncthing copy silently deletes a live campaign claim — and a task row with it",
+      "title": "task-queue.py `_save` has no compare-and-swap: a stale writer still drops a live claim and a peer's task row",
       "estimate_h": 2.0,
       "blocks": [],
       "blocked_by": [],
       "state": "queued",
       "model": "",
       "node_cost": "single",
-      "notes": "Measured 2026-11-08 06:11-06:16 ET on the head's copy of mad-science/queue.json (~/src/sparkrun-recipe-registry, the file the campaign writes): at ~06:11 it read 107 tasks / 22 open / one claim (h2h-second-boot-glm-753b -> sparkrun-campaign:h2h-20261107, state running); at 06:16:48 it read 106 / 21 / no claim, three consecutive reads 4 s apart, with mtime 06:14:05.712 — the workstation copy's mtime to the microsecond — while state.json still leased that arm (attempt 6, re-upped 06:19:43) and its quartet kept running on .30-.33. The content change is what discriminates, not the mtime (syncthing preserves mtimes both ways): a director clearing its own claim removes claimed_by/claimed_at only and never a task row, whereas this replacement lost BOTH a task row (107 -> 106) and the claim, i.e. the writer held a pre-claim copy. The lost row is unrecoverable: neither side has .stversions, and it was never committed. Fix shape: give task-queue.py the CAS that tools/task-queue.py publish already has for the board — hash the file at load, refuse the write when it moved, name the reading host — and treat the head as the authoritative copy for any claim-bearing row (a claim is written only by the campaign, on the head). Until then every tick that adds or updates a row can delete a live lease's claim and an unrelated row the campaign-ops side just added, and a close-out afterwards refuses its own arm as a stale claim.",
+      "notes": "Measured 2026-11-08 06:11-06:16 ET on the head's copy of mad-science/queue.json (~/src/sparkrun-recipe-registry, the file the campaign writes): at ~06:11 it read 107 tasks / 22 open / one claim (h2h-second-boot-glm-753b -> sparkrun-campaign:h2h-20261107, state running); at 06:16:48 it read 106 / 21 / no claim, three consecutive reads 4 s apart, with mtime 06:14:05.712 — the workstation copy's mtime to the microsecond — while state.json still leased that arm (attempt 6, re-upped 06:19:43) and its quartet kept running on .30-.33. The content change is what discriminates, not the mtime (syncthing preserves mtimes both ways): a director clearing its own claim removes claimed_by/claimed_at only and never a task row, whereas this replacement lost BOTH a task row (107 -> 106) and the claim, i.e. the writer held a pre-claim copy. The lost row is unrecoverable: neither side has .stversions, and it was never committed. Fix shape: give task-queue.py the CAS that tools/task-queue.py publish already has for the board — hash the file at load, refuse the write when it moved, name the reading host — and treat the head as the authoritative copy for any claim-bearing row (a claim is written only by the campaign, on the head). Until then every tick that adds or updates a row can delete a live lease's claim and an unrelated row the campaign-ops side just added, and a close-out afterwards refuses its own arm as a stale claim.\n\nVerified at 4927a7fe — the consumer half landed in 578039f3: campaign/sparkrun_campaign/{plan,director}.py read the register's hold gate instead of the cached plan and re-read the claim before leasing, so the director no longer acts on a stale copy. The writer half is untouched: _save (tools/task-queue.py) still writes tmp + os.replace with no hash or stamp of what it loaded, so any tick on a stale syncthing copy replaces a claim-bearing register wholesale. Remaining fix (narrowed): hash the loaded file, refuse the write when the file moved under it, and name the reading host.",
       "provenance": "board tick 2026-11-08 06:12-06:22 ET; head queue.json reads at ~06:11 and 06:16:48; campaign state.json lease re-upped 06:19:43",
       "evidence": "",
       "claimed_by": "",
