@@ -32,9 +32,11 @@ TOOL = load_tool()
 
 
 class _Stub(BaseHTTPRequestHandler):
-    """A minimal OpenAI-compatible serve: /v1/models plus one chat reply or a 400."""
+    """A minimal OpenAI-compatible serve: /v1/models, one chat reply, one completion, or a 400."""
 
     fail: bool = True
+    text: object = "42"
+    stream_pieces: tuple[str, ...] = ("4", " 2")
 
     def log_message(self, format: str, *args: object) -> None:
         pass
@@ -55,13 +57,16 @@ class _Stub(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_POST(self):
-        self._body()
+        body = self._body()
         if self.fail:
-            body = b"rejected"
+            data = b"rejected"
             self.send_response(400)
-            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Content-Length", str(len(data)))
             self.end_headers()
-            self.wfile.write(body)
+            self.wfile.write(data)
+            return
+        if self.path.startswith("/v1/completions"):
+            self._completion(body)
             return
         data = json.dumps({
             "id": "stub", "object": "chat.completion", "model": "stub-model",
@@ -76,13 +81,44 @@ class _Stub(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _stream(self, usage: dict[str, int]) -> None:
+        """SSE completion chunks; with `text` None the stream carries usage and no text."""
+        gap = chr(10) * 2
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.end_headers()
+        for piece in self.stream_pieces:
+            text = piece if self.text is not None else ""
+            chunk = {"choices": [{"index": 0, "text": text}]}
+            self.wfile.write(("data: " + json.dumps(chunk) + gap).encode())
+        self.wfile.write(("data: " + json.dumps({"choices": [], "usage": usage}) + gap).encode())
+        self.wfile.write(("data: " + json.dumps("done") + gap).encode())
+
+    def _completion(self, body: dict[str, object]) -> None:
+        """A /v1/completions reply; `text` is None on a serve that returns nothing."""
+        usage = {"prompt_tokens": 7, "completion_tokens": 2, "total_tokens": 9}
+        if body.get("stream"):
+            self._stream(usage)
+            return
+        data = json.dumps({
+            "id": "stub", "object": "text_completion", "model": "stub-model",
+            "choices": [{"index": 0, "text": self.text, "finish_reason": "length"}],
+            "usage": usage,
+        }).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
 
 class StubServe:
     server: ThreadingHTTPServer
     thread: threading.Thread
 
-    def __init__(self, fail: bool):
+    def __init__(self, fail: bool, text: object = "42"):
         _Stub.fail = fail
+        _Stub.text = text
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), _Stub)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
 
@@ -178,6 +214,81 @@ class ImageRecording(unittest.TestCase):
             manifest = json.loads((arm / "client" / "client.json").read_text())
         self.assertEqual(rc, 0)
         self.assertEqual(manifest["image_id"], "sha256:fromenv")
+
+
+class CompletionsCell(unittest.TestCase):
+    """The cell a base serve needs: /v1/completions, both modes, nothing-but-text is failure."""
+
+    def _run(self, base: str, mode: str, prompts: list[object] | None = None,
+             expect_rc: int = 0) -> tuple[int, Path, dict[str, object]]:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        arm = Path(tmp.name) / "arm"
+        argv = ["--cell", "completions", "--base-url", base, "--outdir", str(arm),
+                "--mode", mode]
+        if prompts is not None:
+            path = Path(tmp.name) / "prompts.json"
+            path.write_text(json.dumps(prompts))
+            argv += ["--prompts", str(path)]
+        rc = TOOL.main(argv)
+        self.assertEqual(rc, expect_rc, (arm / "client" / "client.json").read_text())
+        manifest = json.loads((arm / "client" / "client.json").read_text())
+        self.assertEqual([s["step"] for s in manifest["steps"]], ["completions"])
+        self.assertEqual(manifest["steps"][0]["rc"], expect_rc)
+        self.assertIn("--cell", manifest["steps"][0]["argv"])
+        return rc, arm, json.loads((arm / "client" / "completions.json").read_text())
+
+    def test_non_streaming_parses_text_and_usage(self):
+        with StubServe(fail=False, text="5\n") as base:
+            _rc, _arm, report = self._run(base, "plain", ["Complete the sequence: 1 2 3 4"])
+        plain = report["prompts"][0]["plain"]
+        self.assertEqual(plain["text"], "5")
+        self.assertEqual((plain["prompt_tokens"], plain["completion_tokens"]), (7, 2))
+        self.assertGreater(plain["wall_s"], 0)
+        self.assertGreater(plain["tok_per_s"], 0)
+        self.assertIsNone(plain["ttft_s"])
+        self.assertEqual(report["verdict"], "PASS", report["problems"])
+
+    def test_streaming_accumulates_text_and_yields_a_first_token_time(self):
+        with StubServe(fail=False, text="42") as base:
+            _rc, _arm, report = self._run(base, "stream", ["Complete the sequence: 1 2 3 4"])
+        stream = report["prompts"][0]["stream"]
+        self.assertEqual(stream["text"], "4 2", "chunks must accumulate, not overwrite")
+        self.assertIsNotNone(stream["ttft_s"])
+        self.assertLessEqual(stream["ttft_s"], stream["wall_s"])
+        self.assertEqual((stream["prompt_tokens"], stream["completion_tokens"]), (7, 2))
+
+    def test_empty_completion_is_a_failure_with_its_own_exit_status(self):
+        with StubServe(fail=False, text=None) as base:
+            _rc, _arm, report = self._run(base, "both", ["Complete the sequence: 1 2 3 4"],
+                                          expect_rc=5)
+        self.assertEqual(report["rc"], 5)
+        self.assertEqual(report["summary"]["empty"], 2)
+        self.assertEqual(report["summary"]["answered"], 0)
+        self.assertEqual(report["verdict"], "FAIL")
+
+    def test_a_rejecting_serve_surfaces_the_status_and_body(self):
+        import contextlib
+        import io
+        with StubServe(fail=True) as base:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                _rc, _arm, report = self._run(base, "plain",
+                                              ["Complete the sequence: 1 2 3 4"], expect_rc=4)
+        self.assertIn("HTTP 400", err.getvalue())
+        self.assertIn("rejected", err.getvalue())
+        self.assertEqual(report["summary"]["http_errors"], 1)
+        self.assertIn("HTTP 400", " ".join(report["problems"]))
+
+    def test_negative_control_usage_without_text_is_still_empty(self):
+        # The hazard this cell exists for: a stream that counts tokens and says nothing.
+        with StubServe(fail=False, text=None) as base:
+            _rc, _arm, report = self._run(base, "stream", ["Complete the sequence: 1 2 3 4"],
+                                          expect_rc=5)
+        stream = report["prompts"][0]["stream"]
+        self.assertEqual(stream["completion_tokens"], 2, "usage still counts the tokens")
+        self.assertEqual(stream["text"], "")
+        self.assertTrue(any("empty completion" in p for p in report["problems"]))
 
 
 if __name__ == "__main__":
