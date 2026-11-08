@@ -1216,12 +1216,12 @@ on GB10.** `@8` printed `Init parallel ends. elapsed=35.90 s` and `Load weight b
 mem=111.71 GB` with the flag in effect at the engine (`'moe_runner_backend': 'marlin'` twice in
 `server_args`, plus `'speculative_moe_runner_backend': 'marlin'`, beside the launcher receipt's
 `EXTRA_SGLANG_ARGS='… --moe-runner-backend marlin'`), and then the host went, not the engine: the
-kernel log on `.32` shows `global_oom` taking `sglang::schedul` inside its docker cgroup at 12:57:33,
-`.33` the same moment taking `python3` in its own, `.31` taking `beegfs-storage` at 12:57:42, and the
-head losing eight `global_oom` victims at 12:59:14, ending `user@1000.service: Main process exited,
-code=killed, status=9/KILL`. Two boots, the same memory signature and the same SIGKILL path (exit 137). No throughput or
-accuracy number is obtainable this way, and a repeat attempt is an operator decision: it has twice
-taken the whole user session down on the head.
+kernel log on `.32` shows `global_oom` taking `sglang::schedul` inside its docker cgroup at
+12:57:33, `.33` the same moment taking `python3` in its own, `.31` taking `beegfs-storage` at
+12:57:42, and the head losing eight `global_oom` victims at 12:59:14, ending `user@1000.service:
+Main process exited, code=killed, status=9/KILL`. Two boots, the same memory signature and the same
+SIGKILL path (exit 137). No throughput or accuracy number is obtainable this way, and a repeat
+attempt is an operator decision: it has twice taken the whole user session down on the head.
 
 **The mechanism is still inferred; the fit is measured.** What these boots show is weight load at
 ~111.7 GiB available and a host global OOM. They support "the 576→640 pad plus repack overhead does
