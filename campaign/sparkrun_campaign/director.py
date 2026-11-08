@@ -204,7 +204,7 @@ class Director:
         if self.register is None:
             return list(self.entries), [], {}
         return plan.queue_entries(self.register.rows(), list(self.campaign.data.get("hosts", [])),
-                                  self.register.session)
+                                  self.register.session, set(self.campaign.arms()))
 
     def _adopt(self, entries: list[dict[str, Any]]) -> None:
         for entry in entries:

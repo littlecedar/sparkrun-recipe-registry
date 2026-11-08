@@ -94,15 +94,22 @@ class Register:
         return f"{current} — {why}" if current else why
 
 
-def queue_entries(rows: list[dict[str, Any]], hosts: list[str],
-                  session: str) -> tuple[list[dict[str, Any]], list[str], dict[str, str]]:
+def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
+                  held: set[str] | frozenset[str] = frozenset(),
+                  ) -> tuple[list[dict[str, Any]], list[str], dict[str, str]]:
     """(entries, explanation lines, arm -> why it is not runnable) from the register's ordering.
 
     Only `queued` rows that name a `recipe` and `tp` are work: `blocked`/`done` are somebody else's
-    answer, `running` is another session's claim (a claim of *ours* from a previous life is left to
-    the campaign's own record), and a row whose `tp` exceeds the declared host count is skipped by
-    name rather than truncated onto fewer nodes. An authoring row is counted, not listed: the
-    register is mostly prose work and a line per row would bury the exclusions that matter.
+    answer, `running` is another session's claim, and a row whose `tp` exceeds the declared host
+    count is skipped by name rather than truncated onto fewer nodes. An authoring row is counted,
+    not listed: the register is mostly prose work and a line per row would bury the exclusions that
+    matter.
+
+    A `running` row under this campaign's own session id is still offered when `held` (the arms the
+    campaign already has) contains it: that is the in-flight arm a restart must finish, and the
+    campaign's own lease/reap record is what makes re-assignment safe. The same row with no
+    campaign state behind it is a stale claim from a root that was lost -- refused by name, because
+    adopting it would boot an arm whose previous boot nobody has verified stopped.
     """
     entries: list[dict[str, Any]] = []
     lines: list[str] = []
@@ -118,10 +125,11 @@ def queue_entries(rows: list[dict[str, Any]], hosts: list[str],
                 authoring += 1      # queued prose/work rows: counted, because that is the queue
             continue
         arm = Path(str(recipe)).stem
-        if state != "queued":
-            if state == "running" and row.get("claimed_by") == session:
-                continue
-            reason = (f"claimed running by {row.get('claimed_by') or 'another session'}"
+        ours = state == "running" and row.get("claimed_by") == session
+        if state != "queued" and not (ours and arm in held):
+            reason = (f"claimed running by {session} with no campaign state (stale claim)"
+                      if ours else
+                      f"claimed running by {row.get('claimed_by') or 'another session'}"
                       if state == "running" else f"register state {state}")
             lines.append(f"queue-skip: {task} ({reason})")
             excluded[arm] = reason

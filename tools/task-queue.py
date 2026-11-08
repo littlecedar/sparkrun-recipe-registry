@@ -236,8 +236,13 @@ def validate(data: dict, path: Path | None = None) -> list[dict]:
             value = task.get(field)
             if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
                 raise QueueError(f"{tid}: '{field}' must be a list of task ids")
-        if task["state"] == "done" and (task.get("claimed_by") or task.get("claimed_at")):
-            raise QueueError(f"{tid}: a done task cannot still carry claimed_by/claimed_at")
+        if task["state"] != "running" and (task.get("claimed_by") or task.get("claimed_at")):
+            # A claim is the running row's record, and nothing else's. A queued (or blocked, or
+            # done) row that still carries one reads as another session's work and never runs, so
+            # `update` clears the pair on every transition out of `running` and this refuses a
+            # hand-edited file that skipped that.
+            raise QueueError(f"{tid}: a claim exists only on a running row; state={task['state']!r} "
+                             f"still carries claimed_by/claimed_at — rerun update")
         if not resolved and any(task.get(key) is not None for key in ("recipe", "tp", "env")):
             resolved = True
             if path is not None:
@@ -438,9 +443,14 @@ def cmd_update(args, path: Path) -> None:
     if args.blocks is not None:
         task["blocks"] = args.blocks.split(",") if args.blocks else []
     if args.claimed_by is not None:
+        if task["state"] != "running":
+            raise QueueError(f"{args.id}: '--claimed-by' needs '--state running' — a claim exists "
+                             f"only on a running row")
         task["claimed_by"] = args.claimed_by
         task["claimed_at"] = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    if task["state"] == "done":
+    if task["state"] != "running":
+        # Every exit from `running` releases the claim: a stale one on a queued/blocked/done row
+        # is exactly the drift that makes a scheduler skip its own work.
         task["claimed_by"] = task["claimed_at"] = ""
     _relink(tasks)
     validate(data, path)

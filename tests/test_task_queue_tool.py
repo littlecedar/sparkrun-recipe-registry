@@ -767,3 +767,73 @@ class BootableRows(unittest.TestCase):
     def row(self, task_id: str) -> dict:
         tasks = json.loads(self.queue.read_text(encoding="utf-8"))["tasks"]
         return next(entry for entry in tasks if entry["id"] == task_id)
+
+
+class ClaimLifecycle(unittest.TestCase):
+    """A claim exists only on a running row; every exit from `running` releases it.
+
+    A queued (or blocked, or done) row still carrying `claimed_by` is the drift that makes a
+    scheduler read its own work as another session's and skip it forever, so `update` clears the
+    pair and `check` refuses a hand-edited file that did not.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.queue = Path(self.tmp.name) / "queue.json"
+        self.queue.write_text(json.dumps(data([task("a", 1.0)])), encoding="utf-8")
+
+    def cli(self, *argv) -> tuple[int, str]:
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = tq.main(["--file", str(self.queue), *argv])
+        return code, out.getvalue() + err.getvalue()
+
+    def row(self) -> dict:
+        return json.loads(self.queue.read_text(encoding="utf-8"))["tasks"][0]
+
+    def claim(self) -> tuple:
+        row = self.row()
+        return row["state"], row.get("claimed_by", ""), row.get("claimed_at", "")
+
+    def test_leaving_running_releases_the_claim(self) -> None:
+        self.assertEqual(self.cli("update", "--id", "a", "--state", "running",
+                                  "--claimed-by", "s")[0], 0)
+        state, claimed_by, claimed_at = self.claim()
+        self.assertEqual((state, claimed_by, bool(claimed_at)), ("running", "s", True))
+
+        # The failed-arm path: back to the queue with the reason in `notes`.
+        self.assertEqual(self.cli("update", "--id", "a", "--state", "queued",
+                                  "--notes", "campaign: ladder failed")[0], 0)
+        self.assertEqual(self.claim(), ("queued", "", ""))
+
+        # The external-gate path.
+        self.assertEqual(self.cli("update", "--id", "a", "--state", "running",
+                                  "--claimed-by", "s")[0], 0)
+        self.assertEqual(self.cli("block", "--id", "a")[0], 0)
+        self.assertEqual(self.claim(), ("blocked", "", ""))
+
+        # Completion.
+        self.assertEqual(self.cli("update", "--id", "a", "--state", "running",
+                                  "--claimed-by", "s")[0], 0)
+        self.assertEqual(self.cli("done", "--id", "a")[0], 0)
+        self.assertEqual(self.claim(), ("done", "", ""))
+
+    def test_a_claim_without_state_running_is_refused(self) -> None:
+        # Negative control: silently dropping it would look identical in the file -- an unclaimed
+        # queued row -- so the mistake has to be named instead.
+        code, text = self.cli("update", "--id", "a", "--claimed-by", "s")
+        self.assertEqual(code, 1)
+        self.assertIn("needs '--state running'", text)
+        self.assertEqual(self.claim(), ("queued", "", ""))
+
+    def test_a_non_running_row_carrying_a_claim_fails_closed(self) -> None:
+        payload = json.loads(self.queue.read_text(encoding="utf-8"))
+        payload["tasks"][0].update(claimed_by="s", claimed_at="2026-11-07T00:00:00Z")
+        with self.assertRaises(tq.QueueError) as ctx:
+            tq.validate(payload, self.queue)
+        self.assertIn("a: a claim exists only on a running row", str(ctx.exception))
+        self.queue.write_text(json.dumps(payload), encoding="utf-8")
+        code, text = self.cli("check")
+        self.assertEqual(code, 1)
+        self.assertIn("claim exists only on a running row", text)

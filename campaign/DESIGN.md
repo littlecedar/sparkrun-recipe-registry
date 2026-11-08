@@ -70,7 +70,9 @@ Exclusions are named, never truncated:
 | Row | Effect |
 |---|---|
 | `blocked` | `queue-skip: <row> (register state blocked)` — an external gate is not the campaign's to open |
-| `running` | skipped, naming `claimed_by` — another session's claim. A `running` row claimed under this campaign's own session id is left to the campaign record, which is what resumes an in-flight arm after a restart |
+| `running`, another session | skipped, naming `claimed_by` |
+| `running`, this campaign's session id, arm already in this campaign | **offered** like a queued row: it is the in-flight arm a restart must finish, and the campaign's own lease/reap record is what makes re-assignment safe |
+| `running`, this campaign's session id, no campaign state holds the arm | refused by name (`stale claim`): a row that claims this session id with no lease record behind it is a root that was lost, and adopting it would boot an arm nobody has verified stopped |
 | `done` | skipped; if this campaign holds no measurement for that arm it is blocked, not booted |
 | no `recipe`/`tp` | counted in one line (`authoring, not bootable`): most rows are prose work |
 | `tp` > declared hosts | skipped by name (`tp=4 needs 4 hosts, 2 declared`); a quartet is never cut onto fewer nodes |
@@ -91,8 +93,8 @@ the campaign name so the next life recognises its own claim. At the end of the a
 | Outcome | Register row |
 |---|---|
 | measured (from receipt fields, never the rc) | `--state done --evidence <measurement dir>` |
-| failed | `--state queued`, `--notes` appended with `campaign: <reason>` — the row keeps its own justification text and no evidence pointer is invented |
-| blocked (leftover survivor, unverifiable host) | `--state blocked` plus the same note, because a human must look |
+| failed | `--state queued`, `--notes` appended with `campaign: <reason>` — the row keeps its own justification text and no evidence pointer is invented; the transition clears `claimed_by`/`claimed_at`, so the row cannot be mistaken for a live claim |
+| blocked (leftover survivor, unverifiable host) | `--state blocked` plus the same note, because a human must look; the claim is cleared the same way |
 | recorded negative | `--state done --evidence "<doc>:<line> (measured-rejected)"` — a recorded negative is an answer, and the citation is its evidence |
 | claim refused by the tool | the arm is blocked in the campaign and no lease is issued; the row is left alone |
 

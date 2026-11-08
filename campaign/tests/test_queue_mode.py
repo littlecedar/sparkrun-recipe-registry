@@ -259,6 +259,10 @@ class Claims(QueueCase):
         self.assertEqual(self.shell.states("task-one"), ["running", "queued"],
                          "a dead arm must not be left claimed running")
         failed = self.shell.last_update("task-one")
+        self.assertEqual(flag(failed, "--state"), "queued")
+        # The claim is released by the tool itself on every exit from `running` (QUEUE.md); this
+        # asserts the director does not re-send it, and the round-trip test below asserts the file.
+        self.assertNotIn("--claimed-by", failed)
         self.assertIn("campaign:", flag(failed, "--notes"))
         self.assertIn("why task-one exists", flag(failed, "--notes"),
                       "the row keeps its own justification text")
@@ -298,6 +302,40 @@ class Claims(QueueCase):
         self.assertEqual(flag(closed, "--evidence"), "docs/lane.md:2 (measured-rejected)")
         lease = leader.handle(protocol.poll("w1"))["lease"]
         self.assertEqual(lease["arm"], "one")
+
+    def test_a_restart_resumes_its_own_running_row(self) -> None:
+        leader, campaign = self.build()
+        leader.prepare()
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        self.assertEqual(flag(self.shell.last_update("task-one"), "--state"), "running")
+        campaign.close()                                  # the process died mid-arm: no report
+        self.clock.now += state.LEASE_TTL + 1
+
+        # The register still says this arm is ours; the campaign's lease record says it needs a
+        # reap. The row must stay in the plan, not be blocked as "no longer runnable".
+        self.shell.rows = [row("task-one", "recipes/lane/one.yaml", 1, state_="running",
+                               node_cost="single", claimed_by=SESSION)]
+        leader, campaign = self.build()
+        leader.prepare()
+
+        self.assertEqual(campaign.arm("one")["status"], "pending")
+        self.assertNotIn("queue-blocked: one", self.out.getvalue())
+        self.assertEqual(campaign.arm("one")["needs_reap"], [])
+        resumed = leader.handle(protocol.poll("w1"))["lease"]
+        self.assertEqual(resumed["arm"], "one")
+        self.assertEqual(flag(self.shell.last_update("task-one"), "--state"), "running")
+
+    def test_a_claim_with_no_campaign_state_is_refused_not_adopted(self) -> None:
+        # A fresh root with the same name finds a row claimed under its session id and no lease
+        # record: booting it would double-boot an arm nobody has verified stopped.
+        self.shell.rows = [row("task-one", "recipes/lane/one.yaml", 1, state_="running",
+                               node_cost="single", claimed_by=SESSION)]
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.order, [])
+        self.assertIn(f"queue-skip: task-one (claimed running by {SESSION} with no campaign "
+                      "state (stale claim))", self.out.getvalue())
+        self.assertIsNone(leader.handle(protocol.poll("w1")).get("lease"))
 
     def test_another_sessions_claim_blocks_an_arm_this_campaign_holds(self) -> None:
         leader, campaign = self.build()
@@ -392,6 +430,25 @@ class RealRegister(unittest.TestCase):
         self.register.update("campaign-arm", state="done", evidence="~/benchmarks/tp12-x/arm")
         self.assertEqual((self.task()["state"], self.task()["evidence"], self.task()["claimed_by"]),
                          ("done", "~/benchmarks/tp12-x/arm", ""))
+
+    def test_a_returned_row_keeps_no_claim(self) -> None:
+        """Failed and blocked paths, through the tool: the row is not left looking claimed."""
+        self.register.update("campaign-arm", state="running", claimed_by=SESSION)
+        self.assertEqual((self.task()["state"], self.task()["claimed_by"]), ("running", SESSION))
+
+        self.register.update("campaign-arm", state="queued",
+                             notes=self.register.note("campaign-arm", "campaign: ladder failed"))
+        self.assertEqual((self.task()["state"], self.task()["claimed_by"],
+                          self.task()["claimed_at"]), ("queued", "", ""))
+        self.assertEqual(self.task()["notes"],
+                         "why campaign-arm exists \u2014 campaign: ladder failed")
+
+        self.register.update("campaign-arm", state="running", claimed_by=SESSION)
+        self.register.update("campaign-arm", state="blocked",
+                             notes=self.register.note("campaign-arm", "campaign: leftover"))
+        self.assertEqual((self.task()["state"], self.task()["claimed_by"],
+                          self.task()["claimed_at"]), ("blocked", "", ""))
+        self.assertIn("campaign: leftover", self.task()["notes"])
 
     def test_an_untracked_recipe_is_refused_by_the_real_tool(self) -> None:
         subprocess.run(["git", "-C", str(self.repo), "rm", "--cached", "-q",
