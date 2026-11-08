@@ -215,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.fix:
         # Derived first: a tree whose discovery cannot run must be refused before anything is
         # written, never repaired with a guess.
+        print(f"doc-census: root {args.root.resolve()}")   # an archive, or the worktree: say which
         try:
             derived_suite = suite_total(args.root)
         except RuntimeError as exc:

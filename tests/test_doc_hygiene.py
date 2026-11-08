@@ -143,6 +143,8 @@ class FixSuiteTotal(unittest.TestCase):
             agents = Path(tmp, "AGENTS.md")
             out = run("--root", tmp, "--fix")
             self.assertEqual(out.returncode, 0, out.stderr)
+            self.assertIn(f"root {Path(tmp).resolve()}", out.stdout,
+                          "the run must name the tree it is rewriting")
             self.assertEqual(stated_suite_totals(agents.read_text()), [(3, 3), (5, 3)])
             self.assertIn("suite total 3 (discovery)", out.stdout)
             self.assertIn("AGENTS.md:3:", out.stdout)
