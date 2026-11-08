@@ -4724,7 +4724,11 @@ would have been churn for a 2-minute-nearer read. The figures are here instead.
 - **Board:** published 06:06 ET on the **06:00:41 ET** census (commit `59601d81`); `publish`
   reported `disk was 06:00:41 ET`, which is this session's own previous write, so no peer board was
   replaced. Lint green; `tests.test_tracked_address_hygiene` + `tests.test_task_queue_tool` 81 tests
-  OK.
+  OK. **Then the cycle's live state passed to a peer tick:** at 06:08 the worktree held an
+  uncommitted 06:07 ET board composed on a **06:04:54** read — fresher census, same facts, plus the
+  image id `e84c490d39a5` and rank-1 `--headless` — so this tick made no further write over it
+  (`publish` refuses an older stamp by construction) and the rows quoted below are the record's copy
+  of state the peer board now owns.
 - **Census (own read, 06:00:41 ET):** containers `.30`/`.31` **1 / 1**, `.32`/`.33`/`.34`/`.35`
   **0 / 0 / 0 / 0**; volumes **0** on every node; the standing serve is a research container, so no
   production serve needed excluding from the count. Root avail bytes: `.30` 1327624802304,
