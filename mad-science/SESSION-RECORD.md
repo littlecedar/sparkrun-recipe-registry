@@ -4256,6 +4256,25 @@ read, which is why nothing was republished over it.
   claim (`05:21:41Z`). `mad-science/queue.json` has a peer's uncommitted edit, so the correction belongs
   to its owner.
 - **Escalation, unchanged:** `_on_signal` at `campaign/sparkrun_campaign/director.py:546` has now killed
-  the director four times in this hour, each death orphaning its lease; the 00:17 one took a serve that
+  the director **twice in this hour** (measured 00:02 and 00:17; the runs since are hand-started restarts
+  at 00:04:34 and 00:20:20), each death orphaning its lease. The 00:17 one took a serve that
   had reached `readiness=yes` and answered `/v1/models` 200 a minute earlier, with no receipt written —
   that arm's cells are lost work, not a measurement.
+
+## 2026-11-08 00:34 ET — correction: this tick's 00:23:31 census row read a shifted column, not four zeros
+
+The board this tick published at 00:24 (`e1cbf41`) said containers `.30`→`.35` were **0 / 0 / 0 / 0 /
+0 / 0** at 00:23:31 ET. That was a misread of its own instrument, not a measurement: the ssh command
+built `printf ".%s ctns=%s vols=%s rootB=%s"` with the node label as the first argument, that argument
+came back empty on the far side, and every later value slid one field left — the line
+`NODE .1 ctns=0 vols=1413910585344 rootB=` is the container count in the *label* slot, the volume count
+under `ctns`, and the root-avail byte count under `vols`. The four ranks were therefore **1** container
+each, which is what the peer's two reads found (00:23:20 and 00:25:09, four rank containers, `Up 3
+minutes` at 00:25:09 putting creation at ~00:22:1x — before both reads). The superseding board `32ddb4b`
+already carries the corrected counts and flags the non-reproduction; this note exists because the pushed
+commit body of `e1cbf41` still asserts the zeros, and a pushed body is not rewritten. What survives from
+that read is the part that did not come from the shifted printf: `/v1/models` **000** (a `curl` exit
+code), the lease (`753B` attempt 3, `expires_at` +287 s) and the absolute byte values, whose
+`rootB`-slot emptiness is the same shift and which the peer's row restates correctly. Procedure for
+next time: give the remote its own label (`n=$n; printf …`), or read the counts in a form that cannot
+slide — `docker ps -q | wc -l` on its own line.
