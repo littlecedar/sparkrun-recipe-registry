@@ -30,11 +30,13 @@ not an importable package member.
 
 from __future__ import annotations
 
+import builtins
 import hashlib
 import importlib.util
 import os
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 
@@ -173,14 +175,16 @@ class TemplateOverlay(unittest.TestCase):
 
 
 class InlineSystemShim(unittest.TestCase):
-    """Guard: the shim patches only an image whose caller has no callee.
+    """Guard: the shim travels on PYTHONPATH, and only for an image that needs it.
 
     ``dsv41-sm121-dg:0.2.1`` forward-ported ``serving_chat.py`` (it calls
     ``chat_encoding.spec_supports_inline_system``) but kept the older
     ``chat_encoding.py``, so the OpenAI server died in its lifespan and every
-    survey arm ended rc=4 at ~250 s. The shim must leave a consistent image
-    byte-for-byte alone, because the production canary image has the caller
-    nowhere and a rebuilt image carries the function already.
+    survey arm ended rc=4 at ~250 s. The engine tree is root-owned in the
+    container and boot.py starts the server as a subprocess, so the fix has to
+    be a ``sitecustomize`` on the child's ``PYTHONPATH``. A consistent image --
+    the production canary has the caller nowhere, a rebuilt image carries the
+    function -- must be left untouched.
     """
 
     CALLER = "return chat_encoding.spec_supports_inline_system(self.chat_encoding_spec)\n"
@@ -188,36 +192,50 @@ class InlineSystemShim(unittest.TestCase):
     def setUp(self):
         self.module = load_launcher()
         self._tmp = tempfile.TemporaryDirectory()
-        self.root = Path(self._tmp.name)
-        self._saved = self.module.ENGINE_OPENAI_DIR
-        self.module.ENGINE_OPENAI_DIR = str(self.root)
+        root = Path(self._tmp.name)
+        self.engine = root / "openai"
+        self.engine.mkdir()
+        self.shimdir = root / "shim"
+        self._saved = (self.module.ENGINE_OPENAI_DIR, self.module.SHIM_DIR)
+        self.module.ENGINE_OPENAI_DIR = str(self.engine)
+        self.module.SHIM_DIR = str(self.shimdir)
 
     def tearDown(self):
-        self.module.ENGINE_OPENAI_DIR = self._saved
+        self.module.ENGINE_OPENAI_DIR, self.module.SHIM_DIR = self._saved
         self._tmp.cleanup()
 
-    def stage(self, serving: str, encoding: str) -> Path:
-        (self.root / "serving_chat.py").write_text(serving, encoding="utf-8")
-        encoding_path = self.root / "chat_encoding.py"
-        encoding_path.write_text(encoding, encoding="utf-8")
-        return encoding_path
+    def stage(self, serving: str, encoding: str) -> None:
+        (self.engine / "serving_chat.py").write_text(serving, encoding="utf-8")
+        (self.engine / "chat_encoding.py").write_text(encoding, encoding="utf-8")
 
-    def test_a_caller_without_the_callee_gets_upstreams_function(self):
-        encoding = self.stage(self.CALLER, "import os\n")
-        self.module.ensure_inline_system_shim()
-        source = encoding.read_text(encoding="utf-8")
-        self.assertTrue(source.startswith("import os\n"), "the module was rewritten")
-        self.assertIn("def spec_supports_inline_system(spec):", source)
-        self.assertIn('return spec == "kimi_k3"', source)
+    def test_a_caller_without_the_callee_stages_the_sitecustomize(self):
+        self.stage(self.CALLER, "import os\n")
+        env = {"PYTHONPATH": "/opt/dsv41/adapter:/opt/b12x"}
+        self.module.ensure_inline_system_shim(env)
 
-    def test_patching_is_idempotent(self):
-        encoding = self.stage(self.CALLER, "")
-        self.module.ensure_inline_system_shim()
-        self.module.ensure_inline_system_shim()
-        self.assertEqual(
-            encoding.read_text(encoding="utf-8").count("def spec_supports_inline_system"), 1)
+        self.assertEqual(env["PYTHONPATH"],
+                         "%s:/opt/dsv41/adapter:/opt/b12x" % self.shimdir)
+        sitecustomize = self.shimdir / "sitecustomize.py"
+        source = sitecustomize.read_text(encoding="utf-8")
+        compile(source, str(sitecustomize), "exec")
 
-    def test_an_image_that_needs_nothing_stays_byte_for_byte(self):
+        # The staged file answers as upstream does, and its import hook installs
+        # the symbol on the real module object the server reads.
+        namespace: dict = {}
+        real_import = builtins.__import__
+        try:
+            exec(compile(source, str(sitecustomize), "exec"), namespace)
+            self.assertFalse(namespace["spec_supports_inline_system"]("dsv41"))
+            self.assertTrue(namespace["spec_supports_inline_system"]("kimi_k3"))
+            target = sys.modules[namespace["TARGET"]] = types.ModuleType(
+                namespace["TARGET"])
+            builtins.__import__("json")  # any import after the module lands runs the hook
+            self.assertTrue(hasattr(target, "spec_supports_inline_system"))
+        finally:
+            builtins.__import__ = real_import
+            sys.modules.pop(namespace.get("TARGET", ""), None)
+
+    def test_an_image_that_needs_nothing_is_left_alone(self):
         cases = {
             "production canary (no caller)": ("import os\n", "import os\n"),
             "rebuilt image (callee present)":
@@ -225,9 +243,17 @@ class InlineSystemShim(unittest.TestCase):
         }
         for name, (serving, encoding_text) in cases.items():
             with self.subTest(name):
-                encoding = self.stage(serving, encoding_text)
-                self.module.ensure_inline_system_shim()
-                self.assertEqual(encoding.read_text(encoding="utf-8"), encoding_text)
+                self.stage(serving, encoding_text)
+                env = {"PYTHONPATH": "/opt/dsv41/adapter"}
+                self.module.ensure_inline_system_shim(env)
+                self.assertEqual(env["PYTHONPATH"], "/opt/dsv41/adapter")
+                self.assertFalse(self.shimdir.exists())
+
+    def test_the_shim_dir_is_not_added_to_pythonpath_twice(self):
+        self.stage(self.CALLER, "")
+        env = {"PYTHONPATH": "%s:/opt/dsv41/adapter" % self.shimdir}
+        self.module.ensure_inline_system_shim(env)
+        self.assertEqual(env["PYTHONPATH"], "%s:/opt/dsv41/adapter" % self.shimdir)
 
 
 if __name__ == "__main__":

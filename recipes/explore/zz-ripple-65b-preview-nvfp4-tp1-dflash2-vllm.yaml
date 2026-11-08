@@ -1,0 +1,74 @@
+recipe_version: "2"
+model: ricursiveAI/Ripple-65B-Preview-NVFP4
+model_revision: 99eea4477a001a41b86914e41feb4b2ed86105e5
+# Same engine pin as the no-drafter twin: vLLM >= 0.33.0 (nightly, cu130) is
+# the only image that carries `ricursive` (vllm-project/vllm#65745), the
+# `dflash` speculative method and the `ripple` parsers. Digest resolved
+# 2026-11-08 from Docker Hub; manifest list, linux/arm64 child `sha256:0d69205f…`.
+container: vllm/vllm-openai:nightly@sha256:390a656b54e12144ad15ff32244c6e848408b0ee94f2c4c5a84451e7430f1aa7
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+description: >-
+  TRIAL PROBE (zz-), not booted: the NVFP4 TP=1 arm plus the DFlash2 drafter
+  (4.04B BF16, 8.07 GB, `DFlash2DraftModel` with 5 draft layers, block size 16,
+  a rank-256 selector and target hidden-state taps at layers 1/20/39/58/77).
+  vLLM takes it natively as `speculative_config.method = "dflash"` with the
+  draft's own revision in the same object, which is also where sparkrun's vLLM
+  draft binding reads the pin it distributes — 7 draft tokens, the vLLM recipe's
+  number, against the vendor SGLang path's 32. 65B dense NVFP4 at TP=1 is
+  bandwidth-bound (~53 GiB read per token over ~273 GB/s), so this is the cell
+  where drafting can matter most; the no-drafter twin is its control.
+  Apache-2.0 target and drafter.
+metadata:
+  model_url: https://huggingface.co/ricursiveAI/Ripple-65B-Preview-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "65B"
+  model_dtype: nvfp4
+  kv_dtype: bf16
+  draft_model: ricursiveAI/Ripple-65B-Preview-DFlash2
+  model_draft_dtype: bf16
+  tags: explore, reasoning, tools, large_context, agent
+executor_config:
+  entrypoint: ""
+env:
+  PYTHONUNBUFFERED: '1'
+  MAX_JOBS: '4'
+readiness:
+  health_timeout_s: 1800
+  inference: false
+  port_timeout_s: 3600
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  served_model_name: ricursiveAI/Ripple-65B-Preview-NVFP4
+  # The draft's config caps positions at 131072 and the vendor's SGLang launcher
+  # needs an explicit override to run it past that; kept at the draft's own limit
+  # so the pair is consistent without an unverified flag. The ladder's depth-0
+  # cells never approach it. (The no-drafter twin carries 524288.)
+  max_model_len: 131072
+  max_num_seqs: 16
+  gpu_memory_utilization: 0.90
+  kv_cache_dtype: bf16
+  # The draft MUST live here: sparkrun's vLLM draft binding distributes
+  # speculative_config.model and rewrites "revision" from the prepared draft
+  # manifest, so a missing revision would follow the repo's `main`. A nested
+  # {placeholder} inside a defaults VALUE is never rendered.
+  speculative_config: '{"method": "dflash", "model": "ricursiveAI/Ripple-65B-Preview-DFlash2", "revision": "35609b3be3dd08a822b3ba1257c1ea5dd6f87632", "num_speculative_tokens": 7}'
+command: >
+  vllm serve
+  {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --reasoning-parser ripple
+  --tool-call-parser ripple
+  --enable-auto-tool-choice
+  --speculative-config '{speculative_config}'

@@ -750,39 +750,79 @@ def ensure_template_overlay(
 # 'spec_supports_inline_system'``) and the arm is never ready. Upstream main
 # defines it as below; for the ``dsv41`` spec it returns False, which is the
 # branch the pre-port image took, so the served behaviour is unchanged.
-# Patched in place so the image digest stays the measured artifact.
+#
+# The engine tree is root-owned inside the container (the recipe runs as uid
+# 1000) and boot.py starts ``sglang.launch_server`` as a *subprocess*, so the
+# fix cannot be an in-place edit and cannot be a monkeypatch of this process:
+# it travels as ``sitecustomize.py`` on the server's ``PYTHONPATH``.
 # shortcut: the image's forward port, drop this when the image is rebuilt with
 # the function (the ``caller`` probe below goes quiet on its own).
 ENGINE_OPENAI_DIR = "/sgl-workspace/sglang/python/sglang/srt/entrypoints/openai"
-INLINE_SYSTEM_SHIM = '''
+SHIM_DIR = "/cache/runtime/engine-shim"
+INLINE_SYSTEM_SITECUSTOMIZE = '''\
+"""Shim for the SM121 image's half-ported OpenAI serving path.
+
+``serving_chat.py`` calls ``chat_encoding.spec_supports_inline_system`` and the
+image's ``chat_encoding.py`` predates the function, which kills the server
+inside its lifespan. Upstream main defines it as below; for the ``dsv41`` spec
+it returns False, the branch the pre-port image took. Written by the dsv41
+overlay launcher; an image whose two files agree never sees this file.
+"""
+
+import builtins
+import sys
+
+TARGET = "sglang.srt.entrypoints.openai.chat_encoding"
 
 
 def spec_supports_inline_system(spec):
     """Native encoders verified to render mid-conversation system messages in place."""
     return spec == "kimi_k3"
+
+
+_real_import = builtins.__import__
+
+
+def _import(name, *args, **kwargs):
+    module = _real_import(name, *args, **kwargs)
+    target = sys.modules.get(TARGET)
+    if target is not None and not hasattr(target, "spec_supports_inline_system"):
+        target.spec_supports_inline_system = spec_supports_inline_system
+    return module
+
+
+builtins.__import__ = _import
 '''
 
 
-def ensure_inline_system_shim() -> None:
-    """Add the function the image's serving_chat calls but chat_encoding lacks."""
+def ensure_inline_system_shim(env: dict[str, str]) -> None:
+    """Stage the sitecustomize and put it on PYTHONPATH when the image needs it."""
     serving = os.path.join(ENGINE_OPENAI_DIR, "serving_chat.py")
     encoding = os.path.join(ENGINE_OPENAI_DIR, "chat_encoding.py")
     try:
         with open(serving, encoding="utf-8") as handle:
             caller = "chat_encoding.spec_supports_inline_system" in handle.read()
         with open(encoding, encoding="utf-8") as handle:
-            source = handle.read()
-        if not caller or "def spec_supports_inline_system" in source:
-            return
-        with open(encoding, "a", encoding="utf-8") as handle:
-            handle.write(INLINE_SYSTEM_SHIM)
+            defined = "def spec_supports_inline_system" in handle.read()
+    except OSError as exc:
+        print(f"launcher: inline-system shim skipped ({exc!r})", flush=True)
+        return
+    if not caller or defined:
+        return
+    try:
+        os.makedirs(SHIM_DIR, exist_ok=True)
+        with open(os.path.join(SHIM_DIR, "sitecustomize.py"), "w", encoding="utf-8") as handle:
+            handle.write(INLINE_SYSTEM_SITECUSTOMIZE)
     except OSError as exc:
         # Leave the image as shipped: the engine then reports the real
-        # AttributeError, and this line says why the patch is missing.
-        print(f"launcher: chat_encoding shim skipped ({exc!r})", flush=True)
+        # AttributeError, and this line says why the shim is missing.
+        print(f"launcher: inline-system shim not staged ({exc!r})", flush=True)
         return
-    print("launcher: patched chat_encoding.spec_supports_inline_system "
-          "(the image's forward port omitted it; upstream main defines it)",
+    existing = env.get("PYTHONPATH", "")
+    if SHIM_DIR not in existing.split(":"):
+        env["PYTHONPATH"] = f"{SHIM_DIR}:{existing}" if existing else SHIM_DIR
+    print("launcher: inline-system shim on PYTHONPATH "
+          "(the image's forward port omits chat_encoding.spec_supports_inline_system)",
           flush=True)
 
 
@@ -935,8 +975,8 @@ def main(argv: list[str]) -> int:
     resolve_checkpoint(env)
 
     # Both the health probe and the serve import the OpenAI server, so the
-    # shim is applied before either execs.
-    ensure_inline_system_shim()
+    # shim goes on PYTHONPATH before either execs.
+    ensure_inline_system_shim(env)
 
     if args.health:
         os.execve(sys.executable, [sys.executable, BOOT, "health"], env)

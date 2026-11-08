@@ -1,0 +1,67 @@
+recipe_version: "2"
+model: ricursiveAI/Ripple-65B-Preview
+model_revision: da94cc013a8fda04a502f0a185083c7099ea06c1
+# Same nightly engine pin as the NVFP4 probes (the fleet's release pin
+# `vllm-openai:v0.32.0` has no `ricursive`): manifest list resolved 2026-11-08,
+# linux/arm64 child `sha256:0d69205f…`.
+container: vllm/vllm-openai:nightly@sha256:390a656b54e12144ad15ff32244c6e848408b0ee94f2c4c5a84451e7430f1aa7
+runtime: vllm
+min_nodes: 2
+max_nodes: 2
+description: >-
+  TRIAL PROBE (zz-), not booted: Ripple-65B Preview BF16 on TWO DGX Sparks
+  (TP=2) — the quality control and the only cell that can hold the card's 1M
+  context. 129.6 GB of BF16 weights (~120.7 GiB) do not fit one GB10's ~109 GiB
+  budget at util 0.90, so TP=2 is the minimum for BF16, i.e. the lowest TP that
+  can measure the unquantized model; NVFP4 is the TP=1 arm. Per rank here:
+  ~60.4 GiB of weights, leaving ~42 GiB for a 32 KiB/token KV split (~1.36M
+  tokens). No drafter: the BF16 arm is the control the NVFP4+drafter cell is
+  compared against, and the card's own BF16 vLLM recipe carries none.
+  Apache-2.0.
+metadata:
+  model_url: https://huggingface.co/ricursiveAI/Ripple-65B-Preview
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "65B"
+  model_dtype: bfloat16
+  kv_dtype: bfloat16
+  tags: explore, reasoning, tools, large_context, agent
+executor_config:
+  entrypoint: ""
+env:
+  PYTHONUNBUFFERED: '1'
+  # Two 60 GiB-ranked loads and the FP4/attention JITs on a shared 128 GB pool;
+  # the cap is the TP=2 NVFP4 precedent's (recipes/explore/poolside-laguna-m1-…).
+  MAX_JOBS: '4'
+readiness:
+  health_timeout_s: 2400
+  inference: false
+  port_timeout_s: 5400
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 2
+  served_model_name: ricursiveAI/Ripple-65B-Preview
+  # 64 KiB/token for the 16 global layers, split across two ranks (32 KiB/token
+  # each): ~1.36M tokens fit after the weights at util 0.85, so 1048576 is the
+  # card's own context and the one cell where the long-context claim is testable
+  # on this fleet. BF16 KV because the vendor's Spark path refuses anything else
+  # and BF16 is the unquantized reference.
+  max_model_len: 1048576
+  max_num_seqs: 8
+  gpu_memory_utilization: 0.85
+  kv_cache_dtype: bfloat16
+command: >
+  vllm serve
+  {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --reasoning-parser ripple
+  --tool-call-parser ripple
+  --enable-auto-tool-choice

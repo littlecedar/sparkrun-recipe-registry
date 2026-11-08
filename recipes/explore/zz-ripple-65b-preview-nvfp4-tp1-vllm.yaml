@@ -1,0 +1,77 @@
+recipe_version: "2"
+model: ricursiveAI/Ripple-65B-Preview-NVFP4
+model_revision: 99eea4477a001a41b86914e41feb4b2ed86105e5
+# `nightly` is a moving tag, so the digest is the pin (resolved 2026-11-08 from
+# Docker Hub; manifest list, linux/arm64 child `sha256:0d69205f…`, 11.29 GB —
+# no node holds it, so the first boot of this lane pays that pull). This arm
+# needs vLLM >= 0.33.0 (unreleased as of the pin: `ricursive` support landed in
+# vllm-project/vllm#65745) plus the `ripple` reasoning/tool parsers, which only
+# the cu130 nightly wheel carries; the fleet's release pin (`vllm-openai:v0.32.0`)
+# cannot serve this architecture at all.
+container: vllm/vllm-openai:nightly@sha256:390a656b54e12144ad15ff32244c6e848408b0ee94f2c4c5a84451e7430f1aa7
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+description: >-
+  TRIAL PROBE (zz-), not booted: Ripple-65B Preview NVFP4 on ONE DGX Spark
+  (TP=1), the vendor's own local-serving suggestion. 65B DENSE (not MoE),
+  thin-and-deep Gemma-3N-like: 80 layers, d_model 5120, FFN 40960, 80 Q / 8 KV
+  heads at head_dim 128, gated attention, value residuals, global NoPE, 16
+  full-attention layers among four 1024-token sliding ones, 2M positions
+  claimed. The checkpoint is ModelOpt NVFP4 on the MLP layers only, attention,
+  embeddings and head stay BF16. Card claim: 80.52 TerminalBench 2.1, Apache-2.0.
+  Weights 57.2 GB (hub file sum; the card's "39.6B params" is the packed-fp4
+  counter, real total 64.78B), so ~53.3 GiB resident and the KV arithmetic in
+  the lane README gives ~55 GiB for 524288 tokens at util 0.90.
+metadata:
+  model_url: https://huggingface.co/ricursiveAI/Ripple-65B-Preview-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "65B"
+  model_dtype: nvfp4
+  kv_dtype: bf16
+  tags: explore, reasoning, tools, large_context, agent
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so this
+  # recipe's own serve line runs instead of being parsed as the image's flags.
+  entrypoint: ""
+env:
+  PYTHONUNBUFFERED: '1'
+  # The NVFP4 path JITs its cutlass/marlin kernels on first boot; uncapped nvcc
+  # fan-out has exhausted the 128 GB unified pool on this arm class before
+  # (recipes/explore/poolside-laguna-m1-nvfp4-vllm-tp2.yaml carries the same cap).
+  MAX_JOBS: '4'
+readiness:
+  health_timeout_s: 1800
+  inference: false
+  port_timeout_s: 3600
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds {model} to the prepared
+  # snapshot path, so the served id would be the cache path (-n hides this).
+  served_model_name: ricursiveAI/Ripple-65B-Preview-NVFP4
+  # 64 KiB of KV per token at TP=1 (16 global layers x 8 KV heads x 128 x 2 x
+  # 2 B); 524288 tokens is what the ~55 GiB left at util 0.90 affords with
+  # room for activations. The card's 1M cell needs the TP=2 arm's KV split.
+  max_model_len: 524288
+  max_num_seqs: 16
+  gpu_memory_utilization: 0.90
+  # The vendor's own Spark path refuses any other KV dtype
+  # (inference/local/spark.py: "Spark requires an unquantized BF16 KV cache").
+  kv_cache_dtype: bf16
+command: >
+  vllm serve
+  {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --reasoning-parser ripple
+  --tool-call-parser ripple
+  --enable-auto-tool-choice
