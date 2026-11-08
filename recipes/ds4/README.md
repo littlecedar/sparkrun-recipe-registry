@@ -959,7 +959,7 @@ DSpark k=5, 1M window).
 
 | image | id (local, byte-identifies the artifact) | what it is |
 |:--|:--|:--|
-| `dsv41-sm121-dg:0.2.0` | `sha256:1778ec428bc448b4111b2170de3631d7a337da2065d83d3264d198f0fe46c76b` | `dsv41-c3-reconciled:103ad321` + DeepGEMM v0.2.0 with the SM120 paged-sparse MQA-logits kernel (nv_dev `b64107f2`) and the gate widened to majors 10 or 12. |
+| `dsv41-sm121-dg:0.2.0` | `sha256:1778ec428bc448b4111b2170de3631d7a337da2065d83d3264d198f0fe46c76b` | `dsv41-c3-reconciled:103ad321` + DeepGEMM v0.2.0 with the SM120 paged-sparse MQA-logits kernel (nv_dev `b64107f2`) and the gate widened to majors 10 or 12. Superseded 2026-11-08 by 0.2.1; no recipe pins it. |
 | `dsv41-sm121-dg:0.2.1` | `sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7` (33,678,733,557 B) | 0.2.0 plus the two arm-5 tree gates: `arg_groups/deepseek_v4_hook.py` admits capability major 12 (GB10 is 12,1) and `arg_groups/fields/exec_.py` declares `--enable-decoder-swa-bounded-replay` with `BooleanOptionalAction`, so `--no-enable-decoder-swa-bounded-replay` parses. |
 
 Both are built on the head from `~/builds/deepgemm-sm121/ctx/Dockerfile.sm121` (patch provenance in
@@ -983,13 +983,14 @@ booting, and carry `:0.2.1` only for the arm-5 pair below.
 
 | arm | recipe | control |
 |:--|:--|:--|
-| 3, indexer scoring (section 10.5) | `zz-ds4-1017-sm121-indexer-scoring.yaml` (`:0.2.0`) | the shipped `canary-roce-aff52fa5` line |
+| 3, indexer scoring (section 10.5) | `zz-ds4-1017-sm121-indexer-scoring.yaml` (`:0.2.1`) | the shipped `canary-roce-aff52fa5` line |
 | 3, arm-5's paired control | `zz-ds4-1017-sm121-arm3-control.yaml` (`:0.2.1`, replay off) | — |
 | 5, TRT-LLM sparse MLA (section 10.7) | `zz-ds4-1017-sm121-arm5-trtllm-mla.yaml` (`:0.2.1`, `EXTRA_SGLANG_ARGS: "--dsv4-attn-backend trtllm"`, replay off) | arm 3 **on the same digest** (`arm3-control`) |
 
-The `:0.2.0` arm-3 run is **indexer-scoring evidence, not arm 5's control**: it is a different
-image from the treatment, so reading its cells as the arm-5 control would fold an image delta into
-the backend delta. The arm-5 pair is `arm5-trtllm-mla` vs `arm3-control`, both on `:0.2.1`, both
+All three recipes now pin `:0.2.1`, so the whole survey runs on one digest: `0.2.1` adds the two
+arm-5 gates and leaves this arm's serve line unchanged (it sets neither flag). Arm 3's
+**indexer-scoring** row is not arm 5's control even so: the control is `arm3-control`, which also
+runs replay OFF, the state section 10.7 requires on both arms of the pair. The arm-5 pair is `arm5-trtllm-mla` vs `arm3-control`, both on `:0.2.1`, both
 with decoder SWA bounded replay OFF (section 10.7's control design; the launcher turns
 `SWA_BOUNDED_REPLAY=0` into `--no-enable-decoder-swa-bounded-replay`, which wins because boot.py
 appends its own `--enable-...` earlier in argv). The knob must stay unset on the shipped canary:
