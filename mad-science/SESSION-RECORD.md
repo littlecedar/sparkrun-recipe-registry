@@ -4044,3 +4044,110 @@ The 23:26 section called pool traffic "the likely cause" of `.35`'s 27,617,275,9
   image layer stays, which is normal launch state, not litter: the images already named by recipes outlive
   the boot (AGENTS.md §Node hygiene). The "161 MB/s pool write with no visible author" clause is withdrawn;
   the pool transient has the campaign's own log line as its author.
+
+## 2026-11-08 00:08 ET — board landed rows homed (session boundary), the h2h director's handover, and a superseded 00:04 tick
+
+The 23:48 ET board's `Landed session` table carried six rows, and `git grep <sha> -- mad-science/SESSION-RECORD.md`
+returned **nothing for any of the fifteen SHAs checked** — those six plus the nine commits that landed between
+23:48 and 23:57 and were never on a board at all. All fifteen are carried here before the table is cleared; the six
+board clauses are copied out of `git show 161d89b:mad-science/STATUS.md` rather than retyped.
+
+**Board rows retired at this handoff (verbatim):**
+
+| time ET | commit | one clause |
+|---|---|---|
+| 23:32 | `b4cd79e` | "h2h-client: record resolved image, since cell alone does not prove it" — `run-arm` now exports `ARM_IMAGE_ID` and writes `<arm>/image.txt` for every extra-client arm, so a receipt proves which image actually ran instead of the manifest's intent. |
+| 23:32 | `d7a13eb` | "State the suite total both statements carry: 1318" — that tick's own fix: an earlier commit moved one of the two AGENTS statements and the count moved again when a peer case landed, so both now say the number a detached worktree at the parent discovers. |
+| 23:34 | `3695abc` | "GLM-Flash concurrency levers: two probe arms, and `--drafter-repo none` means --no-drafts" — the arm that answers the measured C2-peak-then-fall shape became authorable: the shim had mapped the sentinel onto `--drafter auto`, so no-drafter was never drafter-free. |
+| 23:35 | `be63c6f` | "Correct swept recipe count: 102 two recipes not tracked yet" — a correction of a count swept from a peer's pending edit, superseded a minute later by `bd4671d` once those two recipes were tracked. |
+| 23:35 | `bd4671d` | "Repair recipe counts concurrent sweep reverted to 100 (actual 102)" — `tools/doc-census.py --fix` rewrote only the two digits, so AGENTS.md:51 and :86 track the tree again. |
+| 23:36 | `ed9cb18` | "Falsify the pool attribution for `.35`'s 27.6 GB: it is a docker image layer" — both earlier accounts were guesses; zero chunk files were created in the window and the newest chunk predates it, so the fall is the local image layer, measured rather than argued. |
+
+**Commits that landed after that board and before this tick, each clause its own body's:**
+
+- 23:48 `2602501` — "GLM lane: SWEEP_ENV whitelist makes DFlash2 k and verify-window sweep a `-e`": the shim's
+  whitelist lets a per-arm `-e` override `RECIPE_ENV`, which is what makes the k and verify-window levers
+  expressible without a code change.
+- 23:49 `161d89b` — "Publish board on the 23:45 census: GLM-753B attempt 2 still loading, register at 18 open":
+  that tick's board, published over a 23:44:59 census (four ranks up 30 min, `/v1/models` 000, register 18 open).
+- 23:49 `6bc48f8` — "Unblock arm 5: SM12x image rebuild, replay-off knob, paired control recipe": the register row's
+  SM100 arch assert is answered by an SM12x rebuild, with the replay-off knob and a paired same-digest control recipe.
+- 23:51 `65309b3` — "docs: state the committed tree's suite total (1318)": the working tree's extra discovery came
+  from peer test modules not in that commit; the detached-worktree count at HEAD is what the guard checks.
+- 23:51 `81f2aca` — "State the suite total the committed tree discovers" (empty body): the doc-hygiene statement
+  moved to the number a detached worktree at that parent discovers.
+- 23:52 `87706a9` — "State the tracked recipe count the committed tree carries" (empty body): the same statement
+  moved for the recipe count.
+- 23:55 `0d9f835` — "GLM lane: k sweep needs its own arm path, so the carrier ships env": the plan keys an arm by
+  recipe basename and refuses two rows on one path, so `zz-…-dflash2k.yaml` is config-identical to the shipped arm
+  and exists only to give the k row a path; the value rides the lease env through `SWEEP_ENV`.
+- 23:55 `60732da` — "Reconcile the recipe counts the committed tree carries: 104": `tools/doc-census.py --fix`
+  rewrote AGENTS.md:17/:51/:86 from 103 to 104 — digits only, so the roster's findings counts and the dated
+  snapshot paragraph stay as the peer measurement wrote them.
+- 23:57 `5aa87fa` — "register: arm5 pair, 0.2.1 control, all three concurrency levers": arm 5 repinned to
+  `dsv41-sm121-dg:0.2.1`, its same-digest control is a separate sub-row booting `zz-ds4-1017-sm121-arm3-control.yaml`
+  (the 0.2.0 arm-3 run stays indexer-scoring evidence, not the control), and every survey hook passes
+  `--image-id "$ARM_IMAGE_ID"` so the receipt pins what ran.
+
+**A peer tick's board at 00:04 (`0040097`) is superseded by state, and its measurements are kept here.** It
+published a 00:03:12 census on which the fleet read empty and "two leases orphaned". Its byte decomposition
+survives only in that commit body: the failed quartet lost **286.9 GB** of root across two windows (23:44:59 and
+23:58:41 — rank 0 228.7 GB, each worker rank ~19.4 GB, the two idle nodes flat) and **regained 273.3 GB** between
+23:58:41 and 00:03:12, netting −13.2 GB on `.30` and −0.17 GB per worker rank. Its attribution: the booting ranks
+were the only writers, so the loss is theirs; **who freed the gain is not established**. This tick adds the
+falsifier it lacked rather than a new guess — the 00:05:24 read puts `.30` back at 1,439,364,984,832 B, within
+17.6 MB of its 23:44:59 level, and bytes that return were never a staged pool body.
+
+**Why the orphan happened, measured on the head.** The director that took the boot2 lease died on **SIGTERM with a
+signal-handler reentrancy bug**: `campaign/sparkrun_campaign/director.py:546` prints from `_on_signal`, and the
+handler fired while the main thread held stdout's buffer, raising
+`RuntimeError: reentrant call inside <_io.BufferedWriter name='<stdout>'>` out of `selectors.poll`. It left the
+lease it had just written (boot2, attempt 2, `expires_at` 00:06:53) with no process behind it for ~2.5 min, which
+is what the 00:03 census and the peer's "orphaned" rows recorded. A peer restarted `director serve --queue` at
+00:04:35 (`setsid nohup`, `>> director.log`), worker w1 pid 3141353; by 00:07 run-arm pid 3195637 had the boot2 arm
+launched and the ranks were carrying its image. **The defect is unfixed and unwritten to the register** — a
+`print` inside a signal handler kills the supervisor on the first clean stop, so every SIGTERM orphans whatever
+lease was live.
+
+## 2026-11-08 00:09 ET — board handoff: six landed rows had no other home; the 753B second boot failed, and the arm after it died in image relay
+
+- **The 23:48 board's `Landed session` rows existed only on the board.** The 00:04 board replaced them
+  with its own set, and `git grep` over `mad-science/` finds just two of them — `3695abc` and `bd4671d` — as
+  prose inside `queue.json` notes, never as a record. Their clauses, preserved from
+  `git show 0040097^:mad-science/STATUS.md`:
+  - 23:32 `b4cd79e` "h2h-client: record resolved image, since cell alone does not prove it" — `run-arm`
+    exports `ARM_IMAGE_ID` and writes `<arm>/image.txt` for every extra-client arm, so a receipt proves
+    which image actually ran rather than what the manifest intended.
+  - 23:32 `d7a13eb` "State the suite total both statements carry: 1318" — the earlier commit moved one of
+    the two `AGENTS.md` statements and the count moved again when a peer case landed, so both now say the
+    number a detached worktree at the parent discovers.
+  - 23:34 `3695abc` "GLM-Flash concurrency levers: two probe arms, and `--drafter-repo none` means
+    --no-drafts" — the shim had mapped that sentinel onto `--drafter auto`, so no-drafter was never
+    drafter-free; the two probe arms are now authorable.
+  - 23:35 `be63c6f` "Correct swept recipe count: 102 two recipes not tracked yet" — this was a correction of
+    a count swept from a peer's pending edit; superseded a minute later by `bd4671d` once both recipes were
+    tracked.
+  - 23:35 `bd4671d` "Repair recipe counts concurrent sweep reverted to 100 (actual 102)" —
+    `tools/doc-census.py --fix` rewrote only the two digits, so `AGENTS.md:51` and `:86` track the tree.
+  - 23:36 `ed9cb18` "Falsify the pool attribution for `.35`'s 27.6 GB: it is a docker image layer" — zero
+    chunk files were created in the window and the newest chunk predates it, so the fall is the local image
+    layer, measured rather than argued.
+- **The GLM-753B second boot failed, and the receipt says so without a verdict of its own.** Attempt 2
+  (`…@2`) ran 23:14:25 → 23:52:37 (38.2 min) on `.30`–`.33 and ended `rc=4`, `measured: false`,
+  `watchdog: loading`, `reason: no marker and no machine-readable artefact`, leftover list empty and four
+  serve logs harvested; `run-arm`'s last line is `ARM DONE … rc=4`. Receipt:
+  `~/benchmarks/h2h-20261107/receipts/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.json`; the harness moved
+  attempt 1 aside to `…prev-231427`.
+- **The arm after it died in image relay, not in the engine.** `glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2`
+  attempt 1 (23:52:37) wrote its command line and nothing else; attempt 2 (23:59:52, receipt dir
+  `~/benchmarks/tp12-20261107/…`, attempt 1 moved to `…prev-235954`) reached an OCI relay that ended
+  `failed in 126.4s; receiver byte total unavailable; 0 layers reused; registry downloaded 5.1 GiB` then
+  `Launch interrupted`, and docker logged the task delete at 00:02:02. The director was already gone —
+  `signal 15: stopping after this tick` followed by a `RuntimeError: reentrant call` in its own signal
+  handler — so `state.json` (mtime 00:01:53) kept the arm `leased` on `.30`–`.33 until 00:06:52 with no
+  worker behind it.
+- **`.30` carried a ≈157 GiB transient through the relay.** Root avail `1,269,033,242,624 B` at 00:00:52,
+  `1,426,194,919,424 B` at 00:03:12 (peer tick's read), `1,439,364,960,256 B` at 00:06:17 — a fall and a
+  recovery around the failed import that the relay's own log line does not account for (`5.1 GiB`
+  downloaded, `up to 10.6 GiB` needed, `up to 64.0 GiB scratch` declared). Attribution stays open; what is
+  measured is that the bytes came back to the 23:44 level rather than staying spent.
