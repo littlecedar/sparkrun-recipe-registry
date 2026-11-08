@@ -28,12 +28,14 @@ metadata:
   draft_model: LithosAI/Kimi-K3.1-Pro-DSpark
   tags: large_context, speculative-decode
   caveats: >
-    Two unverified links, recorded not hidden. (1) ENGINE: vLLM main maps the draft's
-    `Qwen3DSparkModel` to qwen3_dspark and accepts method `dspark` (verified upstream
-    2026-11-08 in vllm/config/speculative.py + the model registry), and the pinned
-    nightly predates that verification only in the sense that its wheel is unopened
-    here — same first-boot gate as the plain sibling, plus `dspark` in the method
-    literal. (2) CROSS-CHECKPOINT ACCEPTANCE: the draft was trained against
+    One verified link, one open, recorded not hidden. (1) ENGINE: verified against the
+    pinned image itself (2026-11-08, arm64 pull + inspection): its config/speculative.py
+    declares `DSparkModelTypes = Literal["dspark"]` with `use_dspark()` and
+    `dspark_draft_topk`, and its registry maps `Qwen3DSparkModel` to qwen3_dspark. The
+    same registry also carries a Kimi-NATIVE DSpark draft (`K3DSparkModel` ->
+    vllm/models/kimi_k3/nvidia/dspark_mla), so if a Qwen3-shaped draft is refused on a
+    Kimi target the native drafter route exists and needs its own checkpoint. (2)
+    CROSS-CHECKPOINT ACCEPTANCE: the draft was trained against
     moonshotai/Kimi-K3.1-Pro (the card states no base revision) while this target is
     its 75 %-expert-pruned derivative, so the hidden states it reads come from a
     different routing distribution; the card's 3.448 acceptance length is for the

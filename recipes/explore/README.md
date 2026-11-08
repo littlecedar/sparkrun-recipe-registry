@@ -1041,10 +1041,13 @@ rows and `e_score_correction_bias` pruned with them), everything else the base
   BF16 56,915,256,320 (113.8 GB) + F32 11,060,608 (0.04 GB) = **454.2 GB = 423.0 GiB**. Over TP=4
   that is 105.75 GiB per rank against ~121 GiB usable, i.e. 82.6 % of the 128 GB device before KV,
   so the arm ships 32k context at utilisation 0.92. An OOM at profile is sizing, not the checkpoint.
-- **Engine gate (unbooted).** Upstream vLLM main maps `KimiK31ForConditionalGeneration`
-  (`vllm/models/kimi_k3`) and the pinned nightly is `0.33.0rc1.dev1016+g06129ab02`, created
-  2026-11-07; the last release tag `v0.33.0rc3` does **not** carry the K3.1 class, so the first boot
-  must prove the image does. Serving needs `--trust-remote-code` (config `auto_map`) and the card's
+- **Engine gate: PASSED from the image itself.** I pulled the pinned nightly arm64
+  (`0.33.0rc1.dev1016+g06129ab02`, created 2026-11-07) and walked its filesystem: the module tree
+  `vllm/models/kimi_k3/` is present and
+  `vllm/model_executor/models/registry.py` maps `"KimiK31ForConditionalGeneration"` to it. The same
+  image's `vllm/tool_parsers/__init__.py` registers `kimi_k3`, so the serve line's parsers exist.
+  Upstream context: the last release tag `v0.33.0rc3` does **not** carry the class, which is why
+  this nightly is the earliest known pin rather than any release. Serving needs `--trust-remote-code` (config `auto_map`) and the card's
   `kimi_k3` reasoning/tool parsers.
 - **Quality, as the card states it.** GSM8K 5-shot 43.67 % on four B300s at TP=4, with "expect a large
   quality regression relative to the source model" in the card. Not a general-purpose candidate.
@@ -1053,7 +1056,12 @@ rows and `e_score_correction_bias` pruned with them), everything else the base
   Python `TikTokenTokenizer.apply_chat_template` / `kimi_k3_processor` method that vLLM's Jinja
   path does not use. So the arm expects `/v1/chat/completions` to answer "chat template is not
   defined" and measures on `/v1/completions`; the chat endpoint is tested once as a diagnostic,
-  and whichever way it settles is recorded rather than assumed.
+  and whichever way it settles is recorded rather than assumed. Code-level corroboration on vLLM
+  main (2026-11-08): `renderers/hf.py` resolves the template from `--chat-template`, then an
+  AutoProcessor `chat_template` (this repo's `kimi_k3_processor` defaults it to `None`), then the
+  tokenizer, then `transformers_utils/chat_templates/registry.py` — a bundled-fallback map with
+  only blip2/clip/colpali/ocr/minicpmv/openvla/paligemma/siglip entries and **no** `kimi_k31` or
+  `kimi_linear` key. That is why the chat endpoint is expected to refuse.
 - **Licence.** `other` / `kimi-k3.1-pro`, inherited with the base's LICENSE link — not Apache-2.0.
 
 ## `kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4`

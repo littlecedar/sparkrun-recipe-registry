@@ -3,8 +3,9 @@ model: vllm-project/Kimi-K3.1-Pro-pruned75
 model_revision: fc72e5a1dd8819cf722fee249bb166c4cbc8ba38
 runtime: vllm
 # Nightly eugr build, pulled 2026-11-08: vLLM 0.33.0rc1.dev1016+g06129ab02, created 2026-11-07.
-# The arm's first-boot gate is that this image carries `KimiK31ForConditionalGeneration`
-# (vLLM main ships it in vllm/models/kimi_k3; the last release tag, v0.33.0rc3, does NOT).
+# The engine gate is VERIFIED against this image's own filesystem (pulled arm64, inspected):
+# vllm/model_executor/models/registry.py maps KimiK31ForConditionalGeneration -> vllm.models.kimi_k3,
+# and vllm/models/kimi_k3/ is present. The last release tag, v0.33.0rc3, does NOT carry the class.
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:98a2535b5fa227e529f25ed376751b41d8f707200c81fac82d327a9deee93b15
 min_nodes: 4
 max_nodes: 4
@@ -40,10 +41,12 @@ metadata:
     sum, which the card says beat its L1 default on GSM8K (43.7 % vs 14.4 %) but is
     still a large quality regression against the base. Vision tower is retained and
     the config declares image-text-to-text, but no multimodal path is exercised here.
-    ENGINE GATE (unbooted): the pinned nightly's vLLM must contain
-    `KimiK31ForConditionalGeneration`. Verified upstream 2026-11-08: main's registry
-    maps it to vllm/models/kimi_k3, and the newest release tag v0.33.0rc3 does not
-    have it, so an image built before the K3.1 merge fails at model resolution.
+    ENGINE GATE: PASSED against the pinned image itself (2026-11-08, image pulled
+    arm64 and inspected): its
+    /usr/local/lib/python3.12/dist-packages/vllm/model_executor/models/registry.py maps
+    `"KimiK31ForConditionalGeneration"` to `vllm.models.kimi_k3`, and the module tree
+    `vllm/models/kimi_k3/` is present. Upstream context: the newest release tag
+    v0.33.0rc3 does NOT have this class, so this nightly is the earliest known pin.
     Serving pin must also carry `--trust-remote-code` (config auto_map) and the
     card's `kimi_k3` tool-call/reasoning parsers. CHAT TEMPLATE (probed 2026-11-08, and
     the sharpest boot question here): the repo ships **no** `chat_template.jinja` and its
