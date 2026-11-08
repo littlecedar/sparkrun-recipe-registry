@@ -5893,3 +5893,26 @@ waiting state.
   disagree about a TP1/TP2 row's window dependency, that divergence is the finding, not a detail to reconcile quietly.
 - **Unchanged by the policy:** a boot still needs a readable pool (§15:29:55 close) and still meets the red pool gate
   above until that fix is green — this clause changes who an arm may occupy, not whether it can read a weight.
+
+## 2026-11-08 — correction: `.30` is a normal worker; the host-preference rule is blast radius only
+
+The clause directly above (`## 2026-11-08 — quartet windows are for TP=4 arms; TP1/TP2 run on one or two hosts`,
+landed as `f6e5570`) carries a line that says `.30` is "avoided for anything that could overrun" because it holds
+`beegfs-mgmtd` and `beegfs-meta`. **That line is withdrawn.** It is the role-based exclusion that `AGENTS.md` §Node
+hygiene (`Q8`) forbids: `.30` is a normal worker node, its mgmtd/storage duties are "incidental" and "may never
+be used to describe it as unavailable, reserved, 'controller only', 'idle as controller', or excluded 'by role'",
+and "leaving `.30` idle while research runs is a violation, not a policy". The framing has regressed three times
+(2026-10-24 ×2, 2026-10-25/26) and is swept on sight; this instance arrived from the owner's own dictation, which
+is why it is corrected in the record rather than quietly reworded.
+
+**What the rule actually is.** A boot whose **per-rank memory fit is unproven** prefers a client-only host, because
+an overrun there costs one storage target instead of the mgmtd+meta pair and every client's mount. That is all it
+says:
+
+- **`.30` stays in scope for TP1/TP2 work and for any arm whose fit is known or arithmetically bounded.** Ripple
+  BF16 TP=2 at ~64.8 GiB/rank is a known-fit arm and may use `.30`.
+- **`.31`–`.33` are ordinary workers outside a declared window**; inside one they are the quartet ranks.
+- **Node choice otherwise follows availability, never role.** An idle `.30` is reported as **nothing live (no
+  reservation)** — never with a reason attached.
+- **Quartets remain reserved for `tensor_parallel: 4`** — that part of the clause above stands unchanged, as does
+  its board wording: the window cell reads "reserved for TP=4 arms", never "idle", and never "`.30` excluded".
