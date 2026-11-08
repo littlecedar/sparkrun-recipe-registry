@@ -439,11 +439,20 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
   | node | `-1017` body (`du -s` on `hub/models--…-1017`) | plain `V4.1-Flash` | free `/` after the 2026-10-22 sweep |
   |---|---|---|---|
   | `.30` | complete, 498,351,024 KB (475.2 GiB) — head of the 2026-10-22 boot | removed | 117 G |
-  | `.31` | complete, 475.2 GiB (real-file tree, no `blobs/`) | **present — the only copy** | 794 G |
+  | `.31` | complete, 475.2 GiB (real-file snapshot; `blobs/` holds only `config.json`'s target) | **present — the only copy** | 794 G |
   | `.32` | complete, 475.2 GiB | removed (`hf cache rm`, 510.3 G) | 1.1 T |
   | `.33` | complete, 475.2 GiB | removed (510.3 G) | 1.2 T |
   | `.34` | **complete, 498,350,468 KB** — all 57 snapshot entries byte-size identical to `.31` (diff of size+name lists empty); the 556–608 KB `du` delta is filesystem/metadata, not a short file, and no rsync remained at the end | removed (510.3 G) | 506 G |
   | `.35` | absent | removed (510.3 G) | 705 G |
+
+  Re-measured 2026-11-08 on `.30` and `.31` (identical trees): `du -s` and `du -sL` both
+  498,350,679 KB on `models--deepseek-ai--DeepSeek-V4.1-Flash-1017`, snapshot `1bae0e10` with 57
+  top-level entries and 82 real files (83 through `-L` — `config.json` is the only symlink, into
+  `blobs/`), apparent bytes 510,311,045,295 (475.26 GiB). The column's `du -s` is on the repo
+  directory, which includes `blobs/`, so it counts bytes; a `du` on `snapshots/<rev>` alone reads
+  475.2 GiB here only because this tree is real files — on a symlink-farm/xet cache it reads the
+  link paths (8,179 B for a complete 442.87 GiB body, 2026-11-08), so resolve presence with
+  `du -sL`, `find -L <snapshot> -printf '%s'` or `hf cache verify`, never plain `du` on a snapshot.
 
   A body transfer has **exactly one owning session**. Measured 2026-10-22: two sessions each believed
   they owned the same `.31`→`.34` copy, one killed the other's `rsync` pids, and rsync deleted its own
