@@ -20,7 +20,7 @@ still add no row, because an accuracy declaration belongs inside `metadata:` whe
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1410 tests (derived by discovery, guard-checked) and 2 skipped, the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
+suite 1411 tests (derived by discovery, guard-checked) and 2 skipped, the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -897,7 +897,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1410 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1411 tests,
   2 skipped on 2026-11-08:** the IFM research docs absent on a
   fresh clone and the
   qwen3-VL validation guard, which runs only where `sparkrun` is importable or on PATH; the
@@ -932,7 +932,8 @@ explanation, and the next session re-derives work that is already done. Mitigati
   reads the working tree: a copy under `recipes/` is a runnable recipe, one under a lane's `mods/`
   changes what a recipe ships, and one under `.github/workflows/` becomes another workflow (a second
   nightly sweep, measured 2026-10-22). `tests/test_no_sync_conflict_copies.py` walks `recipes/`,
-  `mods/`, `tools/`, `tests/`, `benchmarking/`, `plugins/`, `tuning/`, `.sparkrun/` and `.github/`
+  `mods/`, `tools/`, `tests/`, `benchmarking/`, `plugins/`, `tuning/`, `.sparkrun/` and `.github/`,
+  matches root-level files by name (three `AGENTS.md` copies sat there on 2026-11-08),
   and allows exactly one path — the tracked `test_qwen3_vl_embeddings` fixture just above. Delete a
   copy the moment it appears; never `git add` it, and never leave it where a launch can see it.
 - Guards are over shipped artifacts, not units: recipes parsed as text with a hand-rolled YAML

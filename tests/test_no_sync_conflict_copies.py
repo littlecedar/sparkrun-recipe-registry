@@ -9,6 +9,10 @@ sparkrun will happily list. `.github/` is the same shape for GitHub: every `*.ym
 workflow, so a copy of `refresh-sweep.yml` becomes a second nightly sweep (real: one appeared on
 2026-10-22 and had to be removed by hand).
 
+The repo root is scanned too: a copy there runs nothing, but it is shared-tree noise and a
+divergence signal, and three `AGENTS.md` copies sat there unnoticed on 2026-11-08 because only the
+watched subdirectories were walked. Root entries are matched by name, not walked twice.
+
 The single exemption is a deliberately tracked fixture: `discover` rejects dashed module names, so
 the copy of `test_qwen3_vl_embeddings` is inert as a test but kept as the repo's example of the
 shape. It must exist and be tracked — that is the reason it is allowed to stay.
@@ -26,7 +30,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Every directory a launch or a CI load walks. `recipes/`, `mods/`, `benchmarking/` and `tuning/`
 # are named by `.sparkrun/registry.yaml` (recipes, mods, benchmarks, tuning); `plugins/` is loaded
 # inside a sparkrun process via `plugins.paths`; `tests/` and `tools/` are executed by hand or by
-# the gate; `.github/` is GitHub's loader.
+# the gate; `.github/` is GitHub's loader. The repo root is scanned separately in
+# `conflict_copies`, since it is neither a launcher tree nor a subdirectory worth re-walking.
 WATCHED = ("recipes", "mods", "tools", "tests", "benchmarking", "plugins", "tuning", ".sparkrun",
            ".github")
 PATTERN = "*sync-conflict*"
@@ -41,7 +46,12 @@ def conflict_copies(root):
     missing = [d for d in WATCHED if not (root / d).is_dir()]
     if missing:
         raise AssertionError(f"watched dirs missing under {root}: {missing}")
-    found = []
+    try:
+        root_entries = list(root.iterdir())
+    except OSError as exc:
+        # An unreadable root must fail loudly, never yield a silent empty result.
+        raise AssertionError(f"repo root unreadable under {root}: {exc}") from exc
+    found = [p.name for p in root_entries if p.is_file() and p.match(PATTERN)]
     for d in WATCHED:
         found.extend(p.relative_to(root).as_posix() for p in (root / d).rglob(PATTERN))
     return sorted(found)
@@ -95,6 +105,16 @@ class NegativeControls(unittest.TestCase):
             self.assertEqual(
                 conflict_copies(tmp),
                 ["recipes/lane/mods/launcher/run.sync-conflict-20260101-000000-BBBBBB.sh"])
+
+    def test_a_root_level_copy_is_caught(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for d in WATCHED:
+                (Path(tmp) / d).mkdir(parents=True)
+            planted = Path(tmp) / "AGENTS.sync-conflict-20261108-115119-Y5KSV46.md"
+            planted.write_text("# agents\n", encoding="utf-8")
+            self.assertEqual(conflict_copies(tmp),
+                             ["AGENTS.sync-conflict-20261108-115119-Y5KSV46.md"],
+                             "a conflict copy at the repo root must be reported")
 
     def test_a_missing_watched_dir_raises(self):
         with tempfile.TemporaryDirectory() as tmp:
