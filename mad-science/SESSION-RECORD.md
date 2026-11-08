@@ -4151,6 +4151,13 @@ lease was live.
   recovery around the failed import that the relay's own log line does not account for (`5.1 GiB`
   downloaded, `up to 10.6 GiB` needed, `up to 64.0 GiB scratch` declared). Attribution stays open; what is
   measured is that the bytes came back to the 23:44 level rather than staying spent.
+- **Follow-up, 00:11 ET: the relay-scratch attribution is corroborated.** The restarted campaign's
+  attempt-3 relay ran on `.30` with root avail falling 1,439,364,960,256 → 1,376,552,742,912 B and
+  recovering to 1,413,912,711,168 B as its receiver container (`oci-relay-receiver-293c157d…`, image
+  `85c1ffc3e3a0`) exited before 00:11:27 — the same shape as the 00:00 transient, this time with the
+  container observed while it was running. The attribution moves from open to LIKELY relay receive/decode
+  scratch; nothing in the pool or the chunk store has been shown to move for it.
+
 
 ## 2026-11-08 00:13 ET — the published board's own commit names the wrong census
 
@@ -4164,3 +4171,31 @@ report: `disk was 2026-11-08 00:07:26 ET`, this census 00:11:03), and the tick h
 at 00:09, before that publish, so its rows were never read for a fold. Nothing material went with it —
 the same state is in the 00:11 census: director back, arm on attempt 3, four ranks at the image-carry
 stage.
+
+## 2026-11-08 00:14 ET — a director stop is not a clean stop, and the env file names the wrong campaign
+
+- **SIGTERM killed the director inside its own handler.** The `h2h-20261107` director took
+  signal 15 at 00:02:00 ET and died with `RuntimeError: reentrant call inside
+  <_io.BufferedWriter name='<stdout>'>` (`campaign/sparkrun_campaign/director.py:546`) instead of
+  shutting down. Its lease `glm-5.3-flash-…-boot2@2` then stayed in `state.json` for five minutes
+  with **0 containers** on its four hosts — the exact shape the board skill calls a wedged holder —
+  and only the *next* run cleared it (`reaped … (lease expired; 0 container(s) found)`). A restart,
+  not a stop, is what clears a director's lease; read `ps` for the director before believing a lease
+  that no container supports.
+- **The head's env file points at a different campaign.** `~/.config/sparkrun-campaign.env` carries
+  `CAMPAIGN_ROOT=/home/red/benchmarks/d1-20261107` on a two-host set, so an env-rooted
+  `director status` prints `campaign d1-20261107: 1 measured` and **no lease** while `h2h-20261107`
+  (six hosts, root on `.30`) holds a live quartet. Nine roots sit in `~/benchmarks/*/state.json`;
+  enumerate them.
+- **`.30`'s 158.6 GiB dip was a deleted stage, not a body from the pool.** 1,439,347,339,264 B
+  (23:44:59) → 1,269,033,246,720 B (00:00:5x) → 1,437,015,580,672 B (00:05:0x) → 1,404,530,204,672 B
+  (00:09:29, the live 33.7 GB relay import). A **ctime** scan of `.30`'s root since 23:44 finds 193
+  files / 25,807,800 B and nothing above 100 MB, and the HF pool's hub mtimes are unchanged (newest
+  14:35), so the bytes were staged and deleted again by the aborted attempt-2 boot that started
+  23:59:54.
+- **The image carry is complete on all six nodes.** `dsv41-sm121-dg:0.2.0` (`sha256:1778ec42…`) and
+  `:0.2.1` (`sha256:85c1ffc3…`) are tagged on `.30`–`.35`, measured 00:05; the 23:48 board's "no tag
+  on `.31`–`.33`" rows were superseded by the survey-transfer carry's own 00:02 gate clearance.
+- **Board handoff.** The 00:04 board's seven landed rows were already mirrored here (`:4072-4090`),
+  so this tick cleared the table and replaced its census (the fleet was empty at 00:03:12, and reads
+  1/1/1/1 again at 00:09:29 only as relay receivers).
