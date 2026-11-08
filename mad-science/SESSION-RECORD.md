@@ -5111,3 +5111,68 @@ new evidence; the first extends a peer tick's 09:09 board correction with a fals
   plausible.** A `.34` probe returned 1197.1 GiB avail while `.34`'s real read was 1025.3 GiB — the
   1197.1 GiB was `.30`, the head, which the probe's own `hostname` confirmed. Two reads two minutes apart "disagreeing by 171 GiB"
   was the label, not the disk. Print `hostname` remotely in the same command that prints the number.
+
+## 2026-11-08 10:53 ET — five blockers that were conditions, and the three corrections they cost
+
+Five gates were recorded as hard verdicts — a ceiling, a rebuild, a stalled serve, a dead image, a
+component failure — and each fell to a check that cost minutes. The register's own vocabulary is
+where the cost sat: "blocked" was written for four different things (never tried, instrument said
+no, inference from one artefact, and a real gate), so work sat behind a word instead of a
+condition.
+
+- **A readiness ceiling read as an engine verdict.** `tools/run-arm.sh:322` takes
+  `READY_TIMEOUT=${ARM_READY_TIMEOUT:-2250}`, and the 753B arm's measured TTR is **2,538.9 s** —
+  **288.9 s over a default**, not over anything the engine did. The knob and the measured number now
+  live in the launcher, so the re-boot's gate is a timeout value set ahead of the measured TTR
+  rather than a claim about the model.
+- **The watchdog was memory-blind.** `last_progress` advanced on io and log deltas only, so a lease
+  loading tens of GiB at zero io/log growth read as idle and was stopped. `3e6c8ed9` judges the
+  lease with `group_stalled` and counts memory only past `MEM_PROGRESS_FLOOR = 128 MiB`, which is
+  above the arm's quiet-loading signature and far below its real growth.
+- **One rank stood in for the lease.** The same commit passes `--rank <host>:<container>` per node,
+  so the verdict needs every rank: a quiet rank 0 while ranks 1–3 stream shards no longer stops a
+  boot that was progressing.
+- **`manifest unknown` was not a dead pin.** Probes: the anonymous pull-token call returns 200, a
+  `docker manifest inspect` in a fresh empty `DOCKER_CONFIG` returns rc=0 with a 2,687 B manifest,
+  the tag resolves to that same digest, and both re-run from the head's daemon. The pin was public
+  the whole time; the defect was a **phantom `-cu130` tag** that named nothing while the digest
+  served, dropped in `7abe916` with every digest untouched (the gated sweep went 2 → 1).
+- **SM121's ÷128 error was a dispatch choice, not a rebuild.** `--moe-runner-backend marlin` makes
+  the sm120 backend override a no-op (`deepseek_v4.py:66-88` → `fp8.py:436-440`), so the
+  `Mxfp4FlashinferCutlassMoEMethod` assert never executes; the device gate admits GB10
+  (`is_sm120_supported` majors `[12]`, 121 // 10 = 12) and `mxfp4_marlin_moe.py:77` pads
+  intermediate 576 → 640 before the kernel sees it. The trap worth naming: `utils/common.py`'s
+  module-level `is_sm120()` is the strict `(12, 0)` form, and reading that as the gate is how a
+  working lever gets written off. Recorded `recipes/ds4/README.md:1155-1188`; the lane's verdict is
+  now "config lever, device-allowed — untried pending one control boot" (`5ad932c`).
+
+Three corrections came with the same discipline, and each replaced an inference with a measurement:
+
+- **The pruned75 "tokenizer dependency gap" was false.** The pinned image ships **tiktoken 0.14.0**
+  and **sentencepiece 0.2.3** (verified with `docker run --rm --entrypoint python3 <digest>`), and
+  vLLM's "need sentencepiece or tiktoken" line is its generic fallback when no tokenizer file is on
+  disk. The real cause is the pool's **config-only stub** snapshot: one entry, `config.json`
+  (7,303 B), plus `refs/main`, against the full repo's **112 files, 475,525,935,884 B = 442.87 GiB**
+  — the row's block is "weights unstaged", which a download closes and no wheel, mod or image edit
+  could (`recipes/explore/README.md:1131-1152`).
+- **DSpark's binding is proven at config level, with only acceptance counters left.**
+  `SpeculativeConfig(method="dspark", num_speculative_tokens=4)` accepts the staged target's
+  `config.json` (93 layers, hidden 7168, vocab 163,840) and the staged LithosAI draft: the resolved
+  draft reads `Qwen3DSparkModel`, 5 layers, `num_target_layers: 93`, `block_size: 5`,
+  `target_layer_ids [7, 23, 67, 83, 91]`. `Qwen3DSparkForCausalLM` constructs inside
+  `set_current_vllm_config(...)` with a one-rank gloo group: **4,598,107,009 parameters**, 5 decoder
+  layers, `DSparkMarkovHead` + `DSparkConfidenceHead`, first layer `model.layers.93.self_attn.attn`,
+  `target_vocab 163840`. The Omni-only validator returns early for a non-Omni target, so 4 drafts
+  with block 5 passes as the trained shape, not as an exception. What stays open is a serve and the
+  cross-checkpoint acceptance numbers — the card's 3.448 mean was measured on the unpruned base and
+  this target carries 75 % of the experts (`recipes/explore/README.md:1192-1206`).
+- **Both residuals of the two closed `run-arm` rows are now scheduled rows, not prose.** The repo's
+  rule is that a finding either lands as a row or does not exist, so
+  `run-arm-stall-verdict-reads-as-death` and `run-arm-harvest-enumerate-reaped-logs` exist in the
+  register (`92b7503`), each written the way a falsifier is: verified open at a SHA, with the exact
+  `file:line` and an acceptance that names the negative control.
+
+The standing rule this session adds: **a potential blocker gets a smoke test or an R&D falsifier
+queued ahead of the blocked work**, and a lane writes "untried" wherever "blocked" was inferred
+rather than proven. A gate that costs minutes to falsify must never cost a day of idle nodes, and a
+verdict with no falsifier behind it is a guess wearing the register's vocabulary.
