@@ -5215,7 +5215,10 @@ verdict with no falsifier behind it is a guess wearing the register's vocabulary
   that can boot and die between two reads, the board's lease row (campaign `state.json`) and the
   arm's receipt are the record, and a census that misses the boot is not evidence it never ran.
 - **Attempt 6's marlin lever was never in the engine's argv, verified twice over.** Its
-  `arm_opts.txt` holds `-oextra_args=--moe-runner-backend marlin` verbatim, but the launcher printed
+  `arm_opts.txt` holds `-o\x1fextra_args=--moe-runner-backend marlin` — a unit separator, not a
+  space, which `od -c` on the rotated receipt dir settles and a byte count cannot (the space form
+  `-o extra_args=…` is 42 B as well, so both attempt 5's and attempt 6's file measure the same) —
+  but the launcher printed
   `Override(s) -o extra_args have no effect: the 'sglang' runtime does not understand it, so nothing
   is added to the serve command` (`launch.log:41`), and the reaped serve log (31,127 B) dumps
   `'moe_runner_backend': 'flashinfer_mxfp4'` with zero `marlin` occurrences and dies on the same `ValueError: Mxfp4FlashinferCutlassMoEMethod requires
