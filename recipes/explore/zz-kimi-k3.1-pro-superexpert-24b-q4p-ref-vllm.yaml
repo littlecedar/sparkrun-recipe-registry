@@ -31,12 +31,16 @@ description: >-
   code has one dense `KimiSuperExpertMLP`, and declares `max_position_embeddings: 1048576` with
   no positional scheme anywhere in the modeling code, so the 1M context is unverifiable from the
   shipped artifacts (not impossible — a NoPE design is legitimate, as the Ripple arm shows).
-  ATTEMPTS (2026-11-08, campaign window, no measurement): two launches died on
+  ATTEMPTS (2026-11-08, campaign window): two early launches died on
   `serve.py: error: unrecognized arguments: --served-model-name` — sparkrun's vllm runtime
-  appends that flag and this launcher did not parse it; the retained receipt's launch ended
-  34.4 s total with a 241 B serve log. serve.py now parses the flag and reports it from
-  /v1/models; authored-not-booted still, because the fix is unretested, and any house number
-  this arm produces is the dense ~24B artifact's, never a 2.8T MoE result.
+  appends that flag and this launcher did not parse it. serve.py now parses it and reports it
+  from /v1/models; three later boots reached watchdog `healthy` + `/v1/models` 200 at 117-118 s
+  TTR and were torn down without a cell. That is structural, not a model defect: llama-benchy,
+  tool-eval-bench and every h2h-client cell speak /chat/completions, which this serve refuses
+  with 400 (no chat template ships), so no ladder.json / house.yaml can appear and the extra
+  client's house cell returns 37x400. Acceptance is the boot receipt (health, served id, image
+  id) and, if that image ever gets one, a completions-speaking cell — any house number this arm
+  produces is the dense ~24B artifact's, never a 2.8T MoE result.
 metadata:
   model_url: https://huggingface.co/shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>

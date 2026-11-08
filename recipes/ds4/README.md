@@ -1036,6 +1036,15 @@ Either missing makes the arm authored-not-booted with that exact blocker. What i
 is the model side: no boot has proved the image's `deepseek4`/DSV4.1 loader agrees with this GGUF's
 per-tensor mix, nor what a decode step costs when one Engram row per token comes off BeeGFS.
 
+**What a successful serve can produce — a marker, unlike the Kimi arms.** `llama-server` answers
+`/v1/completions` and `/v1/chat/completions` (it reads a chat template from the GGUF metadata; the
+repo's `chat_template.jinja` is not auto-loaded — llama.cpp wants `--chat-template`/`--chat-template-file`),
+and it answers llama-benchy's `/props` probe. So this arm **can** write `ladder.json` plus the flat
+`house.yaml` marker, and `ladder: ok` is the state that closes it. If no marker appears, read the
+serve log before naming a cause: engine load / arch rejection (the b11870 floor), readiness on the
+Engram link, or a templateless serve answering chat with 400 are three different failures; only the
+last one is the instrument gap the Kimi arms have.
+
 
 
 ## SM121 survey arms (zz-, DeepGEMM gate cleared 2026-11-07)

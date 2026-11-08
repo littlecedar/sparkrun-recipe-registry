@@ -15,8 +15,14 @@ description: >-
   layers, router rows and e_score_correction_bias pruned with them) and otherwise
   untouched: attention (KDA 3:1 + DSA indexer), shared experts, dense layer, vision
   tower and the original MXFP4 routed-expert quantisation are the base model's.
-  Four GB10 nodes, TP=4. AUTHORED-NOT-BOOTED 2026-11-08: the fleet window was held
-  by session campaign-queue; sizing, engine and pin evidence below, no receipt yet.
+  Four GB10 nodes, TP=4. ATTEMPTED 2026-11-08, no serve: the engine resolved the
+  architecture (`Resolved architecture: KimiK31ForConditionalGeneration`,
+  `tokenizer_mode='kimi_k3'`) and then failed `VllmConfig` — "Couldn't instantiate
+  the backend tokenizer ... need sentencepiece or tiktoken" — so the pinned nightly
+  lacks the tokenizer dependency this repo's custom TikTokenTokenizer needs. Behind
+  it: the 454.2 GB target was not staged. Also no chat template ships, so a healthy
+  serve would answer only /v1/completions and the chat instruments cannot write a
+  marker (see the lane README's acceptance paragraphs).
   FIT: 737.6 B params = U8 680,685,207,552 elements (MXFP4-packed, 340.3 GB) + BF16
   56,915,256,320 (113.8 GB) + F32 11,060,608 (0.04 GB) = 454.2 GB = 423.0 GiB, i.e.
   105.75 GiB per rank over TP=4 against ~121 GiB usable per GB10. That is 82.6 % of

@@ -1008,7 +1008,7 @@ window `head:~/benchmarks/tp12-20261107/zz-sage-a1.5-35b-a3b-q4km-llamacpp/` (`l
 
 ## `zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm`
 
-**Artifact probe, authored-not-booted (2026-11-08), attempted twice and fixed.** Model
+**Artifact probe, boot-verified and unmeasured (2026-11-08).** Model
 `shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB` pinned `b88a90e8`. No engine loads it:
 `architectures: [KimiK31SuperExpertForCausalLM]` exists only in the repo's own `auto_map`, so
 vLLM/SGLang resolution fails, and the `gguf` tag points at a 623 B GGUF (v3 magic,
@@ -1044,16 +1044,49 @@ claim-by-claim probe in
   (`kimi-k3.1-pro`), so the licence claim is defective. Quality claims (94.8 % retention, the
   benchmark table) have no harness, fixtures or receipt in the repo.
 
-**Two attempts, one recipe defect, no measurement.** Both launches failed in the 2026-11-08
-`campaign-queue` window, and the retained second attempt's log names the cause: `serve.py: error:
-unrecognized arguments: --served-model-name shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB`.
-sparkrun's vllm runtime appends that flag to any vllm command it renders, and the launcher's
-argparse did not accept it.
-The retained receipt has a 241 B reaped serve log with that usage text and a `launch.log` totalling
-34.4 s (run 16.8 s + launch 14.7 s); watchdog verdict was `dead` with `serve_pid=gone` at 11 s.
-Nothing loaded, so no cell exists. `serve.py` now parses `--served-model-name` and reports it from
-`/v1/models` (then `SERVED_MODEL_NAME`, then the default); the fix is **unretested**, so the arm
-stays authored-not-booted.
+**Two argument-error attempts, then three healthy boots that could not be measured.** Both early
+launches failed in the 2026-11-08 `campaign-queue` window, and the retained attempt's log names the
+cause: `serve.py: error: unrecognized arguments: --served-model-name
+shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB`. sparkrun's vllm runtime appends that flag to any
+vllm command it renders, and the launcher's argparse did not accept it. `serve.py` now parses it and
+reports it from `/v1/models` (then `SERVED_MODEL_NAME`, then the default). The fix is **retested**:
+receipts `…prev-074303`, `…prev-075452` and the live directory each reached watchdog
+`verdict=healthy` with `/v1/models` 200 (TTR 117.0 / 118.4 / 118.4 s) — and each was then torn down
+**without a measurement**, for the structural reason below.
+
+**Acceptance contract: this arm cannot carry a marker, by construction.** Recorded 2026-11-08 so the
+next reader does not read the absence as a model defect:
+- **What runs after a healthy serve.** `run-arm.sh` runs llama-benchy against
+  `benchmarking/concurrency-ladder.yaml` and tool-eval-bench against
+  `benchmarking/standard-suite.yaml`, then stops the serve. On these boots the ladder read
+  `[1/4] running d=0 c=1 → [1/4] FAILED (2.5–2.7 s)` and the suite `[1/1] FAILED (1.0 s)`, with the
+  serve log showing `POST /v1/chat/completions … 400` — the launcher's designed refusal. No
+  `ladder.json` and no `house.yaml` are written, so `evidence.done()` reports
+  `no marker and no machine-readable artefact`.
+- **Why no cell is possible.** llama-benchy 0.4.0 speaks `/chat/completions` only
+  (`client.py:177,202,240,267,310`; `--extra-body` merges into chat requests), tool-eval-bench's
+  standard suite is a chat/tool instrument, and every chat cell in `h2h-client` routes to
+  `quality-battery.py`/`needle-haystack.py`/`bfcl-eval.py`, all chat-only. This serve answers chat
+  with 400 **on purpose** (the checkpoint ships no template and the launcher will not fabricate
+  one), so no shipped instrument can measure it. `llama-benchy` also probes `/metrics`, `/version`
+  and `/props` (404 here); none of those is required for the ladder, the chat 400 is what fails it.
+- **The recipe's `command:` shape does not bypass the ladder.** `run-arm.sh` launches through
+  sparkrun and then runs both legs against the live serve; they fail on the endpoint's own 400, not
+  on being skipped. The proof is the two failed leg logs beside a `serve-*.log` carrying the 400s.
+- **`ARM_EXTRA_CLIENT` is supported, and was proven here.** The hook runs after the cells and before
+  the unconditional stop (the live attempt's `extra-client.log` shows it ran with
+  `image=sha256:4ceb…`). It wrote `client/client.json` (cell `house4096`, `image_id`,
+  `rc=2`) and `client/house.json` — and that house cell is **0/37 with 37 HTTP 400 transport
+  errors**: a chat cell against a completions-only serve is an instrument-gap artifact, never a
+  quality score. A markerless arm therefore *does* get a client measurement attempt, but not a
+  usable one.
+- **What acceptance is, then.** A boot-verified probe: watchdog `healthy` + `/v1/models` 200 with
+  the served id + `image.txt` + the two failed instrument logs + `client.client.json` with its
+  `image_id` and `rc`. That receipt is the arm's result (the dequant path loads and serves); it is
+  not a quality or throughput cell. To get one, a completions-speaking cell has to exist — the only
+  shipped completions instrument is `humanizer-measure.py` (rewrite-integrity, off-brief here), so
+  that is a tool change, not a recipe knob. Retrying unchanged reproduces
+  healthy → no marker → stopped, forever; do not attribute that loop to the model.
 
 **Read any future number as the dense ~24 B artifact's, never as a 2.8 T result.** The arm
 registers `tp: 1` because the reference route is the only one constructible on one node; its
@@ -1063,7 +1096,8 @@ loader for this checkpoint).
 
 ## `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4`
 
-**Servable Kimi body, authored-not-booted (2026-11-08).** `vllm-project/Kimi-K3.1-Pro-pruned75`
+**Servable Kimi body, attempted and blocked at engine bootstrap (2026-11-08).**
+`vllm-project/Kimi-K3.1-Pro-pruned75`
 pinned `fc72e5a1`: 75 % of the routed experts removed per MoE layer (896 → 224, 92 layers, router
 rows and `e_score_correction_bias` pruned with them), everything else the base
 `moonshotai/Kimi-K3.1-Pro` ships — MLA attention with the DSA indexer on 24 layers, KDA on the rest,
@@ -1077,16 +1111,25 @@ rows and `e_score_correction_bias` pruned with them), everything else the base
   `num_experts_per_token: 16`, `num_shared_experts: 2`, 93 hidden layers with
   `first_k_dense_replace: 1` (so 92 MoE layers), `dsa_config.dsa_layers` listing the 24 full/DSA
   layers, `kda_layers` the other 69, and `quantization_config.format: mxfp4-pack-quantized`.
-- **Engine gate: PASSED from the image itself.** I pulled the pinned nightly arm64
-  (`0.33.0rc1.dev1016+g06129ab02`, created 2026-11-07) and walked its filesystem: the module tree
-  `vllm/models/kimi_k3/` is present and
+- **Engine gate: PASSED from the image itself, and now boot-proven.** I pulled the pinned nightly
+  arm64 (`0.33.0rc1.dev1016+g06129ab02`, created 2026-11-07) and walked its filesystem: the module
+  tree `vllm/models/kimi_k3/` is present and
   `vllm/model_executor/models/registry.py` maps `"KimiK31ForConditionalGeneration"` to it. The same
   image's `vllm/tool_parsers/__init__.py` registers `kimi_k3`, so the serve line's parsers exist.
-  Upstream context: the last release tag `v0.33.0rc3` does **not** carry the class, which is why
-  this nightly is the earliest known pin rather than any release. Serving needs `--trust-remote-code` (config `auto_map`) and the card's
-  `kimi_k3` reasoning/tool parsers. Re-checked 2026-11-08: the pinned digest still resolves in
-  GHCR, but **no node holds the image** (all six `docker image inspect` miss), so the first boot
-  pays the pull; the checkpoint itself is metadata-only in the pool (one `config.json`).
+  On the 2026-11-08 TP=4 attempt the engine printed `Resolved architecture:
+  KimiK31ForConditionalGeneration` and `Defaulting to tokenizer_mode='kimi_k3'` — the class
+  resolves end to end. Upstream context: the last release tag `v0.33.0rc3` does **not** carry the
+  class, which is why this nightly is the earliest known pin rather than any release. Serving needs
+  `--trust-remote-code` (config `auto_map`) and the card's `kimi_k3` reasoning/tool parsers. The
+  pinned digest still resolves in GHCR, but no node held the image before this boot, which paid the
+  pull; the checkpoint weights were not staged either (one `config.json` in the pool).
+- **First boot died at the tokenizer, not the model (2026-11-08 07:47 UTC).** After the two
+  resolution lines above, `VllmConfig` failed with `Couldn't instantiate the backend tokenizer …
+  You need to have sentencepiece or tiktoken installed to convert a slow tokenizer to a fast one`
+  — the pinned nightly ships **neither** for this repo's custom `TikTokenTokenizer`. Named image
+  gap: a rebuilt pin with `tiktoken` is the prerequisite, and behind it sits the unstaged 454.2 GB
+  target. Receipt `~/benchmarks/h2h-20261107/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4/` (`serve-0.log`
+  lines 13-14, 63-68; launch failed at 76.1 s).
 - **Quality, as the card states it.** GSM8K 5-shot 43.67 % on four B300s at TP=4, with "expect a large
   quality regression relative to the source model" in the card. Not a general-purpose candidate.
 - **Chat template: none on the Hub.** The repo has no `chat_template.jinja` and
@@ -1101,10 +1144,14 @@ rows and `e_score_correction_bias` pruned with them), everything else the base
   only blip2/clip/colpali/ocr/minicpmv/openvla/paligemma/siglip entries and **no** `kimi_k31` or
   `kimi_linear` key. That is why the chat endpoint is expected to refuse.
 - **Licence.** `other` / `kimi-k3.1-pro`, inherited with the base's LICENSE link — not Apache-2.0.
+- **Acceptance.** Same markerless shape as the DSpark sibling below: no chat template means the chat
+  instruments write no ladder and no `house.yaml`, so the serve itself is the evidence. Do not read a
+  healthy boot with no marker as an engine failure.
 
 ## `kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4`
 
-**Drafter sibling of the arm above (authored-not-booted, 2026-11-08).** Same target and image, plus
+**Drafter sibling of the arm above (attempted, blocked before the drafter initialises, 2026-11-08).**
+Same target and image, plus
 `LithosAI/Kimi-K3.1-Pro-DSpark` pinned `d791d217` as a vLLM `dspark` speculator carried in
 `defaults.speculative_config` (so sparkrun distributes the draft repo and its own revision). The
 draft is a 2.25 B BF16 head (4.50 GB): 5 dense GQA layers, hidden 7168, SwiGLU 14336, reading target
@@ -1145,6 +1192,27 @@ about them changed.
 the plain arm pays the 454.2 GB target download and the DSpark sibling pays both. Chat template is
 confirmed absent at the pin: `tokenizer_config.json` has no `chat_template` key and the repo ships no
 `chat_template.jinja`, so both arms measure on `/v1/completions`.
+
+**First boot stopped at the *drafter's distribution*, not at binding (2026-11-08 07:46 UTC).** The
+engine resolved the target (`Resolved architecture: KimiK31ForConditionalGeneration`, `tokenizer_mode
+= 'kimi_k3'`) and then failed `SpeculativeConfig` validation with `Invalid repository ID or local
+directory specified: 'LithosAI/Kimi-K3.1-Pro-DSpark'` — `HF_HUB_OFFLINE=1` with the drafter absent
+from the pool. So no drafter initialisation was attempted: the binding question above is still
+open, and the immediate blocker is the draft download (plus the same `tiktoken`/`sentencepiece`
+image gap that stops the plain arm at its tokenizer). Receipt
+`~/benchmarks/h2h-20261107/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4/` (`serve-0.log` lines
+10-71; launch failed at 76.9 s).
+
+**What a successful serve can produce here — no marker.** No Jinja template exists anywhere on the
+Hub for this family, so `/v1/chat/completions` refuses; every shipped instrument speaks chat
+(llama-benchy 0.4.0, tool-eval-bench's standard suite, `quality-battery.py`), so a healthy vLLM boot
+writes **no `ladder.json` and no `house.yaml`**, and an `ARM_EXTRA_CLIENT` house cell returns 37×400
+exactly as the SuperExpert probe's does. Acceptance for this arm is therefore the serve itself and
+the drafter evidence: `/v1/models` 200 with the served id, `max_model_len` as shipped, and the
+DSpark acceptance counters in the serve log (drafts, accepted tokens, mean accepted length) that
+settle the binding gate above. That is where the drafter's verdict is read — never from a marker.
+"The serve is healthy and no marker appeared" is the expected shape for both Kimi arms (this one and
+the plain `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4`); it is not an engine failure.
 
 ## Kimi-K3.1-Pro spinoffs: REAPs, drafters and the EXL3 2-bit
 

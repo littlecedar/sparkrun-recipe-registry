@@ -47,21 +47,26 @@ could add the arch (out of scope for a probe).
 4. cost of the reference route (Python dequant per forward) — a correctness probe, never a
    serving benchmark.
 
-Until 2026-11-08 this arm is **authored-not-booted** — and it was attempted twice in that window
-without producing a measurement, for a recipe reason now identified and fixed.
+Until 2026-11-08 this arm is **boot-verified and unmeasured**: the flag defect is fixed, three boots
+have since reached a healthy serve, and no shipped instrument can score the result (see the lane
+record's acceptance contract).
 
-- **Attempts.** Both launches in the `campaign-queue` window failed; the retained second attempt's
-  log names the cause: `serve.py: error: unrecognized arguments: --served-model-name
-  shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB`, followed by `head container not running`. The
-  receipt (`zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm/`) carries a
+- **Attempts (flag defect).** Both early launches in the `campaign-queue` window failed; the retained
+  attempt's log names the cause: `serve.py: error: unrecognized arguments: --served-model-name
+  shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB`, followed by `head container not running`. That
+  receipt (`zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm.prev-*`) carries a
   241 B reaped serve log with that usage text and a `launch.log` whose timings total 34.4 s
   (run 16.8 s + launch 14.7 s); the watchdog's line is `verdict=dead serve_pid=gone` at 11 s.
-  Nothing loaded, so there is no cell and no quality number.
-- **Cause and fix.** sparkrun's vllm runtime appends `--served-model-name <model id>` to *any* vllm
-  command it renders (it cannot know a free-form `command:` scripts its own server), and this
-  launcher's argparse did not accept the flag. `serve.py` now takes `--served-model-name` and reports
-  that value from `/v1/models` (falling back to `SERVED_MODEL_NAME`, then the default). The fix is
-  **unretested**; the arm stays authored-not-booted until a launch reaches a token.
+- **Cause and fix, now retested.** sparkrun's vllm runtime appends `--served-model-name <model id>`
+  to *any* vllm command it renders (it cannot know a free-form `command:` scripts its own server),
+  and this launcher's argparse did not accept the flag. `serve.py` takes `--served-model-name` and
+  reports it from `/v1/models` (falling back to `SERVED_MODEL_NAME`, then the default). Receipts
+  `…prev-074303`, `…prev-075452` and the live directory each reached watchdog `verdict=healthy` and
+  `/v1/models` 200 at 117–118 s TTR.
+- **Unmeasured, by construction.** llama-benchy, tool-eval-bench and every `h2h-client` cell speak
+  `/chat/completions`, which this launcher refuses with 400 (the checkpoint ships no template). So
+  no `ladder.json`, no `house.yaml`, and a house client cell of 0/37 with 37 HTTP 400s. The receipt
+  is the evidence; the empty marker is the instrument gap, not a model defect.
 - **What a boot must not be read as.** Whatever the house battery says on this arm is a ~24B dense
   artifact's number. It is not a measurement of `moonshotai/Kimi-K3.1-Pro` and must never be quoted
   as a 2.8T result; the probe's job is coherence of the dequant path, not capability ranking.
