@@ -62,3 +62,6 @@ command: >
   --enable-auto-tool-choice
   --tool-call-parser qwen3_xml
   --reasoning-parser qwen3
+  --enable-force-include-usage
+  --enable-prompt-tokens-details
+  --enable-per-request-metrics

@@ -71,3 +71,6 @@ command: >
   --enable-auto-tool-choice
   --default-chat-template-kwargs '{default_chat_template_kwargs}'
   {extra_args}
+  --enable-force-include-usage
+  --enable-prompt-tokens-details
+  --enable-per-request-metrics

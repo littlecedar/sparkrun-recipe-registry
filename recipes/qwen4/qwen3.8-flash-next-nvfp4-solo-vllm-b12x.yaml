@@ -82,3 +82,6 @@ command: >
   --enable-auto-tool-choice
   --compilation-config '{"pass_config": {"fuse_act_quant": true}}'
   --gpu-memory-utilization {gpu_memory_utilization}
+  --enable-force-include-usage
+  --enable-prompt-tokens-details
+  --enable-per-request-metrics

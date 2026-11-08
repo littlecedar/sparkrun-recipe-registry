@@ -92,3 +92,6 @@ command: >
   --tool-call-parser poolside_v1
   --enable-auto-tool-choice
   --default-chat-template-kwargs '{"enable_thinking": true}'
+  --enable-force-include-usage
+  --enable-prompt-tokens-details
+  --enable-per-request-metrics

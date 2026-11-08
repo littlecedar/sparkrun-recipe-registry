@@ -57,3 +57,6 @@ command: >
   --logprobs-mode processed_logprobs
   --enable-prefix-caching
   --mamba-cache-mode align
+  --enable-force-include-usage
+  --enable-prompt-tokens-details
+  --enable-per-request-metrics

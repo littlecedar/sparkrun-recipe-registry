@@ -80,3 +80,6 @@ command: >
   --reasoning-parser qwen3
   --trust-remote-code
   --speculative-config '{"method":"mtp","num_speculative_tokens":{speculative_tokens}}'
+  --enable-force-include-usage
+  --enable-prompt-tokens-details
+  --enable-per-request-metrics

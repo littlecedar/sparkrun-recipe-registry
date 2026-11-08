@@ -88,3 +88,6 @@ command: >
   --reasoning-parser ripple
   --tool-call-parser ripple
   --enable-auto-tool-choice
+  --enable-force-include-usage
+  --enable-prompt-tokens-details
+  --enable-per-request-metrics

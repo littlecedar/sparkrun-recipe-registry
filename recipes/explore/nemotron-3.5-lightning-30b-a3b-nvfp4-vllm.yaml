@@ -65,6 +65,9 @@ command: >
   --reasoning-parser nemotron_v3
   --tool-call-parser qwen3_coder
   --enable-auto-tool-choice
+  --enable-force-include-usage
+  --enable-prompt-tokens-details
+  --enable-per-request-metrics
 
 # Traps measured on the 2026-10-21 boot, kept here because each one costs an hour
 # to rediscover:

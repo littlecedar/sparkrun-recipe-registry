@@ -57,3 +57,6 @@ command: >
   --max-num-seqs {max_num_seqs}
   --optimization-level {optimization_level}
   --performance-mode {performance_mode}
+  --enable-force-include-usage
+  --enable-prompt-tokens-details
+  --enable-per-request-metrics

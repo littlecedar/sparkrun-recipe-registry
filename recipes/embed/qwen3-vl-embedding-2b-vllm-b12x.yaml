@@ -66,4 +66,7 @@ command: >
   --block-size {block_size}
   --load-format {load_format}
   --trust-remote-code
+  --enable-force-include-usage
+  --enable-prompt-tokens-details
+  --enable-per-request-metrics
 

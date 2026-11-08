@@ -57,3 +57,6 @@ command: >
   --attention-backend {attention_backend}
   --block-size {block_size}
   --load-format {load_format}
+  --enable-force-include-usage
+  --enable-prompt-tokens-details
+  --enable-per-request-metrics

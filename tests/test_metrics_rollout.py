@@ -45,7 +45,7 @@ RECIPE_GLOB = "recipes/*/*.yaml"
 #: deletes this constant, after which every completeness assertion is armed.
 #: Kept explicit rather than inferred from the tree: a half-swept family must
 #: not read as complete because its flags happen to exist somewhere.
-UNSWEPT = frozenset({"vllm", "llama-cpp"})
+UNSWEPT = frozenset({"llama-cpp"})
 
 SGLANG_FLAGS = ("--enable-metrics", "--enable-cache-report")
 VLLM_FLAGS = (

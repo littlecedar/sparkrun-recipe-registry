@@ -73,3 +73,6 @@ command: >
   --enable-auto-tool-choice
   --speculative-config '{speculative_config}'
   --default-chat-template-kwargs '{"enable_thinking": true}'
+  --enable-force-include-usage
+  --enable-prompt-tokens-details
+  --enable-per-request-metrics
