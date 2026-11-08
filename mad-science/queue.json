@@ -1678,6 +1678,36 @@
       "claimed_at": "",
       "recipe": "recipes/media/idol-1.8b-bf16-3dgs-script.yaml",
       "tp": 1
+    },
+    {
+      "id": "run-arm-harvest-counts-reaped-log",
+      "title": "run-arm.sh harvest counter must count the watchdog serve-reaped-* capture",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "The runner prints `serve logs harvested: 0 (expected one per running rank; 0 means log gone)` by globbing its own capture name, while tools/boot-watchdog.py copies the container /tmp/sparkrun_serve.log to `serve-reaped-<container>.log` beside its own --log BEFORE it stops the task. Three arms this hour were closed as \"no engine evidence\" while their crash text sat in the receipt dir: zz-ds4-1017-sm121-arm5-trtllm-mla (31 KB, `ValueError: Mxfp4FlashinferCutlassMoEMethod requires hidden_size and intermediate_size_per_partition to be multiples of 128 (got hidden=5120, intermediate=576)`), zz-ds4-1017-sm121-arm3-control (same ValueError), zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm (`serve.py: error: unrecognized arguments: --served-model-name`). Fix: count and list `serve-reaped-*.log` in the harvest line and in the receipt, so \"0 harvested\" can only mean the capture itself failed. Precedent: the cyankiwi AWQ arm 2026-11-03 was misread the same way.",
+      "provenance": "mad-science/STATUS.md 2026-11-08 04:13 ET landed rows; mad-science/SESSION-RECORD.md 2026-11-08 tick",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "executor-release-host-claim-on-failure",
+      "title": "An executor that stops observing a launch must release the sparkrun host claims it holds",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "Measured 2026-11-08 04:09-04:13 ET: kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4 attempt 1 launcher (pid 1883449) held .30-.33 while its own registry distribution failed at 414.7 s (637.1 MiB at 1.6 MiB/s from docker.io, then `Registry image distribution failed on: 10.0.4.30, .31, .32, .33`), and run-arm.sh had already declared `no container appeared` at 04:09:09. The next three arms were refused rc=5 on `Error: Execution resources are busy ... held by running pid 1883449` (dspark @2, kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4 @1..2, zz-ripple-65b-preview-bf16-tp2-vllm @1..2), so the plan tail measured nothing. By 04:14 the pid was gone and `sparkrun daemon resources list` read [] - the claim was released by process exit, not by the executor. Fix: when a launch produces no container, wait for or kill the launcher and verify `sparkrun daemon resources list` is empty before the next arm is leased; a refused claim should end the arm as a distinct holder-busy code instead of retrying into a failed measurement.",
+      "provenance": "mad-science/STATUS.md 2026-11-08 04:13/04:19 ET rows; mad-science/SESSION-RECORD.md 2026-11-08 tick",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
