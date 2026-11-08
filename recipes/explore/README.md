@@ -46,7 +46,7 @@ the pyannote diarizer. Explore keeps the language and agentic/RAG arms.
 - [kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4](#kimi-k31-pro-pruned75-mxfp4-vllm-tp4)
 - [kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4](#kimi-k31-pro-pruned75-mxfp4-dspark-vllm-tp4)
 - [Kimi-K3.1-Pro spinoffs: REAPs, drafters and the EXL3 2-bit](#kimi-k31-pro-spinoffs-reaps-drafters-and-the-exl3-2-bit)
-- [Ripple-65B Preview (2026-11-08 trial, not booted)](#ripple-65b-preview-2026-11-08-trial-not-booted)
+- [Ripple-65B Preview (2026-11-08 trial)](#ripple-65b-preview-2026-11-08-trial)
 - [Attic index](#attic-index)
 
 ## Easy-traffic selection (2026-10-22)
@@ -1197,15 +1197,16 @@ fit arithmetic below is all that stands between it and an attempt. Two independe
 Licences in this section are the base's `kimi-k3.1-pro` (`other`) except `RadixArk`'s draft, which is
 Apache-2.0, and `lightseekorg`'s, which is `other` with no licence name.
 
-## Ripple-65B Preview (2026-11-08 trial, not booted)
+## Ripple-65B Preview (2026-11-08 trial)
 
 `ricursiveAI/Ripple-65B-Preview` is a **65B dense** (not MoE) thin-and-deep model: 80 layers at
 d_model 5120 / FFN 40960, 80 Q / 8 KV heads at head_dim 128, gated attention, value residuals,
 global NoPE, **16 full-attention layers** among four 1024-token sliding ones, 2,097,152 positions,
 vocab 100,352, Apache-2.0 and `gated: false`. The card claims 80.52 on TerminalBench 2.1 and that
-it "can fit on consumer hardware such as the NVIDIA DGX Spark". Three `zz-` probes are authored and
-**none has booted** (the fleet window belongs to the campaign), so no index row exists for them —
-"no row is given to an arm with no receipt" holds here too.
+it "can fit on consumer hardware such as the NVIDIA DGX Spark". Three `zz-` probes are authored;
+**only the BF16 TP=2 cell has booted** (2026-11-08, campaign attempt 3 on two nodes) and it produced
+no measurement, so no index row exists for any of them — "no row is given to an arm with no receipt"
+holds here too.
 
 **Engine decision, on evidence.** vLLM, and only its **nightly**: `ricursive` support is
 [vllm-project/vllm#65745](https://github.com/vllm-project/vllm/pull/65745), which the official
@@ -1244,6 +1245,21 @@ GiB/rank → ~1.36M tokens, so it carries the card's `1048576`. **The card's 1M 
 TP=2 cell, not a one-Spark one**, and TP=4 would only split 60 GiB into 30 GiB ranks for no
 bandwidth gain past two nodes.
 
+**Measured 2026-11-08, BF16 TP=2 boot** (engine `v0.33.0rc1.dev1030+gcf5cea2da` from the pinned
+nightly digest; source: the arm's `launch.log`): the card's 1M context is **real at TP=2** —
+`Available KV cache memory: 41.3 GiB` on the TP0 worker, `GPU KV cache size: 1,281,286 tokens`,
+`Maximum concurrency 1,048,576 tokens per request: 1.22x`, `kv cache group sizes (64, 64, 64, 64,
+64)`. The ~1.36M estimate above was 6 % optimistic, not wrong. **The launcher's own fit block is a
+false negative on this model**: it printed `KV demand 160.0 GiB bfloat16 at max_model_len
+1,048,576`, `KV space 42.9 GiB ~281,208 tokens (0.3x max_model_len)`, `Fit … EXCEEDS` and
+`Warning: max_model_len 1,048,576 exceeds KV space (27% fits)`, because it charges all 80 layers as
+full attention while 64 of them are 1024-token sliding. Boot it anyway — the warning is not a
+refusal, and the engine's own group sizing is what governs. Timings on that boot: containers at
+05:32:47, `TTR HTTP-ready 409.948 s` inside a 749.2 s launch, `/v1/models` 200 naming
+`max_model_len 1048576`. It measured no cell: the runner closed the arm `rc=1 no container
+appeared` 26 s before its containers existed and the serve then ran unguarded and unleased until
+~06:09, so the 1M cell still owes its first ladder.
+
 **What the first boot must print to count** (the discriminators, in order): (1) the parser names are
 accepted — `--reasoning-parser ripple` / `--tool-call-parser ripple` fail closed with "unknown
 reasoning parser" if the nightly lost them; (2) architecture registration — no
@@ -1256,7 +1272,8 @@ check passing at `max_model_len 131072` (the draft's configured cap).
 
 **Unverified, named.** GB10/sm_121 is in none of the recipe index's hardware rows
 (`b200`/`gb200`/`b300`/`gb300`), so the NVFP4 GEMM path on this arch is the single biggest unknown;
-the 1M-token cell is arithmetic; vLLM caps nothing on the draft's own position limit but the
+the TP=2 1M-token cell is now measured (1,281,286 tokens above), the NVFP4 cells' capacity is still
+arithmetic; vLLM caps nothing on the draft's own position limit but the
 drafter probe stays at 131072 rather than rely on an override the way the vendor's SGLang launcher
 does (`SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`); and the engine itself is a nightly pinned by
 digest — a moving target we froze, not a release.
