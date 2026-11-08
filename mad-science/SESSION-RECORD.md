@@ -4231,3 +4231,31 @@ census row carries the `.30` attribution that commit endorsed (446.3 GB of image
 cache behind the transients, LIKELY image unpack, not pool traffic). The push was a fast-forward from
 `373b60d`, so the withdrawal commit and the peer's `d884a74` census board are both ancestors and
 nothing was dropped.
+
+## 2026-11-08 00:30 ET — board tick that read independently and published nothing
+
+Four peer ticks published inside this hour (00:04, 00:13, 00:19, 00:26), so this tick's contribution is an
+independent census and a verification, not another whole-file write. Its own reads — 00:15:29 (the flash
+arm's attempt-3 quartet ready: four rank containers, rank 0 `/v1/models` **200**
+`{"id":"GLM-5.3-Flash-EXL3"}`), 00:23:14 (that quartet gone; the **753B** arm's attempt-3 quartet
+`sparkrun_7d9a3a61b33a29e4_3d01b30293f6_node_0..3` up and loading) and 00:26:29 (same quartet, `Up 4
+minutes`, `/v1/models` 000, lease attempt 3 hb 00:26:21) — agree with the 00:26 board's own 00:25:09
+read, which is why nothing was republished over it.
+
+- **Re-derived here, not carried:** containers per node, volumes, root-avail bytes, the register's counts
+  (94 tasks, 75 done, 19 open: 2 running + 15 queued + 2 blocked) and the `render --board` table (19
+  rows), twice.
+- **The publish→commit race is what cost this tick a commit.** It published the 00:15:29 census at 00:21
+  and a peer published over it before its `git add`, so its `git commit -- mad-science/STATUS.md` took
+  the peer's 00:19 board. The commit that stands in history, `d884a74`, was written by a peer with a
+  paraphrase of that subject; this tick's own `9f7370a` is now unreferenced. No bytes were lost and no
+  history was rewritten — the class is the one `status-board-refresh` documents, and the fix is that the
+  read and the commit must be inside one bounded window, not twenty seconds of prose apart.
+- **Register divergence, reported not fixed:** `h2h-second-boot-glm-flash` still holds `running` plus its
+  `05:06:56Z` claim for a boot that died at 00:17:41, while `h2h-second-boot-glm-753b` carries the live
+  claim (`05:21:41Z`). `mad-science/queue.json` has a peer's uncommitted edit, so the correction belongs
+  to its owner.
+- **Escalation, unchanged:** `_on_signal` at `campaign/sparkrun_campaign/director.py:546` has now killed
+  the director four times in this hour, each death orphaning its lease; the 00:17 one took a serve that
+  had reached `readiness=yes` and answered `/v1/models` 200 a minute earlier, with no receipt written —
+  that arm's cells are lost work, not a measurement.
