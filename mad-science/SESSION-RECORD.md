@@ -5619,3 +5619,22 @@ Two defects found while folding this hour's board, both cheap to state and neith
   fleet-wide: the OOM took the weights away from every node, not just that arm. Either move storage
   off `.30` or budget the host explicitly before the next quartet boot.
 ---
+
+## 2026-11-08 13:09 ET — a flag is in effect at the engine's argument dump, not at the command that carried it
+
+- **Six attempts inferred the marlin lever from the launcher side; one read of the engine settled it.**
+  The arm's receipt env reads `EXTRA_SGLANG_ARGS=--moe-runner-backend marlin` (`state.json`), and that
+  is what the previous attempts were judged on — a launcher that passed the string was read as an
+  engine that had received it. It is not the same statement. The proof is the engine's own argument
+  dump: `'moe_runner_backend': 'marlin'` in
+  `zz-ds4-1017-sm121-arm3-control-marlin.prev-113207/launch.log` (11:26, the boot that then overran
+  the host) and again in `.prev-130235/launch.log` (12:57). The propagation point is the dump, and
+  the earlier `-o extra_args` lesson is the same lesson one layer down: a channel that silently
+  drops an option looks identical to an option that arrived, until the engine prints its argv.
+- **The rule.** When a lever's effect is the question, the receipt must carry the *consumer's* view of
+  it — the engine's argument dump, the resolved config, the loaded method — not the producer's
+  intent. "The flag was passed" is a claim about our command line; "the flag is in effect" is a claim
+  about the engine, and only the second one can overturn a fit-negative.
+- **What stays open.** Whether a marlin-served quartet boot fits the host is unmeasured: the flag
+  reaching the engine is not the arm fitting, and the earlier input-pressure death is provisional
+  until a boot that carries marlin at the dump survives weight load.
