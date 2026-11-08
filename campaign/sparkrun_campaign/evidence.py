@@ -401,7 +401,7 @@ def metrics_status(arm_dir: str | Path) -> dict[str, object] | None:
                 "hosts": 0, "captured": 0}
     verdicts = [verdict for verdict in map(_metrics_verdict, lines) if verdict]
     if not verdicts:
-        if not only.exists() and source == _METRICS_FILES:
+        if not only.exists() and source == _METRICS_FILES and not lines:
             return None
         return {"status": "", "reason": f"no host verdict in {source}", "hosts": 0, "captured": 0}
     top = max(verdicts, key=lambda verdict: _METRICS_RANK[verdict["status"]])

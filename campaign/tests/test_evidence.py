@@ -274,6 +274,12 @@ class MetricsField(unittest.TestCase):
     def test_no_artifact_reads_none_not_absent(self) -> None:
         self.assertIsNone(evidence.metrics_status(receipt(self.root, "arm")))
 
+    def test_an_artifact_without_a_verdict_is_not_no_artifact(self) -> None:
+        arm_dir = receipt(self.root, "arm")
+        write(arm_dir / "metrics-node-a.txt", "truncated before the verdict line\n")
+        self.assertEqual(evidence.metrics_status(arm_dir)["reason"],
+                         "no host verdict in metrics-*.txt")
+
     def test_the_producer_format_is_read_verbatim(self) -> None:
         # Quoted from what `tools/run-arm.sh` actually emits (its `MetricsScrape` block writes
         # exactly this line into both files), so a fixture drift cannot green a contract the
