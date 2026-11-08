@@ -3900,3 +3900,47 @@ eight `state.json` roots; register 9 open of 82, `check`/`orphans` green.
 - **Still unmeasured:** visual fidelity. 45.5 % clearing a mechanical gate says nothing about whether
   the 97 clean scenes look like what was asked; the dataset's reference renders are the open
   instrument.
+
+## 2026-11-07 23:05 ET — h2h campaign measured its ds4 arm, then the director was stopped; board handed over
+
+Moved here from the board's `Landed session` table, which the 23:00 tick cleared after the previous
+session stopped its campaign. Every clause below was re-read from the source named, not carried from
+the board text.
+
+- **Production serve removed 22:25:04–22:25:24 ET** (`03bdee9`): all four containers of the 47-hour
+  knapcio quartet deleted (node docker journals: `task-delete` 22:25:04 `.33`, 22:25:05 `.32`, 22:25:06
+  `.34`, 22:25:24 `.31`; `.31` logged "cannot exec in a stopped container" then a force-kill fallback).
+  The window lock `session: campaign-queue`, `window_stamp 2026-11-08T03:37Z`, all six nodes,
+  `stop_rule: only containers this campaign starts` was written for it.
+- **`run-arm.sh` gained an arm-scoped extra client** (`3f71e54`, `ARM_EXTRA_CLIENT` / `ARM_EXTRA_TIMEOUT`)
+  so a house or BFCL client rides the arm's own live serve; needed because the h2h rows pair a ladder
+  with a quality battery on one boot.
+- **`h2h-20261107` ran on the head** (`~/benchmarks/h2h-20261107`, one worker slot, hosts `.30`–`.35`).
+  Its first arm, `deepseek-v4.1-flash-knapcio-tp4-1m-sglang`, booted on `.30`–`.33` at 22:47:44Z and
+  closed **`rc=0 measured`** at 23:00:05 with `watchdog: healthy` (receipt
+  `~/benchmarks/h2h-20261107/receipts/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.json`).
+- **Second-boot ladder, 4 cells × 5 runs** (`~/benchmarks/tp12-20261107/deepseek-v4.1-flash-knapcio-tp4-1m-sglang/ladder.json`):
+  C1 pp 2,694.2 ± 1,482.4 / tg 51.1 ± 16.2; C2 pp 4,640.2 ± 589.7 / tg 91.8 ± 3.9; C5 pp 5,252.2 ±
+  322.6 / tg 128.9 ± 4.6; C10 pp 3,649.3 ± 522.1 / tg 159.9 ± 10.1. `house.json` beside it reads
+  `final_score 93` (deployability 89, responsiveness 80, 15 scenarios, `status: completed`, run
+  `2026-11-08T03-59-04Z`). **No cross-boot sigma claim is made here**: the first-boot table cell is an
+  aggregate figure and these are `tg_throughput` means, so the pairing belongs to the
+  `h2h-doc-refresh` row, not to this note.
+- **The director was then stopped, mid-plan.** `director.log` ends
+  `signal 15: stopping after tick (workers get SIGTERM, arms stopped run-arm.sh's own trap)`; no
+  `sparkrun_campaign.director serve` process remains and `sparkrun-campaign.service` is
+  `inactive/dead`. `state.json` still reads **1 measured + 1 leased + 4 pending**: the leased arm
+  `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang@1` on `.30`–`.33` never created a container (its arm log
+  is the launch line plus `Terminated`), its lease heartbeat was 23:00:25 with expiry 23:05:25 ET, and
+  nothing is left alive to reconcile the row. **A stopped director leaves `leased` in `state.json`**, so
+  "unit inactive + a leased arm" is the run-died signature the board must report instead of calling the
+  campaign drained.
+- **The head's `~/.config/sparkrun-campaign.env` points at a different campaign** (`d1-20261107`,
+  hosts `.30` + `.35`, one arm `measured`), so a tick that reads only the env file reports an idle
+  fleet while `h2h-20261107` still holds the lease. Enumerate `~/benchmarks/*/state.json`
+  (ten roots carry one; only `h2h-20261107` has a lease).
+- **Register left with an unclosed row.** 93 tasks, 74 done, 19 open (1 running + 13 queued + 5
+  blocked). `h2h-second-boot-ds4-1017` is `running`, claimed `sparkrun-campaign:h2h-20261107`, though
+  its arm's own receipt says `measured` — finished work whose holder died before `done --evidence`.
+  `41a1788` added the two SM121 survey arms (`w4-survey-arm3-sm121-boot`, `w4-survey-arm5-sm121-boot`)
+  as queued, and the two DeepGEMM-gated arms now hold on them.
