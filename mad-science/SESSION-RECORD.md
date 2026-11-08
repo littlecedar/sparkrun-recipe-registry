@@ -5399,3 +5399,137 @@ proposed with its check and exit code so it lands as its own change with its own
   not clear it — a peer is actively appending rows (19 arrived inside ~10 minutes) — so the clearing
   session owes the homing pass first: `git grep -c <sha> -- mad-science/SESSION-RECORD.md` per row,
   carry what is missing, then clear.
+
+## 2026-11-08 12:20 ET — the pool outage's start was this tick's, and the campaign spent its retries inside it
+
+- **Attribution the 12:18 section left open ("started rather than restarted by a supervisor").** This
+  tick started them: `sudo -n systemctl start beegfs-mgmtd` at **12:06:46** and
+  `sudo -n systemctl start beegfs-meta beegfs-storage` at **12:07:21** on `.30`, ordered mgmtd first
+  because meta and storage register against it (`Registration and management info download complete`,
+  `Nodes added (sync results): 6 (Type: beegfs-storage)`). The unit timestamps that section read are
+  these starts.
+- **The diagnosis, before any start, with the discriminators in order.** `systemctl show -p Result
+  -p ExecMainExitTimestamp -p NRestarts` on `.30` gave `Result=oom-kill` and
+  `ExecMainExitTimestamp=Sun 2026-11-08 11:27:57` for all three, `NRestarts=0`; the journal said
+  `A process of this unit has been killed by the OOM killer` for each at 11:27:57 and quoted their
+  peaks — `beegfs-storage` **38.2 GB** memory peak, `beegfs-meta` 146.7 MB, `beegfs-mgmtd` 36.5 MB.
+  Client side: no listener on `:8008` (`Connection refused`), `ls /mnt/beegfs` answered
+  `Communication error on send` (Errno 70) on **all six** nodes and the head, `stat -f` reported
+  `Blocks: Total 0  Free: 0`, and the head's client logged
+  `Receive failed from management [beegfs-mgmtd:1] @ .30:8008 (recv result: -104)` at **11:27:56** —
+  one second before the servers' exit timestamps — then
+  `Metadata node state sync failed. All nodes set to offline` at **11:42:16**. So the pool was dead
+  from 11:27:57, and every clean `ls` after 12:07:21 is post-start: the "intermittent" reading was a
+  pre/post-restart comparison, which is why the live board's `pool` row was rewritten in place rather
+  than amended.
+- **What the outage cost, measured in the campaign's own words.** The unit restarted at 12:06:35 and
+  leased `zz-ds4-1017-sm121-arm3-control-marlin` as attempts **4, 5 and 6**; each closed inside ~20 s
+  at `[3/6] Distributing resources` with
+  `Error: launch_inference failed: [Errno 70] Communication error on send:
+  '~/.cache/huggingface/token'`. The token is a pool symlink, so a dead pool surfaces as a
+  *distribution* failure — an arm failure with no `recipe:` in the message — and `retries3.conf` was
+  exhausted: the arm is `failed` at `attempts=6`, no marker. Its attempt-1 lever evidence
+  (`moe_runner_backend: 'marlin'`, `Load weight begin. avail mem=112.08 GB`, no 128-multiple
+  refusal) survives only in the receipt dir rotated to `.prev-113207`. **The lesson is the verdict
+  shape, not the arm: an unattributed Errno 70 on a cache symlink is a fleet-storage check, and the
+  tick's census never looked past `docker ps`.**
+- **Recovery verified from three nodes, not from the head alone** (12:07:47): `.30`, `.31` and `.35`
+  each listed **111** hub entries, and the pruned75 body read **112** entries / **96** of 96
+  shards / **0** `.incomplete` / `475 507 835 896 B` by a `find -L -printf '%s'` sum = **442.85 GiB**
+  at revision `fc72e5a1…` — 17.3 MiB under the 11:05 walk's `475 525 935 884 B`. Both round to
+  442.87 GiB and the TP=4 fit is unmoved (110.71 GiB/rank against a 109.67 GiB util-0.92 budget),
+  but the difference is recorded rather than smoothed, because the only reason to prefer one
+  instrument is that it is the same one that produced the number being compared.
+- **Open defect, and it is why 39 minutes produced no recovery:** the three units carry no
+  `Restart=` policy (`NRestarts=0`, `Result=oom-kill` left failed). A pool outage is silent — the
+  fleet's own probes (`docker ps`, `sparkrun status`) read healthy throughout — so this hour's
+  failure mode is available again on the next OOM. Not fixed here: a unit-level policy change on
+  `.30` is an owner decision, and it is recorded here because a ticket in operator memory is not a
+  ticket.
+- **Register hygiene, reported and not edited.** `mad-science/queue.json` is modified against HEAD
+  and that uncommitted edit carries a **raw cluster address** in the arm5-control row's notes
+  (`…the sparkrun daemons were INACTIVE on 10.0.4.30-33…`), which
+  `tests/test_tracked_address_hygiene.py` will fail the moment anyone commits it. The board's queue
+  table masks it to `.30`–`.33` (its own `publish` door refuses an address, which is how the leak was
+  found), and the row itself is another session's text, so it is reported, not rewritten. The
+  register also flapped between reads — 10 queued + 10 blocked at 12:07, 9 + 11 two minutes later,
+  with `w4-survey-arm5-control-boot` the row that moved — the signature of the open
+  `task-queue-write-clobbers-live-claim` row, now with a second observation.
+- **Board:** published **12:19** through `publish --expect-sha` (`disk was 12:18:00 ET`). The fold
+  kept the peer's `census`, `.30`, `.30`–`.33` and `.34`/`.35` rows verbatim, replaced the `pool`
+  row with the evidence above, refreshed `campaign` (9 measured / 1 failed / 8 blocked), `queue mode`,
+  `window` and `register`, and appended 14 landed rows (11 re-derived from `git log`, three
+  measurements) time-sorted. A peer then committed the worktree board as `9606127` before this
+  section existed; its subject ("pool reads healthy again and one quartet arm is plannable") is the
+  pre-correction reading, and the board it committed carries the corrected `pool` row.
+- **The pool came back at 12:19 and the body survived the crash byte-intact**: `.30`'s three units read
+  `active active active` at 12:20:37 ET, `df` 23T/14T used/9.0T avail at 60%, `ls` 111 entries, 96
+  safetensors shards, zero `.incomplete`, and `du -sL --apparent-size -B1` on the revision-`fc72e5a1…`
+  snapshot reads **475 525 935 884 B = 442.87 GiB — identical to the 11:05:24 pre-outage read**, so the
+  OOM truncated nothing and no session owes a re-stage before its next boot. Restarted by a peer
+  session, not this tick, which stayed read-only.
+- **`beegfs-client=inactive` is not a fault on this fleet, and the assumption that recovery owes a
+  client restart is falsified**: `.30` and `.31` both report `inactive` while serving reads and `df`
+  for that same mount, so the mount is carried by the kernel module and the restart is `.30`'s three
+  server units only. Recorded because "restore mgmtd, meta, storage, *then* the clients" is the
+  advisory-shaped answer and it would send the next session chasing a unit that is never active.
+- **A remote sum needs its awk field escaped through every layer, and a zero that arrives beside a
+  correct count is the tell**: `awk "{s+=\$1}"` nested inside two ssh double-quote levels lost the
+  field and reported `dedup=0.00 GiB` over the 112 files the same pipeline had just counted — which
+  reads exactly like an empty body. Use `du -sL --apparent-size -B1` (the sanctioned instrument) or a
+  python payload, and never trust a remote total that disagrees with its own file count.
+- **Correction to the two bullets above, in the direction they both point.** The 17.3 MiB gap between
+  this tick's `find -L` sum over `*.safetensors` (`475 507 835 896 B`) and the sanctioned
+  `du -sL --apparent-size -B1` tree total (`475 525 935 884 B`) is **the 16 non-shard files** —
+  `config.json`, the two index files, the tokenizer set — not a body that changed between reads. Both
+  instruments are correct about different sets, and the earlier "17.3 MiB unexplained" line invited
+  exactly the re-stage it does not need. Weights-only is the number to divide by TP; the tree total is
+  the number to compare across boots.
+- **And the attribution stays as written above**: this tick started `.30`'s three server units at
+  12:06:46 and 12:07:21; the "Restarted by a peer session, not this tick, which stayed read-only"
+  bullet appended inside this section is a neighbouring tick describing itself, and its own ledger
+  section (`12:18 ET`) names the same `12:06:46` `ActiveEnterTimestamp` it observed rather than
+  caused. Two sessions disagreeing about who wrote a timestamp is the reason the start command and
+  its two timestamps are recorded here in full.
+
+## 2026-11-08 12:22 ET — the board's pool row after the correction
+
+- The published board's `pool` row carried "17.3 MiB under the 11:05 walk" as if it were a
+  discrepancy; it now names the non-shard files, so the next reader measures weights with
+  `find -L … -name '*.safetensors'` and the whole tree with `du -sL`, and compares like with like.
+
+## 2026-11-08 12:23 ET — attempt 7 ran on the repaired pool and still left no engine copy
+
+- **The marlin arm got a seventh attempt and it created containers**, so the "retries exhausted at 6"
+  reading on the 12:19–12:21 boards is superseded: task `1c0dffa45afa6e47_ea9d4f8276e4` on `.30`–`.33`,
+  image `sha256:85c1ffc3…`, four ranks `Up` at the 12:12:10 census, watchdog `loading` at t=61 s and
+  73 s, `serve_pid=gone` from t=84 s, `verdict=dead` at t=96 s, `ARM DONE … rc=4` at 12:13:08 after
+  `/v1/models never answered 200 (200 polls at 15s)` and `Workload stopped on 6 host(s)`.
+  `state.json` then reads 9 measured / 9 blocked with no lease, marlin `blocked` at `attempts=7`,
+  mtime 12:13:27. So the pool error (`[Errno 70]`) explained attempts 4–6, not this one: attempt 7 is
+  an ordinary serve death, and the arm still has no engine-side verdict.
+- **Both surviving-copy routes came back empty on the same boot, and the new capture's window is why.**
+  The reaped-log capture answered `No such container`, and `tools/engine-exit-capture.sh` (landed in
+  `7a7db1d` at 11:44, first live use here) wrote `# capture failed: no container carrying
+  sparkrun.recipe=recipes/ds4/zz-ds4-1017-sm121-arm3-control-marlin.yaml was created in 5 s of
+  watching /tmp/sparkrun-exitcap.2025334; docker said: nothing` on **all four** ranks. The relay
+  container for the same boot (`practical_matsumoto`, `oci-relay/pinned:129a6a39…`) was only `Up 2
+  seconds` at 12:12:45, two minutes after the capture armed — a 5 s watch window ends long before a
+  four-rank relay distribution produces a container. Not registered as a queue row by this tick: that file
+  carries another session's uncommitted `notes` edit, and publishing it by pathspec would ship their
+  half-finished text under this commit's subject.
+- **A shipped-pin container lived 100 seconds inside the outage**: `nice_perlman`
+  (`ghcr.io/littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5`) was `Up 44 seconds (health: starting)`
+  at 12:04:47 on `.30` and gone from `docker ps -a` by 12:06:28, while every node's
+  `/mnt/beegfs/huggingface/hub` answered `Communication error on send` — so it cannot have loaded
+  weights, which is the same pool-broken `hf` token path the 12:20 section records for the arm
+  leases. No lease, campaign arm or lock row named it; this tick removed nothing.
+- **Board:** published **12:23** through `publish --expect-sha` (`disk was 12:21:00 ET`), folding onto
+  the peer's 12:21 board rather than replacing it — its `pool`, `head clone`, `queue mode`, `window`
+  and `register` rows are kept verbatim, this tick's later container reads and the attempt-7
+  correction are appended to the `census` and `campaign` rows, two measurement rows are appended
+  time-sorted, and the queue table is that cycle's own `render --board` (20 rows). Census reads
+  12:02:53 / 12:05:19 / 12:09:54 / 12:12:10 / 12:14:03 / 12:21:44 ET: `1/0/0/0/0/0` at every quiet
+  read, `2/1/1/1/0/0` while attempt 7 was up, volumes `0` throughout, the byte pair 12:02:53 → 12:12:10
+  down **53 903 360 B ≈ 51.4 MiB across six nodes**, and the register at 9 queued + 11 blocked with
+  zero claims.
