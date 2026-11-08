@@ -1184,8 +1184,9 @@ and neither is papered over:
 
 1. **The drafter's binding is unproven.** The LithosAI draft declares `architectures:
    Qwen3DSparkModel` — the Qwen3-shaped DSpark skeleton — while its config targets 93-layer Kimi
-   layers `[7, 23, 67, 83, 91]` and Kimi's 163,840 vocab. Until a boot shows that speculator
-   initialising against this target **and** its acceptance counters moving, the arm has measured no
+   layers `[7, 23, 67, 83, 91]` and Kimi's 163,840 vocab. The bind half is answerable at
+   config level (construct the class against the target's `config.json`, see the block paragraph
+   below); the counters half needs a real serve. Until both hold, the arm has measured no
    drafter: a refusal, or zero counters, is the finding "Qwen3-shaped draft is not bindable to a Kimi
    target", and the route then needs a Kimi-native `K3DSparkModel` checkpoint that vLLM can load but
    which nobody has published yet. So this arm may not claim speculative acceptance until then.
