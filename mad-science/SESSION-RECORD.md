@@ -4515,9 +4515,11 @@ first client arm on its receipt and carried the house cell onto the 753B boot; `
 and guarded `tools/h2h-client.py` (README index row, `tests/test_h2h_client.py` with the
 all-transport-error exit-2 rule and its healthy-serve control, and the derived counts); `d947997` added
 the root `## Priority` rule — clean, correct, bug-free code in service of durable, repeatable,
-deterministic model and sparkrun recipe research. The 753B row itself ends this stretch `queued`, held
-open by `351c93c`: `rc=4` is its readiness ceiling, not a model rejection, and it now carries the
-readiness timeout and client hook the next attempt needs.
+deterministic model and sparkrun recipe research. The three concurrency rows are registered, not
+missing: `glm-flash-conc-no-drafter`, `glm-flash-conc-dflash2-k` and `glm-flash-conc-scheduler-knob`
+are `queued`, each on the tracked variant recipe it boots and on the arm's pinned image
+`ghcr.io/miaai-lab/glm-5.3-flash-exl3-2x-dgx-sparks-tensorfold@sha256:eb17e092…`, with the image-id
+gate in `ARM_EXTRA_CLIENT` so a lever cannot be measured through an unidentified image.
 
 Measured cells, each with the artefact set that carries it (`n=5` per cell, 2048-prompt decode,
 aggregate t/s then per-request):
@@ -4539,11 +4541,21 @@ aggregate t/s then per-request):
   fall reproduce across boots — the sigma column the head-to-head table lacked.
   `tp12-window/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2/`.
 - **Beam-1.0 501B, second boot** — C1 33.09 ± 2.50 · C2 44.91 ± 3.50 · C5 59.71 ± 10.50 · C10 69.86
-  ± 7.41 (rises with concurrency); house **0**, 15 scenarios, deployability 30 / responsiveness 100.
-  The serve is healthy enough to run the battery and fails it end to end; its BFCL category cell has
-  not run. `tp12-window/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2/`.
+  ± 7.41 (rises with concurrency). Its standard house read is **0** (15 scenarios, deployability 30 /
+  responsiveness 100) and that number is a **transport artifact, not a model result**: this launch
+  carried `--tool-call-parser beam` and `--reasoning-parser beam` but **not**
+  `--enable-auto-tool-choice` (no such flag in its `launch.log`/`serve-0.log`), so every tool-call
+  scenario is refused at the API before the model answers. The arm's quality cell therefore stays
+  **unresolved** here; the read that resolves it rides the live house arm, whose argv does carry
+  `--enable-auto-tool-choice`, and lands in that arm's `client/` directory: `house.json` (written,
+  scores still null at this read) with the BFCL sidecar beside it in `client/bfcl.log` (running).
+  Artefacts of the second boot itself: `tp12-window/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2/`.
 - **GLM-753B, second boot** — no cell: four attempts, the fourth characterised at `rc=4` / `readiness=no`,
-  and no `ladder.*`/`house.*` in any of the four directories (see the receipt and `.prev-*` above).
+  and no `ladder.*`/`house.*` in any of the four directories (see the receipt and `.prev-*` above). The
+  row stays **`queued`** — `rc=4` was the readiness ceiling, TTR **2,538.9 s against a 2,250 s bound**
+  (the launch log's own total is 2,268.6 s with `readiness=no`, and the receipt window is
+  23:14:25 → 01:42:54) — so the row must not be re-closed as a model rejection. Its re-boot is gated on
+  `arm-author-2`'s bridge commit and on the BFCL lease ending.
 
 Counts at this close-out, derived rather than remembered: **1341** suite tests (2 skipped), **104**
 tracked recipes, **57** test modules, **35** benchmark profiles, **19** `SKILL.md` dirs. The suite
