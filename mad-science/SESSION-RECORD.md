@@ -5336,3 +5336,33 @@ proposed with its check and exit code so it lands as its own change with its own
   owner`, `mods: pre_exec, in order, as root`), all created 11:55 by a command whose unquoted
   arguments word-split. They are untracked and empty, so nothing was lost, but any directory add
   would sweep them into a registry that ships to third parties. Left for their session to remove.
+
+### 12:02 ET — hourly board tick: the pool outage was already on the board, so the tick wrote no board
+
+- **A peer tick published the BeeGFS outage at 12:10 (`d367c06`, board content sha `d8316d53`), and this tick's read is 38 s fresher
+  at most, so the board was left standing.** `publish --expect-sha` refused at 12:09 with `disk …
+  carries 2026-11-08 12:10:00 ET, newer than this read's 12:09:00 ET`; the peer's row already names
+  `beegfs-mgmtd`/`meta`/`storage` failed on `.30` at 11:27:57, `.31`–`.35` `storage=active` with
+  `mgmtd=inactive`, every client dead, and it folds all twelve commits from 11:41 to 12:01 that this
+  tick had queued as landed rows. The one fact it did not carry is below, which is why the delta went
+  here rather than into a third whole-file write 60 s after someone else's.
+- **The fleet is measurably idle, not merely uncounted**: root bytes 12:01:19 → 12:02:27 ET fell
+  **901 120 B ≈ 0.86 MiB across all six nodes** (`.30` 520 192 B; `.31`–`.35` 73 728–81 920 B each),
+  with containers `1 / 0 / 0 / 0 / 0 / 0`, volumes `0`, and `sparkrun status` `Idle hosts` on all six.
+  Free space is `.30` 1167.44 / `.31` 1530.35 / `.32` 1602.72 / `.33` 1494.13 / `.34` 1000.60 /
+  `.35` 1246.19 GiB. That pair is the load-free corroboration of the pool diagnosis: nothing is
+  writing *because* nothing can open the pool, so the flat series cannot be read as health.
+- **Two independent probes make the outage fleet-wide rather than a head-client wedge**, and that
+  distinction is the one worth keeping: `df /mnt/beegfs` returns `Communication error on send` from
+  `.30` **and** from `.31`, `:8008` has no listener on the mgmtd host, and the head's kernel log gives
+  the causal chain — `Receive failed from management [beegfs-mgmtd:1] @`:8008 `(recv result: -104)`,
+  `NodeConn … Connect failed on all available routes`, then every metadata and storage target
+  `set to offline`. Read from one node alone, the same error looks like a client that needs a remount.
+- **`.31`–`.35`'s `beegfs-meta=failed` is a standing benign condition, and the falsifier is the
+  journal date**: `No metadata storage directory specified`, failed since 2026-11-05 22:05:26, on
+  nodes that host no metadata target. So `systemctl is-failed` fleet-wide is not an outage signal by
+  itself — `.30`'s three units since 11:27:57 are — and a future tick that reads it fleet-wide without
+  the date will mis-size the blast radius in the other direction, calling a healthy pool dead.
+- Recovery is `sudo systemctl start beegfs-mgmtd beegfs-meta beegfs-storage` on `.30`, then the
+  clients, and **this tick did not run it**: the hourly refresh is read-only on the fleet, and `.30`
+  holds the single mgmtd, which makes it an owner call rather than an operator convenience.
