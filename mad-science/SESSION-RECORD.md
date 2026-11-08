@@ -5567,3 +5567,27 @@ Two defects found while folding this hour's board, both cheap to state and neith
   against its 4-cell header. `task-queue.py lint` passes it (`ok: 1 markdown file(s) render`) because the
   delimiter row is intact — the defect is per-row, not per-table. The fix belongs in the renderer
   (escape `\|`), not in the notes: a note is prose and an operator will type a pipe again.
+
+## 2026-11-08 12:38 ET — a launch can fail for reasons that read as arm failures, and a capture that quits early is not evidence
+
+- **Infrastructure failure wore the arm's own vocabulary.** Leases @3–@6 of
+  `zz-ds4-1017-sm121-arm3-control-marlin` (12:06:35–12:07:04, receipts `.prev-120637` and its
+  siblings) each closed in ~20 s at `[3/6] Distributing resources` on
+  `Error: launch_inference failed: [Errno 70] Communication error on send:
+  '/home/red/.cache/huggingface/token'`. None reached a task id, so the only place that event
+  could land was the arm-failure column — and it was not the arm: the per-node `sparkrun` daemons
+  were **inactive**, `sparkrun daemon start` on the hosts let the next lease reach `[6/7]`, and the
+  token path itself was fine. `9ef01bc` records it as DESIGN and a one-status-per-host preflight is
+  being added, because a dead daemon must surface as a daemon, not as a credential.
+- **The capture was noise, not silence.** Attempt 7 of the same arm
+  (`zz-ds4-1017-sm121-arm3-control-marlin@7.log`, receipt `.prev-121048`, task
+  `1c0dffa45afa6e47_ea9d4f8276e4`, container `sparkrun_1c0dffa45afa6e47_ea9d4f8276e4_node_0`)
+  reports `engine stdout captured: 0 container stream(s)` and the capture's own line reads
+  `# capture failed: no container … was created in 5 s of watching` — because
+  `tools/engine-exit-capture.sh` gave up about five seconds in, while the launcher was still
+  resolving the task. The boot died 135 s later on the watchdog's stop. A capture that exits before
+  the launch window has produced **no evidence at all**; it is not evidence of engine silence, and
+  reading it as one is how an unattributable death becomes a false finding.
+- **The rule both halves share.** An arm's failure class is only as good as the instrument that
+  observed it: name the instrument in the receipt (a daemon status, a capture window), and when the
+  instrument did not run or quit early, the row says `unattributable`/`untried`, never `failed`.
