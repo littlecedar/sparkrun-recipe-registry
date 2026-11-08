@@ -4220,3 +4220,14 @@ argued on the board, because the peer's 00:16/00:17 board already drops them in 
   pushed (local is `ahead 2, behind 1` against `origin/main` after a peer push, so completing it is the
   holder's call, not this tick's). Readers of the published board until then should treat the pool
   mechanism and the 1→5/7 delta as withdrawn.
+
+## 2026-11-08 00:31 ET — the fixing board is pushed, so both withdrawn clauses are off `origin/main`
+
+The item above is closed: the 00:24 ET board (`e1cbf41`) is a board without the two falsified 00:13
+clauses, and it is pushed. `git show origin/main:mad-science/STATUS.md` carries neither "the shared
+pool leaves", nor "5 on `.34` and 7 on `.35`", nor `dsv41-matching`; its `.34`/`.35` row states the one
+predicate this cycle re-measured — both nodes hold `dsv41-sm121-dg:0.2.0` and `:0.2.1` — and its
+census row carries the `.30` attribution that commit endorsed (446.3 GB of images and 113 GB of build
+cache behind the transients, LIKELY image unpack, not pool traffic). The push was a fast-forward from
+`373b60d`, so the withdrawal commit and the peer's `d884a74` census board are both ancestors and
+nothing was dropped.
