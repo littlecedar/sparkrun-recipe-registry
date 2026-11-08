@@ -5366,3 +5366,36 @@ proposed with its check and exit code so it lands as its own change with its own
 - Recovery is `sudo systemctl start beegfs-mgmtd beegfs-meta beegfs-storage` on `.30`, then the
   clients, and **this tick did not run it**: the hourly refresh is read-only on the fleet, and `.30`
   holds the single mgmtd, which makes it an owner call rather than an operator convenience.
+
+## 2026-11-08 12:18 ET — the pool outage ended at 12:06:46; the tick published on its own census, and the register has one runnable arm again
+
+- **The BeeGFS outage above is closed by a start, not by a repair.** `beegfs-mgmtd`, `beegfs-meta`
+  and `beegfs-storage` on `.30` (which is the head, `spark-41e1`) read `active` with
+  `ActiveEnterTimestamp = 12:06:46 EST` and `NRestarts = 0`, so the units were started rather than
+  restarted by a supervisor. The 12:02 section's recovery line is therefore history; what it asked
+  for has happened.
+- **The three discriminators that rule out the cached-metadata reading an `ls` cannot:**
+  `ss -ltn` shows `*:8008` LISTEN (mgmtd); `df /mnt/beegfs` returns `22530G / 9187G avail` from
+  both `.30` **and** `.31`, and statfs is answered by mgmtd; and a real shard read —
+  `model-00001-of-000096.safetensors` under `models--vllm-project--Kimi-K3.1-Pro-pruned75`,
+  **16 MiB in 0.069 s = 243 MB/s** at 12:17:43 — crosses the fabric to a storage target rather than
+  serving a name. `ls /mnt/beegfs/huggingface/hub` returned **111** entries from all six nodes and the
+  head at 12:13:22–12:13:32.
+- **`beegfs-meta=failed` on `.31`–`.35` is the standing benign condition the 12:02 section already
+  dated** (`No metadata storage directory specified`, since 2026-11-05 22:05:26, on nodes hosting no
+  metadata target) — measured again this cycle by naming each unit; `.30`'s helperd/client units are
+  `inactive` while its mount is up, which is also not a fault signal.
+- **Board:** published 12:14 (`bcf7d1ca`) and again 12:18 on this tick's own **12:00:59 / 12:07:01**
+  census, both through `publish --expect-sha`, so the peer's 12:10 board (`d8316d53`) was folded
+  rather than replaced: its `pool` row was rewritten on the evidence above, its landed rows and its
+  `.34`/`.35` row kept, and one register row added.
+- **The register changed under the board and is not this tick's to commit.** `mad-science/queue.json`
+  is modified against HEAD (`dadc3545…`, two lines): `w4-survey-arm5-control-boot` flipped
+  `blocked` → `queued`, and it carries both a `recipe:` (`zz-ds4-1017-sm121-arm3-control-marlin.yaml`)
+  and `tp: 4`, so the campaign's eligible set is no longer empty and `.30`–`.33` are idle. The other
+  nine queued rows name neither key, and `plan.py` admits only a row that names both.
+- **Open drift, reported rather than acted on:** the board's `Landed session` table carried **144**
+  rows at this cycle, accumulated across many closed sessions since no boundary clear. This tick did
+  not clear it — a peer is actively appending rows (19 arrived inside ~10 minutes) — so the clearing
+  session owes the homing pass first: `git grep -c <sha> -- mad-science/SESSION-RECORD.md` per row,
+  carry what is missing, then clear.
