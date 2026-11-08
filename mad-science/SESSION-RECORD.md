@@ -4915,3 +4915,34 @@ would have been churn for a 2-minute-nearer read. The figures are here instead.
   section already decided that a read-only tick does not home the writing session's rows; the gap
   therefore stands as that session's close-out debt, and this entry exists so a later clear cannot
   say the gap was never named.
+
+## 2026-11-08 07:26 ET — board folded, not replaced; the 753B ladder's aggregate column is a real n=5 mean, and the lane doc's parenthesised aggregate matches no artefact
+
+- **Board:** this tick's own census is **07:09:59 ET** (containers `1/1/1/1` on `.30`–`.33`, `0/0` on `.34`/`.35`,
+  volumes `0` on all six). I first published at 07:04 (`56e49737`) and read the ladder's printed `tg t/s` column as
+  C1 **5.3** — on the C1 line `0 1 … 30.3 5.3 5` that column is `ttfr ms`, and the aggregate is **30.3**. A peer tick
+  (`0af2bd7a`, 07:08) landed the cells correctly off `runs/*.json` first, so the erroneous figure stood ~4 min and no
+  longer stands; this tick then folded its fresher census and the finished house battery row-keyed into the peer's
+  file (`bacdbc36`, census 07:09:59, `disk was 07:08:00`) rather than writing a whole-file replace over it.
+- **The aggregate column is not an artefact and owes no re-run.** The 07:18 section above reads the ladder aggregate as
+  `n=2` points whose sample drags the mean down. Both artefacts falsify that: `runs/*.json` and the arm's
+  `ladder.json` each carry `tg_throughput` with **n=5 values per cell** — C1 `33.45 29.57 27.63 30.57 30.13` →
+  30.27; C2 18.90 ± 0.21; C5 15.95 ± 0.24; C10 15.16 ± 0.07 — while `tg_req_throughput` pools 5×concurrency samples
+  (5 / 10 / 25 / 50). The `16.07` in that bullet matches C5's first sample `16.09`, not a C1 pair, so the reading was
+  of the wrong cell. `ladder.log`'s own warning says `return_token_ids=false` interpolates token *arrival times* and
+  leaves token **totals** exact, which is what an aggregate tokens/s derived from usage measures: the aggregate is
+  quotable and only burstiness is smoothed. No `-b extra_body=return_token_ids=true` re-run is owed for it.
+- **It reproduces window 3 on the aggregate field too.** Window 3's `glm-perf-ladder.json` has the same schema and the
+  same keys (`prompt_size 2048 / response_size 128`) and reads `tg_throughput` **28.83 / 18.72 / 15.26 / 14.58**
+  against this boot's **30.27 / 18.90 / 15.95 / 15.16**, and per-request 28.83 / 28.94 / 26.71 / 28.21 against
+  30.27 / 28.70 / 29.61 / 29.32. Both shapes match, so the second boot is a clean sigma sample and the
+  aggregate-falls-with-concurrency curve is this arm's normal behaviour, not a regression.
+- **Open, not edited:** `recipes/glm/README.md:60-62` parenthesises window 3's aggregate as **37.4 / 76.3 / 145.8**,
+  and **no window-3 artefact contains those numbers** — `grep` over `glm-perf-ladder.{json,yaml,csv}` in
+  `~/benchmarks/tp4-window3-20261024/` returns nothing, and that CSV's aggregate column (`t_s_mean`) reads
+  18.72 / 15.26 / 14.58 at the same cells. Only one `glm-perf-ladder.{json,csv}` pair exists on the head. The
+  per-request figures beside it check out exactly, so the parenthetical is not the cited receipt's aggregate under any
+  field name. Left standing rather than guessed or overwritten; the lane's close-out owns the correction.
+- **Register untouched:** `queue.json` still carries `h2h-second-boot-glm-753b` as `running` with prose naming
+  attempt 5 against a live attempt 6 — reported on the board and here, not written, because a workstation-side write is
+  the registered `task-queue-write-clobbers-live-claim` defect.
