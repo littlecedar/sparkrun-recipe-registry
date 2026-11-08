@@ -1395,14 +1395,14 @@
         "w4-survey-arm3-indexer-scoring"
       ],
       "blocked_by": [],
-      "state": "running",
+      "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "Window declared 2026-11-08: owner put all six nodes under research, so the quartet lease gates are satisfied. Boot only when no own quartet lease is live; serial order after the current boot2/753B/arm3 work; record the image id in the receipt. Recipe repinned to dsv41-sm121-dg:0.2.1 (sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7), the same digest as the arm-5 pair, so one digest covers all three survey boots. Cell: 1039999-token C1 decode, image id in the receipt. Original gate note: 0.2.0/0.2.1 tag-form inspect on all six, survey-transfer carry rc=0 (156 s).",
+      "notes": "Window declared 2026-11-08: owner put all six nodes under research, so the quartet lease gates are satisfied. Boot only when no own quartet lease is live; serial order after the current boot2/753B/arm3 work; record the image id in the receipt. Recipe repinned to dsv41-sm121-dg:0.2.1 (sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7), the same digest as the arm-5 pair, so one digest covers all three survey boots. Cell: 1039999-token C1 decode, image id in the receipt. Original gate note: 0.2.0/0.2.1 tag-form inspect on all six, survey-transfer carry rc=0 (156 s). — campaign: zz-ds4-1017-sm121-indexer-scoring: no marker and no machine-readable artefact — campaign: zz-ds4-1017-sm121-indexer-scoring: no marker and no machine-readable artefact",
       "provenance": "queue w4-survey-arm3-indexer-scoring; mad-science/DEEPSEEK.md §10.5; recipes/ds4/zz-ds4-1017-sm121-indexer-scoring.yaml; owner 2026-11-07 window",
       "evidence": "",
-      "claimed_by": "sparkrun-campaign:h2h-20261107",
-      "claimed_at": "2026-11-08T08:15:50Z",
+      "claimed_by": "",
+      "claimed_at": "",
       "recipe": "recipes/ds4/zz-ds4-1017-sm121-indexer-scoring.yaml",
       "tp": 4,
       "env": {
@@ -1443,12 +1443,12 @@
         "glm-flash-concurrency-degradation-search"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
       "notes": "estimate: provisional — plain no-drafter ladder (does the C2 peak/C5-C10 fall vanish without DFlash2?). TRACKED VARIANT recipe (not -o speculative_draft_model=none: dry run prepared a phantom 'none' repo and the shim mapped it to --drafter auto, which refuses at --parallel 8). Ladder cells are the measurement; no extra client. ARM_EXTRA_CLIENT here is a boot gate, not a cell: run-arm.sh writes image.txt only for extra-client arms, so the gate proves the receipt carries the resolved image id (it runs after the ladder, so the cells are untouched).",
       "provenance": "glm-flash-concurrency-degradation-search; concurrency-variants commit 3695abc; owner 2026-11-07 window",
-      "evidence": "",
+      "evidence": "/home/red/benchmarks/h2h-20261107/tp12-window/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter",
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.yaml",
@@ -1466,12 +1466,12 @@
         "glm-flash-concurrency-degradation-search"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
       "notes": "estimate: provisional — DFlash2 draft-chain k=5 against shipped k=7 (C1/C2/C5/C10 ladder is the cell; no extra client). The k rides the shim's new whitelisted SWEEP_ENV: a non-empty -e wins over RECIPE_ENV. Follow-ups on the same carrier after this row closes: fnc3:0.3 (k=3) and TF_GLM_MULTI_WINDOW=32, one knob per boot, never stacked. ARM_EXTRA_CLIENT here is a boot gate, not a cell: run-arm.sh writes image.txt only for extra-client arms, so the gate proves the receipt carries the resolved image id (it runs after the ladder, so the cells are untouched).",
       "provenance": "glm-flash-concurrency-degradation-search; concurrency-variants commits 0d9f835/2602501; owner 2026-11-07 window",
-      "evidence": "",
+      "evidence": "/home/red/benchmarks/h2h-20261107/tp12-window/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-dflash2k",
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-dflash2k.yaml",
@@ -1490,14 +1490,14 @@
         "glm-flash-concurrency-degradation-search"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
       "notes": "estimate: provisional — scheduler/slot lever: C5/C10 over 4 slots against the 8-slot baseline, deliberately slot-limited (ARM_ALLOW_FEW_SLOTS=1). TRACKED VARIANT recipe declaring parallel: 8, overridden by ARM_OPTS. No extra client. ARM_EXTRA_CLIENT here is a boot gate, not a cell: run-arm.sh writes image.txt only for extra-client arms, so the gate proves the receipt carries the resolved image id (it runs after the ladder, so the cells are untouched).",
       "provenance": "glm-flash-concurrency-degradation-search; concurrency-variants commit bd4671d; owner 2026-11-07 window",
       "evidence": "",
-      "claimed_by": "",
-      "claimed_at": "",
+      "claimed_by": "sparkrun-campaign:h2h-20261107",
+      "claimed_at": "2026-11-08T08:41:21Z",
       "recipe": "recipes/glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-parallel.yaml",
       "tp": 4,
       "env": {
@@ -1529,6 +1529,86 @@
         "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
         "ARM_EXTRA_CLIENT": "sh -c \"cd /home/red/src/sparkrun-recipe-registry && python3 -B tools/longctx-cell.py --base-url http://$NODE:$PORT --model $SERVED --context-length 131072 --concurrency 5,10 --max-tokens 8 --image-id \\\"$ARM_IMAGE_ID\\\" --json $L/longctx-128k.json\"",
         "ARM_EXTRA_TIMEOUT": "3600"
+      }
+    },
+    {
+      "id": "kimi-superexpert-ref-probe",
+      "title": "Probe shashanth-27xA9 Kimi-K3.1-Pro-SuperExpert-12GB through the transformers reference route",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "kimi-k3.1-superexpert",
+      "node_cost": "single",
+      "notes": "estimate: provisional — boot gate is the mod's import check (transformers+fastapi+uvicorn+torch) against the pinned vllm-openai image; no engine loads KimiK31SuperExpertForCausalLM, so the arm is the reference server only. Measure: boot, one chat completion, and whether the U8 nibble-dequant path answers coherently at all — quality is not comparable to the 2.8T base.",
+      "provenance": "arm-author-2 2026-11-08; probe evidence in mods/kimi-superexpert-ref-launcher/README.md",
+      "evidence": "/home/red/benchmarks/h2h-20261107/single-window/zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/explore/zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm.yaml",
+      "tp": 1,
+      "env": {
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
+      }
+    },
+    {
+      "id": "kimi-pruned75-tp4-boot",
+      "title": "Kimi-K3.1-Pro pruned75 MXFP4: boot and ladder at TP=4",
+      "estimate_h": 3.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "kimi-k3.1-pruned75",
+      "node_cost": "quartet",
+      "notes": "estimate: provisional — first boot carries the engine gate: the pinned nightly's vLLM must resolve KimiK31ForConditionalGeneration (release tag v0.33.0rc3 lacks it; main and the 2026-11-07 nightly image are the bet). 423.0 GiB over TP=4 = 105.75 GiB/rank, so an OOM at profile is sizing, not the checkpoint: if it profile-OOMs at 0.92 util, drop ctx_size 32768 -> 16384 before touching the checkpoint. Measure: boot, /v1/models id, decode ladder C1/C2/C5, one GSM8K smoke cell (card: 43.67 %).",
+      "provenance": "arm-author-2 2026-11-08; vllm-project/Kimi-K3.1-Pro-pruned75 fc72e5a1",
+      "evidence": "/home/red/benchmarks/h2h-20261107/tp4-window/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/explore/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4.yaml",
+      "tp": 4,
+      "env": {
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
+      }
+    },
+    {
+      "id": "kimi-pruned75-dspark-tp4-boot",
+      "title": "Kimi-K3.1-Pro pruned75 + DSpark k=5 drafter: boot, acceptance and ladder vs the plain arm",
+      "estimate_h": 3.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "kimi-k3.1-pruned75",
+      "node_cost": "quartet",
+      "notes": "estimate: provisional — the decided number is the server's own spec-decode acceptance on a 75 %-pruned target, which no card measured; the card's 3.448 is for the unpruned base. Run AFTER kimi-pruned75-tp4-boot so both arms share a window and the comparison is same-image. If dspark is absent from the image's method literal, record that as the blocker, not a recipe defect. Also measures the 4.50 GiB/rank draft cost against the plain arm's 32k window at 16k.",
+      "provenance": "arm-author-2 2026-11-08; LithosAI/Kimi-K3.1-Pro-DSpark d791d217",
+      "evidence": "/home/red/benchmarks/h2h-20261107/tp4-window/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/explore/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4.yaml",
+      "tp": 4,
+      "env": {
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
+      }
+    },
+    {
+      "id": "ds4-gsq-rco-coder-llamacpp-boot",
+      "title": "ds4 GSQ-RCO Coder 1-bit GGUF: boot, Engram-fabric decode cost and vision smoke",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "dsv4.1-1017-gsq-rco-coder",
+      "node_cost": "single",
+      "notes": "estimate: provisional — two boot gates: (1) image must be >= llama.cpp b11870 (pinned upstream-6023692, 2026-11-05; the lane's old a37cc46 image CANNOT load the arch), (2) mods/dsv41-engram-shard-link must find the 110.60 GB Engram file on the node (the unpruned GSQ-RCO release's copy is the same bytes; if absent the mod exits 3 and the arm stays authored-not-booted). Measure: boot, one chat answer, one image, decode ladder, and the fabric-read attribution — read_bytes per token plus Engram row-read latency off /cache — before any slow verdict.",
+      "provenance": "arm-author-2 2026-11-08; ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF 54229d38",
+      "evidence": "/home/red/benchmarks/h2h-20261107/single-window/deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/ds4/deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp.yaml",
+      "tp": 1,
+      "env": {
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
       }
     }
   ],

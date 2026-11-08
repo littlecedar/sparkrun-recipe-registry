@@ -7,7 +7,8 @@ model: shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB
 model_revision: b88a90e89430b3fcd59ff1b5f2e629981af8524f
 # vLLM's published arm64 image only as a carrier: torch+transformers+fastapi are what the
 # reference server needs. The engine itself CANNOT load this checkpoint (see description), so
-# `runtime: vllm` here is the launcher/distribution contract, the kokoro/media precedent.
+# `runtime: vllm` here is the launcher/distribution contract only; the same shape the
+# lane's media-side server arms use for a custom launcher.
 container: vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34
 runtime: vllm
 min_nodes: 1
