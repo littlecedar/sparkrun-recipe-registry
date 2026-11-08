@@ -77,7 +77,7 @@ Exclusions are named, never truncated:
 | `blocked_by` not an explicit empty list | skipped by name (`queue-skip: <row> (blocked by <ids>)`): a live dependency edge holds the row whatever its `state`, and a missing mirror is not an edit that opens it |
 | no `recipe`/`tp` | counted in one line (`authoring, not bootable`): most rows are prose work |
 | `tp` > declared hosts | skipped by name (`tp=4 needs 4 hosts, 2 declared`); a quartet is never cut onto fewer nodes |
-| two rows naming one recipe | one arm: any non-runnable sibling (`blocked`, `done`, a live edge, another session's claim) holds it by name (`queue-skip: <row> (recipe also named by sibling <id> is 'blocked')`), so a blocked or done row protects the recipe; two runnable rows remain a plan error, because the register has not said which row the numbers would close |
+| two rows naming one recipe | one arm: any non-runnable sibling (`blocked`, `done`, a live edge, another session's claim) holds it by name (`queue-skip: <row> (recipe also named by sibling <id> is 'blocked')`), so a blocked or done row protects the recipe; two runnable rows are an ambiguity, named with both ids and skipped for that tick only, because the register has not said which row the numbers would close |
 
 **Ordering is the register's.** The plan is `tools/task-queue.py queue --json` in the order it
 prints — tier, then weight ascending, then id, which is exactly what the weight is for: a row that
@@ -108,6 +108,12 @@ lease/reap path, not the register. At the end of the arm:
 | blocked (leftover survivor, unverifiable host) | `--state blocked` plus the same note, because a human must look — unless a `done` state already answers the row, which is preserved; the claim is cleared the same way |
 | recorded negative | `--state done --evidence "<doc>:<line> (measured-rejected)"` — a recorded negative is an answer, and the citation is its evidence |
 | claim refused by the tool | the arm is blocked in the campaign and no lease is issued; the row is left alone |
+
+A tick is not all-or-nothing: a duplicate runnable pair, a non-runnable sibling, or a row naming a
+recipe deleted from the tree skips only that recipe/arm, by name, while the rest of the register is
+still adopted, reconciled and assigned. `RegisterError` is the only whole-look failure — the
+register could not be read — and it alone prints the retry line; a `PlanError` is reported as the
+plan defect it is, not as an unreadable file.
 
 A claim that cannot be written is a refusal to boot, not a warning: two sessions on one arm is the
 double-boot this project exists to prevent. The tool is the register's only writer (temp file +

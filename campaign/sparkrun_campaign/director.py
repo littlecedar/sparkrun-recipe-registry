@@ -206,8 +206,20 @@ class Director:
         """(entries, exclusion lines, arm -> why it is not runnable) from this campaign's source."""
         if self.register is None:
             return list(self.entries), [], {}
-        return plan.queue_entries(self.register.rows(), list(self.campaign.data.get("hosts", [])),
-                                  self.register.session, set(self.campaign.arms()))
+        entries, lines, excluded = plan.queue_entries(
+            self.register.rows(), list(self.campaign.data.get("hosts", [])),
+            self.register.session, set(self.campaign.arms()))
+        runnable: list[dict[str, Any]] = []
+        for entry in entries:
+            if (self.repo_root / entry["path"]).is_file():
+                runnable.append(entry)
+                continue
+            # One row naming a deleted recipe is one arm skipped, never a dead tick: a manifest
+            # still refuses, but the register is live and every other row must weigh in.
+            reason = f"{entry['path']} does not exist under {self.repo_root}"
+            lines.append(f"queue-skip: {entry['arm']} ({reason})")
+            excluded[entry["arm"]] = reason
+        return runnable, lines, excluded
 
     def _env_for(self, env: dict[str, str] | None) -> dict[str, str]:
         """An arm's executor env: the register row's cells with this run's receipts root on top.
@@ -315,8 +327,14 @@ class Director:
         self._last_poll = now
         try:
             grew = self.refresh()
-        except (plan.RegisterError, plan.PlanError) as exc:
+        except plan.RegisterError as exc:
             print(f"queue: cannot read the register ({exc}); retrying in {QUEUE_POLL:g}s",
+                  file=self.out)
+            return
+        except plan.PlanError as exc:
+            # A plan defect is not an unreadable register: name it as what it is. Per-arm
+            # containment in `queue_entries`/`_plan` keeps this to a real tree defect.
+            print(f"queue: plan defect this tick ({exc}); retrying in {QUEUE_POLL:g}s",
                   file=self.out)
             return
         if grew:

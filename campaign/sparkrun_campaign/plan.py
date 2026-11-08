@@ -118,7 +118,7 @@ def sibling_hold(others: list[dict[str, Any]], session: str) -> str:
     One recipe named by several rows is one arm, so a `blocked` or `done` sibling holds it even
     when its own row reads `queued`; the 2026-11-08 survey pair (`done` + `blocked`) showed a
     queued sibling protecting nothing. `blocked` outranks `done` outranks another session's
-    `running`; two runnable rows are not a hold but an ambiguity `queue_entries` refuses.
+    `running`; two runnable rows are not a hold but an ambiguity `queue_entries` skips by name.
     """
     order = {"blocked": 0, "done": 1, "running": 2}
     held = [row for row in others if not row_runnable(row, session)]
@@ -144,10 +144,10 @@ def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
     not an explicit empty list is held too, whatever its `state`: the mirror is the register's
     structural hold, and a missing field is not an edit that opens one. A recipe named by several
     rows is one arm, so a `blocked` or `done` sibling holds it even while the row being read says
-    `queued` (the skip names the sibling and its state); two runnable rows for one recipe stay a
-    plan error, because the register has not said which row the numbers would close. An authoring
-    row is counted, not listed: the register is mostly prose work and a line per row would bury
-    the exclusions that matter.
+    `queued` (the skip names the sibling and its state); two runnable rows for one recipe are an
+    ambiguity skipped by name for that tick, because the register has not said which row the
+    numbers would close. An authoring row is counted, not listed: the register is mostly prose
+    work and a line per row would bury the exclusions that matter.
 
     A `running` row under this campaign's own session id is still offered when `held` (the arms the
     campaign already has) contains it: that is the in-flight arm a restart must finish, and the
@@ -204,7 +204,15 @@ def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
             excluded[arm] = reason
             continue
         if arm in owner:
-            raise PlanError(f"{task} and {owner[arm]} both name recipe {recipe}")
+            # Two runnable rows for one recipe are an ambiguity, not a broken register: skip that
+            # recipe for this tick and name both rows, so every other arm still runs.
+            previous = owner[arm]
+            entries[:] = [entry for entry in entries if entry["arm"] != arm]
+            reason = f"{previous} and {task} both name recipe {recipe}"
+            lines.append(f"queue-skip: {arm} ({reason})")
+            excluded[arm] = reason
+            owner[arm] = task
+            continue
         owner[arm] = task
         entries.append({"arm": arm, "path": recipe, "tp": int(tp),
                         "env": dict(row.get("env") or {}), "task": task})

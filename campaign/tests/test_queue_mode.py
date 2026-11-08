@@ -194,12 +194,67 @@ class PlanFromTheRegister(QueueCase):
         self.assertEqual(campaign.order, [])
         self.assertIn("queue-skip: held-task (blocked by a-dependency)", self.out.getvalue())
 
-    def test_two_rows_naming_one_recipe_are_refused(self) -> None:
+    def test_two_runnable_rows_naming_one_recipe_skip_only_that_recipe(self) -> None:
         self.shell.rows = [row("a", "recipes/lane/one.yaml", 1, node_cost="single"),
-                           row("b", "recipes/lane/one.yaml", 1, node_cost="single")]
+                           row("b", "recipes/lane/one.yaml", 1, node_cost="single"),
+                           row("good", "recipes/lane/good.yaml", 1, node_cost="single")]
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.order, ["good"])
+        self.assertIn("queue-skip: one (a and b both name recipe recipes/lane/one.yaml)",
+                      self.out.getvalue())
+        self.assertEqual(leader.handle(protocol.poll("w1"))["lease"]["arm"], "good")
+
+    def test_a_duplicate_pair_does_not_abort_a_drained_tick(self) -> None:
+        self.shell.rows = [row("good", "recipes/lane/good.yaml", 1, node_cost="single")]
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.order, ["good"])
+
+        self.shell.rows = [row("a", "recipes/lane/one.yaml", 1, node_cost="single"),
+                           row("b", "recipes/lane/one.yaml", 1, node_cost="single"),
+                           row("new", "recipes/lane/two.yaml", 1, node_cost="single")]
+        leader._last_poll = 0.0
+        leader._wait_for_rows()
+        self.assertEqual(campaign.order, ["good", "two"],
+                         "the ambiguous recipe is skipped; the new row is adopted")
+        self.assertIn("a and b both name recipe", self.out.getvalue())
+        self.assertIn("1 new runnable row(s): two", self.out.getvalue())
+
+    def test_a_row_naming_a_deleted_recipe_skips_only_that_arm(self) -> None:
+        self.shell.rows = [row("gone-task", "recipes/lane/gone.yaml", 1, node_cost="single"),
+                           row("good", "recipes/lane/good.yaml", 1, node_cost="single")]
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.order, ["good"])
+        self.assertIn("queue-skip: gone (recipes/lane/gone.yaml does not exist",
+                      self.out.getvalue())
+        self.assertEqual(leader.handle(protocol.poll("w1"))["lease"]["arm"], "good")
+
+    def test_a_plan_defect_is_not_reported_as_an_unreadable_register(self) -> None:
+        self.shell.rows = [row("authoring-task")]
         leader, _ = self.build()
-        with self.assertRaises(plan.PlanError):
-            leader.prepare()
+        leader.prepare()
+
+        def broken_plan():
+            raise plan.PlanError("a and b both name recipe x")
+
+        leader._plan = broken_plan
+        leader._last_poll = 0.0
+        leader._wait_for_rows()
+        self.assertIn("queue: plan defect this tick (a and b both name recipe x)",
+                      self.out.getvalue())
+        self.assertNotIn("cannot read the register", self.out.getvalue())
+
+    def test_the_control_combined_handler_mislabels_a_plan_defect(self) -> None:
+        def old_tick(exc) -> str:
+            """Tonight's tick: one handler for both failures, and nothing is adopted."""
+            if isinstance(exc, (plan.RegisterError, plan.PlanError)):
+                return f"cannot read the register ({exc}); retrying in 30s"
+            return ""
+
+        self.assertIn("cannot read the register",
+                      old_tick(plan.PlanError("a and b both name recipe x")))
 
     def test_a_quartet_row_runs_when_four_hosts_are_declared(self) -> None:
         self.shell.rows = [row("quartet-task", "recipes/lane/one.yaml", 4, node_cost="quartet")]
