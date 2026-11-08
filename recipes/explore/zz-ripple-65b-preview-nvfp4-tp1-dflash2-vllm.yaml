@@ -50,7 +50,8 @@ defaults:
   max_model_len: 131072
   max_num_seqs: 16
   gpu_memory_utilization: 0.90
-  kv_cache_dtype: bf16
+  # vLLM's CacheConfig accepts `bfloat16` only; `bf16` is rejected at startup.
+  kv_cache_dtype: bfloat16
   # The draft MUST live here: sparkrun's vLLM draft binding distributes
   # speculative_config.model and rewrites "revision" from the prepared draft
   # manifest, so a missing revision would follow the repo's `main`. A nested

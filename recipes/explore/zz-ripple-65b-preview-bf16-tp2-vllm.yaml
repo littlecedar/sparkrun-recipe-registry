@@ -9,9 +9,11 @@ runtime: vllm
 min_nodes: 2
 max_nodes: 2
 description: >-
-  TRIAL PROBE (zz-), not booted: Ripple-65B Preview BF16 on TWO DGX Sparks
+  TRIAL PROBE (zz-): Ripple-65B Preview BF16 on TWO DGX Sparks
   (TP=2) — the quality control and the only cell that can hold the card's 1M
-  context. 129.6 GB of BF16 weights (~120.7 GiB) do not fit one GB10's ~109 GiB
+  context. Booted 2026-11-08 (HTTP-ready at 409.9 s, `/v1/models`
+  `max_model_len` 1048576, rank-1 KV 20416 blocks / 39.88 GiB); no ladder ran,
+  so the arm still carries no throughput measurement. 129.6 GB of BF16 weights (~120.7 GiB) do not fit one GB10's ~109 GiB
   budget at util 0.90, so TP=2 is the minimum for BF16, i.e. the lowest TP that
   can measure the unquantized model; NVFP4 is the TP=1 arm. Per rank here:
   ~60.4 GiB of weights, leaving ~42 GiB for a 32 KiB/token KV split (~1.36M

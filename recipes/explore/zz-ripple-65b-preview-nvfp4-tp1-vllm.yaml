@@ -58,8 +58,9 @@ defaults:
   max_num_seqs: 16
   gpu_memory_utilization: 0.90
   # The vendor's own Spark path refuses any other KV dtype
-  # (inference/local/spark.py: "Spark requires an unquantized BF16 KV cache").
-  kv_cache_dtype: bf16
+  # (inference/local/spark.py: "Spark requires an unquantized BF16 KV cache");
+  # vLLM spells it `bfloat16` and rejects `bf16` in CacheConfig.
+  kv_cache_dtype: bfloat16
 command: >
   vllm serve
   {model}
