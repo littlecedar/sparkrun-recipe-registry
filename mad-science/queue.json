@@ -1817,6 +1817,22 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "pool-window-invalid-cells",
+      "title": "Gate every boot on a pool half-probe: a cell written while beegfs was down is invalid, not weak",
+      "estimate_h": 1,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "Pre-registered 2026-11-08 13:22 ET. Invalid windows: 11:27:56-12:07:30 and at/after 12:57:32 (B still open, Restart=no); admissible middle 12:07:30-12:57:31. Acceptance: run-arm (and any lane's harness) probes `timeout 10 ls <snapshots dir of a model the recipe names>` AND `df -h /mnt/beegfs` AND `systemctl is-active beegfs-storage` on the host that will boot, records the three results with their timestamp in the arm receipt, and refuses to lease when any fails; a cell written without a passing probe on record is marked invalid rather than quoted. A test covers pass/fail/absent-probe. Depends on the owner authorising the mgmtd/meta/storage restart on the head.",
+      "provenance": "mad-science/SESSION-RECORD.md §2026-11-08 13:22 ET; board row 13:22; triage facts (.31 storage oom-kill 12:57:42, .33 12:57:33, .30 units ActiveExit 12:59:14 Result=signal, Restart=no)",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": null
     }
   ],
   "questions": [
