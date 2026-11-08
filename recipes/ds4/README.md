@@ -1204,9 +1204,13 @@ device-allowed"**, and the boot has now been taken.
 
 **Measured on the second 2026-11-08 boot — `sparkrun_1c0dffa45afa6e47_6f3b0212e939`, the marlin
 variant `zz-ds4-1017-sm121-arm3-control-marlin.yaml` at 11:25 ET: selectable and loading, then out of
-host memory.** VERIFIED that the flag reaches the
-engine and the marlin method is constructed: `Init parallel ends 38.02 s`, `Load weight begin avail
-mem=112.08 GB`, and the ÷128 guard that ends the flashinfer path never fires. Measured NEGATIVE on
+host memory.** VERIFIED that the flag reaches the engine and the marlin method is constructed:
+`Init parallel ends 38.02 s`, `Load weight begin avail mem=112.08 GB`, and the ÷128 guard that
+ends the flashinfer path never fires. The proof chain, which is the general recipe for any
+env-carried engine flag, has three links in one `launch.log`: the launcher receipt's
+`EXTRA_SGLANG_ARGS='… --moe-runner-backend marlin'`, then the engine's own arguments
+(`[2026-11-08 16:26:04] server_args={… 'moe_runner_backend': 'marlin',
+'speculative_moe_runner_backend': 'marlin' …}`), then `Load weight begin`. Measured NEGATIVE on
 fit: the padded/repacked buffers (576 → 640, plus repack overhead) do not fit at TP=4 against the
 119.21 GiB pool, and the failure mode is a **global** host OOM, not a cgroup kill — `dmesg`
 `oom-kill:constraint=CONSTRAINT_NONE,…,global_oom` took `ssh` and `NetworkManager` down on `.30`, the
