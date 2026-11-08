@@ -1131,6 +1131,15 @@ and neither is papered over:
    mean acceptance length is not transferable to this body — a first-boot measurement, not an
    assumption.
 
+**First boots died in `CacheConfig`, before any weight or draft loaded.** Both arms shipped
+`kv_cache_dtype: bf16`, and the pinned nightly's vLLM rejects that spelling: `Value error, Invalid
+kv_cache_dtype: 'bf16'. Valid values are: ['auto', 'float16', 'bfloat16', …]` (reaped serve logs
+`serve-reaped-…_node_0.log` of the attempts on `.30`–`.33`, 2026-11-08 05:19–05:32 ET). The value
+renders straight into `--kv-cache-dtype`, so the engine aborted in argument validation and neither
+arm reached model load, let alone speculator init — the drafter-binding question above is therefore
+**still unproven**, not refuted. Both recipes now pass `bfloat16` (2026-11-08 06:05 ET); nothing else
+about them changed.
+
 **Nothing is staged for either arm.** Checked 2026-11-08: the pool holds a single `config.json` for
 `vllm-project/Kimi-K3.1-Pro-pruned75` (snapshot `fc72e5a1`) and no `models--LithosAI--…` at all, so
 the plain arm pays the 454.2 GB target download and the DSpark sibling pays both. Chat template is

@@ -70,7 +70,8 @@ defaults:
   max_num_seqs: 4
   max_num_batched_tokens: 2048
   quantization: compressed-tensors
-  kv_cache_dtype: bf16
+  # vLLM rejects `bf16` here (CacheConfig validation lists `bfloat16`)
+  kv_cache_dtype: bfloat16
   tool_call_parser: kimi_k3
   reasoning_parser: kimi_k3
   extra_args: ""
