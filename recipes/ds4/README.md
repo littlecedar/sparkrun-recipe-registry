@@ -737,8 +737,9 @@ load (108.83 GB available), then died 16 s in with an NVRM `NV_ERR_NO_MEMORY` GP
 runner cannot materialize the fp4 experts inside the 128 GB unified GPU. So the stock main tree
 (`6563312`) does NOT serve the 1017 on GB10 TP=4 at the two backends it was tried with: cutlass
 rejects the geometry, triton cannot fit the memory — and that retry names an unfused runner, so it
-is not evidence against `marlin`, which was never tried there and is the untried lever the SM121
-survey section now carries. The corrected conclusion is a memory-fit one as much as a geometry one:
+is not evidence against `marlin`, which was never tried there; `marlin` is the lever the SM121
+survey section carries, and has been measured there since (below). The corrected conclusion is a
+memory-fit one as much as a geometry one:
 the vendored fused/packed MoE path is load-bearing for MEMORY FIT on this checkpoint, so the adapter
 set is not optional for boot in that image. Both tracebacks: cutlass
 `~/benchmarks/tp4-window4-20261026/s0-stock-tree-rank0-serve.log`; the triton retry's
@@ -1115,8 +1116,6 @@ EXTRA_SGLANG_ARGS` prints `EXTRA_SGLANG_ARGS: --moe-runner-backend marlin`, whil
 file> -H <four nodes> -n` prints the control's serve command unchanged — the flag rides container
 env, not argv.
 
-would reject it.
-
 ### Measurement: one command per arm
 
 `tools/run-arm.sh` stops the serve after its own ladder, so a survey client rides the executor's
@@ -1168,7 +1167,8 @@ measurement — read such a boot as a kernel refusal, never as an MLA or indexer
 
 The launcher is not the difference: both arms mount `mods/dsv41-sglang-overlay`, which names no MoE
 backend, and the shipped knapcio arm mounts the same mod and serves this checkpoint at 1M. So this
-is a launcher/config difference, not an engine capability gap — and it has a lever, untried.
+is a launcher/config difference, not an engine capability gap — and the lever it names is now
+measured: `marlin` loads past initialisation and then runs the host out of memory (below).
 
 **Where the block actually is.** This image is SGLang-based; the failing class is
 `/sgl-workspace/…/sglang/srt/layers/quantization/mxfp4_flashinfer_cutlass_moe.py:66-73`, a hard
@@ -1200,7 +1200,20 @@ memory consequence: repacked buffers are sized on 640 (~11 % above the nominal 5
 computed from 576 understates the requirement.
 
 The lane's verdict therefore moves from "needs an engine rebuild" to **"config lever,
-device-allowed"** — untried pending the single control boot.
+device-allowed"**, and the boot has now been taken.
+
+**Measured on the second 2026-11-08 boot — `sparkrun_1c0dffa45afa6e47_6f3b0212e939`, the marlin
+variant `zz-ds4-1017-sm121-arm3-control-marlin.yaml` at 11:25 ET: selectable and loading, then out
+of host memory.** VERIFIED that the flag reaches the engine and the marlin method is constructed:
+`Init parallel ends 38.02 s`, `Load weight begin avail mem=112.08 GB`, and the ÷128 guard that ends
+the flashinfer path never fires. Measured NEGATIVE on fit: the padded/repacked buffers (576 → 640,
+plus repack overhead) do not fit at TP=4 against the 119.21 GiB pool, and the failure mode is a
+**global** host OOM, not a cgroup kill — `dmesg` `oom-kill:constraint=CONSTRAINT_NONE,…,global_oom`
+took `ssh` and `NetworkManager` down on `.30`, the container read `running 0 true` (OOMKilled) 58 s
+into load, and no engine traceback exists. No throughput or accuracy number is obtainable this way,
+and a repeat attempt is an operator decision because it can take the host it runs on offline. The
+flashinfer path's measured negative — the ÷128 geometry refusal above — is a different failure and
+stands.
 
 **Correcting the record on the 2026-10-26 `triton` retry.** That retry did clear the ÷128 geometry
 check and died 16 s into `Load weight begin` with NVRM `NV_ERR_NO_MEMORY` at 108.83 GB available —
