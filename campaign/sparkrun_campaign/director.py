@@ -1,6 +1,7 @@
 """The campaign director: owns the plan, hands out leases, and decides what "done" means.
 
     python -m sparkrun_campaign.director serve --manifest <json> --hosts a,b --root <dir>
+    python -m sparkrun_campaign.director serve --queue [register] --hosts a,b --root <dir>
 
 One process, one thread of decisions: the socket server accepts one request at a time and the
 supervisor loop runs between requests, so no two transitions can interleave. That is the whole
@@ -55,6 +56,10 @@ IDLE_RETRY = 5.0
 #: Floor between respawns of one worker slot: a worker that dies instantly must not hot-loop.
 RESPAWN_DELAY = 30.0
 SOCKET_NAME = "director.sock"
+#: Queue mode's re-read interval. A drained plan does not exit there: the register is where new
+#: work lands (an authoring row gains a `recipe`), so the loop keeps serving and looks again at a
+#: bounded interval instead of busy-looping on rows that are blocked or not bootable yet.
+QUEUE_POLL = 30.0
 
 
 def _last_watchdog_verdict(path: Path) -> str:
@@ -87,6 +92,8 @@ class Director:
         spawn: bool = True,
         out: Any = None,
         fleet_reap: Callable[..., dict[str, list[tuple[str, str]]]] = fleet.reap,
+        register: plan.Register | None = None,
+        once: bool = False,
     ):
         self.campaign = campaign
         self.entries = entries
@@ -98,6 +105,12 @@ class Director:
         self.spawn = spawn
         self.out = out if out is not None else sys.stdout
         self.fleet_reap = fleet_reap
+        #: Queue mode: the register is the plan source and the writer of claims. `None` is
+        #: manifest mode, whose behavior is unchanged (one list, no register, drain and exit).
+        self.register = register
+        self.once = once
+        self._last_poll = 0.0
+        self._idle_said = False
         self.max_parallel = int(campaign.data.get("max_parallel", 1))
         self.socket = self.root / SOCKET_NAME
         self.workers: dict[int, Any] = {}
@@ -111,6 +124,8 @@ class Director:
             raise StateError(f"duplicate hosts in {hosts!r}; one host cannot hold two ranks")
         if not self.run_arm_sh.is_file() or not os.access(self.run_arm_sh, os.X_OK):
             raise StateError(f"no executable per-arm executor at {self.run_arm_sh}")
+        if self.register is not None and not self.register.tool.is_file():
+            raise StateError(f"no register tool at {self.register.tool}")
         if len(str(self.socket)) > 107:
             raise StateError(f"{self.socket} is {len(str(self.socket))} bytes; a unix socket path "
                              "limit is 107")
@@ -129,14 +144,20 @@ class Director:
                 f" metadata.{evidence.REJECT_MARKER} in the recipe before running a campaign"
             )
         measured = evidence.measured(self.receipts_root)
-        order, lines = plan.build(self.entries, verdicts, measured, self.repo_root)
-        for line in lines:
+        entries, queue_lines, excluded = self._plan()
+        order, lines = plan.build(entries, verdicts, measured, self.repo_root)
+        for line in queue_lines + lines:
             print(line, file=self.out)
+        if self.register is not None and not order:
+            print("queue: no runnable rows", file=self.out)
 
         recorded = self.campaign.order
-        if not recorded:
-            for entry in self.entries:
-                self.campaign.add(entry["arm"], entry["path"], entry["tp"], entry["env"])
+        if self.register is not None:
+            # The register is the plan of record, so a row that appeared since the last life is
+            # ingested and a row that stopped being runnable is reconciled below.
+            self._adopt(entries)
+        elif not recorded:
+            self._adopt(entries)
         else:
             added = sorted(set(order) - set(recorded))
             dropped = sorted(set(recorded) - set(order))
@@ -151,6 +172,7 @@ class Director:
                 self._write_receipt(arm, status=SKIPPED, rc=None,
                                     note=f"{verdict['verdict']} ({verdict['doc']})",
                                     mdir="", hosts=[], lease_id="", started=None, leftovers=[])
+                self._close_skipped(arm, verdict)
 
         # A reboot or a killed director leaves both leases and possibly live containers behind.
         # The lease expiry is what makes the arm assignable again; the reap is what makes that safe.
@@ -171,6 +193,139 @@ class Director:
                 self._found_measured(arm, arm_dir, hosts=[], lease_id="", started=None)
             elif arm_dir:
                 print(f"unmeasured: {reason}", file=self.out)
+
+        if self.register is not None:
+            self._reconcile(order, excluded)
+
+    # --- plan source -------------------------------------------------------------------------
+
+    def _plan(self) -> tuple[list[dict[str, Any]], list[str], dict[str, str]]:
+        """(entries, exclusion lines, arm -> why it is not runnable) from this campaign's source."""
+        if self.register is None:
+            return list(self.entries), [], {}
+        return plan.queue_entries(self.register.rows(), list(self.campaign.data.get("hosts", [])),
+                                  self.register.session)
+
+    def _adopt(self, entries: list[dict[str, Any]]) -> None:
+        for entry in entries:
+            if entry["arm"] not in self.campaign.arms():
+                self.campaign.add(entry["arm"], entry["path"], entry["tp"], entry["env"],
+                                  task=entry.get("task", ""))
+
+    def _reconcile(self, order: list[str], excluded: dict[str, str]) -> None:
+        """An arm this campaign holds but the register no longer offers is blocked, not booted.
+
+        The dangerous case is another session's claim (`running`), or a row closed as `done`
+        elsewhere: the campaign's own state cannot see either, so it stops the arm and says why.
+        """
+        runnable = set(order)
+        for arm in self.campaign.order:
+            record = self.campaign.arms()[arm]
+            if record["status"] != PENDING or not record.get("task") or arm in runnable:
+                continue
+            reason = excluded.get(arm) or "no longer a runnable row in the register"
+            self.campaign.block(arm, f"register: {reason}")
+            print(f"queue-blocked: {arm} ({reason})", file=self.out)
+
+    def refresh(self) -> bool:
+        """Re-read the register and ingest rows that became runnable. True when the plan grew."""
+        if self.register is None:
+            return False
+        entries, lines, excluded = self._plan()
+        fresh = [entry for entry in entries if entry["arm"] not in self.campaign.arms()]
+        if not fresh:
+            self._reconcile([entry["arm"] for entry in entries], excluded)
+            return False
+        for line in lines:
+            print(line, file=self.out)
+        verdicts = evidence.skips(self.repo_root)
+        order, build_lines = plan.build(fresh, verdicts, {}, self.repo_root)
+        for line in build_lines:
+            print(line, file=self.out)
+        self._adopt(fresh)
+        for arm in order:
+            if arm in verdicts:
+                verdict = verdicts[arm]
+                self.campaign.record_skip(arm, verdict)
+                self._write_receipt(arm, status=SKIPPED, rc=None,
+                                    note=f"{verdict['verdict']} ({verdict['doc']})",
+                                    mdir="", hosts=[], lease_id="", started=None, leftovers=[])
+                self._close_skipped(arm, verdict)
+                continue
+            measured, reason, arm_dir = evidence.find_measurement(self.receipts_root, arm)
+            if measured:
+                self._found_measured(arm, arm_dir, hosts=[], lease_id="", started=None)
+            elif arm_dir:
+                print(f"unmeasured: {reason}", file=self.out)
+        self._reconcile([entry["arm"] for entry in entries], excluded)
+        print(f"queue: {len(fresh)} new runnable row(s): "
+              f"{', '.join(entry['arm'] for entry in fresh)}", file=self.out)
+        return True
+
+    def _wait_for_rows(self) -> None:
+        """Queue mode's drained state: look again at a bounded interval, never per tick."""
+        now = time.monotonic()
+        if now - self._last_poll < QUEUE_POLL:
+            return
+        self._last_poll = now
+        try:
+            grew = self.refresh()
+        except (plan.RegisterError, plan.PlanError) as exc:
+            print(f"queue: cannot read the register ({exc}); retrying in {QUEUE_POLL:g}s",
+                  file=self.out)
+            return
+        if grew:
+            self._idle_said = False
+        elif not self._idle_said:
+            # Once per quiet spell, not once per tick: a blocked row must not fill the journal.
+            print(f"queue: no runnable rows; polling every {QUEUE_POLL:g}s for new ones",
+                  file=self.out)
+            self._idle_said = True
+
+    # --- register claims ---------------------------------------------------------------------
+
+    def _claim(self, arm: str) -> None:
+        """Claim the arm in the register before the boot: a message is not a claim, the row is."""
+        if self.register is None:
+            return
+        task = self.campaign.arm(arm).get("task") or ""
+        if not task:
+            raise plan.RegisterError(f"{arm} has no register row to claim")
+        self.register.update(task, state="running", claimed_by=self.register.session)
+
+    def _settle(self, arm: str, status: str, why: str, mdir: str) -> None:
+        """Close or return the arm's row: measured -> done, failed -> queued, else blocked."""
+        if self.register is None:
+            return
+        task = self.campaign.arm(arm).get("task") or ""
+        if not task:
+            return
+        try:
+            if status == MEASURED:
+                self.register.update(task, state="done",
+                                     evidence=mdir or str(self.root / "receipts" / f"{arm}.json"))
+            elif status == FAILED:
+                self.register.update(task, state="queued",
+                                     notes=self.register.note(task, f"campaign: {why}"))
+            else:
+                self.register.update(task, state="blocked",
+                                     notes=self.register.note(task, f"campaign: {why}"))
+        except plan.RegisterError as exc:
+            print(f"register: {arm} not updated ({exc}); its row may still read running",
+                  file=self.out)
+
+    def _close_skipped(self, arm: str, verdict: evidence.Verdict) -> None:
+        """A recorded negative is an answer, so the row is done and cites the verdict."""
+        if self.register is None:
+            return
+        task = self.campaign.arm(arm).get("task") or ""
+        if not task:
+            return
+        try:
+            self.register.update(task, state="done",
+                                 evidence=f"{verdict['doc']} ({verdict['verdict']})")
+        except plan.RegisterError as exc:
+            print(f"register: {arm} skip not recorded ({exc})", file=self.out)
 
     def summary(self) -> int:
         counts = self.campaign.counts()
@@ -216,6 +371,16 @@ class Director:
             # The arm answered while its worker was gone; booting it again spends a window for
             # numbers that are already on disk.
             self._found_measured(arm, arm_dir, hosts=[], lease_id="", started=None)
+        try:
+            # Before the lease exists, so no worker can launch an arm this campaign has not claimed.
+            self._claim(arm)
+        except plan.RegisterError as exc:
+            reason = f"register claim refused: {exc}"
+            self.campaign.block(arm, reason)
+            self._write_receipt(arm, status=BLOCKED, rc=None, note=reason, mdir="", hosts=[],
+                                lease_id="", started=None, leftovers=[])
+            print(f"{arm}: BLOCKED, {reason}", file=self.out)
+            return None
         lease = self.campaign.assign(arm, worker or "unknown", list(hosts), now)
         print(f"assign: {arm} -> {lease['worker']} on {','.join(hosts)} (lease {lease['id']})",
               file=self.out)
@@ -247,6 +412,8 @@ class Director:
                                 hosts=lease["hosts"], lease_id=lease_id,
                                 started=lease["issued_at"], leftovers=[])
             print(f"{arm}: BLOCKED, leftover state unverifiable on {lease['hosts']}", file=self.out)
+            self._settle(arm, BLOCKED, f"cannot verify leftovers on {lease['hosts']}: {exc}",
+                         arm_dir)
             return protocol.ack(status=BLOCKED)
 
         if leftovers:
@@ -261,6 +428,7 @@ class Director:
         self._write_receipt(arm, status=status, rc=rc, note=reason or note, mdir=arm_dir,
                             hosts=lease["hosts"], lease_id=lease_id, started=lease["issued_at"],
                             leftovers=leftovers)
+        self._settle(arm, status, reason or note, arm_dir)
         print(f"{arm}: rc={rc} -> {status}" + (f" ({reason})" if reason else ""), file=self.out)
         return protocol.ack(status=status)
 
@@ -391,8 +559,10 @@ class Director:
                 server.handle_request()
                 self.supervise()
                 if self.drained():
-                    print("plan drained", file=self.out)
-                    break
+                    if self.register is None or self.once:
+                        print("plan drained", file=self.out)
+                        break
+                    self._wait_for_rows()
         finally:
             self._stop_workers()
             server.server_close()
@@ -403,6 +573,7 @@ class Director:
     def _found_measured(self, arm: str, arm_dir: str, *, hosts: list[str], lease_id: str,
                         started: float | None) -> None:
         """Record a measurement the receipts already carry; no window is spent on it."""
+        self._settle(arm, MEASURED, "measured in receipts before any boot", arm_dir)
         self.campaign.mark_measured(arm, arm_dir, "measured in receipts before any boot")
         self._write_receipt(arm, status=MEASURED, rc=None,
                             note="measured on disk; no worker report", mdir=arm_dir, hosts=hosts,
@@ -428,6 +599,7 @@ class Director:
         record = self.campaign.arm(arm)
         fields: dict[str, Any] = {
             "campaign": self.campaign.data["campaign"],
+            "task": record.get("task", ""),
             "arm": arm,
             "path": record["path"],
             "tp": record["tp"],
@@ -519,7 +691,13 @@ def main(argv: list[str] | None = None) -> int:
                                  description="Own a campaign plan and hand arms to workers.")
     commands = ap.add_subparsers(dest="command", required=True)
     serve = commands.add_parser("serve", help="run the campaign on the head")
-    serve.add_argument("--manifest", required=True, help="campaign manifest (JSON list of arms)")
+    source = serve.add_mutually_exclusive_group(required=True)
+    source.add_argument("--manifest", help="campaign manifest (JSON list of arms)")
+    source.add_argument("--queue", nargs="?", const=plan.DEFAULT_QUEUE, metavar="PATH",
+                        help="the register as the plan source: queued rows that name a recipe and "
+                             f"tp (default {plan.DEFAULT_QUEUE} under --repo-root)")
+    serve.add_argument("--once", action="store_true",
+                       help="queue mode: run the rows runnable now, then exit instead of polling")
     serve.add_argument("--hosts", required=True, help="comma-separated hosts the campaign may use")
     serve.add_argument("--root", required=True,
                        help="campaign directory: state, receipts, logs and the socket")
@@ -551,9 +729,14 @@ def main(argv: list[str] | None = None) -> int:
     if len(set(hosts)) != len(hosts):
         print(f"cannot start: duplicate hosts in {hosts!r}", file=sys.stderr)
         return 2
+    if args.once and args.queue is None:
+        print("cannot start: --once is a queue-mode flag; a manifest campaign drains and exits",
+              file=sys.stderr)
+        return 2
     root = Path(args.root).expanduser()
+    repo_root = Path(args.repo_root)
     try:
-        entries = plan.load_manifest(args.manifest)
+        entries = plan.load_manifest(args.manifest) if args.manifest else []
         campaign = Campaign.open(
             root / "state.json",
             campaign=args.name or root.name,
@@ -561,6 +744,15 @@ def main(argv: list[str] | None = None) -> int:
             max_parallel=args.max_parallel or len(hosts),
             retries=args.retries,
         )
+        register = None
+        if args.queue is not None:
+            queue_path = Path(args.queue)
+            if not queue_path.is_absolute():
+                queue_path = repo_root / queue_path
+            # The session id is stable across restarts, which is what lets a claim be recognised
+            # as this campaign's own on the next life.
+            register = plan.Register(repo_root / "tools" / "task-queue.py", queue_path,
+                                     f"sparkrun-campaign:{campaign.data['campaign']}")
     except (plan.PlanError, StateError) as exc:
         print(f"cannot start: {exc}", file=sys.stderr)
         return 2
@@ -569,8 +761,10 @@ def main(argv: list[str] | None = None) -> int:
         entries,
         root=root,
         receipts_root=Path(args.receipts_root).expanduser(),
-        repo_root=Path(args.repo_root),
+        repo_root=repo_root,
         run_arm_sh=Path(args.run_arm),
+        register=register,
+        once=args.once,
     )
     try:
         director.validate()
@@ -579,7 +773,7 @@ def main(argv: list[str] | None = None) -> int:
             print("dry run: no socket bound, no worker spawned", file=director.out)
             return director.summary()
         return director.serve()
-    except (plan.PlanError, StateError) as exc:
+    except (plan.PlanError, plan.RegisterError, StateError) as exc:
         print(f"cannot start: {exc}", file=sys.stderr)
         return 2
     finally:

@@ -187,13 +187,16 @@ class Campaign:
         record.setdefault("history", []).append({"at": time.time(), "kind": kind, **detail})
         del record["history"][:-HISTORY_CAP]
 
-    def add(self, arm: str, path: str, tp: int = 1, env: dict[str, str] | None = None) -> dict[str, Any]:
+    def add(self, arm: str, path: str, tp: int = 1, env: dict[str, str] | None = None,
+            task: str = "") -> dict[str, Any]:
+        """One arm. `task` is its register row id: a queue campaign closes the row it claimed."""
         if arm in self.data["arms"]:
             raise StateError(f"{arm!r} is already in this campaign")
         record = {
             "path": path,
             "tp": int(tp),
             "env": dict(env or {}),
+            "task": task,
             "status": PENDING,
             "attempts": 0,
             "failures": 0,

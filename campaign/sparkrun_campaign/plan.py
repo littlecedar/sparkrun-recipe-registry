@@ -1,5 +1,12 @@
 """What runs next, and on which hosts.
 
+Two plan sources, one placement rule. A **manifest** is a hand-written list whose order is the
+plan. A **queue campaign** reads the register (`mad-science/queue.json`) instead: rows that name a
+`recipe` and its `tp` are the work, ordered by the register's own weighted order, which is read from
+`tools/task-queue.py queue --json` rather than re-derived here -- one implementation of the weight
+arithmetic, not two. The declared host set is still the whole node set a campaign may use; the
+director discovers *work*, never nodes.
+
 Ordering is the manifest's order. There is no static partition of the plan into per-node slices:
 the 2026-11-04 campaign lost 2.02 node-hours because one node's slice ended with a 132-minute arm
 while the other node sat idle with nothing queued. A static slice cannot see its peer's queue; a
@@ -14,6 +21,9 @@ with one host free -- be tested without a fleet.
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -21,12 +31,114 @@ from .evidence import Verdict, skip_line
 from .state import FAILED, LEASED, PENDING, SKIPPED
 
 #: Runtime keys a recipe may carry. `tp` is the node count the arm was planned for; the manifest
-#: is where that decision lives because it is a property of the arm, not of the run.
+#: is where that decision lives because it is a property of the arm, not of the run. A queue row
+#: may ask for a quartet (`tp=4`), which `queue_entries` admits only when four hosts are declared.
 TP_VALUES = (1, 2)
+#: The register, relative to `--repo-root`, when `--queue` is given without a path.
+DEFAULT_QUEUE = "mad-science/queue.json"
 
 
 class PlanError(RuntimeError):
-    """The manifest cannot be planned as written. Never plan around a broken one."""
+    """The plan cannot be issued as written. Never plan around a broken one."""
+
+
+class RegisterError(RuntimeError):
+    """The register refused a read or a write. Never read as "nothing to do"."""
+
+
+class Register:
+    """The queue register: plan source and the one writer of claims, via `tools/task-queue.py`.
+
+    Shelled out, never imported: `tools/` is stdlib-only and dash-named, and the tool owns the
+    register's atomic save -- a second writer here would race its own lock out of existence. The
+    ordering, the tiering and the weight arithmetic are the tool's too, so this package carries no
+    second copy to drift.
+    """
+
+    def __init__(self, tool: str | Path, queue: str | Path, session: str,
+                 run: Callable[..., Any] = subprocess.run):
+        self.tool = Path(tool)
+        self.queue = Path(queue)
+        self.session = session
+        self._run = run
+
+    def _call(self, *args: str) -> str:
+        command = [sys.executable, "-B", str(self.tool), "--file", str(self.queue), *args]
+        result = self._run(command, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            raise RegisterError(f"{' '.join(args)}: rc={result.returncode}: "
+                                f"{(result.stderr or '').strip()[:300]}")
+        return result.stdout
+
+    def rows(self) -> list[dict[str, Any]]:
+        """Every task, in the register's own weighted order."""
+        try:
+            rows = json.loads(self._call("queue", "--json"))
+        except ValueError as exc:
+            raise RegisterError(f"{self.queue}: queue --json is not JSON: {exc}") from exc
+        if not isinstance(rows, list):
+            raise RegisterError(f"{self.queue}: queue --json is not a list of tasks")
+        return rows
+
+    def update(self, task_id: str, **fields: Any) -> None:
+        """The tool is the writer: `update` relinks, validates, then replaces the file atomically."""
+        argv = ["update", "--id", task_id]
+        for key, value in fields.items():
+            argv += [f"--{key.replace('_', '-')}", str(value)]
+        self._call(*argv)
+
+    def note(self, task_id: str, why: str) -> str:
+        """The row's notes with `why` appended, because `--notes` replaces the whole cell."""
+        current = next((str(row.get("notes", "")) for row in self.rows()
+                        if row.get("id") == task_id), "")
+        return f"{current} — {why}" if current else why
+
+
+def queue_entries(rows: list[dict[str, Any]], hosts: list[str],
+                  session: str) -> tuple[list[dict[str, Any]], list[str], dict[str, str]]:
+    """(entries, explanation lines, arm -> why it is not runnable) from the register's ordering.
+
+    Only `queued` rows that name a `recipe` and `tp` are work: `blocked`/`done` are somebody else's
+    answer, `running` is another session's claim (a claim of *ours* from a previous life is left to
+    the campaign's own record), and a row whose `tp` exceeds the declared host count is skipped by
+    name rather than truncated onto fewer nodes. An authoring row is counted, not listed: the
+    register is mostly prose work and a line per row would bury the exclusions that matter.
+    """
+    entries: list[dict[str, Any]] = []
+    lines: list[str] = []
+    excluded: dict[str, str] = {}
+    owner: dict[str, str] = {}
+    authoring = 0
+    for row in rows:
+        task = str(row.get("id", "?"))
+        state = row.get("state")
+        recipe, tp = row.get("recipe"), row.get("tp")
+        if not recipe or not tp:
+            if state == "queued":
+                authoring += 1      # queued prose/work rows: counted, because that is the queue
+            continue
+        arm = Path(str(recipe)).stem
+        if state != "queued":
+            if state == "running" and row.get("claimed_by") == session:
+                continue
+            reason = (f"claimed running by {row.get('claimed_by') or 'another session'}"
+                      if state == "running" else f"register state {state}")
+            lines.append(f"queue-skip: {task} ({reason})")
+            excluded[arm] = reason
+            continue
+        if tp > len(hosts):
+            reason = f"tp={tp} needs {tp} hosts, {len(hosts)} declared"
+            lines.append(f"queue-skip: {task} ({reason})")
+            excluded[arm] = reason
+            continue
+        if arm in owner:
+            raise PlanError(f"{task} and {owner[arm]} both name recipe {recipe}")
+        owner[arm] = task
+        entries.append({"arm": arm, "path": recipe, "tp": int(tp),
+                        "env": dict(row.get("env") or {}), "task": task})
+    if authoring:
+        lines.append(f"queue: {authoring} row(s) queued without a recipe (authoring, not bootable)")
+    return entries, lines, excluded
 
 
 def load_manifest(path: str | Path) -> list[dict[str, Any]]:
@@ -115,7 +227,7 @@ def next_assignment(
             continue
         if record["needs_reap"]:
             continue
-        need = 2 if record["tp"] == 2 else 1
+        need = int(record["tp"])
         if len(free) < need:
             continue
         return arm, tuple(free[:need])

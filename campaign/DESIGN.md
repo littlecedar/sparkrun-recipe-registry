@@ -22,9 +22,9 @@ the scheduling mechanism rather than the thing being scheduled, and this tree al
 | `protocol.py` | The director↔worker wire: message constructors, one-JSON-object-per-line framing, size limit | Campaign state (that is `state.py`) |
 | `evidence.py` | The two evidence readers: the skip source (`metadata.measured_rejected`) and the receipt predicate (`ladder` / `accuracy_status` fields plus the cell table) | Deciding what to do about an arm |
 | `state.py` | The persisted plan and per-arm records: atomic file writes, the single-director lock, lease/bookkeeping transitions | Which arm is next (that is `plan.py`) |
-| `plan.py` | Manifest validation, plan order, and the pure placement function | Talking to anyone |
+| `plan.py` | The two plan sources (manifest and register), plan order, the register client that claims and closes rows through the tool, and the pure placement function | Talking to a worker |
 | `fleet.py` | Docker facts: which containers a recipe left on which hosts, and removal of only those | Knowing why it was asked |
-| `director.py` | The service: prints the exclusions, hands out leases, decides "measured" from receipts, reclaims dead leases, spawns workers, writes per-arm receipts | Running an arm |
+| `director.py` | The service: prints the exclusions, claims the arm in the register before its lease, hands out leases, decides "measured" from receipts, reclaims dead leases, spawns workers, writes per-arm receipts | Running an arm |
 | `worker.py` | One slot: poll, run `tools/run-arm.sh`, heartbeat the lease, report the return code | Interpreting the return code |
 | `systemd/sparkrun-campaign.service` | Supervision on the head | Anything about a specific campaign |
 
@@ -50,6 +50,75 @@ later decision with data behind it rather than a guess in the first version.
 
 A TP=2 arm takes two hosts in **one** lease: `run-arm.sh` is launched once with both, so one worker
 owns the pair and there is no way for two workers to half-own an arm.
+
+## Queue mode: the register as the plan source
+
+A manifest lists the arms a session already decided on. The register (`mad-science/queue.json`,
+protocol `mad-science/QUEUE.md`) lists the work the programme has not done yet, and a queue campaign
+reads it instead: `serve --queue [path]` (`path` defaults to `mad-science/queue.json` under
+`--repo-root`), mutually exclusive with `--manifest`. The owner's requirement is the reason — a
+drained manifest must not leave a declared node idle while the register holds bootable work.
+
+A row becomes an arm only when it is machine-runnable: `state == "queued"` plus the optional
+`recipe` (a tracked `recipes/<lane>/<arm>.yaml`) and `tp` (1/2/4, equal to its `node_cost`). The arm
+name is the recipe's basename, because that is what the receipt window and the skip source are keyed
+on; `env` travels into the lease unchanged. Rows without those fields are authoring, docs or
+analysis work and no scheduler may boot them.
+
+Exclusions are named, never truncated:
+
+| Row | Effect |
+|---|---|
+| `blocked` | `queue-skip: <row> (register state blocked)` — an external gate is not the campaign's to open |
+| `running` | skipped, naming `claimed_by` — another session's claim. A `running` row claimed under this campaign's own session id is left to the campaign record, which is what resumes an in-flight arm after a restart |
+| `done` | skipped; if this campaign holds no measurement for that arm it is blocked, not booted |
+| no `recipe`/`tp` | counted in one line (`authoring, not bootable`): most rows are prose work |
+| `tp` > declared hosts | skipped by name (`tp=4 needs 4 hosts, 2 declared`); a quartet is never cut onto fewer nodes |
+| two rows naming one recipe | a plan error: the register has not said which row the numbers would close |
+
+**Ordering is the register's.** The plan is `tools/task-queue.py queue --json` in the order it
+prints — tier, then weight ascending, then id, which is exactly what the weight is for: a row that
+unblocks a chain floats. A guard in `tests/test_task_queue_tool.py` pins the machine read to the
+human table, so the ordering has one implementation and no second copy to drift. Placement is still
+`plan.next_assignment`, so the declared `--hosts` set is the whole node set and the director never
+chooses nodes; what it discovers is *work*.
+
+**The claim is the lock.** Before a lease exists, the director writes the claim through the same
+tool: `task-queue.py update --id <row> --state running --claimed-by sparkrun-campaign:<campaign>`.
+A worker can only launch from a lease, so no arm boots unclaimed, and the session id is derived from
+the campaign name so the next life recognises its own claim. At the end of the arm:
+
+| Outcome | Register row |
+|---|---|
+| measured (from receipt fields, never the rc) | `--state done --evidence <measurement dir>` |
+| failed | `--state queued`, `--notes` appended with `campaign: <reason>` — the row keeps its own justification text and no evidence pointer is invented |
+| blocked (leftover survivor, unverifiable host) | `--state blocked` plus the same note, because a human must look |
+| recorded negative | `--state done --evidence "<doc>:<line> (measured-rejected)"` — a recorded negative is an answer, and the citation is its evidence |
+| claim refused by the tool | the arm is blocked in the campaign and no lease is issued; the row is left alone |
+
+A claim that cannot be written is a refusal to boot, not a warning: two sessions on one arm is the
+double-boot this project exists to prevent. The tool is the register's only writer (temp file +
+`os.replace`), so the campaign never edits the JSON itself; a failed *close* is printed loudly and
+the row may still read `running`, which is a queue-tool failure for a human, not a second boot.
+
+**Draining.** Manifest mode is unchanged: drained means exit 0 and stay down. A queue campaign
+defaults to **polling** instead — every `QUEUE_POLL` (30 s) a drained plan re-reads the register,
+because the owner's requirement is "keep the available nodes busy" and the register is where the
+next bootable row lands (an authoring row gains a `recipe`, another session `unblock`s a row). The
+interval is what makes it a scheduler rather than a busy loop: rows that are `blocked`, not
+bootable, or over the host count are excluded at read time and never re-attempted, and the "no
+runnable rows" line is printed once per quiet spell, not per tick. SIGTERM ends the run through the
+ordinary service path. `--once` is the escape: run what is runnable now, then exit 0 like a manifest
+campaign — for a preflight, or an operator who wants one pass.
+
+Preflight against the live register (no boot, no worker; it prints the exclusions, the skip lines
+and the plan, and creates/updates `state.json`):
+
+```bash
+cd <checkout>/campaign
+uv run --frozen python -m sparkrun_campaign.director serve --queue --dry-run \
+  --hosts "$CAMPAIGN_HOSTS" --root "$CAMPAIGN_ROOT"
+```
 
 ## Wire protocol
 
@@ -163,7 +232,7 @@ disagreement is auditable (`status` beside `ladder`).
 | `tools/boot-watchdog.py` | **Reused as a subprocess**, spawned by `run-arm.sh` | Items 3 and 4 are its behavior (two observed absences, serve log captured before the stop). The director deliberately has no serve liveness logic. |
 | `tools/next-arms.py` skip reader | **Reimplemented** (`evidence.skips`) | Importing a dash-named script from another project is a hack, and its CLI is fleet-shaped (it ssh-probes nodes), so importing it would drag a probe into the decision path. A parity test compares both implementations over the whole tracked tree and over shaped receipts, so drift fails the suite rather than the campaign. |
 | `tools/next-arms.py` manifest/placement | **Reimplemented** (`plan.py`) | Its placement copies node lists out of a live probe and prints launch lines; the campaign needs a queue and leases. Same manifest shape is accepted. |
-| `tools/task-queue.py` register | **Not used** | The register orders *sessions'* work by weight; a campaign is one task in it, and its plan is the manifest. |
+| `tools/task-queue.py` register | **Shelled out to** (plan source and claim writer) | It owns the register: the ordering (`queue --json`, so the weight arithmetic has one implementation), and every write (claim, done, note) through its own atomic save. Editing the JSON here would race that save. A manifest campaign never touches it. |
 | `sparkrun` CLI | **Shelled out to**, never imported | `AGENTS.md` keeps `plugins/` as the one tree that imports sparkrun. The executor already shells out, and a subprocess keeps the suite runnable with no sparkrun and no GPU. |
 
 ## Failure modes from 2026-11-04, and what prevents each
@@ -208,7 +277,10 @@ A single module or case, from `campaign/`:
 CI runs **exactly that command**, as the step `Campaign driver suite (its own uv project, zero
 dependencies)` in `.github/workflows/gate.yml`. It runs on the hosted runner because nothing in it
 needs a GPU, a node, docker, ssh or sparkrun: the director is driven through a fake fleet with
-fixture receipts, and the only subprocess the suite starts is `git ls-files` in the parity test.
+fixture receipts. The subprocesses it starts are `git` (the parity fixture and the register
+round-trip) and, in one register test, `tools/task-queue.py` itself — a stdlib script, so the hosted
+runner already has everything it needs.
+
 One smaller gate change came with it: a `py_compile over the campaign tree` step, because the
 documented loop compiles `tools`, `plugins` and mod Python only, and `tests/test_ci_workflows.py`
 pins that loop verbatim — so the campaign tree gets its own step rather than an edit to the
@@ -273,6 +345,25 @@ systemctl --user daemon-reload
 systemctl --user enable --now sparkrun-campaign.service
 ```
 
+The shipped unit starts a **manifest** campaign (`--manifest ${CAMPAIGN_MANIFEST}`). A queue
+campaign is the same unit with one override — the register is the plan, so `CAMPAIGN_HOSTS` and
+`CAMPAIGN_ROOT` keep their meaning and no manifest is named:
+
+```bash
+systemctl --user edit sparkrun-campaign.service   # drop-in:
+#   [Service]
+#   ExecStart=
+#   ExecStart=/usr/bin/env uv run --project %h/src/sparkrun-recipe-registry/campaign --frozen \
+#     python -B -m sparkrun_campaign.director serve --queue --hosts ${CAMPAIGN_HOSTS} \
+#     --root ${CAMPAIGN_ROOT}
+systemctl --user daemon-reload
+systemctl --user restart sparkrun-campaign.service
+```
+
+`--queue` with no path is `mad-science/queue.json` under `--repo-root` (the checkout the package
+lives in), so a checkout's own register is what the service reads. Without the override the same
+campaign can be started by hand, which is what the operator command below does.
+
 Preflight without booting anything (this is the human check for item 1 — it prints the `skip:` lines
 and the plan, then exits; it does not bind the socket or spawn a worker, but it does create/update
 `state.json`, which is the record of what the plan is):
@@ -306,7 +397,8 @@ not finish is reaped on the next start. `KillMode=mixed` plus `TimeoutStopSec=18
 director's 100 s worker grace and then that trap time to run `sparkrun stop`. `Restart=on-failure`
 retries a crash (safe: every start resumes), while `RestartPreventExitStatus=2` keeps a refusal — a
 stale citation, a bad host set, a missing executor — failed for a human instead of restarting every
-15 s. A drained campaign exits 0 and stays down, which is the completion signal.
+15 s. A drained manifest campaign exits 0 and stays down, which is the completion signal; a queue
+campaign in poll mode keeps serving (§Queue mode) and is stopped like any other service.
 
 While a run owns the state lock, an operator reads it through the same module without disturbing it:
 
@@ -376,8 +468,11 @@ and 0 volumes on both campaign hosts. Receipts: 5 skipped, 2 failed.
 
 No boots, no docker, no ssh, no `sparkrun` invocation — the package has no code path that runs on
 import. No host discovery: the node set is declared, because a campaign that picks its own nodes
-would collide with any other session's window. No automatic retry of a *measured-and-failed* arm
-(`--retries 0` by default): a failure is recorded and reported, and re-booting a recorded negative
-is the defect this whole tree exists to stop. No arm-duration cap: the executor and the watchdog
+would collide with any other session's window. (Amended 2026-11-07 by an owner requirement, which
+overrules the original assumption that the register is "not used": what a campaign *discovers* is
+work, from the register, and the declared-host rule is unchanged — the director still never chooses
+a node. §Queue mode is the new rule; the manifest stays a valid plan source.) No automatic retry of
+a *measured-and-failed* arm (`--retries 0` by default): a failure is recorded and reported, and
+re-booting a recorded negative is the defect this whole tree exists to stop. No arm-duration cap: the executor and the watchdog
 already bound the failure modes they can see, and a wall clock that kills a slow-but-loading arm
 would cost the measurement.
