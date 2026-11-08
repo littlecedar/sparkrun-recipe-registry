@@ -189,6 +189,63 @@ if [ -z "${ARM_ALLOW_FEW_SLOTS:-}" ]; then
   fi
 fi
 
+# An inactive per-node daemon cannot create a container, and sparkrun reports that as a
+# resource-distribution failure instead of a dead daemon: `[3/6] Distributing resources` then
+# `[Errno 70] Communication error on send: /home/red/.cache/huggingface/token` (leases @3-@6,
+# 2026-11-08), which reads as a token/permission error and is not one -- the token file was
+# byte-identical on all six nodes. Asked here, before the exit capture is armed and before the
+# launch, so a refused arm spends none of its evidence window and leaves no watcher behind.
+# `sparkrun daemon status` is a state-file + pid read (`cli/_daemon.py:171-181`) that starts
+# nothing and EXITS 0 either way, so the JSON field decides, never `$?`. The remote binary and
+# `HOME` are resolved in the same non-interactive ssh form the probe uses, then pinned: a wrong
+# `HOME` reports a running daemon as down (measured 2026-11-08: HOME=/tmp/wrong-home answered
+# "running": false where HOME=/home/red answered true), which would refuse the fleet on this
+# script's own environment.
+# Three outcomes, not two: true proceeds; false refuses at 9 naming the host; anything
+# unreadable (ssh failure, no binary, no `running` field) refuses at 10 and is never reported as
+# "daemon not running". Each host's resolved binary, HOME, field and raw first line land in
+# daemon-preflight.txt, so a refusal says which environment it probed.
+# daemon-preflight: start
+DP_FAIL=() DP_DOWN=()
+: > "$L/daemon-preflight.txt"
+for hn in $(echo "$HOSTS" | tr ',' ' '); do
+  dp_out=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+    'export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+     exe=$(command -v sparkrun 2>/dev/null) || { echo "EXE=-"; echo "HOME=$HOME"; echo "FIELD=no-binary"; exit 0; }
+     echo "EXE=$exe"
+     echo "HOME=$HOME"
+     out=$(HOME="$HOME" "$exe" daemon status 2>&1) || { echo "FIELD=status-failed"; echo "RAW=$(printf "%s" "$out" | head -1 | cut -c1-120)"; exit 0; }
+     echo "FIELD=$(printf "%s" "$out" | sed -n "s/.*\"running\": *\(true\|false\).*/\1/p" | head -1)"
+     echo "RAW=$(printf "%s" "$out" | head -1 | cut -c1-120)"' 2>/dev/null) || dp_out=
+  dp_exe=$(printf '%s\n' "$dp_out" | sed -n 's/^EXE=//p' | head -1)
+  dp_home=$(printf '%s\n' "$dp_out" | sed -n 's/^HOME=//p' | head -1)
+  dp_field=$(printf '%s\n' "$dp_out" | sed -n 's/^FIELD=//p' | head -1)
+  dp_raw=$(printf '%s\n' "$dp_out" | sed -n 's/^RAW=//p' | head -1)
+  : "${dp_field:=unreadable}"
+  printf '%s,%s,%s,%s,%s\n' "$hn" "${dp_exe:--}" "${dp_home:--}" "$dp_field" "${dp_raw:--}" \
+    >> "$L/daemon-preflight.txt"
+  case "$dp_field" in
+    true) ;;
+    false) DP_DOWN+=("$hn") ;;
+    *) DP_FAIL+=("$hn ($dp_field)") ;;
+  esac
+done
+if [ ${#DP_FAIL[@]} -gt 0 ]; then
+  echo "ARM REFUSED $NAME: the daemon preflight could not be read on ${DP_FAIL[*]};"
+  echo "  an unreadable probe is neither a dead daemon nor a healthy one, so nothing is launched."
+  echo "  Probe evidence: $L/daemon-preflight.txt"
+  exit 10
+fi
+if [ ${#DP_DOWN[@]} -gt 0 ]; then
+  echo "ARM REFUSED $NAME: no running sparkrun daemon on ${DP_DOWN[*]}; the launch would die in"
+  echo "  resource distribution as [Errno 70] Communication error on send on the HF token path,"
+  echo "  a token/permission error it is not. Start it on each:"
+  for hn in "${DP_DOWN[@]}"; do echo "    ssh red@$hn 'sparkrun daemon start'"; done
+  echo "  verify with: sparkrun daemon status -> \"running\": true. Evidence: $L/daemon-preflight.txt"
+  exit 9
+fi
+# daemon-preflight: end
+
 launch_arm() {
   sparkrun run "$RECIPE" -H "$HOSTS" --cluster WOPR "${ARM_OPTS_ARR[@]}" > "$L/launch.log" 2>&1 &
   LAUNCH=$!
@@ -579,6 +636,106 @@ else
        "(${POLLS} polls at ${POLL_SLEEP}s) on $NODE:$PORT"
   rc=4
 fi
+
+# Per-cell /metrics scrape BEFORE the stop, from INSIDE the arm's own container. sparkrun
+# launches `--rm`, so the container and every socket in it are gone ~26 ms after `die` (the same
+# fact the exit capture exists for); and a host-side curl is on the wrong side of the namespace:
+# sglang serves /metrics on port_base + 3 *inside* the container (recipes/MECHANICS.md:603-605),
+# a port sparkrun never publishes, so a host-side probe would manufacture `absent` on an
+# instrumented arm -- the exact inversion this field exists to prevent. Every existing poller
+# already lives where the socket is: the omni bridge polls its own serve in-container
+# (recipes/media/mods/vllm-omni-metrics-bridge/launcher.py) and the GLM launchers poll
+# 127.0.0.1 (recipes/glm/mods/tensorfold-glm-exl3-launcher/launcher.py:302). This block reuses
+# that placement without their republishing: it stores the raw body and classifies its shape,
+# so no per-lane mod change is needed and every runtime gets one uniform probe. curl exists in
+# the sglang and vLLM images (measured 2026-11-08); an image without one -- the llama.cpp tiers
+# carry neither curl nor wget -- reads no_probe with the exec's exit code, never absent.
+# The port is resolved per runtime, never guessed: sglang PORT+3 and only with --enable-metrics
+# (sparkrun maps that key at runtimes/sglang.py:95, so a `defaults:` key counts as well as a
+# command token); vLLM the OpenAI port; llama.cpp the serve port and only with --metrics
+# (mad-science/LLAMACPP-GGUF.md:37). One exec per host, connect 3 s / total 5 s, no retries.
+# Four states, never conflated. captured: a Prometheus body -- a `# TYPE`/`# HELP` line or a
+# known runtime family prefix -- so a 200 from something that is not the engine is wrong_port.
+# absent: the probe ran in the container and the engine exposes nothing (404, an empty 200, or
+# a refusal on the metrics port while the serve was ready). no_probe: the probe could not run or
+# could not read (no container, exec failure, no curl, a timeout, or a refusal on a boot that
+# never readied). wrong_port: a listener answered with something that is not a metrics surface.
+# metrics-scrape: start
+M_RUNTIME=$(sed -n 's/^[[:space:]]*runtime:[[:space:]]*//p' "$RECIPE" | head -1)
+M_PORT= M_SKIP=
+case "$M_RUNTIME" in
+  sglang) grep -q -- '--enable-metrics' "$RECIPE" && M_PORT=$((PORT + 3)) || M_SKIP=recipe-has-no-flag ;;
+  llama-cpp) grep -q -- '--metrics' "$RECIPE" && M_PORT=$PORT || M_SKIP=recipe-has-no-flag ;;
+  *) M_PORT=$PORT ;;
+esac
+M_RANK=-1 M_AGG= M_DECIDE= M_CAPTURED=0 M_ABSENT=0 M_WRONG=0 M_NOPROBE=0
+printf '# runtime=%s port=%s\n' "${M_RUNTIME:-unknown}" "${M_PORT:-none}" > "$L/metrics-status.txt"
+for hn in $(echo "$HOSTS" | tr ',' ' '); do
+  body= url=- why= ms= cid=
+  if [ -n "$M_SKIP" ]; then
+    ms=absent; why=$M_SKIP
+  else
+    url="http://127.0.0.1:$M_PORT/metrics"
+    # This arm's container on this host, matched on the naming grammar, so another task whose
+    # id contains ours is never probed.
+    cid=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+            "docker ps --format '{{.ID}} {{.Names}}'" 2>/dev/null \
+          | sed -n "s/^\([0-9a-f]\{12\}\) sparkrun_${TID}_\(solo\|node_[0-9][0-9]*\)$/\1/p" | head -1)
+    if [ -z "$cid" ]; then
+      ms=no_probe; why=no-container
+    else
+      out=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+              "docker exec '$cid' curl -sS --connect-timeout 3 --max-time 5 \
+                -w '\n%{http_code}' '$url'" 2>"$L/metrics-$hn.err"); erc=$?
+      code=${out##*$'\n'}
+      body=${out%$'\n'*}
+      if [ "$erc" -eq 0 ] && [ -z "$code" ]; then
+        ms=no_probe; why=unparseable-http-status
+      elif [ "$erc" -eq 0 ] && [ "$code" != 200 ]; then
+        case "$code" in
+          404|405|501|503) ms=absent; why="http-$code" ;;
+          *) ms=no_probe; why="http-$code" ;;
+        esac
+      elif [ "$erc" -eq 0 ] && [ -z "$body" ]; then
+        ms=absent; why=http-200-empty
+      elif [ "$erc" -eq 0 ] \
+           && { printf '%s\n' "$body" | grep -qE '^# (TYPE|HELP) ' \
+                || printf '%s\n' "$body" | grep -qE '^(sglang|vllm|llamacpp)[:_]'; }; then
+        ms=captured; why="http-$code"
+      elif [ "$erc" -eq 0 ]; then
+        ms=wrong_port; why="not-prometheus: $(printf '%s' "$body" | head -1 | cut -c1-80)"
+      elif [ "$erc" -eq 7 ] && [ "$ready" = yes ]; then
+        ms=absent; why=listener-refused
+      elif [ "$erc" -eq 7 ]; then
+        ms=no_probe; why=serve-not-ready
+      else
+        ms=no_probe; why="exec-or-curl-exit-$erc"
+      fi
+    fi
+  fi
+  { printf '%s host=%s container=%s url=%s reason=%s\n' "$ms" "$hn" "${cid:--}" "$url" "$why"
+    printf '%s\n' "$body"; } > "$L/metrics-$hn.txt"
+  printf '%s host=%s container=%s url=%s reason=%s\n' \
+    "$ms" "$hn" "${cid:--}" "$url" "$why" >> "$L/metrics-status.txt"
+  case "$ms" in
+    captured) M_CAPTURED=$((M_CAPTURED + 1)); rank=1 ;;
+    absent) M_ABSENT=$((M_ABSENT + 1)); rank=0 ;;
+    wrong_port) M_WRONG=$((M_WRONG + 1)); rank=2 ;;
+    *) M_NOPROBE=$((M_NOPROBE + 1)); rank=3 ;;
+  esac
+  if [ "$rank" -gt "$M_RANK" ]; then
+    M_RANK=$rank; M_AGG=$ms
+    M_DECIDE="$ms host=$hn container=${cid:--} url=$url reason=$why"
+  fi
+done
+[ -n "$M_AGG" ] || M_AGG=absent
+[ -n "$M_DECIDE" ] || M_DECIDE="absent host=${HOSTS%%,*} container=- url=- reason=no-host"
+echo "metrics: $M_AGG ($M_CAPTURED captured, $M_ABSENT absent, $M_WRONG wrong_port, $M_NOPROBE no_probe)"
+# The single authority for this fact is metrics-status.txt plus the metrics-<host>.txt bodies:
+# nothing is appended to house.yaml, and no `metrics_*` key is written into a marker, so a marker
+# reader is never tempted to look for one (campaign/sparkrun_campaign/evidence.py:metrics_status
+# reads the sidecar for exactly that reason).
+# metrics-scrape: end
 
 # Always tear down: an idle serve is a held node, which is the defect this
 # script exists to prevent. `sparkrun stop` can be refused when its resource

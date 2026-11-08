@@ -462,6 +462,18 @@ class OverrideEvidence(unittest.TestCase):
             stub = bins / "sparkrun"
             stub.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$ARGV\"\nexit 0\n")
             stub.chmod(0o755)
+            # The slice now begins at the daemon preflight, which asks each host for its daemon
+            # state. That probe is not what this harness measures, so it answers "up" here; the
+            # probe's own behaviour is executed in DaemonPreflight.
+            ssh_stub = bins / "ssh"
+            ssh_stub.write_text(
+                "#!/bin/sh\n"
+                'echo "EXE=/usr/bin/sparkrun"\n'
+                'echo "HOME=/home/stub"\n'
+                'echo "FIELD=true"\n'
+                'echo \'RAW={"running": true,\'\n'
+            )
+            ssh_stub.chmod(0o755)
             script = tmp / "launch.sh"
             script.write_text(
                 f"""#!/usr/bin/env bash
@@ -1564,6 +1576,334 @@ printf 'IMAGE_ENV=%s\\n' "${{ARM_IMAGE_ID:-unset}}"
         text = read_tool()
         self.assertEqual(text.count('> "$L/image.txt"'), 1)
         self.assertNotIn("image.txt", extra_client_block(text))
+
+
+# ---------------------------------------------------------------------------
+# Blocks executed against stub nodes: the daemon preflight and the /metrics scrape.
+#
+# Both blocks are about a launch that fails for infrastructure reasons being read as an arm that
+# failed, so the guard cannot be a text search: ssh, docker and curl are fakes on PATH and the
+# script's own slice runs. `ssh` executes the remote command locally with those fakes and the
+# per-host fixture directory, which is what a node's answer looks like from here.
+# ---------------------------------------------------------------------------
+
+def block_region(text: str, start: str, end: str) -> str:
+    """The block between two unique markers, both included."""
+    at = text.index(start)
+    return text[at : text.index(end, at) + len(end)]
+
+
+DP_START = "# daemon-preflight: start"
+DP_END = "# daemon-preflight: end"
+M_START = "# metrics-scrape: start"
+M_END = "# metrics-scrape: end"
+
+SSH_STUB = """#!/usr/bin/env bash
+host="${@: -2:1}"; host="${host#red@}"; cmd="${@: -1}"
+[ -f "$NODES/$host.on" ] || { echo "ssh: connect to host $host: Connection refused" >&2; exit 255; }
+DP_HOST="$host" PATH="$BINS:$PATH" bash -c "$cmd"
+"""
+
+DOCKER_STUB = """#!/usr/bin/env bash
+case "$1" in
+  ps) cat "$NODES/$DP_HOST.ps" 2>/dev/null; exit 0 ;;
+  exec) shift; [ "${1:-}" = "-i" ] && shift; cid="$1"; shift
+        [ -f "$NODES/$DP_HOST.exec-fail" ] && { cat "$NODES/$DP_HOST.exec-fail" >&2; exit 125; }
+        exec "$@" ;;
+  *) exit 0 ;;
+esac
+"""
+
+# Fixture lines: <curl exit code>, <http code>, then the body. A non-zero exit prints nothing,
+# which is what curl does when the connection itself failed.
+CURL_STUB = """#!/usr/bin/env bash
+printf '%s\\n' "${DP_HOST:-?}" >> "${CURL_CALLS:-/dev/null}"
+f="$NODES/$DP_HOST.curl"
+[ -f "$f" ] || { echo "curl: (7) Failed to connect to 127.0.0.1" >&2; exit 7; }
+ex=$(sed -n 1p "$f"); code=$(sed -n 2p "$f"); body=$(sed -n '3,$p' "$f")
+[ "${ex:-0}" -ne 0 ] && { echo "curl: ($ex) probe failed" >&2; exit "$ex"; }
+printf '%s\\n%s' "$body" "$code"
+"""
+
+# Fixture lines for a node's `sparkrun daemon status`: <exit code>, then stdout.
+NODE_SPARKRUN_STUB = """#!/usr/bin/env bash
+f="$NODES/${DP_HOST:-?}.sparkrun"
+[ -f "$f" ] || { echo "sparkrun: no fixture for ${DP_HOST:-?}" >&2; exit 2; }
+ex=$(sed -n 1p "$f"); sed -n '2,$p' "$f"; exit "${ex:-0}"
+"""
+
+DAEMON_UP = '0\n{\n  "running": true,\n  "binding": "x"\n}\n'
+DAEMON_DOWN = '0\n{\n  "running": false,\n  "binding": "x"\n}\n'
+DAEMON_NO_FIELD = '0\n{\n  "binding": "x"\n}\n'
+
+CONTAINER_PS = "abc123def456 sparkrun_abc123_solo\n"
+VLLM_BODY = "# HELP vllm:num_requests_running ...\nvllm:num_requests_running 1\n"
+
+
+class ExecutedBlock(unittest.TestCase):
+    """Runs one extracted block on stub nodes; returns (rc, output, receipt files, curl calls)."""
+
+    def setUp(self):
+        if not shutil.which("bash"):
+            self.skipTest("bash not on PATH")
+
+    def run_block(self, body, hosts=("head.test",), files=None, recipe="runtime: vllm\n",
+                  ready="yes", house=False, timeout=60):
+        files = files or {}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            receipt = tmp / "receipt"; receipt.mkdir()
+            nodes = tmp / "nodes"; nodes.mkdir()
+            bins = tmp / "bin"; bins.mkdir()
+            home = tmp / "home"; home.mkdir()
+            for name, stub in (("ssh", SSH_STUB), ("docker", DOCKER_STUB), ("curl", CURL_STUB),
+                               ("sparkrun", NODE_SPARKRUN_STUB)):
+                stub_path = bins / name
+                stub_path.write_text(stub)
+                stub_path.chmod(0o755)
+            for host in hosts:
+                (nodes / f"{host}.on").write_text("")
+            for name, text in files.items():
+                (nodes / name).write_text(text)
+            calls = tmp / "curl-calls"; calls.write_text("")
+            recipe_path = tmp / "recipe.yaml"; recipe_path.write_text(recipe)
+            if house:
+                (receipt / "house.yaml").write_text("suite: ok\n")
+            script = tmp / "arm.sh"
+            script.write_text(
+                "#!/usr/bin/env bash\nset -uo pipefail\n"
+                f"L={receipt}\nNAME=stub-arm\nNODE={hosts[0]}\nPORT=8000\n"
+                f"HOSTS={','.join(hosts)}\nTID=abc123\nRECIPE={recipe_path}\nready={ready}\n"
+                + body + "\necho NEXT\necho AGG=${M_AGG:-none}\n"
+            )
+            out = subprocess.run(
+                ["bash", str(script)], capture_output=True, text=True, check=False, timeout=timeout,
+                env={**os.environ, "PATH": f"{bins}:{os.environ['PATH']}", "NODES": str(nodes),
+                     "BINS": str(bins), "CURL_CALLS": str(calls), "HOME": str(home)},
+            )
+            receipt_files = {p.name: p.read_text(errors="replace")
+                             for p in sorted(receipt.iterdir())}
+            return out.returncode, out.stdout + out.stderr, receipt_files, calls.read_text().split()
+
+
+class DaemonPreflight(ExecutedBlock):
+    """An inactive per-node daemon must refuse the arm, not be read as a token error mid-launch.
+
+    Measured 2026-11-08: leases @3-@6 died at `[3/6] Distributing resources` with
+    `[Errno 70] Communication error on send: /home/red/.cache/huggingface/token` because the
+    daemon was inactive on all four nodes, and the token file was byte-identical everywhere.
+    """
+
+    def block(self):
+        return block_region(read_tool(), DP_START, DP_END)
+
+    def test_an_inactive_daemon_on_one_host_refuses_at_9_and_names_it(self):
+        rc, out, files, _ = self.run_block(
+            self.block(), hosts=("head.test", "rank1.test"),
+            files={"head.test.sparkrun": DAEMON_UP, "rank1.test.sparkrun": DAEMON_DOWN})
+        self.assertEqual(rc, 9, out)
+        self.assertIn("rank1.test", out, "the refusal does not name the host")
+        self.assertIn("sparkrun daemon start", out, "the refusal does not name the fix")
+        self.assertIn("[Errno 70]", out, "the failure it prevents is not named")
+        self.assertIn("daemon-preflight.txt", out, "the refusal points at no evidence")
+        self.assertNotIn("NEXT", out, "the arm continued past the refusal")
+        probe = files["daemon-preflight.txt"]
+        self.assertIn("rank1.test,", probe)
+        self.assertIn("false", probe)
+
+    def test_all_hosts_active_proceeds(self):
+        rc, out, files, _ = self.run_block(
+            self.block(), hosts=("head.test", "rank1.test"),
+            files={"head.test.sparkrun": DAEMON_UP, "rank1.test.sparkrun": DAEMON_UP})
+        self.assertEqual(rc, 0, out)
+        self.assertIn("NEXT", out, "an all-active lease did not reach the launch")
+        self.assertEqual(len(files["daemon-preflight.txt"].splitlines()), 2)
+        first = files["daemon-preflight.txt"].splitlines()[0].split(",")
+        self.assertEqual(len(first), 5, "host,binary,HOME,field,raw expected")
+        self.assertNotEqual(first[1], "-", "the remote binary was not resolved")
+        self.assertNotEqual(first[2], "-", "the pinned HOME was not recorded")
+
+    def test_an_unreadable_probe_refuses_at_10_and_never_says_daemon_down(self):
+        rc, out, _, _ = self.run_block(
+            self.block(), hosts=("head.test", "rank1.test"),
+            files={"head.test.sparkrun": DAEMON_UP})
+        self.assertEqual(rc, 10, out)
+        self.assertIn("could not be read", out)
+        self.assertNotIn("no running sparkrun daemon", out,
+                         "an unreachable host was reported as a dead daemon")
+        self.assertNotIn("NEXT", out)
+
+    def test_a_status_without_a_running_field_is_unverifiable(self):
+        rc, out, _, _ = self.run_block(
+            self.block(), hosts=("head.test",),
+            files={"head.test.sparkrun": DAEMON_NO_FIELD})
+        self.assertEqual(rc, 10, out)
+        self.assertNotIn("no running sparkrun daemon", out)
+
+    def test_negative_control_without_the_block_the_dead_daemon_proceeds(self):
+        self.assertIn(DP_START, read_tool(), "the guard is gone; this control would be vacuous")
+        rc, out, _, _ = self.run_block(
+            "", hosts=("head.test", "rank1.test"),
+            files={"head.test.sparkrun": DAEMON_UP, "rank1.test.sparkrun": DAEMON_DOWN})
+        self.assertEqual(rc, 0, out)
+        self.assertIn("NEXT", out)
+
+    def test_the_probe_precedes_the_capture_arming_and_the_launch(self):
+        text = read_tool()
+        at = text.index(DP_START)
+        self.assertLess(at, text.index("CAPTURE_DIR="), "the capture is armed before the probe")
+        self.assertLess(at, text.index("\nlaunch_arm\n"), "the launch precedes the probe")
+        self.assertLess(text.index("# daemon-preflight: end"), text.index("\nlaunch_arm\n"))
+
+
+class MetricsScrape(ExecutedBlock):
+    """A /metrics body is captured before `sparkrun stop`, with four states, never an empty file.
+
+    `--rm` deletes the container ~26 ms after `die`, and sglang's /metrics binds on port_base+3
+    inside the container, so both the timing and the namespace are load-bearing.
+    """
+
+    def block(self):
+        return block_region(read_tool(), M_START, M_END)
+
+    def sglang(self, flag="--enable-metrics"):
+        return f"runtime: sglang\ncommand: sglang serve --port {{port}} {flag}\n"
+
+    def run_metrics(self, curl_fixture, **kwargs):
+        kwargs.setdefault("files", {"head.test.ps": CONTAINER_PS,
+                                    "head.test.curl": curl_fixture})
+        return self.run_block(self.block(), **kwargs)
+
+    def test_a_prometheus_body_is_captured_and_the_receipt_names_what_was_probed(self):
+        rc, out, files, calls = self.run_metrics(f"0\n200\n{VLLM_BODY}", house=True)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("AGG=captured", out)
+        self.assertIn("vllm:num_requests_running", files["metrics-head.test.txt"])
+        header = files["metrics-head.test.txt"].splitlines()[0]
+        self.assertIn("captured host=head.test container=abc123def456", header)
+        self.assertIn("url=http://127.0.0.1:8000/metrics", header)
+        self.assertEqual(len(calls), 1, "one connection per host expected")
+
+    def test_the_sidecar_is_the_only_authority_and_the_marker_is_untouched(self):
+        """campaign/sparkrun_campaign/evidence.py:metrics_status reads this sidecar, never a key.
+
+        The producer contract asserted here is the one the campaign reads: a `# runtime=… port=…`
+        header, one verdict line per host, and a captured host's own file carrying the body.
+        """
+        rc, out, files, _ = self.run_metrics(
+            "0\n200\n" + VLLM_BODY, hosts=("head.test", "rank1.test"), house=True,
+            files={"head.test.ps": CONTAINER_PS, "head.test.curl": "0\n200\n" + VLLM_BODY,
+                   "rank1.test.ps": "aaaabbbbcccc sparkrun_abc123_node_1\n",
+                   "rank1.test.curl": "0\n200\n" + VLLM_BODY})
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(files["house.yaml"], "suite: ok\n",
+                         "the scrape wrote a second copy of its verdict into the marker")
+        lines = files["metrics-status.txt"].splitlines()
+        self.assertTrue(lines[0].startswith("# runtime=vllm port=8000"), lines[0])
+        verdicts = lines[1:]
+        self.assertEqual(len(verdicts), 2, "one verdict line per host")
+        for line in verdicts:
+            self.assertRegex(
+                line,
+                r"^(captured|absent|no_probe|wrong_port) host=\S+ container=\S+ url=\S+ reason=\S")
+        for host in ("head.test", "rank1.test"):
+            self.assertIn("vllm:num_requests_running", files[f"metrics-{host}.txt"],
+                          f"{host}'s verdict arrived without a body")
+
+    def test_sglang_is_probed_on_the_metrics_port_inside_the_container(self):
+        rc, out, files, _ = self.run_metrics(
+            "0\n200\n# TYPE sglang:num_requests_running gauge\n",
+            recipe=self.sglang())
+        self.assertEqual(rc, 0, out)
+        self.assertIn("AGG=captured", out, "a TYPE line alone is a metrics body")
+        self.assertIn("url=http://127.0.0.1:8003/metrics",
+                      files["metrics-status.txt"], "the +3 offset was not used")
+
+    def test_a_200_that_is_not_prometheus_is_wrong_port_not_data(self):
+        rc, out, files, _ = self.run_metrics("0\n200\n<html><body>proxy error</body></html>",
+                                             house=True)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("AGG=wrong_port", out)
+        self.assertIn("not-prometheus", files["metrics-head.test.txt"])
+        self.assertNotIn("metrics", files["house.yaml"],
+                         "a foreign 200 reached the marker")
+
+    def test_a_404_is_absent(self):
+        rc, out, files, _ = self.run_metrics("0\n404\n{\"error\":\"not found\"}\n")
+        self.assertIn("AGG=absent", out)
+        self.assertIn("reason=http-404", files["metrics-status.txt"])
+
+    def test_a_refusal_on_a_ready_serve_is_absent(self):
+        rc, out, files, _ = self.run_metrics("7\n0\n", ready="yes")
+        self.assertIn("AGG=absent", out)
+        self.assertIn("listener-refused", files["metrics-status.txt"])
+
+    def test_a_refusal_on_a_boot_that_never_readied_is_no_probe(self):
+        rc, out, files, _ = self.run_metrics("7\n0\n", ready="no")
+        self.assertIn("AGG=no_probe", out,
+                      "a failed boot's refusal was reported as an absent surface")
+        self.assertIn("serve-not-ready", files["metrics-status.txt"])
+
+    def test_a_timeout_is_no_probe(self):
+        rc, out, files, _ = self.run_metrics("28\n0\n")
+        self.assertIn("AGG=no_probe", out)
+        self.assertIn("exec-or-curl-exit-28", files["metrics-status.txt"])
+
+    def test_no_container_is_no_probe_not_absent(self):
+        rc, out, files, calls = self.run_metrics("0\n200\n", files={"head.test.ps": ""})
+        self.assertIn("AGG=no_probe", out)
+        self.assertIn("no-container", files["metrics-status.txt"])
+        self.assertEqual(calls, [], "a probe ran with no container to run it in")
+
+    def test_no_metrics_flag_is_absent_without_a_connection(self):
+        rc, out, files, calls = self.run_metrics(
+            "0\n200\n", recipe="runtime: sglang\ncommand: sglang serve --port {port}\n",
+            files={"head.test.ps": CONTAINER_PS})
+        self.assertIn("AGG=absent", out)
+        self.assertIn("recipe-has-no-flag", files["metrics-status.txt"])
+        self.assertEqual(calls, [], "an uninstrumented recipe was still probed")
+
+    def test_no_probe_on_one_host_dominates_a_capture(self):
+        rc, out, files, calls = self.run_metrics(
+            "0\n200\n" + VLLM_BODY, hosts=("head.test", "rank1.test"),
+            files={"head.test.ps": CONTAINER_PS, "head.test.curl": "0\n200\n" + VLLM_BODY,
+                   "rank1.test.ps": "aaaabbbbcccc sparkrun_abc123_node_1\n",
+                   "rank1.test.curl": "28\n0\n"})
+        self.assertIn("AGG=no_probe", out, "an unreadable host hid behind another's capture")
+        self.assertEqual(len(calls), 2)
+        self.assertIn("host=head.test container=abc123def456", files["metrics-status.txt"])
+
+    def test_the_scrape_never_manufactures_house_yaml(self):
+        rc, out, files, _ = self.run_metrics(f"0\n200\n{VLLM_BODY}")
+        self.assertNotIn("house.yaml", files,
+                         "a house.yaml from the scrape would read as a finished arm")
+
+    def test_negative_control_dropping_the_shape_check_captures_html(self):
+        mutated = self.block().replace(
+            "grep -qE '^# (TYPE|HELP) '", "grep -qE '.'")
+        self.assertNotEqual(mutated, self.block(), "the shape check moved; control vacuous")
+        rc, out, _, _ = self.run_block(
+            mutated, files={"head.test.ps": CONTAINER_PS,
+                            "head.test.curl": "0\n200\n<html><body>proxy</body></html>\n"})
+        self.assertIn("AGG=captured", out,
+                      "the shape check is not what keeps a foreign 200 out of the data")
+
+    def test_negative_control_mapping_a_dead_boot_to_absent(self):
+        mutated = self.block().replace(
+            "ms=no_probe; why=serve-not-ready", "ms=absent; why=serve-not-ready")
+        self.assertNotEqual(mutated, self.block(), "the mapping moved; control vacuous")
+        rc, out, _, _ = self.run_block(
+            mutated, ready="no",
+            files={"head.test.ps": CONTAINER_PS, "head.test.curl": "7\n0\n"})
+        self.assertIn("AGG=absent", out,
+                      "the no_probe/absent split is not what protects a failed boot")
+
+    def test_the_scrape_precedes_the_stop_and_follows_every_client(self):
+        text = read_tool()
+        at = text.index(M_START)
+        self.assertLess(text.index("extra client rc="), at, "a client runs after the scrape")
+        self.assertLess(at, text.index("\nstop_capture\n"), "the scrape is after stop_capture")
+        self.assertLess(at, text.index('\nsparkrun stop "$TID"'), "the scrape is after the stop")
 
 
 if __name__ == "__main__":
