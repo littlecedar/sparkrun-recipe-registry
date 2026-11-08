@@ -5461,7 +5461,10 @@ proposed with its check and exit code so it lands as its own change with its own
   `window` and `register`, and appended 14 landed rows (11 re-derived from `git log`, three
   measurements) time-sorted. A peer then committed the worktree board as `9606127` before this
   section existed; its subject ("pool reads healthy again and one quartet arm is plannable") is the
-  pre-correction reading, and the board it committed carries the corrected `pool` row.
+  pre-correction reading, and the board it committed carries the corrected `pool` row. **That SHA
+  is now dangling** — `9606127` is reachable from no ref here and is not on `origin/main`, because
+  the same content was re-applied onto the remote tip and pushed as `8668667` when the direct push
+  was refused; cite `8668667`, which is the commit `origin/main` carried.
 - **The pool came back at 12:19 and the body survived the crash byte-intact**: `.30`'s three units read
   `active active active` at 12:20:37 ET, `df` 23T/14T used/9.0T avail at 60%, `ls` 111 entries, 96
   safetensors shards, zero `.incomplete`, and `du -sL --apparent-size -B1` on the revision-`fc72e5a1…`
