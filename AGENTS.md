@@ -29,6 +29,7 @@ so `ls recipes/*/*.yaml` overcounts against the tracked tree the tool counts.
 
 ## Contents
 
+- [Priority](#priority)
 - [Project Overview](#project-overview)
 - [Architecture & Data Flow](#architecture--data-flow)
 - [Key Directories](#key-directories)
@@ -45,6 +46,25 @@ so `ls recipes/*/*.yaml` overcounts against the tracked tree the tool counts.
 - [Important Files](#important-files)
 - [Runtime/Tooling Preferences](#runtimetooling-preferences)
 - [Testing & QA](#testing--qa)
+
+## Priority
+
+Clean, correct, bug-free code is the priority. Recipes, mods, tools and
+the campaign director exist to support durable, repeatable,
+deterministic model and sparkrun recipe research; they are not the
+research.
+
+A measurement is only as good as the code path that produced it. A
+defect that silently changes what boots, what is measured, or what is
+recorded invalidates the research behind it, not just the run.
+
+Fix a defect at the mechanism the moment it appears, and land the guard
+or test that would have caught it before spending another boot on a
+campaign. A workaround held in operator memory is not a fix.
+
+Prefer the deterministic path: pinned digests, the resolved image id in
+the receipt, explicit `env`, receipts that reproduce on the next boot.
+The guards that hold these are [Testing & QA](#testing--qa).
 
 ## Project Overview
 
