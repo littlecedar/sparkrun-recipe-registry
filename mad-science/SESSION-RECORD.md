@@ -3874,3 +3874,29 @@ avg, container up 6 h and idle, `/health` 200), `.35` **51/56 at 21:15** (133 s/
 replies, ~11 min left. Quartet re-probed 21:16:38: `/health` 200/200/200/200, `/v1/models` 200 on `.31`
 and 404 on `.32`–`.34`, up 47 h 00 m, `restarts=0`. Campaign inactive with 0 live leases across all
 eight `state.json` roots; register 9 open of 82, `check`/`orphans` green.
+
+## 2026-11-07 21:42 ET — 3D battery closed: the arm fails its own gate at 45.5 %
+
+- **Battery to its declared denominator.** 213/213 validation prompts across two serves (`.30` 157,
+  `.35` 56), 7.8 h wall, median 124 s/reply. Nothing re-labelled and no subset.
+- **Verdict: fails the pre-registered gate.** renders clean **102/213 (47.9 %)**, non-empty geometry
+  **101/213 (47.4 %)**, import constraint **213/213 (100 %)**, all three **97/213 (45.5 %)**. Per node
+  `.30` 70/157 (44.6 %), `.35` 27/56 (48.2 %) — prompt mix, not host. 208 `stop`; **5 hit the 16,384
+  cap and count as failures**, because a truncated file is not geometry.
+- **Failure taxonomy:** 116 failures over 90 strings — 34 `TypeError` null/undefined, 30 `SyntaxError`
+  (duplicate `const`, missing paren, illegal `return`), 28 `ReferenceError`, 14 Three.js API misuse,
+  5 NaN-bounding-sphere `console.error`, 5 other. The card's stated mode (duplicate names) is the
+  single largest syntax class, and the API-misuse class is the model calling a real method on the
+  wrong object, not a broken module.
+- **Instrument checks before the numbers were believed:** gate deterministic (49/49 re-gate
+  identical); 6 s settle changes nothing; pinned module complete (`computeFrenetFrames`/`getCurve`
+  exist); system prompt byte-identical; resume intact; empty reply counted as a failure; 213
+  denominator asserted. The 16-prompt smoke scored 9/16 and predicted the full shape.
+- **Footprint correction:** 9.36/9.38 GiB cgroup while serving; the 1.44 GiB reading that circulated
+  early was **pre-fault** and would understate a 65,536-token vision arm by 6x.
+- **Row closed:** `3d-qwen35-4b-3d-coder-arm` → `done` with the cells in its `evidence`, claim cleared.
+  The arm stays `zz-` — a measured capability arm, not a shipped one. Register: 74 done, 6 blocked,
+  2 queued (8 open).
+- **Still unmeasured:** visual fidelity. 45.5 % clearing a mechanical gate says nothing about whether
+  the 97 clean scenes look like what was asked; the dataset's reference renders are the open
+  instrument.

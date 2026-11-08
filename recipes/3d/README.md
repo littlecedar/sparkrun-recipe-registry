@@ -143,6 +143,48 @@ for a scene, load the reply in a headless browser, and score (a) renders without
 (b) emits geometry (non-empty scene graph / non-blank framebuffer), (c) honours the import
 constraint. Screen-capture quality judgement stays human; the pass/fail column stays mechanical.
 
+**The battery, measured (2026-11-07, receipt `~/benchmarks/tp12-20261107/zz-qwen35-4b-3d-coder-q4km-llamacpp-r2/`,
+`REPORT.md` + `gate-30/35/merged.json`).** All 213 validation prompts, two serves, no subset and no
+re-labelling — and the arm **fails its pre-registered gate**, so it is a measured capability arm
+(`zz-`), not a shipped one:
+
+| cell | result |
+|---|---|
+| renders clean | **102/213 (47.9 %)** |
+| non-empty geometry | **101/213 (47.4 %)** |
+| import constraint | **213/213 (100 %)** |
+| all three together (the gate) | **97/213 (45.5 %)** |
+
+Per node: `.30` **70/157 (44.6 %)**, `.35` **27/56 (48.2 %)** — the split tracks the prompt mix, not
+the host. 208 replies ended `stop`; **5 hit the 16,384 cap and count as failures**, because a truncated
+file is not geometry, and the gate says so with `draws=0` rather than an exception. Content median
+21,651 chars, completion median 7,608 tokens, median 124 s per reply, 7.8 h wall for the battery.
+
+**Failure taxonomy** — 116 failures over 90 distinct strings: 34 `TypeError` on null/undefined, 30
+`SyntaxError` (duplicate `const`, missing paren, illegal `return`), 28 `ReferenceError`, 14 `TypeError`
+from Three.js API misuse, 5 `console.error` NaN bounding sphere, 5 other. The passing scenes are real:
+frames 1–117, draws 154–44,950, vertices 81k–6.9M, so the gate is measuring animation and geometry, not
+one lucky frame.
+
+**Instrument checks before the numbers were believed.** The gate re-ran 49/49 replies identically
+(deterministic); a 6 s settle changed nothing (the scenes animate in the first frames, so the default
+settle is enough); the pinned cdnjs module is complete (`computeFrenetFrames`/`getCurve` really exist,
+which is why the API-misuse failures are the model calling a real method on the wrong object, not a
+truncated module); the system prompt was byte-identical across the run; the resume path re-scored
+intact without duplicating records; an empty reply is counted as a failure, never skipped; and the
+denominator 213 was asserted from the dataset, not assumed. The 16-prompt smoke scored 9/16, which is
+consistent with the full 45.5 % — the smoke did its job of predicting the shape.
+
+**Footprint, corrected.** The 1.44 GiB figure seen early is **pre-fault**: while serving, the container
+cgroup sits at **9.36–9.38 GiB** (`.30`/`.35` both). A vision arm's cost is its KV over a 65,536-token
+window, not its weights, and quoting the pre-fault number would understate it by 6×.
+
+**What this arm did not measure.** Visual fidelity — a cube passes a cathedral prompt, and 45.5 % of
+these 213 replies clearing the mechanical gate says nothing about whether the 97 clean scenes look like
+what was asked. The dataset ships reference renders; comparing against them is the open instrument, and
+until it exists the lane reports mechanics only. Boot facts, for completeness: readiness 15 s, 65,536
+ctx as configured, 61–64 t/s decode, both nodes stopped afterwards with 0 containers each.
+
 ## Candidates — the survey row's table
 
 Desk work, no boots: the survey row (`3d-model-survey`) files candidates, it does not author recipe
