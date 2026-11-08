@@ -1361,7 +1361,8 @@
         "ARM_ALLOW_FEW_SLOTS": "1",
         "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
         "ARM_EXTRA_CLIENT": "python3 -B tools/h2h-client.py --cell house4096 --base-url http://$NODE:$PORT --outdir $L",
-        "ARM_EXTRA_TIMEOUT": "3600"
+        "ARM_EXTRA_TIMEOUT": "3600",
+        "ARM_READY_TIMEOUT": "3000"
       }
     },
     {
