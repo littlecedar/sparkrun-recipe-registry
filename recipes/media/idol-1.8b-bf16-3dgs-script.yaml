@@ -1,0 +1,113 @@
+# ===========================================================================
+# LICENSE BANNER — READ BEFORE DISTRIBUTING THIS RECIPE
+#
+# EVAL-ONLY, NOT apache-cleared. The idol checkpoint's own weights
+# (speridlabs/idol) are apache-2.0, but the arm reads its input through two
+# gated encoders that carry their own terms, and one of them forbids
+# commercial use:
+#   * facebook/dinov3-vith16plus-pretrain-lvd1689m — the DINOv3 License
+#     (card `license: other`, `license_name: dinov3-license`, NOT apache-2.0).
+#   * black-forest-labs/FLUX.2-dev — the FLUX.2 [dev] Non-Commercial License
+#     (card `license: other`, `license_name: flux-non-commercial-license`);
+#     this arm loads that repo's VAE subfolder only. NON-COMMERCIAL: the
+#     weights and anything this arm generates may not be used commercially.
+# The FLUX.2 [dev] condition follows the VAE, not the route, so it binds every
+# output of this arm. A recipe ships repo ids, not weights — each downloader
+# fetches from the Hub and accepts the gates there — but the terms travel with
+# the artifacts to whoever runs this recipe.
+# ===========================================================================
+recipe_version: "2"
+model: speridlabs/idol
+model_revision: 2731c2291fc65a797c5cb627a5e5526fc1490902
+# No sglang/vLLM engine serves this checkpoint: `runtime: vllm` is the family
+# whose distribution + single-node launcher contract this command satisfies (the
+# media lane's Kromoss and Qwen-Image script-arm precedent). The engine is the
+# project's own SDK — `python -m idol.sample` — staged by the mod at a pinned
+# commit. The image is the lane's arm64 cu130 base, already carried fleet by
+# both Diffusers arms, whose torch 2.13.0+cu130 is measured serving on GB10
+# sm_121; idol builds no CUDA kernel of its own (flash-attn is optional and
+# absent, so `layers.ATTN_BACKEND` resolves to PyTorch SDPA, and `optimize`
+# selects the cuDNN attention kernel at sample time), so no sm_121 build sits on
+# the launch path.
+container: vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  speridlabs/idol — single image to 3D Gaussian splatting: one photo or render
+  in, up to 1,048,576 3D Gaussians out as a standard 3DGS `.ply` (unseen sides
+  included), plus the 1024 px input the model saw and its predicted camera.
+  ~1.80B parameters across the pipeline (DiT 370.6M denoiser, octree decoder
+  50.8M, Gaussian decoder 237.3M, BiRefNet 220.7M background removal, DINOv3
+  ViT-H+/16 840.6M, FLUX.2 VAE 84.1M), ~3 GB of repo weights, 7.2 GB peak VRAM
+  — one DGX Spark, TP=1. The engine is the project's own SDK (`python -m
+  idol.sample`, pinned commit 4702a7f0), staged by the mod into a venv on this
+  image's own torch 2.13.0+cu130 with diffusers >= 0.41, transformers >= 5.17,
+  tensordict and plyfile. The mod invokes the SDK once on the tracked RGBA
+  fixture before the port binds, so a sampler failure is an unready launch whose
+  serve log carries the SDK's own error; the sampler's product and cell are then
+  readable from /health. EVAL-ONLY: FLUX.2 [dev] VAE is non-commercial (see the
+  banner). Both encoders are gated and must be staged in the pool by an account
+  that accepted them — the arm never downloads at launch.
+metadata:
+  model_url: https://huggingface.co/speridlabs/idol
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "1.80B"
+  model_dtype: bf16
+  tags: media, 3d, gaussian-splatting, single_user, eval-only
+
+mods:
+  - "mods/idol-3dgs-launcher"
+
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+  # recipe's own sampler line runs instead of being parsed as vLLM flags.
+  entrypoint: ""
+readiness:
+  # No chat surface: readiness is the port plus the server's own /health (the
+  # Qwen-Image and Kromoss script arms' convention). The port opens only after
+  # the fixture has been sampled, so port_timeout_s covers weight load + the
+  # first torch.compile, not a serve.
+  inference: false
+  port_timeout_s: 1800
+  health_timeout_s: 300
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Advertised id (never {model}, which renders the prepared snapshot path).
+  served_model_name: speridlabs/idol
+  # `synthetic` = renders/generated images (the fixture is one); `real` loosens
+  # the crop for photographs.
+  mode: synthetic
+  seed: 42
+  steps: 50
+  cfg_strength: 3.0
+  rescale_t: 3.0
+  # The card's benchmark cell is 262,144; 1048576 is the headline ceiling and a
+  # plain override.
+  num_gaussians: 262144
+  dinov3_dtype: bf16
+  # 1 = the SDK's faster sampling (torch.compile + batched guidance + cuDNN
+  # attention + TF32); 0 passes --no_optimize and measures the eager route.
+  optimize: 1
+
+command: >
+  /cache/runtime/idol/venv/bin/python
+  /workspace/mods/idol-3dgs-launcher/server.py
+  --weights {model}
+  --revision {model_revision}
+  --image /workspace/mods/idol-3dgs-launcher/fixtures/idol-fixture-rgba.png
+  --sample-dir /cache/runtime/idol/samples
+  --served-model-name {served_model_name}
+  --host {host}
+  --port {port}
+  --mode {mode}
+  --seed {seed}
+  --steps {steps}
+  --cfg-strength {cfg_strength}
+  --rescale-t {rescale_t}
+  --num-gaussians {num_gaussians}
+  --dinov3-dtype {dinov3_dtype}
+  --optimize {optimize}

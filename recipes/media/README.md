@@ -6,9 +6,11 @@ directive): Explore keeps the language and agentic arms, and every arm whose pro
 or whose job is to transform text rather than answer — lives here. Everything in this lane is
 1 node, and the two CPU serves cost no GPU.
 
-The lane ships **ten recipes**: seven measured arms (drama TTS, Kokoro TTS, Qwen-Image on both
-routes, LTX-2.5, humanizer Q6_K, Kromoss image) and three probe/draft arms (`zz-minimax-h3`,
-`zz-qwen-image-…-4step`, `zz-pyannote-…`). Design and bring-up
+The lane ships **eleven recipes**: seven measured arms (drama TTS, Kokoro TTS, Qwen-Image on both
+routes, LTX-2.5, humanizer Q6_K, Kromoss image), three probe/draft arms (`zz-minimax-h3`,
+`zz-qwen-image-…-4step`, `zz-pyannote-…`), and one eval-only trial authored 2026-11-08
+(`idol-1.8b-bf16-3dgs-script`, image to 3D Gaussian splats — not booted; see its prerequisites).
+Design and bring-up
 history lives in [`attic/explore/`](../../attic/explore/), written while these arms were in that
 lane; the recipe YAML keeps only the crucial operational notes.
 
@@ -33,6 +35,7 @@ cron entry, and any re-pin stays boot-gated.
 - [qwen-image-2.1-turbo-7b-bf16-diffusers-script](#qwen-image-21-turbo-7b-bf16-diffusers-script)
 - [qwen-image-2.1-turbo-7b-bf16-vllm-omni](#qwen-image-21-turbo-7b-bf16-vllm-omni)
 - [kromoss-mossimage-5b-bf16-diffusers-script](#kromoss-mossimage-5b-bf16-diffusers-script)
+- [idol-1.8b-bf16-3dgs-script](#idol-18b-bf16-3dgs-script)
 - [zz-qwen-image-2.1-turbo-4step-diffusers-script](#zz-qwen-image-21-turbo-4step-diffusers-script)
 - [ltx-2.5-22b-nvfp4-t2v-comfyui-script](#ltx-25-22b-nvfp4-t2v-comfyui-script)
 - [LTX-2.5 measured cells (runbook)](#ltx-25-measured-cells-runbook)
@@ -495,6 +498,76 @@ diffusers' custom `MOSSImagePipeline` + [`recipes/media/mods/kromoss-launcher`](
 - **Not measured:** image-quality scoring (the lane has no image instrument) and the
   int8_convrot single-file route — expected kernel-dead on sm_121 (same ConvRot-W8A8 class
   MiniMax-H3's INT8 boot verified as rejected), so it is not staged.
+
+## [idol-1.8b-bf16-3dgs-script](idol-1.8b-bf16-3dgs-script.yaml)
+
+idol SDK (`python -m idol.sample`; no serving engine) + [`recipes/media/mods/idol-3dgs-launcher`](mods/idol-3dgs-launcher) ·
+**1 node (TP=1)** · **authored 2026-11-08, NOT booted**.
+
+> **LICENSE — EVAL-ONLY.** `speridlabs/idol`'s own weights are Apache-2.0, but the arm is not
+> apache-cleared: the two image encoders it reads through carry their own terms.
+> `facebook/dinov3-vith16plus-pretrain-lvd1689m` is under the **DINOv3 License** (card `license: other`,
+> `license_name: dinov3-license`), and `black-forest-labs/FLUX.2-dev` — of which only the `vae/`
+> subfolder is loaded — is under the **FLUX.2 [dev] Non-Commercial License** (card `license: other`,
+> `license_name: flux-non-commercial-license`). **NON-COMMERCIAL: neither the weights nor any splat
+> this arm generates may be used commercially.** A recipe ships repo ids, not weights; the terms travel
+> with the artifacts to whoever runs it.
+
+- **Model:** `speridlabs/idol` (pinned `2731c2291f…`, `gated: false`, apache-2.0) — one image in, up to
+  **1,048,576 3D Gaussians** out as a standard 3DGS `.ply` with the unseen sides invented, plus
+  `<name>_input.png` (the 1024 px image the model saw) and `<name>_camera.json`. `--seed 42` returns
+  the same object. The pipeline is ~1.80B parameters over six components: DiT denoiser 370.6M, octree
+  decoder 50.8M, Gaussian decoder 237.3M, BiRefNet 220.7M, DINOv3 ViT-H+/16 840.6M, FLUX.2 VAE 84.1M —
+  3.7–4.4 GB of weights in VRAM and **7.2 GB peak** (card). The five repo weight files are **3.08 GB**
+  (`denoiser` 1.48 GB, `decoder_gs` 949.1 MB, `birefnet` 444.5 MB, `decoder` 203.2 MB, `config.json`),
+  so the card's "~3 GB" checks out against the file listing.
+- **Engine / staging:** no sglang/vLLM route exists; `runtime: vllm` is the launcher contract the
+  sibling script arms use. The mod pins the SDK at commit `4702a7f0` (archive tarball — no git in the
+  image, no PyPI release), stages it **`--no-deps`** into `/cache/runtime/idol/venv`
+  (`--system-site-packages`) beside diffusers ≥ 0.41, transformers ≥ 5.17, tensordict ≥ 0.8, plyfile,
+  accelerate and safetensors, and installs torchvision only when the image lacks it. Each floor was
+  probed, not read off the card: diffusers 0.41.0's wheel carries `AutoencoderKLFlux2` (the FLUX.2 VAE
+  class the SDK imports), transformers 4.56 **and** 5.x both map `dinov3_vit` → `DINOv3ViTModel`, and
+  tensordict 0.15.5 is a `py3-none-any` wheel declaring `torch>=2.11` — pure Python, so nothing builds
+  on the launch path.
+- **Torch build, the sm_121 discriminator:** the pinned image is
+  `vllm/vllm-openai:v0.32.0@sha256:befccf0e…`, the lane's arm64 cu130 base that both Diffusers arms and
+  the LTX arm already carry; its measured build is **torch 2.13.0+cu130** (qwen-image re-pin boot,
+  2026-10-22), and it renders on GB10 sm_121 on this lane's own receipts. Idol compiles no CUDA kernel:
+  `idol/models/layers.py` imports flash-attn only if it is installed and otherwise uses PyTorch SDPA,
+  and the default `optimize` path swaps in the cuDNN attention kernel plus TF32 matmuls — the same
+  `CUDNN_ATTN` backend the vllm-omni arm recorded on sm_121/cuDNN 92000. So **no sm_121 build sits on
+  the critical path**; if `torch.compile` ever fails there, `-o optimize=0` runs the eager route at the
+  same output quality. torchvision is pinned to 0.28.0 (the release whose `torch==2.13.0` requirement
+  matches the image) and installed `--no-deps`; the mod asserts the image's torch version is unchanged
+  after staging.
+- **Trial shape:** the command runs the SDK on the tracked fixture **before the port binds** — the
+  mod's `server.py` execs `python -m idol.sample` with inherited stdio, so the SDK's own progress and
+  any gate error land verbatim in the serve log, and a non-zero sampler exit leaves the launch unready
+  instead of starting a server that cannot sample. It then checks the `.ply` header for the 3DGS
+  property set and serves `/health` (wall seconds, `.ply` bytes, Gaussian count) and `/v1/models`.
+  The fixture is tracked (`fixtures/idol-fixture-rgba.png`, 3,756 B, 512×512 RGBA, 47,530 opaque px):
+  it carries a real alpha channel, which the SDK's preprocess takes as-is and skips BiRefNet on, so the
+  trial measures the pipeline, not a background-removal guess.
+- **Staging prerequisite (not a defect):** the WOPR profile sets `distribution.model.enabled: false` and
+  the container runs `HF_HUB_OFFLINE=1`, so **nothing is fetched at launch**. The pool must already hold
+  `speridlabs/idol` plus both encoders, each fetched **by branch so `refs/main` exists** — a
+  `hf download --revision <sha>` writes no ref file, and the SDK resolves both encoders by repo id with
+  no revision, which in offline mode reads `refs/main` (the same pool trap the Qwen-Image launcher
+  documents). The mod gates on exactly that plus the files it names, and names the fix on failure:
+  `hf download facebook/dinov3-vith16plus-pretrain-lvd1689m`,
+  `hf download black-forest-labs/FLUX.2-dev --include "vae/*"`, `hf download speridlabs/idol`.
+- **Why it is not booted (both external):** (1) **neither gate is accepted by the staging account** —
+  probed 2026-11-08: `hf auth whoami` = `twichert`, and `/raw/main/config.json` answers **403** for
+  both `facebook/dinov3-vith16plus-pretrain-lvd1689m` (`gated: manual`) and
+  `black-forest-labs/FLUX.2-dev` (`gated: auto`), so the pool cannot be staged and the SDK would stop
+  before downloading anything; (2) **no node was free** — the campaign holds all six for its serial
+  order. The arm needs one node, not a four-rank window: 7.2 GB peak VRAM is TP=1 by construction.
+- **Not measured:** everything. No wall time, no peak memory, no Gaussian count, no image quality on
+  this hardware — the card's benchmark table is 1 × H100 per model (6.8 s at 50 steps) and its
+  across-GPU table has no GB10 row, so nothing here is a GB10 expectation. The registry has no
+  3D-splat quality instrument either; the trial's cells are the `.ply`'s validity, its Gaussian count
+  and wall seconds.
 
 ## [zz-qwen-image-2.1-turbo-4step-diffusers-script](zz-qwen-image-2.1-turbo-4step-diffusers-script.yaml)
 
