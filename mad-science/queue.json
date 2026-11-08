@@ -1396,7 +1396,7 @@
       "tp": 4,
       "env": {
         "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
-        "ARM_EXTRA_CLIENT": "python3 -B tools/h2h-client.py --cell lc-1m --base-url http://$NODE:$PORT --outdir $L",
+        "ARM_EXTRA_CLIENT": "sh -c \"cd /home/red/src/sparkrun-recipe-registry && python3 -B tools/longctx-cell.py --base-url http://$NODE:$PORT --model $SERVED --context-length 1039999 --concurrency 1 --max-tokens 128 --json $L/longctx-1m.json\"",
         "ARM_EXTRA_TIMEOUT": "3600"
       }
     },
@@ -1432,14 +1432,19 @@
         "glm-flash-concurrency-degradation-search"
       ],
       "blocked_by": [],
-      "state": "blocked",
+      "state": "queued",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
-      "notes": "gate: variant recipe from arm-author (no-drafter needs command-level --drafter-repo none; k/scheduler levers need the launcher's constant env overridden in the recipe)",
-      "provenance": "glm-flash-concurrency-degradation-search; mad-science/DRAFTER-ALTERNATIVES-1026.md; recipes/glm/README.md; owner 2026-11-07 window",
+      "notes": "estimate: provisional — plain no-drafter ladder (does the C2 peak/C5-C10 fall vanish without DFlash2?). TRACKED VARIANT recipe (not -o speculative_draft_model=none: dry run prepared a phantom 'none' repo and the shim mapped it to --drafter auto, which refuses at --parallel 8). Ladder cells are the measurement; no extra client.",
+      "provenance": "glm-flash-concurrency-degradation-search; concurrency-variants commit 3695abc; owner 2026-11-07 window",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "recipe": "recipes/glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.yaml",
+      "tp": 4,
+      "env": {
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
+      }
     },
     {
       "id": "glm-flash-conc-dflash2-k",
@@ -1452,7 +1457,7 @@
       "state": "blocked",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
-      "notes": "gate: variant recipe from arm-author (no-drafter needs command-level --drafter-repo none; k/scheduler levers need the launcher's constant env overridden in the recipe)",
+      "notes": "gate: not expressible without a code change — the shim's RECIPE_ENV applies TF_GLM_DFLASH_POLICY/TF_GLM_MULTI_WINDOW with os.environ.update(), overwriting recipe env, and tensorfold serve has no CLI flag; unlock is one whitelist line in the GLM launcher's recipe_env(). Not applied.",
       "provenance": "glm-flash-concurrency-degradation-search; mad-science/DRAFTER-ALTERNATIVES-1026.md; recipes/glm/README.md; owner 2026-11-07 window",
       "evidence": "",
       "claimed_by": "",
@@ -1466,14 +1471,21 @@
         "glm-flash-concurrency-degradation-search"
       ],
       "blocked_by": [],
-      "state": "blocked",
+      "state": "queued",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
-      "notes": "gate: variant recipe from arm-author (no-drafter needs command-level --drafter-repo none; k/scheduler levers need the launcher's constant env overridden in the recipe)",
-      "provenance": "glm-flash-concurrency-degradation-search; mad-science/DRAFTER-ALTERNATIVES-1026.md; recipes/glm/README.md; owner 2026-11-07 window",
+      "notes": "estimate: provisional — scheduler/slot lever: C5/C10 over 4 slots against the 8-slot baseline, deliberately slot-limited (ARM_ALLOW_FEW_SLOTS=1). TRACKED VARIANT recipe declaring parallel: 8, overridden by ARM_OPTS. No extra client.",
+      "provenance": "glm-flash-concurrency-degradation-search; concurrency-variants commit bd4671d; owner 2026-11-07 window",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "recipe": "recipes/glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-parallel.yaml",
+      "tp": 4,
+      "env": {
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
+        "ARM_OPTS": "-o parallel=4",
+        "ARM_ALLOW_FEW_SLOTS": "1"
+      }
     }
   ],
   "questions": []

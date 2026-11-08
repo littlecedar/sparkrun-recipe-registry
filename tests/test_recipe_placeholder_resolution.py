@@ -454,6 +454,12 @@ class ServedModelNameNotRebound(unittest.TestCase):
         "ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml",
         "ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml",
         "ds4/zz-deepseek-v4.1-flash-exl3-tp4-1m-tensorfold-sglang.yaml",
+        # The SM121 survey arms share the same overlay: mods/dsv41-sglang-overlay/launcher.py
+        # (_clean_served_name) normalizes the rendered snapshot path back to the repo id before
+        # the engine starts, which is the exception the shipped shim arms already carry.
+        "ds4/zz-ds4-1017-sm121-indexer-scoring.yaml",
+        "ds4/zz-ds4-1017-sm121-arm5-trtllm-mla.yaml",
+        "ds4/zz-ds4-1017-sm121-arm3-control.yaml",
     }
     REBOUND = re.compile(r"--served-model-name\s+\{model\}")
 

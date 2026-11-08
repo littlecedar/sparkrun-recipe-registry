@@ -165,7 +165,9 @@ stdout/stderr land in `<receipt>/extra-client.log` with a closing `extra-client:
 same rc is appended to `house.yaml` when that marker exists — never manufactured, because an absent
 `house.yaml` is what a receipt consumer reads as unfinished. `ARM_EXTRA_TIMEOUT` (default 1800 s)
 bounds a wedged client so it cannot hold a TP4 boot. A nonzero client rc is recorded as the client's
-result and never changes the arm's own status or cells. `ARM_RECEIPTS_ROOT` moves the whole receipt
+result and never changes the arm's own status or cells. The hook receipt also carries `image.txt`
+(the resolved container image id, from `docker inspect` on rank 0) — a local-only survey tag is not a
+digest, so the receipt names what ran. `ARM_RECEIPTS_ROOT` moves the whole receipt
 to `<root>/<arm>` (a campaign owns its measurements); unset keeps `~/benchmarks/tp12-<date>/<arm>`. Guarded by
 `ExtraClientHook` in `tests/test_run_arm_tool.py` (ordering, unset no-op, rc recording, timeout
 bound, no fabricated marker).
