@@ -37,7 +37,10 @@ metadata:
     moonshotai/Kimi-K3.1-Pro (the card states no base revision) while this target is
     its 75 %-expert-pruned derivative, so the hidden states it reads come from a
     different routing distribution; the card's 3.448 acceptance length is for the
-    unpruned base and must not be assumed here. Both drafts' licenses: DSpark ships
+    unpruned base and must not be assumed here. CHAT TEMPLATE: same as the plain sibling —
+    the checkpoint ships none (`tokenizer_config.json` has no `chat_template` key;
+    formatting is a Python `apply_chat_template`), so acceptance is measured through
+    `/v1/completions` unless the chat endpoint settles otherwise. Both drafts' licenses: DSpark ships
     `other` / `kimi-k3.1-pro`, matching the base, not Apache-2.0.
 defaults:
   port: 8000

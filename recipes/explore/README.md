@@ -46,6 +46,7 @@ the pyannote diarizer. Explore keeps the language and agentic/RAG arms.
 - [kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4](#kimi-k31-pro-pruned75-mxfp4-vllm-tp4)
 - [kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4](#kimi-k31-pro-pruned75-mxfp4-dspark-vllm-tp4)
 - [Kimi-K3.1-Pro spinoffs: REAPs, drafters and the EXL3 2-bit](#kimi-k31-pro-spinoffs-reaps-drafters-and-the-exl3-2-bit)
+- [Ripple-65B Preview (2026-11-08 trial, not booted)](#ripple-65b-preview-2026-11-08-trial-not-booted)
 - [Attic index](#attic-index)
 
 ## Easy-traffic selection (2026-10-22)
@@ -1047,6 +1048,12 @@ rows and `e_score_correction_bias` pruned with them), everything else the base
   `kimi_k3` reasoning/tool parsers.
 - **Quality, as the card states it.** GSM8K 5-shot 43.67 % on four B300s at TP=4, with "expect a large
   quality regression relative to the source model" in the card. Not a general-purpose candidate.
+- **Chat template: none on the Hub.** The repo has no `chat_template.jinja` and
+  `tokenizer_config.json` carries no `chat_template` key (the base does not either); formatting is a
+  Python `TikTokenTokenizer.apply_chat_template` / `kimi_k3_processor` method that vLLM's Jinja
+  path does not use. So the arm expects `/v1/chat/completions` to answer "chat template is not
+  defined" and measures on `/v1/completions`; the chat endpoint is tested once as a diagnostic,
+  and whichever way it settles is recorded rather than assumed.
 - **Licence.** `other` / `kimi-k3.1-pro`, inherited with the base's LICENSE link — not Apache-2.0.
 
 ## `kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4`
@@ -1114,6 +1121,70 @@ routed experts at their source bytes, `quant_method: exl3`, `dense_format: bf16`
 
 Licences in this section are the base's `kimi-k3.1-pro` (`other`) except `RadixArk`'s draft, which is
 Apache-2.0, and `lightseekorg`'s, which is `other` with no licence name.
+
+## Ripple-65B Preview (2026-11-08 trial, not booted)
+
+`ricursiveAI/Ripple-65B-Preview` is a **65B dense** (not MoE) thin-and-deep model: 80 layers at
+d_model 5120 / FFN 40960, 80 Q / 8 KV heads at head_dim 128, gated attention, value residuals,
+global NoPE, **16 full-attention layers** among four 1024-token sliding ones, 2,097,152 positions,
+vocab 100,352, Apache-2.0 and `gated: false`. The card claims 80.52 on TerminalBench 2.1 and that
+it "can fit on consumer hardware such as the NVIDIA DGX Spark". Three `zz-` probes are authored and
+**none has booted** (the fleet window belongs to the campaign), so no index row exists for them —
+"no row is given to an arm with no receipt" holds here too.
+
+**Engine decision, on evidence.** vLLM, and only its **nightly**: `ricursive` support is
+[vllm-project/vllm#65745](https://github.com/vllm-project/vllm/pull/65745), which the official
+[recipe index](https://recipes.vllm.ai/ricursiveAI/Ripple-65B-Preview) serves as
+`vLLM >= 0.33.0 (unreleased — nightly wheel, cu130 only)`, including the `ripple` reasoning/tool
+parsers and a native `dflash` speculative method. The fleet's release pin
+(`vllm-openai:v0.32.0`) predates the PR and cannot load this architecture at all. All three probes
+therefore pin one digest, `vllm/vllm-openai:nightly@sha256:390a656b…` (resolved 2026-11-08;
+manifest list, linux/arm64 child `sha256:0d69205f…`, **11.29 GB** — no node holds it, so the first
+boot pays that pull), so a C1 on one cell is comparable with a C5 on another.
+The vendor's SGLang route is real but not servable here as-is: `inference/server/serve.py` pins
+`sglang==0.5.19`, registers `RicursiveForCausalLM` into `ModelRegistry` from its own `model.py`,
+and runs TRT-LLM attention at TP=2 on B200s; the GB10 path (`inference/local/spark.py`) is an
+in-process `Engine` (no HTTP, no port) that monkey-patches the SGLang scheduler for sm_121, and the
+fleet's SGLang pins are `v0.5.22` — a version the vendor's export does not claim. Serving that
+would be a fork plus a mod, so vLLM wins on evidence, not on the card.
+
+| cell | recipe | weights | TP | engine support | why |
+|---|---|---|---|---|---|
+| NVFP4 | `zz-ripple-65b-preview-nvfp4-tp1-vllm.yaml` | 57.2 GB (6 shards) → ~53.3 GiB | 1 | vLLM nightly, `modelopt` NVFP4 | the card's own local-serving suggestion; the smallest footprint that fits one Spark |
+| NVFP4 + DFlash2 | `zz-ripple-65b-preview-nvfp4-tp1-dflash2-vllm.yaml` | 57.2 GB + 8.07 GB draft | 1 | same, `speculative_config.method: dflash` | drafting is where TP=1 bandwidth-bound decode can gain most |
+| BF16 | `zz-ripple-65b-preview-bf16-tp2-vllm.yaml` | 129.6 GB → ~120.7 GiB | 2 | same, no quant method | unquantized 6-month quality control, and the only cell that can hold 1M tokens |
+
+**Fit arithmetic** (not measurement). 129.6 GB of BF16 does not fit one GB10's ~109 GiB budget at
+util 0.90, so **TP=2 is the floor for BF16**; NVFP4 fits TP=1, which is also the user's lower-TP
+preference. KV is **64 KiB/token** — 16 global layers × 8 KV heads × 128 head_dim × 2 (K,V) × 2 B —
+split to 32 KiB/rank at TP=2; the 64 sliding layers add only ~256 MiB total. At util 0.90 (108.9
+GiB) minus 53.3 GiB of NVFP4 weights, ~55 GiB remains, i.e. ~880k tokens → the NVFP4 probe carries
+`max_model_len 524288`; with the 7.5 GiB drafter, ~760k. The BF16 TP=2 arm at util 0.85 leaves ~42
+GiB/rank → ~1.36M tokens, so it carries the card's `1048576`. **The card's 1M claim is therefore a
+TP=2 cell, not a one-Spark one**, and TP=4 would only split 60 GiB into 30 GiB ranks for no
+bandwidth gain past two nodes.
+
+**What the first boot must print to count** (the discriminators, in order): (1) the parser names are
+accepted — `--reasoning-parser ripple` / `--tool-call-parser ripple` fail closed with "unknown
+reasoning parser" if the nightly lost them; (2) architecture registration — no
+`Unsupported model architecture: RicursiveForCausalLM` (nor a `KeyError: 'ricursive'`), and the
+config resolves without `--trust-remote-code`; (3) the NVFP4 path — the quantisation log line naming
+ModelOpt NVFP4 and the backend it chose (`cutlass_fp4`/`marlin`; a marlin fallback is valid and
+slower, a "no kernel image is available for execution on the device" is the rejection); (4) the
+drafter cell — `dflash` accepted, the draft's acceptance stats in the log, and the KV/positions
+check passing at `max_model_len 131072` (the draft's configured cap).
+
+**Unverified, named.** GB10/sm_121 is in none of the recipe index's hardware rows
+(`b200`/`gb200`/`b300`/`gb300`), so the NVFP4 GEMM path on this arch is the single biggest unknown;
+the 1M-token cell is arithmetic; vLLM caps nothing on the draft's own position limit but the
+drafter probe stays at 131072 rather than rely on an override the way the vendor's SGLang launcher
+does (`SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`); and the engine itself is a nightly pinned by
+digest — a moving target we froze, not a release.
+
+**Recommended pair.** Boot the NVFP4 TP=1 no-drafter cell first (one node, smallest bytes, the
+card's own claim), then its DFlash2 twin on the same node to price the drafter; the BF16 TP=2 arm is
+the quality control and the only long-context cell. That is three boots, two node-shapes, one
+engine digest.
 
 ## Attic index
 

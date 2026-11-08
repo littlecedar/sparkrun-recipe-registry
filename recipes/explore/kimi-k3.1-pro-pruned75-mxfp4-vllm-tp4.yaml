@@ -45,7 +45,14 @@ metadata:
     maps it to vllm/models/kimi_k3, and the newest release tag v0.33.0rc3 does not
     have it, so an image built before the K3.1 merge fails at model resolution.
     Serving pin must also carry `--trust-remote-code` (config auto_map) and the
-    card's `kimi_k3` tool-call/reasoning parsers.
+    card's `kimi_k3` tool-call/reasoning parsers. CHAT TEMPLATE (probed 2026-11-08, and
+    the sharpest boot question here): the repo ships **no** `chat_template.jinja` and its
+    `tokenizer_config.json` has no `chat_template` key — chat formatting lives in Python
+    methods (`TikTokenTokenizer.apply_chat_template`, `kimi_k3_processor`), which vLLM's
+    Jinja path does not use. A `/v1/chat/completions` request is therefore expected to
+    fail with "chat template is not defined" until a template file exists; the ladder
+    runs on `/v1/completions`. Test the chat endpoint once as a diagnostic and record
+    which way it settles — do not assume either.
 defaults:
   port: 8000
   host: 0.0.0.0
