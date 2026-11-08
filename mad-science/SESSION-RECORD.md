@@ -5292,3 +5292,30 @@ your register is wrong"). The disk text is already read for `board_stamp`, so th
 and it catches the same-title case the stamp comparison cannot see. It is the body sibling of the
 title guard `cmd_lint` already carries (`tools/README.md:44`). **Not implemented this pass**:
 proposed with its check and exit code so it lands as its own change with its own test.
+
+## 2026-11-08 11:51 ET — the board-write clobber got a mechanism, not another note
+
+- **This is the §11:23 proposal, implemented.** The section above prescribed a cheap read-vs-disk diff
+  before the write and left the sha CAS for later; the sha CAS turned out to be the cheap half, and it
+  is now in `publish` itself, so no second guard is owed.
+- **The hole was structural, so it was closed in the tool.** `publish` compared only the board's
+  stamp (`max(newest | census | row, title)`), so an in-place peer edit that keeps the title passed
+  the check in both directions and the whole-file `os.replace` dropped that peer's rows — measured
+  at 11:13 this hour, bytes recoverable from neither a commit nor `/tmp`.
+- **`publish --expect-sha <hex>` is the gate**: the caller passes the sha256 its composition was read
+  from, and inside the existing lock `publish` hashes the disk file, exiting 1 without writing when
+  it moved. Fail-closed when the board is absent. Without the flag, unchanged. Landed with one
+  negative control (a stale sha against a simulated in-place edit must refuse and leave the bytes
+  alone) and one positive case, in `4debeac`.
+- **The tick procedure now uses it.** `status-board-refresh`'s commit bullet writes
+  `publish --expect-sha "$SHA"` and says why: the CAS lives inside publish's own lock instead of in
+  the gap before the call, which is exactly where the 11:13 write slipped through.
+- **The hour's other numeric defect was corrected on the board rather than quietly edited.** The
+  11:13 landed row claimed "no node wrote more than ~10 MB in the hour" on evidence covering 63 s
+  and 8.2 min; the only hourly comparison is the previous board's 1-dp GiB, where `.35` 1246.4 →
+  1246.21 and `.32` 1602.8 → 1602.73 put the fleet ~0.28 GiB lower. The correction is an appended
+  row (`10743ee`) that keeps the measured intervals and withdraws the bound, because the landed
+  table is append-only and the wrong clause was already published under `f71c1d1`.
+- **The stated suite total followed discovery, not arithmetic**: a peer's 25-test module landed
+  under 1383, the `SuiteTotal` guard reddened the tip, and both statements moved to 1405 with my two
+  new cases counted in the same commit (`d23b871`).
