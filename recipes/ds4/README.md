@@ -993,6 +993,31 @@ The recipe's model spec carries `:IQ2_XXS` for the same reason the mod exists: s
 resolver takes the first `.gguf` in a snapshot when no quant segment is given, and in this repo that
 is the Engram table, not shard 1.
 
+### Staged state, verified 2026-11-08
+
+Snapshot `54229d38d5` in the shared pool (`/mnt/beegfs/huggingface/hub`, mounted as `/cache` in
+the container) holds everything the arm reads, at the pinned revision:
+
+| piece | bytes | note |
+|---|---:|---|
+| 5 transformer shards (`IQ2_XXS/…-00001..5-of-00006`) | 72,123,567,456 | shard 1 is the 5.8 MB preamble; shards 2–5 carry 19.8 / 19.9 / 19.7 / 12.7 GB |
+| `DeepSeek-V4.1-Flash-Engram-IQ4_NL.gguf` (repo root) | **110,595,290,816** | the sixth shard's bytes, byte-identical to the unpruned release's copy |
+| `mmproj-DeepSeek-V4.1-Flash-1017-BF16.gguf` | 972.2 MB | vision projector |
+| `chat_template.jinja` | 18.5 KB | the lane stages it through `dsv41-chat-template-stage` |
+
+Every snapshot entry is a symlink into `models--…/blobs`, as the pool's `hf` cache always is, so
+sizes must be read with `stat -L`.
+
+**Named defect in the link mod (measured, not fixed here).** `mods/dsv41-engram-shard-link` sizes
+the Engram with `stat -c '%s'`, which reports the *symlink* (76 B on this snapshot) rather than the
+blob, and its pool-search fallback uses `find -type f`, which skips symlinked snapshots. On this
+cache layout that makes the mod exit **4** ("below the 90 GiB floor") with the Engram fully staged.
+Reproduced 2026-11-08 in a temp hub shaped like the pool's cache (Engram symlink → 97.7 GB sparse
+blob): `rc=4`, log line `… is 18 B, below the 96636764160 B floor`. The fix is `stat -Lc` (and a
+symlink-aware fallback search); until it lands, **the shard-6 boot gate cannot pass**, so this arm
+stays authored-not-booted for a tooling reason, not a model or engine one. Run on the real pool the
+mod also fails to create the link — the snapshot has five `IQ2_XXS/` entries, no `00006`.
+
 ### Prerequisites (both verified before the arm may claim bootability)
 
 1. **llama.cpp ≥ b11870**, the release that added DeepSeek-V4.1 support (`74bca395`, 2026-10-25,
@@ -1001,7 +1026,9 @@ is the Engram table, not shard 1.
    (2026-11-05, eleven days past b11870) and carries `--reasoning`, `--reasoning-effort`,
    `--load-mode`, `--mmproj` and `--jinja` at that commit — checked in `common/arg.cpp`, not assumed
    from the tag name.
-2. **The Engram shard-6 link**, per the mod above.
+2. **The Engram shard-6 link**, which the mod above creates pre-exec — and which, as measured
+   above, it currently *cannot* create on this fleet's symlinked cache (`stat` without `-L` reads
+   the link and exits 4). That is a tooling defect, recorded; the fix is one flag.
 
 Either missing makes the arm authored-not-booted with that exact blocker. What is *not* yet verified
 is the model side: no boot has proved the image's `deepseek4`/DSV4.1 loader agrees with this GGUF's

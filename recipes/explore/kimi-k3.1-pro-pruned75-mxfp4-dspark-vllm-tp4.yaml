@@ -35,7 +35,14 @@ metadata:
     same registry also carries a Kimi-NATIVE DSpark draft (`K3DSparkModel` ->
     vllm/models/kimi_k3/nvidia/dspark_mla), so if a Qwen3-shaped draft is refused on a
     Kimi target the native drafter route exists and needs its own checkpoint. (2)
-    CROSS-CHECKPOINT ACCEPTANCE: the draft was trained against
+    DRAFTER-BINDING CAUTION (do not skip): the LithosAI draft's `architectures` is
+    `Qwen3DSparkModel` — vLLM's Qwen3-shaped DSpark skeleton — even though its config
+    targets 93-layer Kimi layers [7,23,67,83,91] and Kimi's 163840 vocab. Until a boot
+    shows that speculator initialising against this Kimi target *and* its acceptance
+    counters moving, this arm has NOT measured a drafter; a refusal or zero counters is
+    the finding "Qwen3-shaped draft is not bindable to a Kimi target", and the route
+    then needs a Kimi-native `K3DSparkModel` checkpoint (vLLM ships the arch; no such
+    checkpoint is identified yet). (2) CROSS-CHECKPOINT ACCEPTANCE: the draft was trained against
     moonshotai/Kimi-K3.1-Pro (the card states no base revision) while this target is
     its 75 %-expert-pruned derivative, so the hidden states it reads come from a
     different routing distribution; the card's 3.448 acceptance length is for the

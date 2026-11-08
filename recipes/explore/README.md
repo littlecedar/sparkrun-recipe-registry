@@ -1008,26 +1008,57 @@ window `head:~/benchmarks/tp12-20261107/zz-sage-a1.5-35b-a3b-q4km-llamacpp/` (`l
 
 ## `zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm`
 
-**Artifact probe, authored-not-booted (2026-11-08).** `shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB`
-pinned `b88a90e8`. No engine loads it: `architectures: [KimiK31SuperExpertForCausalLM]` exists only in
-the repo's own `auto_map`, so vLLM/SGLang resolution fails, and the `gguf` tag points at a 623 B
-GGUF (v3 magic, `tensor_count` 0, arch `kimi_k31_moe`). The only constructible route is the
+**Artifact probe, authored-not-booted (2026-11-08), attempted twice and fixed.** Model
+`shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB` pinned `b88a90e8`. No engine loads it:
+`architectures: [KimiK31SuperExpertForCausalLM]` exists only in the repo's own `auto_map`, so
+vLLM/SGLang resolution fails, and the `gguf` tag points at a 623 B GGUF (v3 magic,
+`tensor_count` 0, 11 metadata pairs, arch `kimi_k31_moe`). The only constructible route is the
 transformers reference loader under `trust_remote_code`, which is what the arm runs: the mod
-`mods/kimi-superexpert-ref-launcher` serves a small OpenAI-compatible surface over it.
+`mods/kimi-superexpert-ref-launcher` serves a small OpenAI-compatible surface over it. Full
+claim-by-claim probe in
+[`mods/kimi-superexpert-ref-launcher/README.md`](mods/kimi-superexpert-ref-launcher/README.md).
 
-The artifact itself contradicts its card, recorded rather than fixed in
-[`mods/kimi-superexpert-ref-launcher/README.md`](mods/kimi-superexpert-ref-launcher/README.md):
-581 tensors with dense llama-style names and **no** expert/router tensors (so it is ~24 B logical
-parameters in 12 GB of U8 nibble packing, not a 2.8 T MoE), plain `scaled_dot_product_attention`
-instead of Gated DSA + KDA, a `float16` compute dtype over `8-bit`-tagged U8 storage, and an
-`apache-2.0` claim over a base that ships the Kimi K3.1-Pro licence (`other`). The base-model card is
-`moonshotai/Kimi-K3.1-Pro` (`d9e99b07`, 2.78 T params: 2.7227 T U8 MXFP4 elements + 57.36 B BF16),
-so the tag/quality claims are unverifiable from the artifact and the licence claim is defective.
+**The staged snapshot is the whole artifact and it is dense.** Verified 2026-11-08 in the pool:
+33 files, 12,012,326,348 B, `hf cache verify` rc=0 (33/33 checksums match). Its own files say:
+- **Dense, not MoE.** 581 tensors with llama-style names (`self_attn.{q,k,v,o}_proj`,
+  `mlp.{gate,up,down}_proj`, `embed_tokens`, `lm_head`) and **no** expert/router tensors; the
+  modeling code builds one dense `KimiSuperExpertMLP` per layer. Roughly **24 B dense
+  parameters** — 36 layers at hidden 7168, MLP 18432, vocab 163840 — not a 2.8 T MoE consolidated
+  into 12 GB.
+- **~4 bpw storage.** F16 compute plus U8 packed-nibble pairs with one F16 scale per tensor
+  (`12,008,815,872` U8 elements); the card's `8-bit` tag and `float16` dtype describe neither.
+- **Standard SDPA causal attention, and no positional scheme anywhere in the modeling code** — no
+  RoPE, no position ids, while `config.json` declares `max_position_embeddings: 1048576`. NoPE is
+  a legitimate long-context design (the Ripple arm in this tree is NoPE at 1M), so the correct
+  finding is that **the advertised 1M context is unverifiable from the shipped artifacts**, not
+  that it is impossible.
+- **The config still advertises MoE the code does not contain:** `moe_intermediate_size: 3072` is
+  declared while the MLP path uses `intermediate_size` only. That is the cleanest card/code gap in
+  the artifact, independent of how one reads the missing positional scheme.
+- **Metadata drift inside the repo:** the config class defaults `compressed_footprint_gb` to
+  **9.2** where `config.json` and the card say **12.0**; the `Modelfile` names
+  `kimi-k3.1-pro-superexpert-q4_k_m.gguf`, a file that does not exist (the real stub has `-12gb`
+  in the name), and claims sub-10 GB.
+- **Licence:** no LICENSE file ships. The card's front-matter claims `apache-2.0`; the base
+  `moonshotai/Kimi-K3.1-Pro` (`d9e99b07`, 2.78 T params) is `license: other`
+  (`kimi-k3.1-pro`), so the licence claim is defective. Quality claims (94.8 % retention, the
+  benchmark table) have no harness, fixtures or receipt in the repo.
 
-No boot: `.local/fleet-window.lock` held all six nodes for session `campaign-queue` (window stamped
-2026-11-08T03:37Z). The arm still registers as a `tp: 1` trial because the reference route is
-constructible on one node; the launch gate is the mod's `import transformers, fastapi, uvicorn, torch`
-check against the pinned `vllm/vllm-openai:glm53-flash` image.
+**Two attempts, one recipe defect, no measurement.** Both launches in the 2026-11-08
+`campaign-queue` window died on `serve.py: error: unrecognized arguments:
+--served-model-name shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB`: sparkrun's vllm runtime
+appends that flag to any vllm command it renders, and the launcher's argparse did not accept it.
+The retained receipt has a 241 B reaped serve log with that usage text and a `launch.log` totalling
+34.4 s (run 16.8 s + launch 14.7 s); watchdog verdict was `dead` with `serve_pid=gone` at 11 s.
+Nothing loaded, so no cell exists. `serve.py` now parses `--served-model-name` and reports it from
+`/v1/models` (then `SERVED_MODEL_NAME`, then the default); the fix is **unretested**, so the arm
+stays authored-not-booted.
+
+**Read any future number as the dense ~24 B artifact's, never as a 2.8 T result.** The arm
+registers `tp: 1` because the reference route is the only one constructible on one node; its
+launch gate is the mod's `import transformers, fastapi, uvicorn, torch` check against the recipe's
+pinned `vllm/vllm-openai:v0.32.0` image (the engine is a carrier for that Python stack, not a
+loader for this checkpoint).
 
 ## `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4`
 
@@ -1041,6 +1072,10 @@ rows and `e_score_correction_bias` pruned with them), everything else the base
   BF16 56,915,256,320 (113.8 GB) + F32 11,060,608 (0.04 GB) = **454.2 GB = 423.0 GiB**. Over TP=4
   that is 105.75 GiB per rank against ~121 GiB usable, i.e. 82.6 % of the 128 GB device before KV,
   so the arm ships 32k context at utilisation 0.92. An OOM at profile is sizing, not the checkpoint.
+  The pinned `config.json` corroborates the pruning arithmetic: `num_experts: 224`,
+  `num_experts_per_token: 16`, `num_shared_experts: 2`, 93 hidden layers with
+  `first_k_dense_replace: 1` (so 92 MoE layers), `dsa_config.dsa_layers` listing the 24 full/DSA
+  layers, `kda_layers` the other 69, and `quantization_config.format: mxfp4-pack-quantized`.
 - **Engine gate: PASSED from the image itself.** I pulled the pinned nightly arm64
   (`0.33.0rc1.dev1016+g06129ab02`, created 2026-11-07) and walked its filesystem: the module tree
   `vllm/models/kimi_k3/` is present and
@@ -1048,7 +1083,9 @@ rows and `e_score_correction_bias` pruned with them), everything else the base
   image's `vllm/tool_parsers/__init__.py` registers `kimi_k3`, so the serve line's parsers exist.
   Upstream context: the last release tag `v0.33.0rc3` does **not** carry the class, which is why
   this nightly is the earliest known pin rather than any release. Serving needs `--trust-remote-code` (config `auto_map`) and the card's
-  `kimi_k3` reasoning/tool parsers.
+  `kimi_k3` reasoning/tool parsers. Re-checked 2026-11-08: the pinned digest still resolves in
+  GHCR, but **no node holds the image** (all six `docker image inspect` miss), so the first boot
+  pays the pull; the checkpoint itself is metadata-only in the pool (one `config.json`).
 - **Quality, as the card states it.** GSM8K 5-shot 43.67 % on four B300s at TP=4, with "expect a large
   quality regression relative to the source model" in the card. Not a general-purpose candidate.
 - **Chat template: none on the Hub.** The repo has no `chat_template.jinja` and
@@ -1076,11 +1113,28 @@ gamma must equal the exported `block_size: 5` (1 current + 4 drafts); the card's
 number needs block 8, which this config does not declare. 16k context because the draft adds
 ~4.5 GiB/rank over the plain arm's 105.75 GiB.
 
-Two unverified links are in the recipe's caveats, not hidden: (1) the nightly image must also carry
-`dspark` in its method literal and `Qwen3DSparkModel` in its registry (both verified upstream on main
-2026-11-08); (2) the draft was trained against the **unpruned** base (the card declares no base
-revision) while this target has 75 % of its experts pruned, so the card's 3.448 mean acceptance
-length is not transferable to this body — it is a first-boot measurement, not an assumption.
+The engine side is verified rather than assumed: the pinned image's `config/speculative.py` declares
+`DSparkModelTypes = Literal["dspark"]` and its registry maps both `Qwen3DSparkModel` → `qwen3_dspark`
+and a Kimi-native `K3DSparkModel` → `vllm/models/kimi_k3/nvidia/dspark_mla`. Two things remain open,
+and neither is papered over:
+
+1. **The drafter's binding is unproven.** The LithosAI draft declares `architectures:
+   Qwen3DSparkModel` — the Qwen3-shaped DSpark skeleton — while its config targets 93-layer Kimi
+   layers `[7, 23, 67, 83, 91]` and Kimi's 163,840 vocab. Until a boot shows that speculator
+   initialising against this target **and** its acceptance counters moving, the arm has measured no
+   drafter: a refusal, or zero counters, is the finding "Qwen3-shaped draft is not bindable to a Kimi
+   target", and the route then needs a Kimi-native `K3DSparkModel` checkpoint that vLLM can load but
+   which nobody has published yet. So this arm may not claim speculative acceptance until then.
+2. **Cross-checkpoint acceptance.** The draft was trained against the unpruned base (the card
+   declares no base revision) while this target has 75 % of its experts pruned, so the card's 3.448
+   mean acceptance length is not transferable to this body — a first-boot measurement, not an
+   assumption.
+
+**Nothing is staged for either arm.** Checked 2026-11-08: the pool holds a single `config.json` for
+`vllm-project/Kimi-K3.1-Pro-pruned75` (snapshot `fc72e5a1`) and no `models--LithosAI--…` at all, so
+the plain arm pays the 454.2 GB target download and the DSpark sibling pays both. Chat template is
+confirmed absent at the pin: `tokenizer_config.json` has no `chat_template` key and the repo ships no
+`chat_template.jinja`, so both arms measure on `/v1/completions`.
 
 ## Kimi-K3.1-Pro spinoffs: REAPs, drafters and the EXL3 2-bit
 
@@ -1114,7 +1168,10 @@ card's acceptance number was measured on a 75 %-pruned target: that measurement 
 is an `exl3-v1` (`lut_e4m3`) export: 82,432 routed experts uniformly 2-bit, the 2,748 tensors outside
 routed experts at their source bytes, `quant_method: exl3`, `dense_format: bf16`, and — per its card —
 **742.235 GiB ≈ 797 GB** of weights, converted from base revision `6d0a0202` (again not the base
-`main`). Two independent walls:
+`main`). Measured against the Hub tree 2026-11-08: **210 files, 796,971,801,399 B = 742.24 GiB =
+796.97 GB**, and **none of it is staged** — the pool has no
+`models--local-inference-lab--Kimi-K3.1-Pro-EXL3-2bit` directory, so the download is 0 bytes and the
+fit arithmetic below is all that stands between it and an attempt. Two independent walls:
 
 - **Fit, before any engine question.** The fleet's raw aggregate is 6 × 128 GB = 768 GB, and a
   TP=4 launch has 512 GB. Even at six ranks the raw sum is 16 GB short of 797 GB, before the usable
@@ -1160,9 +1217,14 @@ would be a fork plus a mod, so vLLM wins on evidence, not on the card.
 |---|---|---|---|---|---|
 | NVFP4 | `zz-ripple-65b-preview-nvfp4-tp1-vllm.yaml` | 57.2 GB (6 shards) → ~53.3 GiB | 1 | vLLM nightly, `modelopt` NVFP4 | the card's own local-serving suggestion; the smallest footprint that fits one Spark |
 | NVFP4 + DFlash2 | `zz-ripple-65b-preview-nvfp4-tp1-dflash2-vllm.yaml` | 57.2 GB + 8.07 GB draft | 1 | same, `speculative_config.method: dflash` | drafting is where TP=1 bandwidth-bound decode can gain most |
-| BF16 | `zz-ripple-65b-preview-bf16-tp2-vllm.yaml` | 129.6 GB → ~120.7 GiB | 2 | same, no quant method | unquantized 6-month quality control, and the only cell that can hold 1M tokens |
+| BF16 | `zz-ripple-65b-preview-bf16-tp2-vllm.yaml` | 129.57 GB → 120.67 GiB | 2 | same, no quant method | unquantized 6-month quality control, and the only cell that can hold 1M tokens |
 
-**Fit arithmetic** (not measurement). 129.6 GB of BF16 does not fit one GB10's ~109 GiB budget at
+**Staged bytes, verified 2026-11-08:** snapshot `da94cc01` holds **27 files, 129,572,840,679 B =
+129.57 GB = 120.67 GiB** — the BF16 cell is fully pool-ready. The NVFP4 repos
+(`ricursiveAI/Ripple-65B-Preview-NVFP4`, and its DFlash2 draft) are **absent** from the pool, which
+is why the two TP=1 cells sit held rather than queued.
+
+**Fit arithmetic** (not measurement). 129.57 GB of BF16 does not fit one GB10's ~109 GiB budget at
 util 0.90, so **TP=2 is the floor for BF16**; NVFP4 fits TP=1, which is also the user's lower-TP
 preference. KV is **64 KiB/token** — 16 global layers × 8 KV heads × 128 head_dim × 2 (K,V) × 2 B —
 split to 32 KiB/rank at TP=2; the 64 sliding layers add only ~256 MiB total. At util 0.90 (108.9

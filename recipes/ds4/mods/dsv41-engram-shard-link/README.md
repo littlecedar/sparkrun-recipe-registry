@@ -34,6 +34,18 @@ and no 110.60 GB transfer is needed. A mod that downloaded would hide that fact 
 node. When the file is genuinely absent the mod exits `3` with the one `hf download` line in its
 log; staging it into the pool is an explicit, once-per-pool operation.
 
+## Known defect: symlinked caches fail the floor check (measured 2026-11-08)
+
+On the fleet's shared cache every snapshot entry is a **symlink** into the repo's `blobs/`
+(`~/.cache/huggingface` → `/mnt/beegfs/huggingface`; the container sees the same tree at `/cache`).
+`SIZE="$(stat -c '%s' "${SOURCE}")"` reports the link itself — **76 B** on snapshot `54229d38d5` —
+not the 110,595,290,816 B blob, so the mod exits `4` "below the 90 GiB floor" with the Engram fully
+staged. Reproduced in a temp hub shaped like the pool (`rc=4`, log `… is 18 B, below the 96636764160 B
+floor`). The same class of bug sits in the pool fallback: `find … -type f` never matches a symlinked
+snapshot, so a staged copy is invisible to that search. Fix: `stat -Lc '%s'` and a symlink-aware
+fallback (`find -L … -type f`). Until then this mod cannot link on this fleet, and the arm stays
+authored-not-booted for a tooling reason.
+
 ## Offline self-check (run before any boot)
 
 The resolver is the part that can silently mis-point, so exercise it against a synthetic tree.
@@ -51,7 +63,9 @@ mkdir -p "$T/empty-hub" && MOD_HF_HUB="$T/empty-hub" MOD_LOGDIR="$T/logs" ./run.
 ```
 
 `truncate -s` keeps the 91 GiB floor check honest without writing 91 GiB. The second run must
-log `already links ... - no-op`, not re-create.
+log `already links ... - no-op`, not re-create. The harness uses a **regular** file, which is why it
+passes; make the Engram a symlink to a blob (`ln -s ../../../blobs/engram …`) and the run currently
+exits `4` — that is the defect above, and the harness should flip to `rc=0` once it is fixed.
 
 Two guard shapes here are deliberate, because both silently converted an intended exit into `rc 1`
 during the first draft's own testing: an unmatched glob in a `for` body (`[[ -f "$x" ]] && y=…`)

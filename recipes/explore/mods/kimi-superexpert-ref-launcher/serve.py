@@ -46,7 +46,7 @@ class Completion(BaseModel):
     top_p: float = 0.9
 
 
-def load(model_path: str) -> None:
+def load(model_path: str, served_name: str | None = None) -> None:
     from transformers import AutoModelForCausalLM
 
     print(f"{TAG} loading {model_path} (trust_remote_code, fp16, reference route only)", flush=True)
@@ -55,7 +55,7 @@ def load(model_path: str) -> None:
         model_path, trust_remote_code=True, torch_dtype=torch.float16
     ).to("cuda").eval()
     _STATE.update(tokenizer=tokenizer, model=model)
-    name = os.environ.get("SERVED_MODEL_NAME") or "Kimi-K3.1-Pro-SuperExpert-12GB"
+    name = served_name or os.environ.get("SERVED_MODEL_NAME") or "Kimi-K3.1-Pro-SuperExpert-12GB"
     _STATE["name"] = name
     print(f"{TAG} ready: served name {name!r}, no chat template (completions only)", flush=True)
 
@@ -113,9 +113,11 @@ def main() -> int:
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--context-length", type=int, default=8192,
                     help="reference serve cap; the checkpoint's config claims 1M but attention is dense")
+    ap.add_argument("--served-model-name", default=None,
+                    help="name reported by /v1/models; sparkrun's vllm runtime appends it")
     args = ap.parse_args()
     print(f"{TAG} context cap {args.context_length} (dense SDPA attention, reference route)", flush=True)
-    load(args.model)
+    load(args.model, args.served_model_name)
     uvicorn.run(build(), host=args.host, port=args.port, log_level="info")
     return 0
 

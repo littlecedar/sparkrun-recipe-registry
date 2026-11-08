@@ -26,9 +26,17 @@ description: >-
   custom TikTokenTokenizer ships no chat_template, so only /v1/completions is served and
   /v1/chat/completions answers 400 with that reason. Card claims (94.8 % retention, 8-bit tag,
   apache-2.0) are recorded as unverified/defective in the mod README: the base model ships the
-  Kimi K3.1-Pro License (license: other) and this repo carries no LICENSE file. Boot blocked
-  2026-11-08 by `.local/fleet-window.lock` (all six nodes held by session campaign-queue,
-  window_stamp 2026-11-08T03:37Z); the register row schedules it into that session's order.
+  Kimi K3.1-Pro License (license: other) and this repo carries no LICENSE file. Claims-vs-code
+  gaps in the artifact itself: config declares `moe_intermediate_size: 3072` while the modeling
+  code has one dense `KimiSuperExpertMLP`, and declares `max_position_embeddings: 1048576` with
+  no positional scheme anywhere in the modeling code, so the 1M context is unverifiable from the
+  shipped artifacts (not impossible — a NoPE design is legitimate, as the Ripple arm shows).
+  ATTEMPTS (2026-11-08, campaign window, no measurement): two launches died on
+  `serve.py: error: unrecognized arguments: --served-model-name` — sparkrun's vllm runtime
+  appends that flag and this launcher did not parse it; the retained receipt's launch ended
+  34.4 s total with a 241 B serve log. serve.py now parses the flag and reports it from
+  /v1/models; authored-not-booted still, because the fix is unretested, and any house number
+  this arm produces is the dense ~24B artifact's, never a 2.8T MoE result.
 metadata:
   model_url: https://huggingface.co/shashanth-27xA9/Kimi-K3.1-Pro-SuperExpert-12GB
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
@@ -48,8 +56,9 @@ executor_config:
 defaults:
   port: 8000
   host: 0.0.0.0
-  # The checkpoint claims 1M positions, but the repo's attention is dense SDPA; a reference
-  # serve caps context so a single prefill cannot dominate the probe.
+  # The config declares max_position_embeddings 1048576, but the modeling code carries no
+  # positional scheme at all, so the 1M claim is unverifiable from the artifacts; a reference
+  # serve caps context so one prefill cannot dominate the probe.
   context_length: 8192
 
 command: >
