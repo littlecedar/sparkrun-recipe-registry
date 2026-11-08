@@ -4973,8 +4973,17 @@ would have been churn for a 2-minute-nearer read. The figures are here instead.
   nodes free h2h register campaign`) and its holder `campaign-queue` now holds nothing, so it is a
   **stale lock**: `AGENTS.md` says a session that finds the lock must not boot on the named nodes
   (report and wait), so six idle nodes are withheld from every other session for work that could run.
-  The registry row says the holder should narrow or delete it; the tick does not edit an
+  registry row says the holder should narrow or delete it; the tick does not edit an
   owner-declared lock, and it is git-ignored so no commit can carry the correction either.
+- **The correction commit swept two peer hunks — recorded, not rewritten.** `1fed6d08` was meant to
+  carry one board row and this section, but `STATUS.md` and `SESSION-RECORD.md` on disk then held two
+  peer ticks' uncommitted work: their 08:08 board regeneration (17 table lines) and their
+  `## 2026-11-08 08:08 ET — five commits and four queue-mode refusals…` section. `git diff HEAD~1`
+  confirms `HEAD~1` still carried this session's 08:04 board, so those bytes had no committed home and
+  the pathspec commit published them under a subject naming only the escalation. No bytes were lost and
+  the content is what those ticks composed; the defect is the message, which is the class
+  `AGENTS.md` says to record rather than revert. Origin already carries the commit, so nothing is
+  rewritten.
 - **The fleet is empty and the register explains it.** `sparkrun status` at 08:00:55 lists all six
   nodes under `Idle hosts` (`No sparkrun containers running`), and the 08:02:21 census reads
   **0 containers / 0 volumes on all six** (`.34`/`.35` were already 0). Of 21 open register rows,
