@@ -4964,6 +4964,17 @@ would have been churn for a 2-minute-nearer read. The figures are here instead.
   `9 measured, 8 blocked` over 17 arms, and **no arm carries a `lease` object**
   (`state.json` mtime 07:58:54). So the six-node window is declared with a live unit but zero held
   nodes — the opposite of the wedged-lease signature, and the quartet's containers are indeed all gone.
+- **The declared-window escalation *does* fire, and this tick first misfiled it.** The lease class
+  (live lease, hosts at 0 containers) is correctly not it, but the skill's other trigger is a stated
+  condition of its own: `.local/fleet-window.lock` has rows *and* the window's nodes all read empty —
+  which is exactly this fleet on every read (08:00:41, 08:02:21, 08:04:25, 08:07:20), so the tick's
+  first reply filed it as "not an escalation" and that framing was wrong. The lock is
+  **owner-declared** (2026-11-07 directive, `reason: production workload stopped by owner; all six
+  nodes free h2h register campaign`) and its holder `campaign-queue` now holds nothing, so it is a
+  **stale lock**: `AGENTS.md` says a session that finds the lock must not boot on the named nodes
+  (report and wait), so six idle nodes are withheld from every other session for work that could run.
+  The registry row says the holder should narrow or delete it; the tick does not edit an
+  owner-declared lock, and it is git-ignored so no commit can carry the correction either.
 - **The fleet is empty and the register explains it.** `sparkrun status` at 08:00:55 lists all six
   nodes under `Idle hosts` (`No sparkrun containers running`), and the 08:02:21 census reads
   **0 containers / 0 volumes on all six** (`.34`/`.35` were already 0). Of 21 open register rows,
@@ -4976,3 +4987,47 @@ would have been churn for a 2-minute-nearer read. The figures are here instead.
   GSQ-RCO image `manifest unknown`, Ripple image digest unresolvable, the reference arm's chat cell),
   four of them gaining the `house4096` acceptance client so a healthy serve cannot close evidence-free
   again. `task-queue.py check` is green with **zero claims**; this tick wrote none of it.
+## 2026-11-08 08:08 ET — five commits and four queue-mode refusals landed with no board row; the fold kept the peer's 08:04 board
+- **Board:** the 08:04 board (`ff3f1d91`, census 08:02:21) already carried this tick's state, and its
+  census is **newer** than this tick's 08:01:11 read, so no whole-file replace was made. The fold kept
+  every peer In-flight row and re-rendered the queue table verbatim (21 rows against 21 open tasks);
+  only the census cell was rewritten, with this tick's own **08:07:20 ET** read and the peer's content
+  folded in, and eleven landed rows were appended and time-sorted.
+- **Five commits had landed with no row anywhere.** `b449a272` (07:12, the arm's first serving cycle
+  and the aggregate trap), `a3837191` (07:13, ladder aggregate corrected to `n=5` per cell from
+  `runs/*.json` and `ladder.json`), `29b4d164` (07:24, campaign receipt names its ladder evidence),
+  `578039f3` (07:33, the register hold read at assignment, claim, close-out and reconciliation),
+  `4e1bd4c3` (07:45, a plan defect contained to its recipe). None appeared in the 08:04 board or this
+  ledger, because the previous tick folded the arm close only.
+- **The manifest plan spent 07:11–07:18 re-measuring three decided-blocked arms.** As soon as the 753B
+  arm closed `rc=0`, the worker took `zz-ds4-1017-sm121-indexer-scoring` (rc=4, 07:14:19),
+  `zz-ds4-1017-sm121-arm3-control` (rc=4, 07:16:50) and leased `zz-ds4-1017-sm121-arm5-trtllm-mla` at
+  07:16:50 before the unit stopped at 07:18:05 — all three rows carried the 04:22 `do not re-boot`
+  decision, which is exactly the class `578039f3` closed eleven minutes after this flight started.
+- **A stop mid-flight left a claim the validator refused.** The two starts at 07:18:05 and 07:19:17
+  never served: `task-queue: w4-survey-arm5-sm121-boot: a claim exists only on running row;
+  state='blocked' still carries claimed_by/claimed_at`. The 07:20:26 start came up clean in queue mode
+  and immediately logged `queue: 10 row(s) queued without recipe (authoring, not bootable)`.
+- **Queue mode then leased five rows and every one refused inside three minutes.** `zz-kimi-…-ref-vllm`
+  rc=5 at 07:45:37; `deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp` rc=5 at 07:45:42 on
+  `manifest for littlecedar/dgx-spark-llama-cpp@sha256:f2579b80… not found` — the pin this arm documents
+  is not resolvable from the node; `kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4` rc=4 on
+  `Provide a valid Hugging Face repository ID` for the drafter repo;
+  `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4` rc=4 on `Couldn't instantiate the backend tokenizer … need
+  sentencepiece or tiktoken`; `zz-ripple-65b-preview-bf16-tp2-vllm` rc=4 with its container gone before
+  the exit-state inspect. Each row is therefore blocked on a **mechanism**, not on a timeout.
+- **The reference arm's remaining block is its chat path, and the serve says so.** Attempt 5 (07:54:50,
+  unit restarted at 07:54:49 under MainPID 259749) reached readiness at **t=117 s**
+  (`verdict=healthy endpoint=ok serve_pid=alive ranks=1`), then the ladder failed `[1/4]` in 2.6 s, the
+  house suite `[1/1]` in 0.9 s, and the client read `HARD 0/18` / `house answered 0/37 (transport
+  errors)` — every request `POST /v1/chat/completions 400`. The serve log's own line is
+  `ready: served name '…', no chat template (completions only)`, so the arm is a completions-only
+  reference server and its ladder must run on `/v1/completions`; the register's `blocked` flip names
+  that cell, correctly.
+- **Census, read-only, twice this cycle.** 08:01:11 and 08:07:20 ET: **`0` containers and `0` volumes on
+  all six nodes**, `sparkrun status` listing all six under `Idle hosts`; root avail fell again on every
+  node — `.34` 8.48 MB, `.30` 2.82 MB, `.31`–`.33`/`.35` ≈0.48 MB over 6 min 9 s — which is node-root
+  journal drift, not a writer, because no node held a container.
+- **Not written by this tick:** `mad-science/queue.json` (the campaign's own close-out bytes, still
+  uncommitted, `sha256 087e58b5…` on head and workstation) and the campaign unit (never started,
+  stopped or restarted here).
