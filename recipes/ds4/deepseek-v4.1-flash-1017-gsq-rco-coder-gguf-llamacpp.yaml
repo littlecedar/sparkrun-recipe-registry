@@ -88,3 +88,4 @@ command: >
   --load-mode {load_mode}
   --cont-batching
   {extra_args}
+  --metrics

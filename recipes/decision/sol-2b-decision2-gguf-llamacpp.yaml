@@ -67,3 +67,4 @@ command: >
   -ub 8192
   -np {parallel}
   --no-webui
+  --metrics

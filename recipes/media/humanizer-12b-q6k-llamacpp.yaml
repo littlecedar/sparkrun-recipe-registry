@@ -80,3 +80,4 @@ command: >
   --no-webui
   --load-mode none
   --cont-batching
+  --metrics

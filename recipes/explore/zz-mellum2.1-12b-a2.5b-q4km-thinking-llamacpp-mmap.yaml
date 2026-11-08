@@ -61,3 +61,4 @@ command: >
   --jinja
   --no-webui
   --cont-batching
+  --metrics

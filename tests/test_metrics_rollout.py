@@ -40,13 +40,6 @@ from typing import Any, Iterator
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RECIPE_GLOB = "recipes/*/*.yaml"
 
-#: Families whose sweep has not landed yet (owner-approved staged rollout,
-#: 2026-11-08).  Each family commit removes its own key; the last sweep commit
-#: deletes this constant, after which every completeness assertion is armed.
-#: Kept explicit rather than inferred from the tree: a half-swept family must
-#: not read as complete because its flags happen to exist somewhere.
-UNSWEPT = frozenset({"llama-cpp"})
-
 SGLANG_FLAGS = ("--enable-metrics", "--enable-cache-report")
 VLLM_FLAGS = (
     "--enable-force-include-usage",
@@ -282,8 +275,6 @@ class ParseCoverage(unittest.TestCase):
 
 class SglangEngineMetrics(unittest.TestCase):
     def test_every_sglang_engine_recipe_requests_the_metrics_set(self):
-        if "sglang-engine" in UNSWEPT:
-            return
         paths = [p for p, _ in family_recipes("sglang", "engine")]
         self.assertTrue(paths, "no sglang engine recipes found")
         for path, recipe in family_recipes("sglang", "engine"):
@@ -293,8 +284,6 @@ class SglangEngineMetrics(unittest.TestCase):
 
 class SglangOverlayMetrics(unittest.TestCase):
     def test_every_ds4_overlay_recipe_passes_metrics_through_env(self):
-        if "sglang-overlay" in UNSWEPT:
-            return
         paths = [p for p, _ in family_recipes("sglang", "overlay")]
         self.assertTrue(paths, "no ds4 overlay recipes found")
         for path, recipe in family_recipes("sglang", "overlay"):
@@ -304,8 +293,6 @@ class SglangOverlayMetrics(unittest.TestCase):
 
 class VllmMetrics(unittest.TestCase):
     def test_every_vllm_serve_recipe_requests_the_usage_and_metrics_set(self):
-        if "vllm" in UNSWEPT:
-            return
         paths = [p for p, _ in family_recipes("vllm", "engine")]
         self.assertTrue(paths, "no vllm engine recipes found")
         for path, recipe in family_recipes("vllm", "engine"):
@@ -315,8 +302,6 @@ class VllmMetrics(unittest.TestCase):
 
 class LlamaCppMetrics(unittest.TestCase):
     def test_every_llamacpp_recipe_requests_metrics(self):
-        if "llama-cpp" in UNSWEPT:
-            return
         paths = [p for p, _ in family_recipes("llama-cpp")]
         self.assertTrue(paths, "no llama-cpp recipes found")
         for path, recipe in family_recipes("llama-cpp"):

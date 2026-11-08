@@ -67,3 +67,4 @@ command: >
   --load-mode none
   --no-webui
   --cont-batching
+  --metrics

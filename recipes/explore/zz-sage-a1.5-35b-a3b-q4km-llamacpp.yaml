@@ -74,3 +74,4 @@ command: >
   --no-webui
   --load-mode {load_mode}
   --cont-batching
+  --metrics
