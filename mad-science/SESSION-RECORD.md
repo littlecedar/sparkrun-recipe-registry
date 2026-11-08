@@ -4195,3 +4195,28 @@ stage.
 - **This tick folded into the peer's board rather than republishing.** Its own census is 00:09:29 and
   the published board's is 00:11:03, so the fresher row stands and two clauses were appended to it: the
   ctime scan that turns "transient carry" into evidence, and the tag-form confirmation of the carry.
+
+## 2026-11-08 00:19 ET — two clauses of the 00:13 board falsified by their own next measurement
+
+Both were written on the 00:11:03 census board (`2155b5b`) and both are withdrawn here rather than
+argued on the board, because the peer's 00:16/00:17 board already drops them in the worktree.
+
+- **"+59.6–59.8 MiB on five nodes each" is not pool traffic.** The 00:13 census row called the uniform
+  62,537,728–62,709,760 B increment "the shared pool leaves on five nodes at once". Measured at 00:18:
+  `sudo -n find /srv/beegfs/storage/chunks -type f -newermt "2026-11-08 00:07:00"` returns **0** files on
+  `.31` and on `.34`. This is the clause class the record already withdrew once as "161 MB/s pool write
+  with no visible author" (23:44 section); the increment stays **unattributed**, and its evenness across
+  five nodes is an observation, not an attribution. The same row's `.30` swing is now attributed by
+  `docker system df` (72 images / 446.3 GB, 338.1 GB reclaimable, 113 GB build cache) and is LIKELY
+  image unpack inside `/var/lib/docker` — not the pool either.
+- **The `.34`/`.35` tag delta crossed two predicates.** The row said "5 and 7 dsv41-matching tags at this
+  read (1 each at 00:01, so images landed on both inside the hour)", but the prior "1" was the
+  `dsv41-sm121-dg` name-specific count while 5/7 is everything matching `dsv41`. Re-measured on both
+  predicates at 00:18: `.34` holds `dsv41-sm121-dg:0.2.0` **and** `:0.2.1` (2 under that name, 5 tags
+  matching `dsv41`), `.35` holds both (2 under that name, 7 matching). So a delta does exist — 0.2.1
+  landed on both — but it is 1→2 on one predicate, not 1→5/7 across two, and the peer's 00:16 board
+  states it correctly as "both carry `0.2.0` + `0.2.1`".
+- **`origin/main` still carries both clauses**, because the fixing board is committed locally and not
+  pushed (local is `ahead 2, behind 1` against `origin/main` after a peer push, so completing it is the
+  holder's call, not this tick's). Readers of the published board until then should treat the pool
+  mechanism and the 1→5/7 delta as withdrawn.
