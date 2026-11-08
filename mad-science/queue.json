@@ -1849,6 +1849,21 @@
       "claimed_by": "",
       "claimed_at": "",
       "recipe": null
+    },
+    {
+      "id": "board-render-state-truncation",
+      "title": "render --board copies every register note into the status board, so the board is 77 KB before any state row",
+      "estimate_h": 0.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "Measured 2026-11-08 14:10 ET: after the 269-row landed table was retired to SESSION-RECORD.md the board still measured 82 136 B, because tools/task-queue.py:912-919 appends each open task's whole notes prose (11 queued + 12 blocked) into the state cell — 75 821 B of the 23-row Work queue table. Every hourly tick therefore reads ~80 KB before it can write one census row, and board-side trimming cannot fix it: the lever is truncating the state cell in board_rows (with the full note still in queue.json and a pointer on the board), which needs its own guard test since the docstring at :905-908 states the justification text IS the row's notes. Acceptance: a render whose emitted table stays under a stated byte budget per row, the full notes still resolvable from the register, and tests/test_task_queue_tool.py covering the truncation boundary.",
+      "provenance": "tools/task-queue.py:902-919 (board_rows state cell = notes + evidence)",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": [
