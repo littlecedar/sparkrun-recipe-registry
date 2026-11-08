@@ -44,7 +44,7 @@ export TIMEOUT="${MOD_TIMEOUT:-1800}"
 export MOD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export CACHEDIR="${MOD_CACHEDIR:-/cache/runtime}"
 export LOGDIR="${MOD_LOGDIR:-/cache/runtime/modlogs}"
-export HF_HUB="${MOD_HF_HUB:-/cache/huggingface/hub}"
+export HF_HUB="${MOD_HF_HUB:-${HF_HUB_CACHE:-/cache/huggingface/hub}}"
 # uv's symlinking gets messed up across permissions boundaries, so we copy.
 export UV_LINK_MODE=copy
 export USER_UID="$(stat -c '%u' /cache/runtime)"
