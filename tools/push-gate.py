@@ -101,12 +101,22 @@ def run(name: str, argv: list[str], cwd: Path, env: dict[str, str]) -> subproces
 
 
 def checks(tree: Path, gitdir: str, base: str | None) -> bool:
+    # Cheapest first: a text scan for bash-isms behind a `#!/bin/sh` shebang. This host's
+    # /bin/sh is bash, so no local run can find them; on 2026-11-08 one such stub reddened
+    # seven consecutive CI runs (CI's /bin/sh is dash).
+    lint = run("POSIX shells (bash-ism lint)",
+               [sys.executable, "-B", str(tree / "tools" / "bash-ism-lint.py"),
+                "--root", str(tree)], tree, ENV)
+    if lint.returncode != 0:
+        sys.stderr.write("push-gate: repair: make the flagged stub POSIX, or give it "
+                         "`#!/usr/bin/env bash` when it needs bash (CI's /bin/sh is dash)\n")
+
     # Both stated totals (snapshot and Testing & QA) plus the entry-point census, which
     # lives in the same module and fails the same way on a stale committed count.
     doc = run("stated counts and suite total (test_doc_hygiene)",
               [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests",
                "-p", "test_doc_hygiene.py"], tree, ENV)
-    ok = doc.returncode == 0
+    ok = lint.returncode == 0 and doc.returncode == 0
     if "discovery finds" in doc.stdout + doc.stderr:
         sys.stderr.write("push-gate: repair: uv run python -B tools/doc-census.py --fix"
                          " (derives the count and rewrites both statements)\n")

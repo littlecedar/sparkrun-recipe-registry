@@ -64,6 +64,7 @@ class PushGate(unittest.TestCase):
         (self.root / "README.md").write_text("# Fixture\n", encoding="utf-8")
         shutil.copy2(GATE, self.root / "tools/push-gate.py")
         shutil.copy2(REPO / "tools/doc-census.py", self.root / "tools/doc-census.py")
+        shutil.copy2(REPO / "tools/bash-ism-lint.py", self.root / "tools/bash-ism-lint.py")
         for name in ("test_doc_hygiene.py", "test_tracked_address_hygiene.py"):
             shutil.copy2(REPO / "tests" / name, self.root / "tests" / name)
         # `test_every_exemption_still_exists` requires every EXEMPT path to be tracked.
@@ -91,6 +92,7 @@ class PushGate(unittest.TestCase):
         out = self.gate()
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertIn("push-gate: ok", out.stdout)
+        self.assertIn("POSIX shells (bash-ism lint)", out.stdout)
 
     def test_stale_stated_total_fails_and_quotes_the_assertion(self):
         (self.root / "AGENTS.md").write_text(agents(self.total + 1), encoding="utf-8")

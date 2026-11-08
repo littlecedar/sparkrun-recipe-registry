@@ -21,7 +21,7 @@ still add no row, because an accuracy declaration belongs inside `metadata:` whe
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1468 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
+suite 1480 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -146,7 +146,7 @@ Load-bearing contracts:
 | `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs), their EXL3 patch/cache mods, and the 2026-10-26-retired vLLM b12x parity arm `zz-ds4-1017-b12x-vllm-parity.yaml` (metrics in `attic/ds4/AGENTS.md`) in `attic/ds4/`, 30 arms, the closed input-scale mod, 9 archived benchmark profiles, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus three retired IFM 7B arms (plain and NGRAM `k2-horizon-7b-fp8-*`, and the UNO tree probe `zz-k2-horizon-7b-uno-tree-sglang.yaml`) in `attic/ifm/arms/` — 7 recipe files in that directory, counted 2026-10-21, the retired qwen3 no-spec control recipe, its spec-metrics guard mod, and 3 archived benchmark profiles in `attic/qwen3/` (metrics in `attic/qwen3/AGENTS.md` §6), `attic/ornith/`, `attic/explore/` (14 archived Explore arms + `ARMS-MANIFEST.md`), `attic/glm/` (1 archived arm + `ARMS-MANIFEST.md`). Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`; unresolved owner questions live in `mad-science/QUESTIONS.md`, settled ones in `mad-science/TODO.md` §"Settled questions" (numbering stable across both). Not served by the registry |
 | `mods/` | Shared mods only (used by ≥2 lanes): 5 + `mod-template/`, the authoritative harness. A mod relevant to a single lane lives at `recipes/<lane>/mods/<mod>/` |
-| `tests/` | 60 test modules, plus one tracked `*.sync-conflict-*.py` fixture that the conflict-copy guard expects |
+| `tests/` | 61 test modules, plus one tracked `*.sync-conflict-*.py` fixture that the conflict-copy guard expects |
 | `tools/` | stdlib scripts (CLIs, fixture generators and guards; `tools/README.md` is the index): bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, decision-ensemble, decision-ladder, cache-audit, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png, eval-suite, agentic-horizon-probe, horizon-analyze, refresh-sweep, boot-watchdog, diarize-fixture, diarize-score, enable-io-uring, forecast-bench, forecast-fixtures, humanizer-analyze, humanizer-measure, task-queue, doc-census, longctx-cell, h2h-client |
 | `plugins/` | One module, `pooling_bench_framework.py`, plus its `plugin.toml` compatibility sidecar: the out-of-tree sparkrun `BenchmarkingPlugin` that drives `tools/pooling-bench.py` for a `framework: pooling-bench` profile (the pooling lanes' only profile-shaped measurement path). Not a registry asset and not stdlib-only — it imports `sparkrun` by definition and is loaded only *inside* a sparkrun process via `plugins.paths` (`tools/README.md` §plugins/; the sidecar's `a0` floor and the unreadable Python range are explained there). |
 | `campaign/` | The campaign director: `sparkrun_campaign/` (protocol, evidence readers, persisted state, director, worker), its acceptance tests, `DESIGN.md` and `systemd/sparkrun-campaign.service`. A **second uv project** with its own `pyproject.toml`/`uv.lock` and third-party deps allowed (it takes none), deliberately not stdlib-only like `tools/`: `tools/run-arm.sh` stays the per-arm executor and `tools/next-arms.py`'s evidence readers are mirrored rather than imported. Live-zone obligations apply — `DESIGN.md` is the current description, and the gate runs its suite with `uv run --project campaign --frozen python -B -m unittest discover -s campaign/tests -t campaign` |
@@ -932,7 +932,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1468 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1480 tests,
   3 skipped on 2026-11-08** in a clean checkout of the tracked tree, 4 in CI and 2 in this clone (it
   carries the untracked `.local/fleet.yaml`). The first three, by name and cause: `test_ifm_recipes`'
   research-doc case (the git-ignored K2-09B docs are absent on any fresh checkout);
@@ -949,6 +949,11 @@ explanation, and the next session re-derives work that is already done. Mitigati
   `attic/ifm/` and is no longer auto-discovered; it runs there as
   `uv run python -B -m unittest attic.ifm.test_ifm_36b_recipes`. Single module: `uv run python -B -m unittest tests.test_ds4_recipes`;
   single case: `uv run python -B -m unittest tests.test_ds4_recipes.RecipeStructure.test_recipes_exist`.
+  **A `#!/bin/sh` stub a test writes must be POSIX** — this workstation's `/bin/sh` is bash
+  and CI's is dash, so `${@: -1}`, `[[ ]]`, `==` in `[ ]`, `local` and `function f {` pass
+  here and fail there (2026-11-08: seven consecutive red runs from one such stub), which is
+  why `tools/bash-ism-lint.py` fails the push-gate on them and a stub that needs bash says
+  `#!/usr/bin/env bash`.
   The suite needs no HOME override (its one `sparkrun` call sets HOME itself and skips when sparkrun
   is absent); an offline variant exists: `uv run --offline python -B -m unittest discover -s tests`.
   **`test_doc_hygiene` reads the worktree's `AGENTS.md`, so on this syncthing-shared clone a peer's
