@@ -4398,3 +4398,69 @@ whole-file rewritten under it. Rule-8 check against the live register holds on t
 `render --board`. One reported divergence the 01:13 board dropped (it stood in the 01:09 one):
 `h2h-second-boot-ladder` still lists `h2h-second-boot-ds4-1017` among its `holds` while the register
 no longer carries that row open — reported, not edited, since `queue.json` is a peer's file.
+
+## 2026-11-08 02:04 ET — board landed rows homed (session boundary), the 753B arm's fourth attempt fails, and Beam boot2 takes the quartet
+
+The 02:04 ET tick began a session-boundary homing of `mad-science/STATUS.md`'s `Landed session`
+table: each hourly tick is its own one-shot session, and `git grep -c <sha> -- mad-science/SESSION-RECORD.md`
+returned nothing for **eleven** of the twenty-four rows the 01:22 board carried, so those clauses are
+homed here verbatim, copied out of `git show HEAD:mad-science/STATUS.md` rather than retyped. The other
+thirteen SHAs were already homed above. **The table itself was not cleared**: two peer ticks
+regenerated the whole board while this one was composing (02:06 and 02:09), and their tables carry the
+history plus two receipt rows this tick has not measured, so the rows stay on the board and this
+section is additive, not a handoff.
+
+- **00:19** `1cca4f3` — Board tick: folds `.30`'s ctime answer (193 files / 25.8 MB since 23:44,
+  nothing above 100 MB) and the head env file's wrong campaign into the board.
+- **00:27** `dbaba6d` — Closes the withdrawn-clause item: the corrected board is pushed.
+- **00:27** `3297abc` — Records a tick that read the fleet independently and published no board.
+- **00:29** `705885e` — Counts the director's deaths, not its runs: two measured deaths (00:02, 00:17)
+  across four runs.
+- **00:31** `53b3f94` — Board on the 00:30:27 census: the 753B retry is loading, every node's root
+  moving under 2 MB in 318 s.
+- **00:32** `9a9bbd9` — Restamps the ledger section that had landed out of time order.
+- **00:52** `f1edc47` — Register: clears the pause's stale claims — `boot2` and `753b` back to queued,
+  both kills recorded in their notes.
+- **00:56** `d947997` — AGENTS.md gains the Priority section: clean code in service of repeatable
+  research (+20 lines).
+- **01:00** `7bea7b6` — Retires the survey parents the live sub-rows supersede.
+- **01:14** `f926cc4` — "Measure what 5a0587a replaced, instead of inferring it" — the fold commit's
+  own carried bytes are re-derived rather than described.
+- **01:16** `4198b35` — "Fold this tick's 01:13:17 re-read into the peer's 01:12:49 board" — the
+  attempt-4 quartet and the rank-level serve probe reach the board.
+
+Three further rows the 02:06 ET peer board added before this tick published, homed here for the same
+reason (`git grep -c <sha> -- mad-science/SESSION-RECORD.md` returned 0 for each):
+
+- **01:14** `5a0587a`, second row — correction to the row above: its mechanism is not established, the
+  measured hunk map is. `git diff --numstat 2166ef5 5a0587a` reads 13/13 across two 49-line boards in
+  three hunks: six of the peer's in-flight rows replaced by five of this tick's (their `.34`/`.35` row
+  folded into `.30`–`.35`), the two rows they had cleared (00:10, 00:16) re-added, and their phrasing of
+  00:22/00:52/00:56/00:59/01:00 replaced by this tick's shorter wording — same SHAs, same facts. No fact
+  is lost: the two censuses (01:03:31 and 01:03:40 ET) agree on every count and volume, and the peer's
+  three finer figures it does not carry (state.json's 00:49:42 mtime, the lease expiry as a clock time,
+  `.31` +1,931,520 B) are named in `47905ef`.
+- **01:19** `96b5912` — "Correct the tick's own ledger: two intervals, direction, and what swept" — the
+  ledger section carries the two measurement intervals and their direction; rows 01:19–01:22 are board
+  bookkeeping and add no state here.
+- **01:58** `2e27838` — "register: close the first client arm on its receipt; carry the house client cell
+  to the 753B boot" — the register's first client arm closes against its receipt and the house-client
+  cell is carried onto the 753B boot row.
+
+Two state changes this tick measured, recorded here because they belong to the hour and not to the
+board's state tables:
+
+- **The 753B arm's fourth attempt ended `rc=4` with `readiness=no` at 01:42:44 ET.** Its arm log
+  (`~/benchmarks/h2h-20261107/logs/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang@4.log`, 990 B) reads
+  `readiness=no`, four serve logs harvested, `Workload stopped on 4 host(s)`, `rc=4`; the previous
+  receipt moved to `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.prev-010443`. The director now records
+  the arm `failed` with the receipt-shaped reason `no marker and no machine-readable artefact`, so
+  four attempts on this 753B 3bpw arm have produced no ladder cell, and its register row
+  `h2h-second-boot-glm-753b` is back to `queued` with `claimed_by` empty.
+- **Beam boot2 took the quartet at 01:56:50–53 ET** — task `30078b4aa125dd7d_62ac562fe0d4`, image id
+  `58aa975fed12`, recipe `recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2.yaml`, ranks
+  0–3 on `.30`–`.33`, `vllm serve` with DFlash2 k=7 and `--max-model-len 131072`, register row
+  `h2h-second-boot-beam` `running` under claim `sparkrun-campaign:h2h-20261107` (`06:56:42Z`).
+  Loading at t=418 s: `/v1/models` 000, serve child alive on every rank, `launch.log` at
+  `25/53` checkpoint shards, watchdog pid 365197. By the 02:10:57 read it was at t=833 s and
+  `50/53` shards (12:50 in that phase), still `verdict=loading endpoint=down serve_pid=alive`.
