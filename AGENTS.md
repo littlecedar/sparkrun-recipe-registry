@@ -11,7 +11,8 @@ recipe, test-module, profile and `SKILL.md` counts, and `tests/test_doc_hygiene.
 file disagrees with the tree — run the tool's `--fix` rather than editing a number by hand. **The
 suite total is derived the same way**: `SuiteTotal` in that same test module compares every stated
 total against `unittest.defaultTestLoader.discover("tests").countTestCases()` (under a second, no test
-executed) and fails naming the stale line, so the number cannot rot; only its skip count needs a run,
+executed) and fails naming the stale line, so the number cannot rot — `tools/doc-census.py --fix` derives
+and rewrites both statements from that same discovery; only its skip count needs a run,
 which is why that half carries a date. What only a run can know stays a *dated snapshot*: **2026-11-08
 — every tracked recipe passes plain `validate`, and `--strict` prints exactly the roster below over
 the whole tracked tree (re-measured 2026-11-08, the date on this line: 114 tracked recipes scanned,
@@ -20,7 +21,7 @@ still add no row, because an accuracy declaration belongs inside `metadata:` whe
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1449 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
+suite 1454 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -229,7 +230,8 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
   tree, not this syncthing-shared clone's worktree, which carries a peer's uncommitted count edit), then runs
   `test_doc_hygiene` (both stated totals and the entry-point census), `test_tracked_address_hygiene`,
   `bash -n` over shell files changed against `origin/main`, and the campaign suite only when `campaign/`
-  changed — about three seconds, and it quotes the exact assertion CI prints. A non-zero exit is a refusal to
+  changed — about three seconds, and it quotes the exact assertion CI prints, plus
+  `tools/doc-census.py --fix` when a stale total is the cause. A non-zero exit is a refusal to
   push, not a warning. It re-executes itself under `.venv/bin/python`, because a bare `python3` cannot import
   every test module (no `jinja2`) and would file a false red against a correct number.
   `git config core.hooksPath .githooks` installs the optional same-script hook for a human's clone; it is a
@@ -596,10 +598,11 @@ Rules that follow:
 - **A global count is derived, never remembered.** `tools/doc-census.py` counts the four facts that are
   exactly derivable — tracked recipes, test modules, benchmark profiles, `SKILL.md` dirs — and
   `tests/test_doc_hygiene.py` fails when `AGENTS.md` or `README.md` states one the tracked tree
-  contradicts. Fix a stale number with `python3 tools/doc-census.py --fix`, not by hand. The suite
-  total is derived as well — `SuiteTotal` in that same module counts the discovered tests and fails
-  naming the stale line — so only what a run alone can produce (`validate --strict` findings, the skip
-  count) is a dated snapshot, and only that is deliberately not checked.
+  contradicts. Fix a stale number with `python3 tools/doc-census.py --fix`, not by hand; the same
+  command derives the suite total by discovery under the project venv and rewrites both statements,
+  printing the number and each line it changed. `SuiteTotal` in that same module still fails a stale
+  one, so only what a run alone can produce (`validate --strict` findings, the skip count) is a dated
+  snapshot, and only that is deliberately not checked.
 - **A second restatement is a drift bug.** Link the doc that owns the fact instead. Lane-scoped counts
   ("15/15 pass") are a different claim and are not checked.
 - **A dated snapshot belongs in the ledger or `attic/`.** Updating a live doc with a past measurement
@@ -921,7 +924,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1449 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1454 tests,
   3 skipped on 2026-11-08** in a clean checkout of the tracked tree, 4 in CI and 2 in this clone (it
   carries the untracked `.local/fleet.yaml`). The first three, by name and cause: `test_ifm_recipes`'
   research-doc case (the git-ignored K2-09B docs are absent on any fresh checkout);
@@ -944,8 +947,9 @@ explanation, and the next session re-derives work that is already done. Mitigati
   uncommitted count edit makes the guard pass against bytes you are not committing** — before pushing
   a test-adding commit, compare the two numbers your commit will actually carry:
   `unittest.defaultTestLoader.discover("tests").countTestCases()` against the suite total in
-  `git show HEAD:AGENTS.md`, and move both statements in the same commit; otherwise the gate goes red
-  one commit later (measured 2026-11-06: seven new tests landed under a stated 1252).
+  `git show HEAD:AGENTS.md`, and move both statements in the same commit — on the committed tree that
+  is one command, `uv run python -B tools/doc-census.py --fix`; otherwise the gate goes red one
+  commit later (measured 2026-11-06: seven new tests landed under a stated 1252).
 - **`COOP.md` ledgers are working files, not registry content.** The two that had been committed
   (`attic/qwen4/COOP.md`, `recipes/ifm/COOP.md`, the latter a 2026-10-07 reconstruction) were
   **removed from git on 2026-10-10** and `**/COOP.md` is now git-ignored, so a fresh clone cannot

@@ -118,6 +118,62 @@ class SuiteTotal(unittest.TestCase):
             self.fail(f"AGENTS.md:{lineno}: states {count} tests; discovery finds {actual}")
 
 
+class FixSuiteTotal(unittest.TestCase):
+    """`--fix` derives the same number `SuiteTotal` checks and rewrites every statement.
+
+    Why: on 2026-11-08 five of six consecutive red pushes carried a stale total, each one
+    hand-derived and stale again by the next commit. Repairing it must be one command that
+    prints the number, not a re-derivation per session.
+    """
+
+    def _tree(self, tests: int = 3) -> tempfile.TemporaryDirectory:
+        tmp = tempfile.TemporaryDirectory()
+        Path(tmp.name, "tests").mkdir()
+        Path(tmp.name, "tests/test_dummy.py").write_text(
+            "import unittest\n\n\nclass Dummy(unittest.TestCase):\n"
+            + "".join(f"    def test_{i}(self):\n        pass\n\n" for i in range(tests)),
+            encoding="utf-8")
+        Path(tmp.name, "AGENTS.md").write_text(
+            "# Facts\n\nsuite 9 tests here.\n\n**7 tests, 0 skipped\n", encoding="utf-8")
+        Path(tmp.name, "README.md").write_text("# README\n", encoding="utf-8")
+        return tmp
+
+    def test_rewrites_both_statements_prints_them_and_is_idempotent(self):
+        with self._tree() as tmp:
+            agents = Path(tmp, "AGENTS.md")
+            out = run("--root", tmp, "--fix")
+            self.assertEqual(out.returncode, 0, out.stderr)
+            self.assertEqual(stated_suite_totals(agents.read_text()), [(3, 3), (5, 3)])
+            self.assertIn("suite total 3 (discovery)", out.stdout)
+            self.assertIn("AGENTS.md:3:", out.stdout)
+            self.assertIn("AGENTS.md:5:", out.stdout)
+            once = agents.read_bytes()
+            again = run("--root", tmp, "--fix")
+            self.assertEqual(again.returncode, 0, again.stderr)
+            self.assertEqual(agents.read_bytes(), once, "a second --fix must be a no-op")
+            self.assertIn("already stated as 3", again.stdout)
+
+    def test_disagreeing_statements_are_made_to_agree(self):
+        """Two statements that disagree with each other are both wrong, not one of them right."""
+        with self._tree() as tmp:
+            run("--root", tmp, "--fix")
+            text = Path(tmp, "AGENTS.md").read_text()
+            self.assertEqual(stale_suite_totals(text, 3), [],
+                             "the guard must pass after one --fix")
+            self.assertEqual(len(stated_suite_totals(text)), 2,
+                             "both statements must survive the rewrite")
+
+    def test_refuses_and_writes_nothing_when_discovery_cannot_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            agents = Path(tmp, "AGENTS.md")
+            agents.write_text("# Facts\n\nsuite 9 tests here.\n\n**7 tests, 0 skipped\n")
+            before = agents.read_bytes()
+            out = run("--root", tmp, "--fix")   # no tests/ directory: discovery raises
+            self.assertNotEqual(out.returncode, 0, "an underivable total must not be guessed")
+            self.assertIn("nothing rewritten", out.stderr)
+            self.assertEqual(agents.read_bytes(), before)
+
+
 class NegativeControls(unittest.TestCase):
     """The check must fire on a wrong number, and only on the number."""
 
@@ -125,6 +181,11 @@ class NegativeControls(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         Path(tmp.name, "AGENTS.md").write_text(text)
         Path(tmp.name, "README.md").write_text("# README\n")
+        # `--fix` derives the suite total too, so a tree it touches needs a runnable tests/.
+        Path(tmp.name, "tests").mkdir()
+        Path(tmp.name, "tests/test_one.py").write_text(
+            "import unittest\n\n\nclass One(unittest.TestCase):\n"
+            "    def test_one(self):\n        pass\n")
         return tmp
 
     def test_correct_statements_pass(self):

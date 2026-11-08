@@ -92,20 +92,24 @@ def upstream() -> str | None:
     return None
 
 
-def run(name: str, argv: list[str], cwd: Path, env: dict[str, str]) -> bool:
+def run(name: str, argv: list[str], cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess:
     print(f"push-gate: {name}", flush=True)
     out = subprocess.run(argv, cwd=str(cwd), env=env, capture_output=True, text=True)
     if out.returncode != 0:
         sys.stderr.write(f"\npush-gate: FAILED -- {name}\n{out.stdout}{out.stderr}")
-    return out.returncode == 0
+    return out
 
 
 def checks(tree: Path, gitdir: str, base: str | None) -> bool:
     # Both stated totals (snapshot and Testing & QA) plus the entry-point census, which
     # lives in the same module and fails the same way on a stale committed count.
-    ok = run("stated counts and suite total (test_doc_hygiene)",
-             [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests",
-              "-p", "test_doc_hygiene.py"], tree, ENV)
+    doc = run("stated counts and suite total (test_doc_hygiene)",
+              [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests",
+               "-p", "test_doc_hygiene.py"], tree, ENV)
+    ok = doc.returncode == 0
+    if "discovery finds" in doc.stdout + doc.stderr:
+        sys.stderr.write("push-gate: repair: uv run python -B tools/doc-census.py --fix"
+                         " (derives the count and rewrites both statements)\n")
 
     # The walk is `git ls-files`; point git at the archive and at an index read from
     # HEAD so the file list is the commit's, while the bytes read are the archive's.
@@ -118,18 +122,18 @@ def checks(tree: Path, gitdir: str, base: str | None) -> bool:
         return False
     ok &= run("tracked addresses (test_tracked_address_hygiene)",
               [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests",
-               "-p", "test_tracked_address_hygiene.py"], tree, address)
+               "-p", "test_tracked_address_hygiene.py"], tree, address).returncode == 0
 
     shells = [s for s in changed(base, "*.sh") if (tree / s).is_file()]
     if not shutil.which("bash"):
         sys.stderr.write("push-gate: SKIPPED bash -n -- bash not on PATH\n")
     for rel in shells:
-        ok &= run(f"bash -n {rel}", ["bash", "-n", str(tree / rel)], tree, ENV)
+        ok &= run(f"bash -n {rel}", ["bash", "-n", str(tree / rel)], tree, ENV).returncode == 0
 
     if changed(base, "campaign/"):
         ok &= run("campaign driver suite",
                   [sys.executable, "-B", "-m", "unittest", "discover",
-                   "-s", "campaign/tests", "-t", "campaign"], tree, ENV)
+                   "-s", "campaign/tests", "-t", "campaign"], tree, ENV).returncode == 0
     return ok
 
 

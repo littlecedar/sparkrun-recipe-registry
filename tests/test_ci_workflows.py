@@ -85,6 +85,28 @@ def unguarded_apply_steps(text):
             if "--apply" in b and "env.APPLY == 'true'" not in b]
 
 
+def uv_tolerance_findings(text):
+    """`setup-uv`'s own download failing (504) must not red the run: it is tolerated, `uv sync` is
+    gated on it, and every consumer of `uv` has a `python3` path (measured 2026-11-08, runs
+    1111/1120 went red on the action before any check ran)."""
+    findings = []
+    uv = [b for b in step_blocks(text) if "astral-sh/setup-uv@" in b]
+    if not uv:
+        findings.append("no setup-uv step")
+    elif "id: uv" not in uv[0] or "continue-on-error: true" not in uv[0]:
+        findings.append("setup-uv is required, not tolerated")
+    sync = [b for b in step_blocks(text) if "uv sync --frozen" in b]
+    if not sync or "steps.uv.outcome == 'success'" not in sync[0]:
+        findings.append("uv sync is not gated on the uv step")
+    campaign = [b for b in step_blocks(text)
+                if "python3 -B -m unittest discover -s campaign/tests" in b]
+    if not campaign or "steps.uv.outcome != 'success'" not in campaign[0]:
+        findings.append("the campaign suite has no python3 fallback")
+    if text.count('PY="python3"') < 2:
+        findings.append("a py_compile step assumes uv")
+    return findings
+
+
 def job_env_lines(text):
     """Values of every job-level `env:` block. `runner` is NOT a legal context there — using it
     makes the workflow fail to compile before any job starts (measured: seven runs, zero jobs)."""
@@ -249,6 +271,9 @@ class Gate(unittest.TestCase):
         self.assertTrue(blocks, "no uv sync step")
         self.assertIn("continue-on-error: true", blocks[0])
         self.assertIn("python3 -B -m unittest discover -s tests", self.text)
+
+    def test_uv_setup_failure_is_tolerated_end_to_end(self):
+        self.assertEqual(uv_tolerance_findings(self.text), [])
 
 
 class RefreshSweep(unittest.TestCase):
@@ -431,6 +456,14 @@ class NegativeControls(unittest.TestCase):
         broken = text.replace("env.FAIL_ON_DRIFT == 'true'", "true")
         self.assertTrue(nonzero_exit_blocks(broken),
                         "a step that can fail the run must be caught")
+
+    def test_required_uv_setup_is_caught(self):
+        text = _text(GATE)
+        self.assertEqual(uv_tolerance_findings(text), [])
+        broken = re.sub(r"(        id: uv\n)(?:        #.*\n)*        continue-on-error: true\n",
+                        r"\1", text, count=1)
+        self.assertNotEqual(broken, text, "the mutation must change the text")
+        self.assertIn("setup-uv is required, not tolerated", uv_tolerance_findings(broken))
 
     def test_cluster_identifier_is_caught(self):
         text = _text(GATE)

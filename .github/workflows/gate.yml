@@ -13,6 +13,10 @@
 #     and the suite/py_compile run on the runner's own python3: the suite is stdlib-only, so this
 #     is a substitution, not a gap.
 #   * `sparkrun recipe validate` — sparkrun is not a PyPI-guaranteed package here.
+#   * `astral-sh/setup-uv` itself — the action's download has returned 504 from the runner
+#     (measured 2026-11-08, runs 1111/1120: `##[error]Unexpected HTTP response: 504`), which is
+#     not this repo's content. It is allowed to fail; every step that would need `uv` then takes
+#     its `python3` path, so a red run always means the tree is wrong.
 name: gate
 
 on:
@@ -36,10 +40,14 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: astral-sh/setup-uv@v5
+        id: uv
+        # Tolerated: a 504 from the action's download is runner noise, not this repo's content.
+        continue-on-error: true
 
       - name: uv sync
         id: sync
         # Tolerated, not required: the next steps pick a fallback interpreter when this fails.
+        if: steps.uv.outcome == 'success'
         continue-on-error: true
         run: |
           sudo apt-get update -qq
@@ -61,7 +69,17 @@ jobs:
         # no docker and no node: the suite drives the director through a fake fleet and fixture
         # receipts, so a hosted runner covers it. `-t campaign` is what puts `sparkrun_campaign/` on
         # sys.path (the project is deliberately not installed -- see campaign/DESIGN.md).
+        if: steps.uv.outcome == 'success'
         run: uv run --project campaign --frozen python -B -m unittest discover -s campaign/tests -t campaign
+
+      - name: Campaign driver suite on the runner's python3
+        # The mirror of the suite fallback above: without `uv` (setup-uv 504) this project still
+        # needs nothing but a stdlib interpreter, so the check runs rather than the job going red
+        # for a runner's download.
+        if: steps.uv.outcome != 'success'
+        run: |
+          echo "SKIPPED: uv setup (504 / no uv) — running the campaign suite on the runner's python3 instead"
+          python3 -B -m unittest discover -s campaign/tests -t campaign
 
       - name: Validate recipes (degrades honestly)
         # sparkrun is not a guaranteed PyPI package here. Attempt to install it; if that fails,
@@ -71,7 +89,11 @@ jobs:
           mkdir -p "$SPARKRUN_HOME"
           export PATH="$HOME/.local/bin:$PATH"
           if ! command -v sparkrun >/dev/null 2>&1; then
-            uv tool install sparkrun >/dev/null 2>&1 \
+            # `uv` may be absent (setup-uv 504): try it only when it is there, then pip.
+            if command -v uv >/dev/null 2>&1; then
+              uv tool install sparkrun >/dev/null 2>&1 || true
+            fi
+            command -v sparkrun >/dev/null 2>&1 \
               || python3 -m pip install --user sparkrun >/dev/null 2>&1 \
               || true
             export PATH="$HOME/.local/bin:$PATH"

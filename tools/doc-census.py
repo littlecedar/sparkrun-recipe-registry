@@ -14,12 +14,14 @@ Usage:
     python3 tools/doc-census.py --fix      # rewrite the stale numbers in place
     python3 tools/doc-census.py --json     # machine-readable
 
-Scope.  Only the four counts below are checked, because only these are exactly
-derivable from the tracked tree.  A count that needs a run to know (the suite's
-test total, `recipe validate --strict` passes) is a *dated snapshot* and belongs
-in the sentence with its date; it is deliberately not checked here.  The check
-covers the entry points only (`ROSTER`): lane docs state lane-scoped counts
-("15/15 pass"), which are a different claim and would be false positives.
+Scope.  Four counts are checked because they are exactly derivable from the
+tracked tree; a fifth, the suite total, is derived by *discovery* instead and is
+rewritten only by `--fix` (see `suite_total`), because it needs the project venv
+the stdlib tool cannot assume.  Everything else that needs a run to know
+(`recipe validate --strict` passes) stays a *dated snapshot* in the sentence with
+its date and is deliberately not checked here.  The check covers the entry points
+only (`ROSTER`): lane docs state lane-scoped counts ("15/15 pass"), which are a
+different claim and would be false positives.
 
 Stdlib only, no network, no git requirement (falls back to a filesystem walk,
 which can see untracked drafts -- so the counts are only authoritative inside a
@@ -30,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -123,6 +126,65 @@ def statements(root: Path, facts: dict[str, int]) -> list[tuple[str, int, str, i
     return found
 
 
+#: The stated suite total, the same two shapes `SuiteTotal` in tests/test_doc_hygiene.py reads.
+#: It is not a tracked-file glob, so it is not one of FACTS: its value comes from discovery, and
+#: only `--fix` derives it (the guard derives it too, and fails on a disagreement).
+SUITE_TOTAL = re.compile(r"(?:(?<=suite )|(?<=\*\*))(\d+)(?= tests)")
+
+
+def suite_total(root: Path) -> int:
+    """The discovered test count, from the repository's own interpreter.
+
+    This tool is stdlib-only; the suite is not (a test module imports `jinja2`), so the count
+    must come from the project venv. A bare `python3` discovers fewer tests and would rewrite
+    the stated total down to a wrong number -- the false red `tools/push-gate.py` refuses to
+    file. A `GIT_DIR` leak from the caller's shell also moves the count (measured 1343 vs 1411),
+    so the child gets a scrubbed environment.
+    """
+    python = root / ".venv" / "bin" / "python"
+    exe = str(python) if python.is_file() else sys.executable
+    if python.is_file() and Path(sys.executable).resolve() != python.resolve():
+        print(f"doc-census: suite total derived with {exe}")
+    out = subprocess.run(
+        [exe, "-B", "-c",
+         "import unittest;print(unittest.defaultTestLoader.discover('tests').countTestCases())"],
+        cwd=str(root), capture_output=True, text=True, check=False,
+        env={k: v for k, v in os.environ.items() if not k.startswith("GIT_")},
+    )
+    answer = out.stdout.strip()
+    if out.returncode != 0 or not answer.isdigit() or int(answer) < 1:
+        raise RuntimeError(
+            "cannot derive the suite total: discovery did not run"
+            f" ({exe}, exit {out.returncode}): {out.stderr.strip()[:300]}")
+    return int(answer)
+
+
+def fix_suite_totals(root: Path, actual: int) -> list[str]:
+    """Rewrite every stated suite total in the roster; returns one evidence line per rewrite."""
+    rewritten = []
+    for name in ROSTER:
+        path = root / name
+        if not path.exists():
+            continue
+        lines = path.read_text().splitlines(keepends=True)
+        changed = False
+        for i, line in enumerate(lines):
+            def edit(m, actual=actual):
+                if int(m.group(1)) == actual:
+                    return m.group(0)
+                return (m.group(0)[:m.start(1) - m.start(0)] + str(actual)
+                        + m.group(0)[m.end(1) - m.start(0):])
+            new = SUITE_TOTAL.sub(edit, line)
+            if new != line:
+                lines[i] = new
+                changed = True
+                rewritten.append(f"{name}:{i + 1}: {line.strip()[:110]}"
+                                 f"\n  -> {new.strip()[:110]}")
+        if changed:
+            path.write_text("".join(lines))
+    return rewritten
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--root", type=Path, default=ROOT)
@@ -149,6 +211,18 @@ def main(argv: list[str] | None = None) -> int:
     stale = [s for s in statements(args.root, facts) if s[3] != s[4]]
     report["stale"] = [{"file": f, "line": n, "fact": k, "stated": s, "actual": a} for f, n, k, s, a in stale]
 
+    derived_suite = None
+    if args.fix:
+        # Derived first: a tree whose discovery cannot run must be refused before anything is
+        # written, never repaired with a guess.
+        try:
+            derived_suite = suite_total(args.root)
+        except RuntimeError as exc:
+            print(f"doc-census: {exc}", file=sys.stderr)
+            print("doc-census: nothing rewritten", file=sys.stderr)
+            return 2
+        print(f"doc-census: suite total {derived_suite} (discovery)")
+
     if args.fix and stale:
         for name in ROSTER:
             path = args.root / name
@@ -166,6 +240,13 @@ def main(argv: list[str] | None = None) -> int:
             path.write_text(text)
         print(f"doc-census: rewrote {len(stale)} stale count(s)")
         stale = []
+
+    if derived_suite is not None:
+        rewritten = fix_suite_totals(args.root, derived_suite)
+        for evidence in rewritten:
+            print(f"doc-census: rewrote {evidence}")
+        if not rewritten:
+            print(f"doc-census: suite total already stated as {derived_suite}")
 
     if args.json:
         print(json.dumps(report, indent=2))

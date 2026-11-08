@@ -99,6 +99,8 @@ class PushGate(unittest.TestCase):
         self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
         self.assertIn(f"states {self.total + 1} tests; discovery finds {self.total}",
                       out.stdout + out.stderr)
+        self.assertIn("push-gate: repair: uv run python -B tools/doc-census.py --fix",
+                      out.stdout + out.stderr)
 
     def test_tracked_address_literal_fails(self):
         (self.root / "AGENTS.md").write_text(agents(self.total), encoding="utf-8")
