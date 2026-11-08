@@ -3834,3 +3834,18 @@ unattributed, with `find /mnt/beegfs/huggingface -maxdepth 4 -newermt '-25 minut
 nothing (`hub` unchanged since 14:31, and depth 4 covers every `blobs/` path), and the only `.incomplete`
 blobs on the pool — 8 under `models--Comfy-Org--MiniMax-H3` — dated **2026-10-24**, 0–336,904,078 B,
 byte-identical across a 45 s re-stat: dead partials, not a live download.
+
+## 2026-11-07 21:10 ET — six board-cycle commits homed (tick sweep)
+The 21:06 tick read the board's `Landed session` table empty and checked, rather than assumed, that its
+predecessors' rows had a surviving home: `git grep <sha> -- mad-science/SESSION-RECORD.md` returned
+nothing for six commits between 20:16 and 20:42 ET, so their clauses were homeless once the table was
+cleared. Each is homed here with the one clause its own body carries; nothing in them is re-measured.
+
+| time ET | commit | one clause |
+|---|---|---|
+| 20:16 ET | `52f9ce5` | Released a register claim on every exit from `running`: `cmd_update` had cleared `claimed_by`/`claimed_at` only on `done`, so a failed-in-place arm stayed `queued` while looking claimed and a fresh claimed_at told every other session to skip it; `--claimed-by` without `--state running` is now refused rather than silently dropped, and `validate` fails closed on any non-running row carrying either field (the tracked register still passes `check`, 82 rows). |
+| 20:24 ET | `6a7b285` | Corrected two claims on the 20:14 board: the receipt dir's 73 B/s against `.30`'s 7,946 B/s root fall is **109× — two orders, not the three the row said**; and the 213-row denominator stopped being asserted and now names its evidence (`subset-30.jsonl` 157 + `subset-35.jsonl` 56, disjoint id sets, every reply id inside one of them). |
+| 20:32 ET | `30ce91e` | Folded the 20:15 measurements onto a peer tick's 20:14 board instead of replacing it (a whole-file write two minutes behind a peer is the equal-stamp clobber `publish` cannot refuse): battery indices `.30` 129/157 (113 produced past the 16-row smoke prefix) and `.35` 29/56 with ids reconciling both ways, cgroups 9.42 and 9.40 GiB, slot timings `tg` 62.2 and 64.7 t/s, and the register's drift clause (the one `running` row carries no `recipe`/`tp`/`env`, so register-pull mode skips it by design). |
+| 20:33 ET | `1a99f3c` | Made `52f9ce5`'s own repair reachable: `cmd_update` pre-validated, so a queued row carrying a claim failed on the very `update --state queued` the error text prescribes and no command could clear it (`check`, `queue --json` and the director's whole plan failed identically). The target row's claim is now cleared after `_relink` and before the pre-validate when its current state is not running; only the named row is excused. |
+| 20:38 ET | `994dd92` | Regenerated the board on its own 20:32 census (containers 1/1/1/1/1/1, volumes 0), added `.35`'s row for the 19:20 re-split (157 + 56 = 213), probed both halves fresh (136/157 and 36/56 at 20:36, `/health` and `/v1/models` 200, `restarts=0`), re-probed the quartet and campaign rather than carrying them, re-rendered the register (9 open of 82), and read the BeeGFS pool beside the nodes. |
+| 20:42 ET | `1308de8` | Corrected the battery burst operand: `.30`'s 162 s fall is 1,439,483,092,992 − 1,439,467,532,288 = **15,560,704 B**, not the 15,561,728 B the row said (and what its own 96,054 B/s × 162 s implies), because a figure wrong by 1 KB still reads as measured; restored the peer tick's clause that `director status --root d1-20261107` prints `1 measured`, which the "absent status line is not evidence of no lease" rule rests on. |
