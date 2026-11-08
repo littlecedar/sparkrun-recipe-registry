@@ -18,8 +18,10 @@ formatted-away attach would leave the tests passing.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -28,7 +30,8 @@ TOOL = REPO_ROOT / "tools" / "engine-exit-capture.sh"
 
 # The two docker subcommands the capture uses. `events` records its argv (so the label scope is
 # checkable), replays the case's event lines, then holds the stream open like a real one -- a
-# capture must be killable, not just readable.
+# capture must be killable, not just readable. `exec` so the pid the capture kills is the sleep,
+# and no orphan is left behind by the test itself.
 STUB = """#!/usr/bin/env bash
 case "$1" in
   events)
@@ -38,8 +41,7 @@ case "$1" in
       exit 1
     fi
     cat "${STUB_EVENTS:-/dev/null}"
-    sleep "${STUB_HOLD:-5}"
-    exit 0
+    exec sleep "${STUB_HOLD:-30}"
     ;;
   logs)
     printf 'boom\\n'
@@ -115,6 +117,43 @@ class CaptureOnDie(Harness):
 
 
 class FailClosed(Harness):
+    def test_an_idle_window_is_watched_for_its_whole_length(self):
+        """One 5 s read timeout is the idle case, not a verdict: 2026-11-08, 7 boots x 4 nodes.
+
+        The marlin lease's captures all said "no container ... in 5 s" while the boot was still
+        loading, because the old loop read `rc=$?` after `if read ...; then ...; fi` and took the
+        `if` statement's own 0 for a dead stream. A capture armed for a boot must outlive its
+        first idle wait, so the window it reports must be the window it was given.
+        """
+        started = time.monotonic()
+        files, _argv, out = self.run_capture(events="", max_seconds="8")
+        elapsed = time.monotonic() - started
+        self.assertGreaterEqual(elapsed, 8, f"the watch ended before its window: {out}")
+        marker = files.get("no-capture.txt", "")
+        self.assertTrue(marker.startswith("# capture failed:"), f"no marker: {files}")
+        window = re.search(r"in (\d+) s of watching", marker)
+        self.assertIsNotNone(window, f"the marker does not say how long it watched: {marker!r}")
+        self.assertGreaterEqual(int(window.group(1)), 8,
+                                f"the watch reported {window.group(1)} s of a 8 s window: {marker}")
+        self.assertNotIn("docker events exited", marker,
+                         f"an idle stream was reported as a dead client: {marker}")
+        self.assertNotIn("docker events exited", files.get("events.err", ""))
+
+    def test_a_client_that_exits_immediately_is_reported_not_hidden(self):
+        """A broken instrument must say so; "docker said: nothing" sent the next session hunting."""
+        files, _argv, out = self.run_capture(
+            events="", max_seconds="3",
+            env_extra={"STUB_EVENTS_ERROR": "Cannot connect to the Docker daemon"},
+        )
+        err = files.get("events.err", "")
+        self.assertIn("# capture: docker events exited rc=1", err,
+                      f"the dead client is not recorded: {files} / {out}")
+        marker = files.get("no-capture.txt", "")
+        self.assertIn("# capture failed:", marker)
+        self.assertIn("docker events exited", marker,
+                      f"the marker reads as a plain no-container verdict: {marker!r}")
+        self.assertIn("Cannot connect to the Docker daemon", marker)
+
     def test_no_container_ever_created_says_so(self):
         files, _argv, _out = self.run_capture(events="")
         marker = files.get("no-capture.txt", "")

@@ -356,7 +356,11 @@ class EngineExitCapture(unittest.TestCase):
         self.assertIn('for hn in $(echo "$HOSTS"', arm,
                       "one host is captured, not the whole lease")
         self.assertIn("'sparkrun.recipe=$RECIPE'", arm,
-                      "the capture is not scoped to this arm's containers")
+                      "the capture is not scoped to this arm's containers. sparkrun labels "
+                      "`sparkrun.recipe` with Recipe.qualified_name "
+                      "(orchestration/executors/_base.py:942,1005-1006), and for a path recipe "
+                      "that is the path as given (core/recipe.py:1589-1597,1924) -- i.e. "
+                      "$RECIPE, never `@registry/<stem>` or a basename")
         self.assertIn("'$(( ${ARM_READY_TIMEOUT:-2250} + 900 ))'", arm,
                       "the watcher's deadline is not tied to the readiness ceiling")
 

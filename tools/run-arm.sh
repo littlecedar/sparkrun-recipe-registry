@@ -205,8 +205,10 @@ printf '%s\n' "${ARM_OPTS:-(none)}" > "$L/arm_opts.txt"
 # lost both lines it had printed exactly that way. Arm the capture on every host BEFORE the
 # launch: it attaches `docker logs -f` at `create` (docker replays the log from the start) and
 # takes the exit code off the `die` event, so the text is on the node's disk before the
-# container can be removed. Scoped by the recipe label, so a peer's boot on a shared node is
-# not captured.
+# container can be removed. Scoped by the recipe label -- `sparkrun.recipe` is
+# `Recipe.qualified_name` (`orchestration/executors/_base.py:942,1005-1006`), the recipe path as
+# passed (`core/recipe.py:1589-1597,1924`), so the filter is exactly $RECIPE and a peer's boot on
+# a shared node is not captured.
 CAPTURE_DIR="/tmp/sparkrun-exitcap.$$"
 CAPTURE=()
 for hn in $(echo "$HOSTS" | tr ',' ' '); do
