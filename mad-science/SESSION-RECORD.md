@@ -5176,3 +5176,31 @@ The standing rule this session adds: **a potential blocker gets a smoke test or 
 queued ahead of the blocked work**, and a lane writes "untried" wherever "blocked" was inferred
 rather than proven. A gate that costs minutes to falsify must never cost a day of idle nodes, and a
 verdict with no falsifier behind it is a guess wearing the register's vocabulary.
+
+## 2026-11-08 11:09 ET — the pruned75 body is present and the arm does not fit: `du -sb` answered both questions
+
+- **The trap is that one command describes a stub and a complete body identically.** `du -sb` on
+  this pool reads **8,179 B for a complete body**, because every snapshot file is a symlink into
+  the shared content-addressed store: the byte count is symlink metadata, not weights. The 7,303 B
+  one-entry `config.json` stub that blocked the arm earlier today was real, but `du -sb` would have
+  called that one complete as well, so a presence check must be the `find -L` byte sum over the
+  snapshot (`475,525,935,884 B = 442.87 GiB`) or `hf cache verify <repo> --revision <sha>` (rc=0,
+  "All checksums match"). Directory listings and `ls -la` are the same trap from the other side.
+- **Presence, independently confirmed.** One snapshot `fc72e5a1…`: 112 entries, 96 shards plus 16
+  sidecars, `refs/main` written, zero `.incomplete`/`.lock`, no writer, `hf cache verify` rc=0, and
+  the 08:26–09:38 pull closes against a 443 GiB `df` delta.
+- **Fit, and it is arithmetic, not a boot to spend.** The shards measure **442.85 GiB**, so TP=4 is
+  **110.71 GiB/rank**; a 119.21 GiB pool at `gpu_memory_utilization: 0.92` is a **109.67 GiB**
+  budget, which the weights exceed by about 1.0 GiB/rank **before one KV block**. The shipped
+  util/ctx pair is therefore infeasible at TP=4 and the arm needs a recut: 0.93 of total just to
+  hold weights leaves 0–1 GiB for KV at 16k, so the realistic shape is a shorter ctx (4k-ish) at
+  about 0.95, or a smaller checkpoint — not 1M. The 423.0 GiB in the recipe note and in the
+  register row's own notes is the nominal MXFP4 figure and is stale.
+- **What that does to the readings around it.** An OOM on this arm is a **sizing answer, not an
+  engine or checkpoint verdict**, and the lane's existing "an OOM is sizing, not the checkpoint"
+  line is therefore not fresh evidence for anything. The gate that actually moved is the one worth
+  naming: the tokenizer dependency was false (image carries tiktoken 0.14.0 and sentencepiece
+  0.2.3), the config binds (`TARGET ModelConfig OK: ['KimiK31ForConditionalGeneration']`;
+  `SpeculativeConfig(method=dspark, n=4)` constructs `Qwen3DSparkForCausalLM`, 4,598,107,009
+  params, block 5, target layers 7/23/67/83/91), so the remaining question is memory and backend
+  selection at 110.71 GiB/rank — and its answer is the recut's first boot.
