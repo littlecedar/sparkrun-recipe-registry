@@ -5204,3 +5204,34 @@ verdict with no falsifier behind it is a guess wearing the register's vocabulary
   `SpeculativeConfig(method=dspark, n=4)` constructs `Qwen3DSparkForCausalLM`, 4,598,107,009
   params, block 5, target layers 7/23/67/83/91), so the remaining question is memory and backend
   selection at 110.71 GiB/rank — and its answer is the recut's first boot.
+
+## 2026-11-08 11:20 ET — a 127 s arm is invisible to an hourly census, and syncthing left `main` at an object nobody has
+
+- **A census is a sample, not a state.** This tick's reads straddled the campaign's attempt 6:
+  11:00:45 found the fleet empty, 11:04:52 found four ranks `Up` on `.30`-`.33`, 11:08:07 found them
+  gone again — the boot lived 11:03:47-11:05:44, 127 s inside a 3.5-minute window. The peer tick that
+  took its census at 11:01:03/11:02:54 legitimately reported "nothing live", and an In-flight row
+  saying no node runs a workload is only true **at its stamp**. The durable consequence: for an arm
+  that can boot and die between two reads, the board's lease row (campaign `state.json`) and the
+  arm's receipt are the record, and a census that misses the boot is not evidence it never ran.
+- **Attempt 6's marlin lever was never in the engine's argv, verified twice over.** Its
+  `arm_opts.txt` holds `-oextra_args=--moe-runner-backend marlin` verbatim, but the launcher printed
+  `Override(s) -o extra_args have no effect: the 'sglang' runtime does not understand it, so nothing
+  is added to the serve command` (`launch.log:41`), and the reaped serve log (31,127 B) carries no
+  `moe-runner-backend` and dies on the same `ValueError: Mxfp4FlashinferCutlassMoEMethod requires
+  hidden_size and intermediate_size_per_partition to be multiples of 128 (got hidden=5120,
+  intermediate=576)`; watchdog `dead_candidate` t=95 s, `dead` (cause `RuntimeError`, ranks=4,
+  peer_moved=3) t=107 s, `ARM DONE ... rc=4`. `-o extra_args` is simply not a channel the sglang
+  runtime consumes — the mechanism behind the retracted marlin bypass, one layer below the
+  `ARM_OPTS` word-splitting that was fixed in `5f10e5a8`.
+- **The ref-side sibling of the stale-index hazard.** `git status` and `git log -- <path>` both died
+  on `bad tree object HEAD` because the loose `refs/heads/main` pointed at `a737411c`, a peer
+  clone's unpushed commit whose objects never arrived over syncthing (its `.git/objects/ad/` holds
+  `535914…` plus a `.sync-conflict-20261108-105114-Y5KSV46` copy), and one index blob was absent
+  too. AGENTS.md already covers the index half (`git read-tree HEAD`); the ref half is
+  `git update-ref refs/heads/main <origin/main>` after `git merge-base --is-ancestor` confirms the
+  published tip descends from the last known commit. Both repairs rewrite the ref and the index
+  only: the worktree kept three peers' uncommitted edits (AGENTS.md, queue.json, explore
+  recipes/tests, tools/README.md), which `git reset --hard` — the obvious reflex — would have
+  destroyed. The unreachable local commits had no readable objects, so nothing was lost with the
+  ref move; a local tip that git cannot read is not work to preserve, it is work to re-derive.
