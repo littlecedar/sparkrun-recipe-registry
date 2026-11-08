@@ -15,6 +15,10 @@ exit 1 on a healthy server.
 
 Flags: 🌲 lcg_favorite · 👀 vision · 📶 embedding · 🤏 smol.
 
+**Instrumented numbers are not comparable with uninstrumented ones:** a metrics-enabled boot may be
+compared only with another instrumented boot of the identical recipe, never with a pre-2026-11-08
+baseline — see [benchmarking/README.md §Instrumentation and comparability](../benchmarking/README.md#instrumentation-and-comparability).
+
 ## Contents
 
 - [qwen3-vl-embedding-2b-vllm-b12x](#qwen3-vl-embedding-2b-vllm-b12x)

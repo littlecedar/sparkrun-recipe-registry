@@ -12,6 +12,10 @@ candidate research, verified surfaces, official scores, the CPU+GPU tandem probe
 revision-drift determination are archived under [`attic/decision/`](../../attic/decision/)
 (indexed at the end).
 
+**Instrumented numbers are not comparable with uninstrumented ones:** a metrics-enabled boot may be
+compared only with another instrumented boot of the identical recipe, never with a pre-2026-11-08
+baseline — see [benchmarking/README.md §Instrumentation and comparability](../benchmarking/README.md#instrumentation-and-comparability).
+
 ## Contents
 
   - [jev-9b-decision-vllm](#jev-9b-decision-vllm)

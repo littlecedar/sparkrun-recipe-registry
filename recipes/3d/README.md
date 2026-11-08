@@ -15,6 +15,10 @@ model **emits geometry** — scene code a browser renders, a triangle mesh, or a
 emit pixels of an already-modelled object (image and video generation) stay in `recipes/media/`;
 arms that reason about 3D in text without producing geometry stay in `recipes/explore/`.
 
+**Instrumented numbers are not comparable with uninstrumented ones:** a metrics-enabled boot may be
+compared only with another instrumented boot of the identical recipe, never with a pre-2026-11-08
+baseline — see [benchmarking/README.md §Instrumentation and comparability](../benchmarking/README.md#instrumentation-and-comparability).
+
 ## First arm — `ccore/Qwen3.5-4B-3D-Coder`
 
 Independent fine-tune of `Qwen/Qwen3.5-4B` by CCORE, Apache-2.0, ungated; an early preview, **not

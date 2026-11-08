@@ -8,6 +8,10 @@ arm here will answer prompts its base model refuses, and the operator supplies t
 Lane history, receipts, and operating lore live in [`attic/cybersec/`](../../attic/cybersec/)
 (indexed at the bottom of this file).
 
+**Instrumented numbers are not comparable with uninstrumented ones:** a metrics-enabled boot may be
+compared only with another instrumented boot of the identical recipe, never with a pre-2026-11-08
+baseline — see [benchmarking/README.md §Instrumentation and comparability](../benchmarking/README.md#instrumentation-and-comparability).
+
 ## Contents
 
 - [Gating and the token prerequisite](#gating-and-the-token-prerequisite)

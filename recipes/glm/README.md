@@ -8,6 +8,10 @@ also carries its **runbook + research archive**: the 3.0bpw line and the
 TP=2/TP=3 Flash topologies were boot-verified on this cluster outside sparkrun, and a fourth line
 was attempted and archived as a proven-negative.
 
+**Instrumented numbers are not comparable with uninstrumented ones:** a metrics-enabled boot may be
+compared only with another instrumented boot of the identical recipe, never with a pre-2026-11-08
+baseline — see [benchmarking/README.md §Instrumentation and comparability](../benchmarking/README.md#instrumentation-and-comparability).
+
 ## Contents
 
 - [Shipped arm](#shipped-arm)

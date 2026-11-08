@@ -9,6 +9,10 @@ The retired EXL3/vLLM lane and all lane history — measurements, boot receipts,
 negative results, working notes — live under [`attic/ds4/`](../../attic/ds4/)
 (see the [Attic index](#attic-index)).
 
+**Instrumented numbers are not comparable with uninstrumented ones:** a metrics-enabled boot may be
+compared only with another instrumented boot of the identical recipe, never with a pre-2026-11-08
+baseline — see [benchmarking/README.md §Instrumentation and comparability](../benchmarking/README.md#instrumentation-and-comparability).
+
 ## Contents
 
 - [deepseek-v4.1-flash-knapcio-tp4-1m-sglang](#deepseek-v41-flash-knapcio-tp4-1m-sglang)

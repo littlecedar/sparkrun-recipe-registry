@@ -9,6 +9,10 @@ histories and the archived material live in [`attic/ifm/`](../../attic/ifm/ARMS-
 indexed below. The deep research record (`K2-*-MODEL-OPTIMIZATION-WORK.md` /
 `K2-*-JOURNAL.md`) is git-ignored by design and absent from a fresh checkout.
 
+**Instrumented numbers are not comparable with uninstrumented ones:** a metrics-enabled boot may be
+compared only with another instrumented boot of the identical recipe, never with a pre-2026-11-08
+baseline — see [benchmarking/README.md §Instrumentation and comparability](../benchmarking/README.md#instrumentation-and-comparability).
+
 ## Contents
 
 - [Checkpoints](#checkpoints)

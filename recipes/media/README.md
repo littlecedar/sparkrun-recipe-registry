@@ -24,6 +24,10 @@ its digest still serves is reported **`container-tag-retired`** by `tools/refres
 to re-pin, never a broken pin, and never `current` — so rotation still surfaces on its own with no
 cron entry, and any re-pin stays boot-gated.
 
+**Instrumented numbers are not comparable with uninstrumented ones:** a metrics-enabled boot may be
+compared only with another instrumented boot of the identical recipe, never with a pre-2026-11-08
+baseline — see [benchmarking/README.md §Instrumentation and comparability](../benchmarking/README.md#instrumentation-and-comparability).
+
 ## Contents
 
 - [Selection (2026-10-22)](#selection-2026-10-22)

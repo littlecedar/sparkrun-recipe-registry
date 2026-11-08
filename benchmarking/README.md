@@ -55,6 +55,7 @@ reporting a number, and `--framework pooling-bench` under that category is refus
 - [Batch / max_num_seqs cliff family (qwen4)](#batch--max_num_seqs-cliff-family-qwen4)
 - [Depth-cost / prefill-attribution family (qwen3, 2026-09-21/22)](#depth-cost--prefill-attribution-family-qwen3-2026-09-2122)
 - [Instrumented arms (qwen4 gauges)](#instrumented-arms-qwen4-gauges)
+- [Instrumentation and comparability](#instrumentation-and-comparability)
 - [Non-qwen4](#non-qwen4)
 - [Standard external suite (tool-eval-bench)](#standard-external-suite-tool-eval-bench)
 - [Adding a profile](#adding-a-profile)
@@ -262,6 +263,22 @@ because a live recipe or the qwen4 lane still cites them — `rk-nograph-cps8192
 | `rk-nograph-cps8192-k8-16-24` | RadixArk prefill-graph-off arm at cps=8192. Serves the archived `zz-rk-moebackend.yaml` arm. |
 | `pool128-cap32-causal` | The causal pool-112→128 test (§19x), RadixArk. |
 | `pool128-cap32-causal-REPL` | Its replication — a **new filename is required** per replication because the bench id hashes the profile path. |
+
+## Instrumentation and comparability
+**Instrumented numbers are not comparable with uninstrumented ones.** A cell measured on a recipe
+that enables `--enable-metrics`/`--enable-cache-report`, vLLM's `--enable-force-include-usage`/
+`--enable-prompt-tokens-details`/`--enable-per-request-metrics`, or llama.cpp's `--metrics` is an
+*instrumented* cell: it may be compared only with another instrumented boot of the identical
+recipe, never with a baseline recorded before this rollout (the qwen4 ladders, the TP=4
+comparisons, the marlin attempts). Re-measure both arms in one window, or mark the cell
+instrumented and do not import it (`benchmarking/instr-cps4096-vs-2048-k16.yaml:29-35`).
+
+The pre-instrumentation record is everything measured before 2026-11-08: the qwen4 lane ladders
+(decode ladder, aggregate peaks, pool-112→128 cells), the ds4 TP=4 ladder and v2.4-line cells, the
+`h2h-20261107` marlin control, and every `house.yaml` under `~/benchmarks`. A recipe declaring
+`metadata.instrumented: false` is a deliberately uninstrumented baseline; a recipe carrying the
+flags without that marker is instrumented by definition. The guard is
+`tests/test_metrics_rollout.py`.
 
 ## Non-qwen4
 

@@ -11,6 +11,10 @@ engine-support test that mattered — the pinned image loads `lfm3`. A bf16 vLLM
 and retired the same day, because the pinned vLLM predates the architecture (§Engine routes).
 The remaining collection members are queue rows in `mad-science/queue.json`.
 
+**Instrumented numbers are not comparable with uninstrumented ones:** a metrics-enabled boot may be
+compared only with another instrumented boot of the identical recipe, never with a pre-2026-11-08
+baseline — see [benchmarking/README.md §Instrumentation and comparability](../benchmarking/README.md#instrumentation-and-comparability).
+
 ## Roster — the `LiquidAI/lfm3` collection, read 2026-11-02
 
 | repo | params | `model_type` | task | GGUF mirror |

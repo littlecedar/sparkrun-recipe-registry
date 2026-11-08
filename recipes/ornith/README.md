@@ -38,6 +38,10 @@ the card's YaRN long-context override is served **only** by the ≤768k-capped 1
 Lane state, knob rationale, negative results, measurement histories, boot receipts and the
 archived arms live in [`../../attic/ornith/`](../../attic/ornith/) — see [Attic index](#attic-index).
 
+**Instrumented numbers are not comparable with uninstrumented ones:** a metrics-enabled boot may be
+compared only with another instrumented boot of the identical recipe, never with a pre-2026-11-08
+baseline — see [benchmarking/README.md §Instrumentation and comparability](../benchmarking/README.md#instrumentation-and-comparability).
+
 ## Contents
 
   - [littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm](#littlecedar-ornith-15-397b-nvfp4-mtp-graft-vllm)

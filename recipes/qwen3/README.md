@@ -10,6 +10,10 @@ results, measurement histories, boot receipts, the validation ritual, and the re
 bottom of this file. The four **Qwen3-VL** embedding/reranking recipes moved to their own lanes on
 2026-10-10: [`recipes/embed/`](../embed/README.md) and [`recipes/rerank/`](../rerank/README.md).
 
+**Instrumented numbers are not comparable with uninstrumented ones:** a metrics-enabled boot may be
+compared only with another instrumented boot of the identical recipe, never with a pre-2026-11-08
+baseline — see [benchmarking/README.md §Instrumentation and comparability](../benchmarking/README.md#instrumentation-and-comparability).
+
 ## Contents
 
   - [qwen3.8-27b-nvfp4-dflash2-sglang](#qwen38-27b-nvfp4-dflash2-sglang)

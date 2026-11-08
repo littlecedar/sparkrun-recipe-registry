@@ -13,6 +13,10 @@ aggregate-throughput regime the cut left in the attic. Everything else — lane 
 histories, negative results, the archived arms and their provenance — lives in
 [`../../attic/qwen4/`](../../attic/qwen4/) (see [Attic index](#attic-index)).
 
+**Instrumented numbers are not comparable with uninstrumented ones:** a metrics-enabled boot may be
+compared only with another instrumented boot of the identical recipe, never with a pre-2026-11-08
+baseline — see [benchmarking/README.md §Instrumentation and comparability](../benchmarking/README.md#instrumentation-and-comparability).
+
 ## Contents
 
 - [TP=2 — labquant balanced base (SGLang, 2 nodes)](#tp2--labquant-balanced-base-sglang-2-nodes)
