@@ -285,7 +285,7 @@ disagreement is auditable (`status` beside `ladder`).
 | `tools/task-queue.py` register | **Shelled out to** (plan source and claim writer) | It owns the register: the ordering (`queue --json`, so the weight arithmetic has one implementation), and every write (claim, done, note) through its own atomic save. Editing the JSON here would race that save. A manifest campaign never touches it. |
 | `sparkrun` CLI | **Shelled out to**, never imported | `AGENTS.md` keeps `plugins/` as the one tree that imports sparkrun. The executor already shells out, and a subprocess keeps the suite runnable with no sparkrun and no GPU. |
 
-## Failure modes from 2026-11-04, and what prevents each
+## Failure modes a campaign run has shown, and what prevents each
 
 | Observed | Structural prevention |
 |---|---|
@@ -293,6 +293,7 @@ disagreement is auditable (`status` beside `ladder`).
 | Completion was presence-only (`is_file()` + size > 0) and could not tell a partial ladder from a measured one | `evidence.done` reads fields and the cell table; the worker's rc cannot promote an arm. Two negative controls keep the old predicates in the suite as failing examples. |
 | A watchdog-reaped TP=2 arm left rank 1 running on the second node | Reap enumerates by the recipe's own label on **every** host of the lease and re-probes; the listing is never rank-filtered, and a survivor blocks the arm instead of passing as clean. Control: the rank-0-only check. |
 | 2.02 node-hours lost because one stream's last arm ran 132 minutes while the other node was idle | Assignment is dynamic from one queue (`plan.next_assignment`); nothing cuts the plan into per-node slices. Control: the static slice leaves a free node with nothing runnable while work is pending. |
+| An inactive per-node `sparkrun` daemon surfaced as `[3/6] Distributing resources` then `[Errno 70] Communication error on send: /home/red/.cache/huggingface/token`, a token/permission error that it is not (leases `@3`–`@6`, 2026-11-08) | `sparkrun daemon status` on **each** host of the lease before the launch, and `sparkrun daemon start` on any host that answers `"running": false`. |
 | A worker (or the host) dies mid-arm, and the arm's containers keep running | Leases expire; the arm becomes pending-with-a-reap; the reap runs on all its hosts before it is handed out again. The worker also stops its own slot after 12 unreachable polls, so an orphan cannot outlive a crashed director indefinitely. |
 
 ## Dependencies
