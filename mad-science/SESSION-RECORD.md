@@ -4285,3 +4285,106 @@ code), the lease (`753B` attempt 3, `expires_at` +287 s) and the absolute byte v
 `rootB`-slot emptiness is the same shift and which the peer's row restates correctly. Procedure for
 next time: give the remote its own label (`n=$n; printf …`), or read the counts in a form that cannot
 slide — `docker ps -q | wc -l` on its own line.
+
+## 2026-11-08 01:00 ET — the last un-homed board row: `a5286e7`
+
+The previous board's 00:10 row was the only landed clause with no home: `git grep a5286e7` over the
+whole tree matched `mad-science/STATUS.md` alone, so the handoff that cleared the Landed table would
+have deleted it. Homed here as it stood (the 00:16 row was already carried at the sections above):
+
+- **`a5286e7` "Record the board rows that existed only on the board"** — a peer tick's commit, and it
+  carried this tick chain's 00:08 homing section in with its own (107 inserted lines, both sections):
+  the six retired rows and the nine post-board commits are in this file. The misattribution is
+  disclosed there rather than rewritten.
+
+That tick also leaves the programme state it measured, which the owning docs now carry rather than the
+board: the 753B arm's attempt-3 quartet (`sparkrun_7d9a3a61b33a29e4_3d01b30293f6_node_0..3`, created
+00:21) was still `verdict=loading` in its watchdog at t=1673 s (io ~1 GB/probe, log growth 0, endpoint
+down) when a SIGTERM stopped the director at 00:49 (`director.log`: `signal 15` → `stopping worker w1`;
+the register records the operator pause at 00:56); `run-arm.sh`'s trap removed the containers and no
+receipt was written, so the arm was killed before readiness at 34 min of loading and is not a
+measurement.
+
+## 2026-11-08 01:09 ET — a 01:05 publish replaced a peer's 01:04 board; its bytes survived on the shared workstation and were adopted
+
+The tick that read the fleet at **01:03:31 ET** composed its board and called `publish` at 01:05. The
+tool accepted the write because the board it replaced was **older, not newer**: disk carried title
+01:04 with census **01:01:48 ET**, so `publish` printed `disks was 2026-11-08 01:01:48 ET` and replaced
+the peer's board whole — the guard refuses only a *newer* census stamp, and a peer board composed on an
+older read but published later reads as stale to it.
+
+**Nothing was lost, because the peers' composed files were on the same shared `/tmp`.** Three boards
+existed for this hour: `/tmp/board-0104-601473.md` (the clobbered one, census 01:01:48),
+`/tmp/board-0100-574825.md` (census 01:00:54) and `/tmp/board-0104-574821.md` (census **01:03:38–42**,
+the freshest read and the richest board: it had already folded the operator's `killed-attempts.json`,
+the head env file's rewrite to `h2h-20261107`, the expired lease and the register divergence). The
+**01:09 republish adopts `574821` verbatim** with only its title regenerated, so the restored board
+carries that tick's census rather than this one's 01:03:31 read, and its `Work queue` (byte-identical
+to this tick's own render) and all 19 landed rows stand.
+
+- **The mitigation that would have caught it is the one the skill already names, applied literally:**
+  re-read `mad-science/STATUS.md` immediately before `publish`, not at the start of the cycle, and treat
+  a title whose minute is the current one as a peer board to fold. This tick re-read only the *title
+  line* after the first failed publish and did not compare its census stamp against its own.
+- What this tick measured independently and the adopted board agrees with: all six nodes at **0
+  containers and 0 volumes** (01:03:31 read, `df -B1` root avail within ±11 MiB of the 00:31:27 series),
+  no `sparkrun_campaign` director process on the head, `state.json` (mtime 00:49:42) still recording the
+  3bpw arm `leased` with `expires_at` ~00:54, register at **77 done / 17 queued, none claimed**, and
+  `task-queue.py check` green.
+
+**Correction, 01:12 ET: that board was published already falsified, and the republish is the second half of this section.**
+Run 5 started at 01:04:4x (`director serve --queue … --max-parallel 1 --retries 1 --receipts-root`), and its
+quartet `sparkrun_7d9a3a61b33a29e4_574ac1a0d398_node_0..3` was created 01:04:51–54 on `.30`–`.33`. So the
+all-idle census adopted above (read 01:03:38, `0 / 0 / 0 / 0 / 0 / 0`) described the fleet as it stood 40 s
+*before* the boot, not as it stood at publish 90 s later. The 01:11:10 read — **1 / 1 / 1 / 1 / 0 / 0**,
+`/v1/models` **000** on every rank, lease `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang` **attempt 4** with
+`expires_in` 290 s, register row re-claimed `06:04:42Z` — is what this tick republished at 01:11:10. **A peer's
+01:13 publish (census 01:12:49) then superseded it**, and that board is the fresher read of the same state:
+quartet up on `.30`–`.33`, run 5 alive, lease attempt 4 (`expires_at` 01:17:42), `.34`/`.35` empty — so the
+corrected state stands on the board and nothing from this tick's read was lost in the supersession.
+
+- The defect is rule 6's, one step subtler than a carried figure: a peer's census is *not* a fresh figure in a
+  later publish, and adopting it verbatim moved a three-minute-old read into a 01:09 board. Adopting the
+  peer's **landed rows** was right (they are history and cannot go stale); adopting its **census** was not.
+  A fold takes the peer's rows and the folder's own read.
+- The peer's 01:06 section above already carries the bracket that makes this legible on the record: 01:01:52
+  all six at zero, 01:06:07 at `1 / 1 / 1 / 1 / 0 / 0`, with the quartet's creation timestamp inside the gap
+  — the pause's zeros and run 5's ones are both true reads of the same minute-scale transition.
+
+## 2026-11-08 01:06 ET — fifth h2h run started on the reconciled model; the pause's kills cost work, not measurement
+
+Run 4 (`director serve --queue`, pid 3338082) was SIGTERMed by the operator pause at 00:49 ET. The
+`~/benchmarks/h2h-20261107/killed-attempts.json` entry records what that cost:
+`glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2` attempt 3 killed **at `readiness=yes`** before any
+cell ran, and `glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang` attempt 3 killed with readiness never
+achieved (t~2050 s loading, endpoint down, GPU 0%, io ~1 GB/s) — both `not measured; no receipt`,
+`containers_after: 0` fleet-wide, director recorded as `stopped (nohup pid 3338082 SIGTERM); unit
+inactive`. Work lost, not numbers.
+
+Run 5 started 01:04:4x as `… director serve --queue --hosts .30–.35 --max-parallel 1 --retries 1
+--receipts-root /home/red/benchmarks/h2h-20261107` — the two flags `2abc5af` now adopts on open, which
+is the persisted-state reconciliation defect the pause existed to fix. It re-claimed register row
+`h2h-second-boot-glm-753b` at 01:04:42 ET (`queue.json` is therefore a peer's uncommitted edit at this
+tick's read), rewrote `state.json` at 01:05:22 with a lease on attempt **4** (`expires_in` 293 s), and
+its quartet `sparkrun_7d9a3a61b33a29e4_574ac1a0d398_node_0..3` was created 01:04:51–01:04:54 on
+`.30`–`.33` carrying `tensorfold serve --tp 4 --context 1048576 --mtp-drafts 3 --kv q5 --dcp 4
+--drafter none`, endpoint **000** at 1 m 21 s uptime — loading, as this arm's attempt 3 did for 34 min.
+
+Census bracket worth keeping: 01:01:52 ET read all six at **0 containers / 0 volumes** and 01:06:07
+read **1 / 1 / 1 / 1 / 0 / 0**. Those zeros are the operator pause, not a wedged holder, and the
+quartet's creation timestamp sits inside the gap — so neither read was wrong, and a tick that judged
+the declared window on the earlier one alone would have raised a false idle-window escalation.
+
+Corrected this cycle, re-measured per node: `dgx-spark-dsv41:tensorfold-v06` sits on `.30`, `.31` and
+`.35`, not `.35` alone; the `.35`-only images remain `vllm/vllm-openai:glm53-flash` and
+`…-pin-819ec9c06341`.
+
+This tick published no board: while it was composing, peer ticks published inside the same three
+minutes (`5a0587a` at 01:09 on the 01:03:40 census, then a 01:13 board on the 01:12:49 census) and
+both censuses agree with this tick's 01:06:07 read on every container and volume count
+(`1 / 1 / 1 / 1 / 0 / 0`, volumes 0), so the board was left to the fresher publish rather than
+whole-file rewritten under it. Rule-8 check against the live register holds on that board: its
+`h2h-second-boot-glm-753b` row reads `running`, matching the `06:04:42Z` claim, and all 17 rows match
+`render --board`. One reported divergence the 01:13 board dropped (it stood in the 01:09 one):
+`h2h-second-boot-ladder` still lists `h2h-second-boot-ds4-1017` among its `holds` while the register
+no longer carries that row open — reported, not edited, since `queue.json` is a peer's file.
