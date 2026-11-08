@@ -5991,3 +5991,29 @@ or after 15:29:55. The **admissibility boundary therefore stays 15:29:55**: `12:
 window B. What changes is the mechanism line: "not on a restart" should read **"closed on a reboot, with verified
 reads after it"**, and any future reader should not infer from the original heading that a service restart is what
 ended an outage — a reboot is the only one of the two that appeared here.
+
+
+## 2026-11-08 — correction: earlyoom `-m 20` reverted to `-m 4,1`; the threshold cannot be the protection
+
+- **What was applied and why it was wrong.** The clause above (`6df4c0c`) set `-m 20,10`. That fires at 24.3 GiB free,
+  and a healthy quartet serve leaves the head only ~5.7 GiB (`recipes/ds4/README.md`, "Measured: v2.4 serve line":
+  `mem_fraction_static: 0.78` ships deliberately for the 16384-token chunks — a 1M prefill at 0.78 leaves 5.7 GiB, at
+  0.80 only 2.7 GiB, and higher has wedged nodes). Every working serve, the production quartet included, would have
+  been SIGTERMed the moment it reached steady state, on all six nodes. Reverted within the hour, before any boot ran.
+- **What is live now**, applied 16:47:23–16:47:31 and read back from `/proc/$(pgrep -o earlyoom)/cmdline` on all six:
+  `-m 4,1 -s 100,95 --prefer '(vllm|VLLM|sglang|llama-server|llama-cli|trtllm|tritonserver|ray|python3|python)' --avoid '(beegfs|mgmtd|meta|storage|systemd|sshd|dockerd|containerd|dbus-daemon|NetworkManager|syncthing)'`.
+  `-m 4` is ~4.87 GiB, below the 5.7 GiB steady state so a healthy serve is not a victim; `-m 1` is a ~1.22 GiB SIGKILL
+  floor. `-s 100,95` is unchanged, so the SIGTERM rung's swap term stays neutralised (idle swap-free reads 100.00 %,
+  which satisfies `<= 100`) and the SIGKILL rung keeps its 95 % backstop.
+- **The finding, not the number.** On a node whose healthy serve leaves 5.7 GiB free, earlyoom cannot be both
+  non-disruptive and early: at the measured ~27 GiB/s dive the window between "healthy" and "out of memory" is about
+  0.2 s. So the protection for the pool is `OOMScoreAdjust=-1000` plus `--avoid`, and the protection against a bad arm
+  is the fit arithmetic, not the threshold. A quartet boot that overruns dies with ~0.2 s of warning — enough for
+  earlyoom to name the engine rather than the storage daemon, and all it can honestly promise. `/etc/default/earlyoom`
+  now carries this tension in its comment so the next reader does not re-derive it by SIGTERMing a serve.
+- **Unchanged and still correct:** the `-1000` drop-ins and the live `/proc/<pid>/oom_score_adj` writes (mgmtd 2048,
+  meta 2168, storage 2164 on `.30`; storage 3243 / 3249 / 3256 / 3226 / 3250 on `.31`–`.35`). Still unprotected and
+  still an owner decision: `ssh.service`, `NetworkManager.service` and `user@1000.service`.
+- **Verification.** `earlyoom --dryrun` on the installed file prints `sending SIGTERM when mem <= 4.00% and swap <=
+  100.00%, SIGKILL when mem <= 1.00% and swap <= 95.00%`; at 95.74 % available it is silent; a forced-threshold dryrun
+  (`-m 98`) still selects `python3` (badness 1100) and names none of the running `beegfs-*` pids 2048 / 2168 / 2164.
