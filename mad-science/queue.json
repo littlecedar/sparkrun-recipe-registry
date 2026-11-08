@@ -209,6 +209,7 @@
       "blocks": [],
       "blocked_by": [
         "arch-deepgemm-sm12x-paged-sparse",
+        "w4-survey-arm5-control-boot",
         "w4-survey-arm5-sm121-boot"
       ],
       "state": "blocked",
@@ -1317,14 +1318,14 @@
         "h2h-second-boot-ladder"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
       "notes": "estimate: provisional — controlled second boot through the boot2 twin (comment-only copy: the register cannot name two rows for one recipe); ladder only, no extra client. — campaign: glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2: no marker and no machine-readable artefact",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; owner 2026-11-07 window; tests/test_boot_twin_recipes.py",
       "evidence": "",
-      "claimed_by": "",
-      "claimed_at": "",
+      "claimed_by": "sparkrun-campaign:h2h-20261107",
+      "claimed_at": "2026-11-08T04:52:37Z",
       "recipe": "recipes/glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2.yaml",
       "tp": 4,
       "env": {
@@ -1339,14 +1340,14 @@
         "h2h-second-boot-ladder"
       ],
       "blocked_by": [],
-      "state": "running",
+      "state": "queued",
       "model": "glm-5.3",
       "node_cost": "quartet",
-      "notes": "estimate: provisional — controlled second boot; TTR ~42 min on the confirmed NCCL env; ladder only, no extra client. — campaign: glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang: no marker and no machine-readable artefact",
+      "notes": "estimate: provisional — controlled second boot; TTR ~42 min on the confirmed NCCL env; ladder only, no extra client. — campaign: glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang: no marker and no machine-readable artefact — campaign: glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang: no marker and no machine-readable artefact",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; recipes/glm/README.md §Shipped arm; owner 2026-11-07 window",
       "evidence": "",
-      "claimed_by": "sparkrun-campaign:h2h-20261107",
-      "claimed_at": "2026-11-08T04:14:25Z",
+      "claimed_by": "",
+      "claimed_at": "",
       "recipe": "recipes/glm/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml",
       "tp": 4,
       "env": {
@@ -1396,7 +1397,7 @@
       "tp": 4,
       "env": {
         "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
-        "ARM_EXTRA_CLIENT": "sh -c \"cd /home/red/src/sparkrun-recipe-registry && python3 -B tools/longctx-cell.py --base-url http://$NODE:$PORT --model $SERVED --context-length 1039999 --concurrency 1 --max-tokens 128 --json $L/longctx-1m.json\"",
+        "ARM_EXTRA_CLIENT": "sh -c \"cd /home/red/src/sparkrun-recipe-registry && python3 -B tools/longctx-cell.py --base-url http://$NODE:$PORT --model $SERVED --context-length 1039999 --concurrency 1 --max-tokens 128 --image-id \\\"$ARM_IMAGE_ID\\\" --json $L/longctx-1m.json\"",
         "ARM_EXTRA_TIMEOUT": "3600"
       }
     },
@@ -1408,10 +1409,10 @@
         "w4-survey-arm5-trtllm-mla"
       ],
       "blocked_by": [],
-      "state": "blocked",
+      "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "gate: arm-author verified against the image (plain container run) that srt/arg_groups/deepseek_v4_hook.py asserts is_sm100_supported() and the c3 tree defines that as capability major 10 only — a GB10 (12,1) launch aborts during arg assembly. Do not spend a slot until an image/tree change lands; also --enable-decoder-swa-bounded-replay is appended unconditionally, so section 10.7's replay-off control is unreachable from this launcher.",
+      "notes": "estimate: provisional — repinned :0.2.1 (arch assert admits major 12, replay BooleanOptionalAction); A/B pair with w4-survey-arm5-control-boot on the same digest. At --max-tokens 8 the needle witness can miss (rc=3) while ms/step and aggregate cells stay valid. Image must be carried by tag before boot.",
       "provenance": "queue w4-survey-arm5-trtllm-mla; mad-science/DEEPSEEK.md §10.7; recipes/ds4/zz-ds4-1017-sm121-arm5-trtllm-mla.yaml; owner 2026-11-07 window",
       "evidence": "",
       "claimed_by": "",
@@ -1420,7 +1421,7 @@
       "tp": 4,
       "env": {
         "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
-        "ARM_EXTRA_CLIENT": "python3 -B tools/h2h-client.py --cell lc-128k-c5c10 --base-url http://$NODE:$PORT --outdir $L",
+        "ARM_EXTRA_CLIENT": "sh -c \"cd /home/red/src/sparkrun-recipe-registry && python3 -B tools/longctx-cell.py --base-url http://$NODE:$PORT --model $SERVED --context-length 131072 --concurrency 5,10 --max-tokens 8 --image-id \\\"$ARM_IMAGE_ID\\\" --json $L/longctx-128k.json\"",
         "ARM_EXTRA_TIMEOUT": "3600"
       }
     },
@@ -1454,14 +1455,20 @@
         "glm-flash-concurrency-degradation-search"
       ],
       "blocked_by": [],
-      "state": "blocked",
+      "state": "queued",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
-      "notes": "gate: not expressible without a code change — the shim's RECIPE_ENV applies TF_GLM_DFLASH_POLICY/TF_GLM_MULTI_WINDOW with os.environ.update(), overwriting recipe env, and tensorfold serve has no CLI flag; unlock is one whitelist line in the GLM launcher's recipe_env(). Not applied.",
-      "provenance": "glm-flash-concurrency-degradation-search; mad-science/DRAFTER-ALTERNATIVES-1026.md; recipes/glm/README.md; owner 2026-11-07 window",
+      "notes": "estimate: provisional — DFlash2 draft-chain k=5 against shipped k=7 (C1/C2/C5/C10 ladder is the cell; no extra client). The k rides the shim's new whitelisted SWEEP_ENV: a non-empty -e wins over RECIPE_ENV. Follow-ups on the same carrier after this row closes: fnc3:0.3 (k=3) and TF_GLM_MULTI_WINDOW=32, one knob per boot, never stacked.",
+      "provenance": "glm-flash-concurrency-degradation-search; concurrency-variants commits 0d9f835/2602501; owner 2026-11-07 window",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "recipe": "recipes/glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-dflash2k.yaml",
+      "tp": 4,
+      "env": {
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
+        "ARM_OPTS": "-e TF_GLM_DFLASH_POLICY=fnc5:0.3"
+      }
     },
     {
       "id": "glm-flash-conc-scheduler-knob",
@@ -1485,6 +1492,30 @@
         "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
         "ARM_OPTS": "-o parallel=4",
         "ARM_ALLOW_FEW_SLOTS": "1"
+      }
+    },
+    {
+      "id": "w4-survey-arm5-control-boot",
+      "title": "Survey arm 5 paired control: arm 3 serve line on the same 0.2.1 digest (131072 C5/C10)",
+      "estimate_h": 1.5,
+      "blocks": [
+        "w4-survey-arm5-trtllm-mla"
+      ],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "estimate: provisional — arm 5's control must be this same-digest (:0.2.1) boot; the 0.2.0 arm3 boot is indexer-scoring evidence and cannot serve as the control. SWA bounded replay OFF in both pair arms. Needs dsv41-sm121-dg:0.2.1 carried to the quartet by tag.",
+      "provenance": "queue w4-survey-arm5-trtllm-mla; arm-author-2 commit 6bc48f8; DEEPSEEK.md §10.7",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/ds4/zz-ds4-1017-sm121-arm3-control.yaml",
+      "tp": 4,
+      "env": {
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
+        "ARM_EXTRA_CLIENT": "sh -c \"cd /home/red/src/sparkrun-recipe-registry && python3 -B tools/longctx-cell.py --base-url http://$NODE:$PORT --model $SERVED --context-length 131072 --concurrency 5,10 --max-tokens 8 --image-id \\\"$ARM_IMAGE_ID\\\" --json $L/longctx-128k.json\"",
+        "ARM_EXTRA_TIMEOUT": "3600"
       }
     }
   ],
