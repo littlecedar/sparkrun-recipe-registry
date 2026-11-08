@@ -285,6 +285,48 @@ disagreement is auditable (`status` beside `ladder`).
 | `tools/task-queue.py` register | **Shelled out to** (plan source and claim writer) | It owns the register: the ordering (`queue --json`, so the weight arithmetic has one implementation), and every write (claim, done, note) through its own atomic save. Editing the JSON here would race that save. A manifest campaign never touches it. |
 | `sparkrun` CLI | **Shelled out to**, never imported | `AGENTS.md` keeps `plugins/` as the one tree that imports sparkrun. The executor already shells out, and a subprocess keeps the suite runnable with no sparkrun and no GPU. |
 
+### The per-node daemon preflight (designed; not yet in `run-arm.sh`)
+
+- **The probe is a new ssh-to-`sparkrun` dependency.** `run-arm.sh` has never run anything on a node
+  but `bash -s` and `docker …`, so the remote binary and `HOME` are resolved, never assumed: one
+  `bash -s` per host that prepends the PATH sparkrun's own remote detection uses
+  (`$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/bin:/usr/bin:/bin`,
+  `orchestration/systemd_service.py:262-268`), prints `command -v sparkrun` and `$HOME`, then calls
+  the resolved absolute path with `HOME` pinned to it. Measured 2026-11-08: `which sparkrun` →
+  `/home/red/.local/bin/sparkrun` and `$HOME` → `/home/red` on every node, the same pair sparkrun's
+  own detection returns, and the launch's one-liner form (`ssh <host> <command>`,
+  `orchestration/ssh.py:705`) runs under the same sshd `HOME` — the probe follows the launch's
+  environment instead of guessing one.
+- **Why it is pinned.** A wrong `HOME` reports a running daemon as down: measured on the head,
+  `HOME=/tmp/wrong-home … daemon status` answered `"running": false` where `HOME=/home/red`
+  answered `true`. The preflight must not be able to refuse the fleet on its own environment.
+- **Not `daemon resources list`.** It is not a liveness probe and has no RPC behind it: it reads
+  *this controller's* reservation table (`cli/_daemon.py:409-413` → `reservations(config_path.parent)`,
+  `core/coordination.py:311-316`), so it can never see another host's daemon.
+- **Exit codes do not discriminate.** `daemon status` exits 0 for `"running": false` and for `true`
+  alike (measured 2026-11-08), so the field decides, never `$?`.
+- **Three outcomes, not two** (the `boot-watchdog` `no_probe` idiom): `"running": false` is the
+  inactive-daemon refusal, exit **9**, naming the host and `sparkrun daemon start`; a probe that
+  could not read — ssh non-zero, binary not found, output without a `running` field — is
+  **unverifiable**, exit **10**, naming the probe and what it could not read; `"running": true`
+  proceeds. A failed probe must never render as "daemon not running", and an unreachable host is
+  unverifiable: it neither continues the arm nor concludes the daemon is down.
+- **Evidence.** One `daemon-preflight.txt` in the arm's receipt directory, a line per host —
+  `<host>,<resolved binary>,<HOME>,<the status line or the probe's stderr>` — written before any
+  refusal, so a refused arm says which environment it probed. A refusal with no recorded probe is
+  unfalsifiable.
+- **Placement.** After the arm's last precondition (the slot gate) and before the exit-capture arm
+  loop, therefore before the launch. Arming first is a leak: the EXIT trap that kills the watchers
+  is installed further down, so a refused arm would leave one `docker events` client per host.
+- **Taken exit codes.** `exit 1` usage / no container / no chdir, `rc=2` ladder, `rc=3` instrument,
+  `rc=4` readiness ceiling, `rc=5` and `exit 5` missing artefact and failed launch, `rc=6` leftover
+  survivor, `rc=7` and `exit 7` replayed state, `exit 8` slot-limited; 9 (inactive) and 10
+  (unverifiable) are reserved here.
+- **Tests** (`tests/test_run_arm_tool.py`, a fake `ssh` on `PATH` returning each case): one host
+  inactive → exit 9, that host named, nothing launched; all active → the next step runs; ssh
+  non-zero, or a status with no `running` field → exit 10 with no "not running" claim; negative
+  control — with the block removed the inactive host's arm launches and the exit-9 assertions fail.
+
 ## Failure modes a campaign run has shown, and what prevents each
 
 | Observed | Structural prevention |
@@ -355,6 +397,13 @@ ladder, a manifest-only plan boots a recorded negative, a static slice strands a
 trusts the state file re-boots a live arm, and a rank-0-only leftover check reports clean with rank
 1 alive. The four hardware items still have their skipped harness tests in
 `test_checklist_hardware.py`; the 2026-11-07 run is the evidence that closed them.
+
+Counting the root suite from a committed tree needs **the repository's own interpreter**: archive the
+tree, then count it with that clone's `.venv/bin/python -B -c
+'import unittest;print(unittest.defaultTestLoader.discover("tests").countTestCases())'`. A bare
+`uv run` in the extracted tree builds a fresh venv and reads 1368 against the same tree's 1410,
+because `tests/test_qwen3_vl_embeddings.py:26` imports `jinja2` and discovery turns that into one
+failed module. The totals themselves stay in `AGENTS.md`, which owns them.
 
 ## Per-arm receipts
 
