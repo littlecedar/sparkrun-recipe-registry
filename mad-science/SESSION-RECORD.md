@@ -6969,16 +6969,17 @@ second publish would have replaced fresher rows with older ones. Also corroborat
 `beegfs-meta` on `.31`–`.35` read `NRestarts` 6863 / 6844 / 6825 / 6810 / 6793 at
 12:08:03, **+304 / 303 / 303 / 303 / 303** on the 11:41 figures (≈5.3 s per restart),
 so the 5 s loop in the queued row is unchanged.
-- **The pool's space kept going, and faster, after the published board's window
+- **The pool's used bytes moved in both directions after the published board's window
 closed.** `df -B1 /mnt/beegfs` read 12:08:04 → 12:09:35 ET: used
 12 921 799 704 576 → 12 921 823 297 536 B and avail 11 269 430 050 816 →
 11 269 406 457 856 B, i.e. **+23 592 960 B in 91 s = 259 KB/s**, against the board's
 own window (12:06:39 → 12:07:51) of +8 912 896 B in 72 s = 124 KB/s. The two windows
 chain exactly — the first ends on 12 921 799 704 576 B, where the second starts — so
-176 s of continuous consumption at a rate that roughly doubled, with the hub still at
-**102** entries and the DeepSeek-V4.1-Flash-1017 shard read through the mount at
-**970 533 624 B** (mtime `2026-10-18 01:15:47 -0400`), unchanged. What writes it stays
-unattributed: no writer process and no inode was tied to either delta this tick.
+176 s of growth at a rate that roughly doubled, with the hub still at **102** entries and
+the DeepSeek-V4.1-Flash-1017 shard read through the mount at **970 533 624 B**
+(mtime `2026-10-18 01:15:47 -0400`), unchanged. The direction reverses later in the
+hour and no client-side writer exists — see the sweep bullet below, which is what that
+first read could not see.
 - **Two ticks shared one fixed `/tmp` compose path, and it was clobbered mid-compose.**
 After this tick wrote and then patched `/tmp/compose-1200.py`, a read of that same path
 returned compose text this session did not author — "avail pair over the 72 s window",
@@ -6986,3 +6987,19 @@ the earlyoom `-m 4,1 -s 100,95` clause — matching the peer board's wording. Th
 already names the trap (compose to a per-session path); the durable form is to put the
 tick's identity in the compose script's name too (`/tmp/compose-<HHMM>-<pid>.py`), not
 only in the output board's.
+- **The pool's byte movement has no client-side author on any node, and it reverses.**
+Read 12:24:18 ET: `df -B1 /mnt/beegfs` used **12 921 814 908 928 B**, avail
+**11 269 414 846 464 B** — **8 388 608 B below** the 12:09:35 used figure, so the growth
+recorded above is not a fill. Swept 12:24:04–12:24:06 on all six: no `hf download`,
+`huggingface-cli`, `git-lfs` or `rsync` process anywhere, and `sudo -n fuser -v
+/mnt/beegfs` prints only `root kernel mount /mnt/beegfs` on each host, so no userland
+process held a file through the mount. On the head the staging pid 529334 is gone and
+`models--vllm-project--Kimi-K3.1-Pro-pruned75` reads `du -sL` **464 380 873 KiB =
+442.8 GiB** with `refs/main` mtime `2026-11-08 09:58` and its shard blobs `08:23`, no
+`.incomplete` left — that body finished the previous day and is not today's writer. The
+newest entry anywhere under `hub/` is `2026-11-09 08:50`, so no model body has been
+written in the last 3.5 h. Both directions are therefore pool-side traffic (chunk-store
+allocation and reclaim) with no client process behind them, which is where the next probe
+belongs; the board's "writer unnamed" holds, while "consumption" overstates a quantity
+that also falls. Two ticks on this workstation read the pool this hour and each carried a
+different slice of the same oscillation.
