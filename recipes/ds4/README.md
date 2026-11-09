@@ -1264,9 +1264,33 @@ checkpoint's own 576-wide per-rank experts. The production image never showed th
 `chat_encoding.py` defines the function, so no shim is staged and the adapter loads normally. Evidence:
 the failing control boot's `launch.log` carries `launcher: inline-system shim on PYTHONPATH …` and
 **zero** overlay prints; the armed SM121 receipt predates the shim (commit `7c39c02`, 2026-11-08
-03:56 ET). The shim now chains to the adapter (`ADAPTER_SITECUSTOMIZE`, guarded by
-`tests/test_ds4_knapcio_template_overlay.py::InlineSystemShim`), and the arms' boot gate is
-`[moe_b12x_next] armed` in the serve log — the same kernel production runs.
+03:56 ET). The shim now chains to the adapter (guarded by
+`tests/test_ds4_knapcio_template_overlay.py::InlineSystemShim`; `5ac799e` chained it and `6b0434d`
+resolves the shadowed file from `sys.path`, so the `DSV41_ADAPTER_SITECUSTOMIZE` handoff `5ac799e`
+added is gone — the proof grep is `_shadowed_sitecustomize`, 2 hits, against 0 for the old
+constant), and the arms' boot gate is `[moe_b12x_next] armed` in the serve log — the same kernel
+production runs.
+
+**Measured 2026-11-09 — the arm boots on the production MoE path, and arm 3's cell is thin.**
+`sparkrun_1c0dffa45afa6e47_61ab7a786592` on `:0.2.1` (`.31`/`.32`/`.33`/`.35`) carried
+`[moe_b12x_next] armed: routed MoE on b12x_next a7d7d29b (W4A8, in-place repack) … tune=True`, with
+**no** ÷128 `ValueError` and `/v1/models` 200 at `max_model_len` 1048576. TTR **470 s** (launch
+22:46:29Z, first healthy 22:54:19Z). Load: `Load weight end. elapsed=214.72 s, quant=fp8, avail
+mem=34.92 GB, mem usage=76.89 GB` from 111.82 GB at begin; draft `4.14 s`, 3.40 GB. Memory stayed
+charged where the repack runs: minimum `MemAvailable` **9.28 GiB** (`.35` during the 1M prefill),
+peak rank container cgroup **33.95 GB**, page tables ≤0.1 GiB, **zero** kernel `oom-kill` and
+earlyoom kill lines, the 6.0 GiB stop rule never firing — against the marlin boots' ~107 GiB host
+dive with rank cgroups ≤5.87 GB. Cell (retry JSON `longctx-1m.json`): prompt **1,035,623 tokens**,
+TTFT **277.2 s**, needle **1/1 PASS** (`ZX81-1208`), **56.2 ms/step** median over **3 decode steps**
+(6 tokens, 0.112 s, 53.57 tok/s). The exact lane command overshot first — 1,039,999 predicted,
+1,072,210 counted, HTTP 400 — so it was retried with the tool's own `--chars-per-token 6.65`
+(observed 6.6778); both JSONs are kept. **The arm's falsifier is undecided**: 3 steps is not steady
+state and no same-protocol control ms/step exists, so nothing here is a ≥5 % claim — it needs
+`arm3-control` booted on the same digest. The boot checklist's `Mean acceptance length 1` wording
+does not occur in SGLang's logs; the decode line reports `accept len: 3.12` and the metric
+`sglang:spec_accept_length` 3.125, i.e. speculative decode active. Teardown 23:03:58Z read 0
+containers / 0 volumes on all four ranks. Receipt
+`head:~/benchmarks/sm121-b12x-20261109/RECEIPT.md`.
 
 **Why marlin could not have been the answer anyway.** Marlin's repack is a copy, and this loader
 materialises the whole model before repacking it: `loader.py:1015` `load_weights_only` (all shards,

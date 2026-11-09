@@ -7146,3 +7146,50 @@ here rather than left to a later quartet window. Receipt `head:~/benchmarks/ds4-
   `7.0.0-1019-nvidia-64k` package, its `beegfs/8.4.1` DKMS module, `/etc/default/grub.d/zz-dgx-spark-memory-saver.cfg`
   pinning `GRUB_DEFAULT` to the 1025 entry, and `/var/lib/dgx-spark-memory-saver/preparation`, all inert but
   installed, so a later window must not assume stock GRUB on that node.
+
+## 2026-11-09 18:12 ET — the ÷128 refusal was the shim: b12x armed and arm 3 took its 1M cell
+
+- **The root cause, in one sentence.** The overlay launcher's staged `sitecustomize.py` shadowed the
+  serving adapter's own (Python imports exactly one), so `install_moe_b12x_next` under
+  `DSV41_MOE_B12X_NEXT` never ran, the stock `Mxfp4FlashinferCutlassMoEMethod` stayed in place, and its
+  multiples-of-128 guard fired on the checkpoint's own 576-wide per-rank experts — a harness defect, not
+  an image limit. `5ac799e` chained the shim to the adapter, and `6b0434d` replaced that commit's
+  `DSV41_ADAPTER_SITECUSTOMIZE` handoff with deriving the shadowed file from `sys.path` (proof grep
+  `_shadowed_sitecustomize` 2 hits, env knob 0 in `launcher.py`), so a missing adapter now prints
+  `overlay patches NOT installed` instead of failing silent.
+- **The boot proved the mechanism before any cell did.** `sparkrun_1c0dffa45afa6e47_61ab7a786592` on
+  `:0.2.1` (`sha256:85c1ffc3…`) across `.31`/`.32`/`.33`/`.35`, launch 22:46:29Z, first healthy
+  22:54:19Z — **TTR 470 s** — serve log carrying `[moe_b12x_next] armed: routed MoE on b12x_next
+  a7d7d29b (W4A8, in-place repack) … tune=True` and **no** ÷128 `ValueError`. Load:
+  `Load weight end. elapsed=214.72 s, quant=fp8, avail mem=34.92 GB, mem usage=76.89 GB` from 111.82 GB
+  at begin, then the draft at `4.14 s`, 3.40 GB; `/v1/models` 200 at `max_model_len` 1048576. Teardown
+  23:03:58Z left **0 containers / 0 volumes** on all four ranks.
+- **The memory now sits where the mechanism said it would.** Minimum `MemAvailable` **9.28 GiB** (`.35`
+  during the 1M prefill; per-rank `.31` 9.31 / `.32` 10.25 / `.33` 9.72 / `.35` 9.28 against a 117.7 GiB
+  idle high), peak rank container cgroup **33.95 GB**, page tables ≤0.1 GiB, the 6.0 GiB two-sample stop
+  rule never firing, and **zero** kernel `oom-kill` lines and **zero** earlyoom kill lines. The contrast
+  is the finding: the marlin boots took ~107 GiB out of the host while every rank's cgroup stayed
+  ≤5.87 GB, and this boot charges ~34 GB **inside** the cgroup instead — the in-place repack, which is
+  what the sibling analysis claimed and nothing had yet measured.
+- **The arm-3 cell, with its limits stated rather than implied.** Prompt **1,035,623 tokens**, TTFT
+  **277.2 s**, needle **1/1 PASS** (reply `ZX81-1208`), **56.2 ms/step** median, 3 decode steps,
+  53.57 tok/s. Three steps is not steady state, and no same-protocol canary ms/step baseline exists, so
+  no ≥5 % claim is possible: **the lane's arm-3 falsifier stays undecided** until
+  `zz-ds4-1017-sm121-arm3-control` boots on the same digest with the same protocol.
+- **The cell's first attempt was a calibration overshoot, not an engine result.** The exact lane
+  command's 8,192-token calibration predicted 1,039,999 tokens; the server counted 1,072,210 and
+  answered HTTP 400 above the 1,048,576 window. Retried with the tool's own `--chars-per-token 6.65`
+  (observed ratio 6.6778), which counted 1,035,623 — 0.4 % under the ask and above the 0.97 acceptance
+  floor — and exited 0. Both JSONs are kept, so the 400 is evidence rather than a gap.
+- **One acceptance line in the lane's boot checklist does not exist as worded.** It asks for `Mean
+  acceptance length 1` on a decode line; the phrase appears **0** times across all four harvested serve
+  logs, and the engine's own decode line reports `accept len: 3.12` with the metric
+  `sglang:spec_accept_length` **3.125**. That is speculative decode active — the opposite of the
+  collapse the line is meant to catch — so the gate should be read as that metric, and the checklist's
+  wording is still uncorrected in `recipes/ds4/README.md`'s boot-gate list.
+- **Register, and what remains.** `w4-survey-arm3-sm121-boot` closed `done` with
+  `evidence: head:~/benchmarks/sm121-b12x-20261109/`; `tools/task-queue.py check` returns
+  `ok: 124 task(s)`, rc=0. The arm-5 pair (`arm5-trtllm-mla` vs `arm3-control`, both on `:0.2.1`,
+  replay off) is **mechanically unblocked but unrun**: the b12x path boots and fits TP=4 with the host
+  never below 9.28 GiB, so the remaining obstacle is scheduling, not fit. Receipt
+  `head:~/benchmarks/sm121-b12x-20261109/RECEIPT.md`.
