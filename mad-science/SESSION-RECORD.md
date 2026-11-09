@@ -6328,3 +6328,13 @@ ended an outage — a reboot is the only one of the two that appeared here.
   session's rows, and did not re-stamp or delete the live `campaign-queue` window lock.
 
 Board commit `e23a88c`, ten minutes after the peer's `74c728f`; gate run on it read after the fact.
+
+- **Two further board corrections, appended rather than folded into the list above** (a review of the
+  published bytes found them, and the first list claimed to be complete): the census cell led with
+  `22:03:35 → 22:08:32` while its own text cites a third pair ending **22:15:01**, so the range a reader
+  dates the cell by disagreed with the markers beneath it — it now reads `22:03:35 → 22:15:01, three
+  marker reads`; and the publication row named `git clone --no-hardlinks`, the local form that once
+  produced a stale tree, where the board was in fact published from a shallow
+  `git clone --depth 40 https://github.com/littlecedar/sparkrun-recipe-registry.git` (the push needed no
+  `--unshallow`). Both landed in `e08f1b5`, after `6dd4cf4` corrected the row's `4a94c51` tip to the
+  `74c728f` the push actually landed on.
