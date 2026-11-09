@@ -757,7 +757,18 @@ def ensure_template_overlay(
 # it travels as ``sitecustomize.py`` on the server's ``PYTHONPATH``.
 # shortcut: the image's forward port, drop this when the image is rebuilt with
 # the function (the ``caller`` probe below goes quiet on its own).
+#
+# The staged file shadows any other ``sitecustomize`` on ``sys.path`` (Python
+# imports exactly one), and the serving adapter ships its own at
+# ``/opt/dsv41/adapter/sitecustomize.py`` where every overlay patch installs --
+# Engram prefetch, dspark, and the b12x MoE method that lets the 576-wide
+# per-rank experts load at ``EP_SIZE=1``. Shadowing it leaves the stock
+# ``Mxfp4FlashinferCutlassMoEMethod`` in place, whose multiples-of-128 geometry
+# guard then refuses at weight creation (2026-11-09: that guard fired on an
+# image the adapter patches). So this shim chains to the adapter rather than
+# replacing it.
 ENGINE_OPENAI_DIR = "/sgl-workspace/sglang/python/sglang/srt/entrypoints/openai"
+ADAPTER_SITECUSTOMIZE = "/opt/dsv41/adapter/sitecustomize.py"
 SHIM_DIR = "/cache/runtime/engine-shim"
 INLINE_SYSTEM_SITECUSTOMIZE = '''\
 """Shim for the SM121 image's half-ported OpenAI serving path.
@@ -770,7 +781,12 @@ overlay launcher; an image whose two files agree never sees this file.
 """
 
 import builtins
+import os
 import sys
+
+# Substituted by the launcher at write time; the env override exists so the
+# chain can be exercised without an image carrying the adapter.
+ADAPTER_PATH = os.environ.get("DSV41_ADAPTER_SITECUSTOMIZE", "__ADAPTER_PATH__")
 
 TARGET = "sglang.srt.entrypoints.openai.chat_encoding"
 
@@ -792,6 +808,31 @@ def _import(name, *args, **kwargs):
 
 
 builtins.__import__ = _import
+
+# Python imports one ``sitecustomize``, so this file hides the serving
+# adapter's own -- and with it every overlay patch. Run the adapter explicitly
+# so the two compose: the b12x MoE method (``DSV41_MOE_B12X_NEXT``) is what
+# makes 576-wide per-rank experts loadable, and without it the stock
+# multiples-of-128 guard refuses the checkpoint. Never let a failure here kill
+# the server: the stock behaviour is a loud AttributeError, not a silent exit.
+def _load_adapter_sitecustomize(path=ADAPTER_PATH):
+    if not os.path.exists(path):
+        return
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("dsv41_adapter_sitecustomize", path)
+    if spec is None or spec.loader is None:
+        return
+    module = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("dsv41_adapter_sitecustomize", module)
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:
+        sys.modules.pop("dsv41_adapter_sitecustomize", None)
+        print(f"dsv41 shim: adapter sitecustomize failed ({exc!r})", file=sys.stderr)
+
+
+_load_adapter_sitecustomize()
 '''
 
 
@@ -812,7 +853,7 @@ def ensure_inline_system_shim(env: dict[str, str]) -> None:
     try:
         os.makedirs(SHIM_DIR, exist_ok=True)
         with open(os.path.join(SHIM_DIR, "sitecustomize.py"), "w", encoding="utf-8") as handle:
-            handle.write(INLINE_SYSTEM_SITECUSTOMIZE)
+            handle.write(INLINE_SYSTEM_SITECUSTOMIZE.replace("__ADAPTER_PATH__", ADAPTER_SITECUSTOMIZE))
     except OSError as exc:
         # Leave the image as shipped: the engine then reports the real
         # AttributeError, and this line says why the shim is missing.

@@ -1252,6 +1252,33 @@ services on the ranks and on the head (`beegfs-mgmtd`, `beegfs-meta` and `beegfs
 one failed quartet boot can take the shared pool and the launch plumbing with it — the next boot
 cannot start until those are back, which is a recovery, not a wait.
 
+**ROOT CAUSE 2026-11-09 — the ÷128 refusal was our shim, not the image.** Everything above reads as
+an image/engine limit; it is a harness defect. The overlay launcher stages a `sitecustomize.py`
+(`ensure_inline_system_shim`) for images whose `serving_chat.py` calls
+`chat_encoding.spec_supports_inline_system` before `chat_encoding.py` defines it. Python imports
+**one** `sitecustomize`, and that staged file sits ahead of the serving adapter's own
+(`/opt/dsv41/adapter/sitecustomize.py`) — where every overlay patch installs, including
+`install_moe_b12x_next` under `DSV41_MOE_B12X_NEXT`. So on `:0.2.1` the adapter never ran, the stock
+`Mxfp4FlashinferCutlassMoEMethod` stayed in place, and its multiples-of-128 guard fired on the
+checkpoint's own 576-wide per-rank experts. The production image never showed this because its
+`chat_encoding.py` defines the function, so no shim is staged and the adapter loads normally. Evidence:
+the failing control boot's `launch.log` carries `launcher: inline-system shim on PYTHONPATH …` and
+**zero** overlay prints; the armed SM121 receipt predates the shim (commit `7c39c02`, 2026-11-08
+03:56 ET). The shim now chains to the adapter (`ADAPTER_SITECUSTOMIZE`, guarded by
+`tests/test_ds4_knapcio_template_overlay.py::InlineSystemShim`), and the arms' boot gate is
+`[moe_b12x_next] armed` in the serve log — the same kernel production runs.
+
+**Why marlin could not have been the answer anyway.** Marlin's repack is a copy, and this loader
+materialises the whole model before repacking it: `loader.py:1015` `load_weights_only` (all shards,
+all layers) then `:1016` `postprocess_weights` → per-module `process_weights_after_loading`. Marlin's
+own layout at TP=4 is 1.868 GiB/layer × 43 layers = **80.31 GiB** (`mxfp4_marlin_moe.py:78` rounds
+576→640), and the checkpoint-layout sources for the layers not yet repacked stay live on top of it —
+≈ **74.7 + 80.3 = 155 GiB** against a 121.69 GiB pool, with `expandable_segments:False`
+(`launcher.py:334`) keeping freed blocks reserved. That is the measured ~107 GiB host dive with a flat
+rank cgroup. b12x_next is *in-place* by construction (`moe_b12x_next.py` printer: "W4A8, in-place
+repack"), which is the property marlin lacks. Page size was tested and refuted separately: page tables
+are 0.008–0.021 % of that dive (`head:~/benchmarks/ds4-64k-20261109/`).
+
 **Correcting the record on the 2026-10-26 `triton` retry.** That retry did clear the ÷128 geometry
 check and died 16 s into `Load weight begin` with NVRM `NV_ERR_NO_MEMORY` at 108.83 GB available —
 an unfused-runner capacity failure, on a different image (stock main tree), with attention never

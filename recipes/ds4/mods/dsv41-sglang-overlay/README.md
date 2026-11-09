@@ -269,6 +269,35 @@ fast-loader boot and is re-derived from that boot's `full_token` if it clamps.
 Engram reads never traverse the network — the same property the old
 `/<home-dir>/dsv41-engram` bind mount gave, without the machine-specific path.
 
+## The inline-system shim chains to the adapter
+
+Images whose `serving_chat.py` calls `chat_encoding.spec_supports_inline_system`
+before `chat_encoding.py` defines it get a staged `sitecustomize.py` on
+`PYTHONPATH` (`launcher.py: ensure_inline_system_shim`, image
+`dsv41-sm121-dg:0.2.1` today; the production canary defines the function and
+never sees it). **Python imports exactly one `sitecustomize`**, so that staged
+file shadows the serving adapter's own at
+`/opt/dsv41/adapter/sitecustomize.py` — and every overlay patch installs there:
+Engram prefetch, dspark, `DSV41_REPLICATED_SPLIT`, the RoCE gather, and the b12x
+MoE method `DSV41_MOE_B12X_NEXT`.
+
+Shadowing it is not a cosmetic loss. With the adapter unreachable the stock
+`Mxfp4FlashinferCutlassMoEMethod` ran and raised its multiples-of-128 geometry
+guard on the checkpoint's own 576-wide per-rank experts, which is why three
+survey arms died at weight creation on 2026-11-08 while the same overlay armed
+`[moe_b12x_next]` on the production image. The staged shim therefore **loads the
+adapter explicitly** (`_load_adapter_sitecustomize`, path overridable through
+`DSV41_ADAPTER_SITECUSTOMIZE` so the chain is testable without an image) rather
+than replacing it; a missing adapter is survivable, and a failing one prints to
+stderr and never exits the child.
+
+Proof of the fix inside `dsv41-sm121-dg:0.2.1`: with
+`PYTHONPATH=<shim>:/opt/dsv41/adapter`, `sitecustomize.__file__` is the staged
+shim **and** `sys.modules["dsv41_adapter_sitecustomize"]` exposes
+`EngramFinder`/`EngramLoader`. Before the chain it was the shim alone. Guard:
+`tests/test_ds4_knapcio_template_overlay.py::InlineSystemShim` (positive chain
+plus a negative control that nothing runs when the adapter path is absent).
+
 ## Not in this mod (and why)
 
 - The image itself is **vendored** (`littlecedar/dgx-spark-dsv41:canary-roce`,

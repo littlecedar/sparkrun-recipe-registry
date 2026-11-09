@@ -255,6 +255,75 @@ class InlineSystemShim(unittest.TestCase):
         self.module.ensure_inline_system_shim(env)
         self.assertEqual(env["PYTHONPATH"], "%s:/opt/dsv41/adapter" % self.shimdir)
 
+    def test_the_shim_chains_to_the_adapter_sitecustomize(self):
+        """Python imports one ``sitecustomize``, so staging this file hid the adapter's.
+
+        With the adapter's copy unreachable, every overlay patch it installs was
+        absent -- including the b12x MoE method that lets the 576-wide per-rank
+        experts load at ``EP_SIZE=1`` -- so the stock ``Mxfp4FlashinferCutlassMoEMethod``
+        raised its multiples-of-128 guard and three survey arms never booted
+        (measured 2026-11-09). The chain is what keeps the adapter installed on an
+        image that needs this shim.
+        """
+        self.stage(self.CALLER, "import os\n")
+        env: dict = {}
+        self.module.ensure_inline_system_shim(env)
+        source = (self.shimdir / "sitecustomize.py").read_text(encoding="utf-8")
+
+        root = Path(self._tmp.name)
+        adapter = root / "adapter-sitecustomize.py"
+        marker = root / "adapter-ran"
+        adapter.write_text(
+            "import os\n"
+            "open(os.environ['DSV41_SHIM_TEST_MARKER'], 'w').write('ran')\n",
+            encoding="utf-8")
+
+        keys = ("DSV41_ADAPTER_SITECUSTOMIZE", "DSV41_SHIM_TEST_MARKER")
+        saved = {key: os.environ.get(key) for key in keys}
+        real_import = builtins.__import__
+        real_meta_path = list(sys.meta_path)
+        try:
+            os.environ["DSV41_ADAPTER_SITECUSTOMIZE"] = str(adapter)
+            os.environ["DSV41_SHIM_TEST_MARKER"] = str(marker)
+            exec(compile(source, "shim", "exec"), {})
+            self.assertEqual(marker.read_text(encoding="utf-8"), "ran",
+                             "the staged shim must run the adapter's sitecustomize")
+        finally:
+            builtins.__import__ = real_import
+            sys.meta_path[:] = real_meta_path
+            for key, value in saved.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+    def test_a_missing_adapter_is_survivable(self):
+        """No adapter in the image is the pre-b12x case: the shim must still import."""
+        self.stage(self.CALLER, "import os\n")
+        env: dict = {}
+        self.module.ensure_inline_system_shim(env)
+        source = (self.shimdir / "sitecustomize.py").read_text(encoding="utf-8")
+        marker = Path(self._tmp.name) / "adapter-ran"
+        keys = ("DSV41_ADAPTER_SITECUSTOMIZE", "DSV41_SHIM_TEST_MARKER")
+        saved = {key: os.environ.get(key) for key in keys}
+        real_import = builtins.__import__
+        real_meta_path = list(sys.meta_path)
+        try:
+            os.environ["DSV41_ADAPTER_SITECUSTOMIZE"] = str(Path(self._tmp.name) / "absent.py")
+            os.environ["DSV41_SHIM_TEST_MARKER"] = str(marker)
+            exec(compile(source, "shim", "exec"), {})
+            self.assertTrue(callable(builtins.__import__))
+            self.assertFalse(marker.exists(),
+                             "control: nothing may run when the adapter path is absent")
+        finally:
+            builtins.__import__ = real_import
+            sys.meta_path[:] = real_meta_path
+            for key, value in saved.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
 
 if __name__ == "__main__":
     unittest.main()
