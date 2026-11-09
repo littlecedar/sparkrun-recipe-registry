@@ -6102,3 +6102,39 @@ ended an outage — a reboot is the only one of the two that appeared here.
 - **What this tick did not do**: started nothing, stopped nothing, claimed no node, edited no
   other session's rows. Board commits `8afad24` and `fe58d28a`, this correction commit, and
   gate `success` read on both of them.
+
+## 2026-11-08 20:16 ET — this tick published no board: peers covered the hour in eleven minutes
+
+- **The hour was published three times while this tick took its reads, and the last one is current.**
+  The board was read at `725f1e6` (title 19:57); by 20:11 origin carried `e321269` (title 20:03), then
+  `2bd678f` (title 20:06, **carrying the 19:56 census cells**), then `666e761` (title 20:11, which
+  restored a 20:03 census and pool read). Two further peer composes wrote this clone's board while
+  this session measured (mtime 20:09:03, then 20:13:21), so `publish --expect-sha` would have refused
+  at every point and a whole-file write would have dropped the peer's rows. The tick stands down with
+  its reads on the record here; the board it would have written is already on `666e761`.
+- **An independent six-node read at 20:04:01 and 20:04:50 ET corroborates that board, a minute later.**
+  Containers `1 / 0 / 0 / 0 / 0 / 0` on `.30`–`.35` with **`0` running** and `0` volumes, the one
+  container still the never-started `sm121m`; root avail 1 253 654 687 744 / 1 643 042 103 296 /
+  1 720 743 444 480 / 1 604 136 689 664 / 1 073 945 141 248 / 1 337 861 529 600 B, and the 49 s pair
+  fell **774 144 B (≈15.8 kB/s)** over all six — the 18:14 pair's 3.4 kB/s and `c4d9ace`'s 9.5 kB/s
+  are the same order, so it is log drip and not a staging body.
+- **The pool was proved by a read this session took itself, on a second model from the board's.**
+  `df -B1 /mnt/beegfs` answered **9 862 427 705 344 B** avail at 20:04:59, the hub listed **111**
+  entries, and `stat -L` on the pruned75 snapshot's `model-00001-of-000096.safetensors` at revision
+  `fc72e5a1…` returned **2 341 216 112 B / 4 572 688 blocks** with 111 entries in that snapshot. Units
+  at the same read: `beegfs-storage` `active (success)` `NRestarts=0` on six, `.30` mgmtd+meta
+  `active` since 15:29:55, the workers' `beegfs-meta` still `exit-code` `failed` (role config gate).
+- **Campaign and register were re-read from their own stores, not taken from the board.** USER unit
+  `sparkrun-campaign.service` `active` / `Result=success` / `NRestarts=0` since 15:29:55; all nine
+  `~/benchmarks/*/state.json` on the head parse to **32 arms, 0 leases**, the h2h root 18 arms with
+  `state.json` at 13:13:38. Origin's register at `725f1e6` read **115 tasks, 26 open (14 queued + 12
+  blocked), zero claims** and this session's own `check` returned rc=0; its blob `e82c181` is still
+  the blob at `666e761`, so the board's `725f1e6` citation is stale by two board-only commits and
+  the counts it prints are not.
+- **One board defect this tick saw and did not chase**: `2bd678f` regenerated the title to 20:06 while
+  its `census`/`pool`/`campaign`/`queue` cells still read 19:56 and `3bf4680` — the shape the skill
+  names (`a tick that changes nothing still regenerates the census row`). `666e761` replaced those
+  cells two minutes later, so no re-correction was attempted; the shape is recorded because the title
+  alone is what a reader dates the board by.
+- **What this tick did not do**: published no board, started nothing, stopped nothing, claimed no node,
+  edited no other session's rows.
