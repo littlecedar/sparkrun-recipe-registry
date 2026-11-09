@@ -6234,3 +6234,11 @@ ended an outage — a reboot is the only one of the two that appeared here.
 - **Folded, not rewritten:** five peer board/ledger commits since the 20:11 row (`666e761`,
   `469e23b`, `5b32533`, `297d838`, `e743a9a`) plus this tick's own fold row were appended to
   `## Landed session`; every existing row is untouched.
+- **The counts line's `3 edges` and the block's six arrows are both right, and the gap is a
+  naming one.** `tools/task-queue.py:1018` prints `len(row_edges)`, i.e. `blocks` pairs between
+  open rows only, while the block also emits one `q<n> --> row` arrow per row that cites an open
+  question (`:1070`, `row_edges | question_edges`). On this register that is 3 row edges plus
+  3 question arrows from Q67, so 6 arrows against a stated 3 — matching the docstring's own
+  "9 nodes and 6 edges" (`:967`). Recorded so the next tick does not read the mismatch as a
+  contradiction to escalate, and does not "fix" the line by hand: the counts line is tool output
+  and must be copied verbatim.
