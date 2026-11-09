@@ -7216,3 +7216,23 @@ here rather than left to a later quartet window. Receipt `head:~/benchmarks/ds4-
 - **Left deliberately untouched:** `mad-science/queue.json` (the arm session owns the arm-3 close-out,
   and the board cites it as worktree bytes rather than as `origin/main` content), and the blocked set,
   which did not move this hour.
+
+### 18:50 ET addendum — main was red on a guard's ambient premise, and the fix landed under another session's commit
+
+- **The red was a test premise, not the shim.** `InlineSystemShim.test_a_missing_adapter_is_survivable_and_says_so`
+  asserts the staged shim reports `overlay patches NOT installed` when no shadowed `sitecustomize.py`
+  exists, but that premise was only ambiently true: the CI runner's system interpreter ships
+  `/usr/lib/python3.x/sitecustomize.py`, so the shim chained to that file and printed nothing. It failed
+  on every run since `6b0434d` (four commits), while the same suite read green here.
+- **Reproduced before touching anything.** A decoy `sitecustomize.py` on `PYTHONPATH` fails the same
+  assertion at the same line with an empty stderr, which is exactly the CI traceback; with no decoy the
+  local run is green, so the difference is the ambient path and nothing else.
+- **What this session verified landed inside `3c9030e`, under another session's message.** A test-side
+  isolation (stdlib-only `sys.path`, restored in a `finally`) and the adapter-module cleanup after the
+  caller guard's exec were edited here and verified 13/13 in that module both with and without the decoy,
+  plus against the committed launcher in a throwaway checkout. The shim's owner committed `3c9030e` with
+  its own stronger take — an explicit `path=` for the guard, adapter markers beside the file, and a new
+  distro-`sitecustomize` regression case — carrying part of these hunks. Recorded here rather than by
+  rewriting the commit.
+- **Remains:** `3c9030e`'s gate run and the next tick's landed row for it; this board's table stops at
+  18:14 by design, since a second republish in thirty minutes is churn on the coordination surface.
