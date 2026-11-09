@@ -768,7 +768,6 @@ def ensure_template_overlay(
 # image the adapter patches). So this shim chains to the adapter rather than
 # replacing it.
 ENGINE_OPENAI_DIR = "/sgl-workspace/sglang/python/sglang/srt/entrypoints/openai"
-ADAPTER_SITECUSTOMIZE = "/opt/dsv41/adapter/sitecustomize.py"
 SHIM_DIR = "/cache/runtime/engine-shim"
 INLINE_SYSTEM_SITECUSTOMIZE = '''\
 """Shim for the SM121 image's half-ported OpenAI serving path.
@@ -783,10 +782,6 @@ overlay launcher; an image whose two files agree never sees this file.
 import builtins
 import os
 import sys
-
-# Substituted by the launcher at write time; the env override exists so the
-# chain can be exercised without an image carrying the adapter.
-ADAPTER_PATH = os.environ.get("DSV41_ADAPTER_SITECUSTOMIZE", "__ADAPTER_PATH__")
 
 TARGET = "sglang.srt.entrypoints.openai.chat_encoding"
 
@@ -810,13 +805,33 @@ def _import(name, *args, **kwargs):
 builtins.__import__ = _import
 
 # Python imports one ``sitecustomize``, so this file hides the serving
-# adapter's own -- and with it every overlay patch. Run the adapter explicitly
-# so the two compose: the b12x MoE method (``DSV41_MOE_B12X_NEXT``) is what
-# makes 576-wide per-rank experts loadable, and without it the stock
-# multiples-of-128 guard refuses the checkpoint. Never let a failure here kill
-# the server: the stock behaviour is a loud AttributeError, not a silent exit.
-def _load_adapter_sitecustomize(path=ADAPTER_PATH):
-    if not os.path.exists(path):
+# adapter's own -- and with it every overlay patch. Run that file explicitly so
+# the two compose: the b12x MoE method (``DSV41_MOE_B12X_NEXT``) is what makes
+# 576-wide per-rank experts loadable, and without it the stock multiples-of-128
+# guard refuses the checkpoint. The path is derived from ``sys.path`` (the first
+# ``sitecustomize.py`` that is not this file) rather than written in, so it
+# cannot go stale; if none is found the line below says so instead of failing
+# quietly. Never let a failure here kill the server: the stock behaviour is a
+# loud AttributeError, not a silent exit.
+def _shadowed_sitecustomize(here):
+    for entry in sys.path:
+        if not entry:
+            continue
+        directory = os.path.abspath(entry)
+        if directory == here:
+            continue
+        candidate = os.path.join(directory, "sitecustomize.py")
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
+
+def _load_adapter_sitecustomize(path=None):
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = path or _shadowed_sitecustomize(here)
+    if not path:
+        print("dsv41 shim: no shadowed sitecustomize.py on sys.path; overlay patches NOT installed",
+              file=sys.stderr)
         return
     import importlib.util
 
@@ -853,7 +868,7 @@ def ensure_inline_system_shim(env: dict[str, str]) -> None:
     try:
         os.makedirs(SHIM_DIR, exist_ok=True)
         with open(os.path.join(SHIM_DIR, "sitecustomize.py"), "w", encoding="utf-8") as handle:
-            handle.write(INLINE_SYSTEM_SITECUSTOMIZE.replace("__ADAPTER_PATH__", ADAPTER_SITECUSTOMIZE))
+            handle.write(INLINE_SYSTEM_SITECUSTOMIZE)
     except OSError as exc:
         # Leave the image as shipped: the engine then reports the real
         # AttributeError, and this line says why the shim is missing.

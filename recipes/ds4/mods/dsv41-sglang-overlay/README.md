@@ -286,10 +286,12 @@ Shadowing it is not a cosmetic loss. With the adapter unreachable the stock
 guard on the checkpoint's own 576-wide per-rank experts, which is why three
 survey arms died at weight creation on 2026-11-08 while the same overlay armed
 `[moe_b12x_next]` on the production image. The staged shim therefore **loads the
-adapter explicitly** (`_load_adapter_sitecustomize`, path overridable through
-`DSV41_ADAPTER_SITECUSTOMIZE` so the chain is testable without an image) rather
-than replacing it; a missing adapter is survivable, and a failing one prints to
-stderr and never exits the child.
+adapter explicitly** (`_load_adapter_sitecustomize`, which resolves the file it
+shadows as the first `sitecustomize.py` on `sys.path` that is not its own —
+derived rather than configured, so it cannot go stale and needs no environment
+knob) rather than replacing it. A missing adapter is survivable and prints
+`overlay patches NOT installed` to stderr; a failing one prints the exception and
+never exits the child.
 
 Proof of the fix inside `dsv41-sm121-dg:0.2.1`: with
 `PYTHONPATH=<shim>:/opt/dsv41/adapter`, `sitecustomize.__file__` is the staged

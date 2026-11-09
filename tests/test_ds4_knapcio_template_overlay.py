@@ -31,7 +31,9 @@ not an importable package member.
 from __future__ import annotations
 
 import builtins
+import contextlib
 import hashlib
+import io
 import importlib.util
 import os
 import sys
@@ -224,6 +226,7 @@ class InlineSystemShim(unittest.TestCase):
         namespace: dict = {}
         real_import = builtins.__import__
         try:
+            namespace["__file__"] = str(sitecustomize)
             exec(compile(source, str(sitecustomize), "exec"), namespace)
             self.assertFalse(namespace["spec_supports_inline_system"]("dsv41"))
             self.assertTrue(namespace["spec_supports_inline_system"]("kimi_k3"))
@@ -255,6 +258,32 @@ class InlineSystemShim(unittest.TestCase):
         self.module.ensure_inline_system_shim(env)
         self.assertEqual(env["PYTHONPATH"], "%s:/opt/dsv41/adapter" % self.shimdir)
 
+    def _run_shim(self, source, name="shim", checks=None):
+        """Exec the staged shim with a real ``__file__`` and restore every global it touches."""
+        real_import = builtins.__import__
+        real_meta_path = list(sys.meta_path)
+        real_path = list(sys.path)
+        had_adapter = "dsv41_adapter_sitecustomize" in sys.modules
+        try:
+            exec(compile(source, name, "exec"), {"__file__": name})
+            if checks is not None:
+                checks()
+        finally:
+            builtins.__import__ = real_import
+            sys.meta_path[:] = real_meta_path
+            sys.path[:] = real_path
+            if not had_adapter:
+                sys.modules.pop("dsv41_adapter_sitecustomize", None)
+
+    def _adapter_stub(self, marker: Path) -> Path:
+        """A stand-in adapter: one file that records that it executed."""
+        directory = Path(self._tmp.name) / "adapter"
+        directory.mkdir(exist_ok=True)
+        (directory / "sitecustomize.py").write_text(
+            "with open(%r, 'w') as handle:\n"
+            "    handle.write('ran')\n" % str(marker), encoding="utf-8")
+        return directory
+
     def test_the_shim_chains_to_the_adapter_sitecustomize(self):
         """Python imports one ``sitecustomize``, so staging this file hid the adapter's.
 
@@ -266,63 +295,51 @@ class InlineSystemShim(unittest.TestCase):
         image that needs this shim.
         """
         self.stage(self.CALLER, "import os\n")
-        env: dict = {}
-        self.module.ensure_inline_system_shim(env)
-        source = (self.shimdir / "sitecustomize.py").read_text(encoding="utf-8")
+        self.module.ensure_inline_system_shim({})
+        shim = self.shimdir / "sitecustomize.py"
+        source = shim.read_text(encoding="utf-8")
 
-        root = Path(self._tmp.name)
-        adapter = root / "adapter-sitecustomize.py"
-        marker = root / "adapter-ran"
-        adapter.write_text(
-            "import os\n"
-            "open(os.environ['DSV41_SHIM_TEST_MARKER'], 'w').write('ran')\n",
-            encoding="utf-8")
-
-        keys = ("DSV41_ADAPTER_SITECUSTOMIZE", "DSV41_SHIM_TEST_MARKER")
-        saved = {key: os.environ.get(key) for key in keys}
-        real_import = builtins.__import__
-        real_meta_path = list(sys.meta_path)
-        try:
-            os.environ["DSV41_ADAPTER_SITECUSTOMIZE"] = str(adapter)
-            os.environ["DSV41_SHIM_TEST_MARKER"] = str(marker)
-            exec(compile(source, "shim", "exec"), {})
-            self.assertEqual(marker.read_text(encoding="utf-8"), "ran",
-                             "the staged shim must run the adapter's sitecustomize")
-        finally:
-            builtins.__import__ = real_import
-            sys.meta_path[:] = real_meta_path
-            for key, value in saved.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
-
-    def test_a_missing_adapter_is_survivable(self):
-        """No adapter in the image is the pre-b12x case: the shim must still import."""
-        self.stage(self.CALLER, "import os\n")
-        env: dict = {}
-        self.module.ensure_inline_system_shim(env)
-        source = (self.shimdir / "sitecustomize.py").read_text(encoding="utf-8")
         marker = Path(self._tmp.name) / "adapter-ran"
-        keys = ("DSV41_ADAPTER_SITECUSTOMIZE", "DSV41_SHIM_TEST_MARKER")
-        saved = {key: os.environ.get(key) for key in keys}
-        real_import = builtins.__import__
-        real_meta_path = list(sys.meta_path)
-        try:
-            os.environ["DSV41_ADAPTER_SITECUSTOMIZE"] = str(Path(self._tmp.name) / "absent.py")
-            os.environ["DSV41_SHIM_TEST_MARKER"] = str(marker)
-            exec(compile(source, "shim", "exec"), {})
-            self.assertTrue(callable(builtins.__import__))
-            self.assertFalse(marker.exists(),
-                             "control: nothing may run when the adapter path is absent")
-        finally:
-            builtins.__import__ = real_import
-            sys.meta_path[:] = real_meta_path
-            for key, value in saved.items():
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
+        adapter_dir = self._adapter_stub(marker)
+        sys.path[:0] = [str(adapter_dir), str(self.shimdir)]
+
+        def check():
+            self.assertEqual(marker.read_text(encoding="utf-8"), "ran",
+                             "the staged shim must run the sitecustomize it shadows")
+            self.assertIn("dsv41_adapter_sitecustomize", sys.modules)
+
+        self._run_shim(source, name=str(shim), checks=check)
+
+    def test_the_chain_call_is_what_runs_the_adapter(self):
+        """Negative control: the same tree, with the trailing chain call removed."""
+        self.stage(self.CALLER, "import os\n")
+        self.module.ensure_inline_system_shim({})
+        shim = self.shimdir / "sitecustomize.py"
+        source = shim.read_text(encoding="utf-8")
+        stripped = source.replace("\n_load_adapter_sitecustomize()\n", "\n")
+        self.assertNotEqual(stripped, source, "the control must actually remove the call")
+
+        marker = Path(self._tmp.name) / "adapter-not-run"
+        adapter_dir = self._adapter_stub(marker)
+        sys.path[:0] = [str(adapter_dir), str(self.shimdir)]
+
+        self._run_shim(stripped, name=str(shim))
+        self.assertFalse(marker.exists(),
+                         "without the chain call nothing may execute the shadowed file")
+
+    def test_a_missing_adapter_is_survivable_and_says_so(self):
+        """No shadowed file on ``sys.path``: the shim still imports, and reports it."""
+        self.stage(self.CALLER, "import os\n")
+        self.module.ensure_inline_system_shim({})
+        shim = self.shimdir / "sitecustomize.py"
+        source = shim.read_text(encoding="utf-8")
+        sys.path[:0] = [str(self.shimdir)]
+
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            self._run_shim(source, name=str(shim))
+        self.assertIn("overlay patches NOT installed", stderr.getvalue())
+        self.assertNotIn("dsv41_adapter_sitecustomize", sys.modules)
 
 
 if __name__ == "__main__":
