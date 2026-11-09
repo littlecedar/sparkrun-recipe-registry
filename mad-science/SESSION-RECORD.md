@@ -7234,5 +7234,9 @@ here rather than left to a later quartet window. Receipt `head:~/benchmarks/ds4-
   its own stronger take — an explicit `path=` for the guard, adapter markers beside the file, and a new
   distro-`sitecustomize` regression case — carrying part of these hunks. Recorded here rather than by
   rewriting the commit.
-- **Remains:** `3c9030e`'s gate run and the next tick's landed row for it; this board's table stops at
-  18:14 by design, since a second republish in thirty minutes is churn on the coordination surface.
+- **Remains:** only the next tick's landed row for `3c9030e` — its gate run 42721165915 read `success`,
+  and this session's ledger commit `6ff2d05` read `success` in run 42721964142. This board's table stops
+  at 18:14 by design, since a second republish in thirty minutes is churn on the coordination surface.
+- **One swept hunk outlived its block.** The isolation I wrote used `sysconfig`, and `3c9030e`'s rewrite
+  replaced that block with an explicit `path=`, so the import I had added became dead on main; deleted
+  in this commit. The module-cleanup hunk it kept is what the caller guard still needs.

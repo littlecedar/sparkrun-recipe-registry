@@ -37,7 +37,6 @@ import io
 import importlib.util
 import os
 import sys
-import sysconfig
 import tempfile
 import types
 import unittest
