@@ -7060,3 +7060,42 @@ here rather than left to a later quartet window. Receipt `head:~/benchmarks/ds4-
   `Load weight begin` window, pinned/O_DIRECT staging during checkpoint read, and the meminfo-unaccounted pool above —
   each with `flare` absent or measured beside it, and with the same numbers taken on a 1025 control boot of the same
   arm. Register row `ds4-64k-pagesize-trial` is `done` on this receipt, so the route is not re-run.
+
+## 2026-11-09 17:03 ET — hourly tick stood down on a peer's fresher board
+
+- **What ran, and what it read.** A read-only six-node census at **17:03:28–17:03:30 ET** from the
+  workstation: `docker ps -aq` **1 / 0 / 0 / 0 / 0 / 0**, `docker ps -q` **0** and `docker volume ls -q`
+  **0** on all six, no `sglang.launch_server` process anywhere, and `.30`'s only container still the
+  never-started `sm121m` (`dsv41-sm121-dg:0.2.1`, `7fba5dc0050b`, `Status=Created`). Root `df -B1 /` as a
+  stamped pair **17:05:28–30 → 17:05:51–52** fell **159 744 B fleet-wide** (`.30` −8 192, `.31` −24 576,
+  `.32` −73 728, `.33` −16 384, `.34` −20 480, `.35` −16 384), every node falling on its own.
+- **The pool, read through the mount and paired with its own file survey.** At **17:05:53** `df -B1
+  /mnt/beegfs` read total 24 191 229 755 392 B, used **12 940 474 843 136 B**, avail **11 250 754 912 256 B**
+  (53.49 %), `stat -L` on the shipped DeepSeek-V4.1-Flash-1017 shard returned **970 533 624 B**, and the hub
+  held **102** entries with nothing newer than 15:55 — `find … -newermt '-70 minutes' -type f` returned 0, the
+  explicit 15:55–16:40 window returned 0, and outside `huggingface/` (the mount's only top-level entry) 0 in
+  75 min. So the hour's **+18 393 595 904 B used** against the 16:03 read has no file author in the tree and
+  no mechanism is named here either.
+- **Campaign and register.** Unit `active` (MainPID 2078281, started 09:12:09, `NRestarts=0`), worker `w1`
+  pid 2078290, `director status` 18 arms **9 measured / 9 blocked**, nine roots **32 arms, 0 live leases**;
+  the clone's register read `892197ee…` / 124 tasks at 17:02:35 while `HEAD` still held `f383bde0…` / 123 —
+  that write was a peer's, committed minutes later as `b8f83f6`.
+- **Stood down, because a peer's commit is the fresher refresh of the same hour.** `41a05ca` published a
+  17:16 board over the same census window, and by the time this tick was ready to publish two of its
+  composed cells had gone false: `.local/fleet-window.lock` is **absent** in this clone and on the head
+  (it stood at 17:02 with mtime 16:25:36 and was released with `b8f83f6`), and the worktree-vs-published
+  register divergence no longer exists, so the `892197ee…` cell is obsolete. Its landed table already
+  carries the 64 KiB verdict row, so appending this tick's rows would duplicate both. The composed board was
+  therefore withheld rather than published — replacing or doubling a peer's rows is the failure this
+  stand-down avoids.
+- **One discrepancy, reported not silently repeated.** This tick's two independent hub counts (**17:05:53**
+  and again after the publish attempt) both read **102** entries in `/mnt/beegfs/huggingface/hub`, while the
+  17:16 board's pool cell says **103**. Whichever holds, the cell's load-bearing claim is unaffected — the
+  newest repo dir is still `models--vllm-project--Kimi-K3.1-Pro-pruned75` at `2026-11-08 09:58` and no file
+  in the hub is newer than 15:55 — but the count is a live-board figure and should be re-derived by the next
+  tick rather than carried.
+- **`.35`, re-read after the release.** Boot −1 ran **16:41:24 → 16:59:03** on `7.0.0-1019-nvidia-64k`
+  (`getconf PAGESIZE` 65536 at 16:46:24 and 16:48:28), ended in a clean `Reached target reboot.target`, and
+  boot 0 started **16:59:17** on the default `7.0.0-1025-nvidia`; the node now reads 0 containers, 0 volumes,
+  `kho=off` on its cmdline, `CmaTotal`/`CmaFree` 0, and `dgx-spark-memory-saver/0.4.1` DKMS installed for the
+  64k kernel only.
