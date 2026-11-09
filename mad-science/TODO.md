@@ -1184,7 +1184,7 @@ deferred**, by the 19:15 owner policy (record: `SESSION-RECORD.md`). Measurement
   `executor_config` cannot express today (`entrypoint`/`user`/`shm_size`/`ulimit`/`cap_add`/
   `restart_policy` only), so an executor-level addition or a mod precedes the boot.)* *(effort: medium)*
 
-- [x] **Decide whether to attempt a DeepSeek-V4-Pro-0813 arm — the feasibility verdict says only sub-2-bpw
+- [ ] **Decide whether to attempt a DeepSeek-V4-Pro-0813 arm — the feasibility verdict says only sub-2-bpw
   artifacts fit, and only via a llama.cpp RPC route that needs a self-built image** — the fit table, the
   resolved llama.cpp multi-node question (`deepseek4` is in upstream master; `rpc-server` is absent from the
   pinned GB10 image) and the ranked candidates with falsifiers and boot gates are
