@@ -6666,3 +6666,37 @@ caught it was the section-list assertion, never lint — a structural check belo
   identically (used 14,381,371,883,520 B / avail 9,809,857,871,872 B) while `.30`'s own read came back
   **exactly 1,048,576 B** higher in used. Quoted per host rather than averaged: a six-host mean would
   hide a 1 MiB client-side difference behind a plausible number.
+
+## 2026-11-09 06:25 ET — board tick: fetching just before `publish` makes its remote gate vacuous
+- **The 06:10 close-out above records the guard firing; this tick records it not firing while
+the same hazard was live.** `publish` was given `--expect-remote-sha` taken from a `git fetch`
+run seconds earlier, so the gate compared the remote board against itself: it matched, exited
+0, and wrote a board composed over the **05:16** bytes (`31d815b4…`) onto the clone's disk
+while origin was already at the 06:08 board (`d271d96`, board sha `3d3544bb…`) and a second
+peer board (`844a8cd`, 06:10) 3 min behind that. Source: `tools/task-queue.py:882-888`
+compares `sha256(ref_text(...))` against the value passed, so the flag can only refuse a peer
+publish that happened **after** the read the flag is paired with. Procedure: fetch first
+(the tool's docstring asks for it), then pass the sha of the read you **composed from** —
+never the sha of the fetch you just ran. Recovery cost here was zero only because the next
+command listed `origin/main` and showed the tip had moved.
+- **Second trap, same cycle: a clause appended after a row's closing pipe makes the row
+ragged.**
+`row.rstrip() + clause` puts the text outside the last cell, so `publish` refused it with
+`table-ragged: 4 cells, header has 3` on three lines. Insert before the trailing `|` and
+re-add it. The refusal is the tool working: `lint` on the peer's untouched board right after
+the same run read `ok`.
+- **What the tick actually read**: census three times per node, 06:02:59 → 06:07:51 →
+06:14:04, containers `1 / 0 / 0 / 0 / 0 / 0` with nothing running and volumes `0`, `.30`'s
+`sm121m` still `created`, root avail falling **5 349 376 B over 665 s** with no node
+standing out; worker pool units read where the inherited row covered only `.30` — storage
+`active` from the 02:08:58–02:14:56 starts, meta `activating` on **2710 / 2692 / 2673 /
+2658 / 2641**, and `stat -L` on the Ripple snapshot answering **3 541 B on all six**; nine
+campaign roots at 32 arms / 0 leases; register `04e9f97f…` = 24 open of 120, zero claims,
+head's copy now byte-identical to origin's.
+- **Published as `2a95424`** folded row-keyed onto `844a8cd`'s bytes — census, pool and queue
+cells extended, one measurement row appended, every inherited row and the whole
+`render --board` table kept verbatim — with `lint` `ok`, gate run for `2a95424`
+`completed success`, and `tools/push-gate.py` printing `ok -- HEAD 2a954247` (POSIX shells,
+stated counts, tracked addresses). Two later peer boards (`8474a9b`, `f5e2732`) built
+linearly on top and all four clauses survive on origin. Nothing on the fleet was booted,
+claimed or stopped: this was a read-only tick.
