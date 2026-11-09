@@ -1990,6 +1990,21 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "ds4-64k-pagesize-trial",
+      "title": "64 KiB pages + UVM packing trial: refuted as the SM121 fit negative's mechanism",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "done",
+      "model": "dsv4.1-1017",
+      "node_cost": "single",
+      "notes": "One-shot boot of 7.0.0-1019-nvidia-64k (7.0.0-1019.19~24.04.2) plus dgx-spark-memory-saver 0.4.1 DKMS UVM leaf-table packing (ec1b17a8, packing parameter Y, module genuinely shadowing the prebuilt) on .35 at 2026-11-09 16:41 ET. At idle host page tables rose 9,360 -> 23,552 kB (2,451 -> 390 page-table pages, +15,156 kB in bytes), i.e. 0.0083 % -> 0.021 % of the ~107 GiB host dive that kills the marlin quartet boot while the rank cgroup stayed <=5.87 GB, so page tables cannot be the mechanism. The one repeatable lever is MemTotal +2,100,148 kB = +2.10 GiB from the 16x smaller vmemmap, the same order as upstream's measured 1.78-1.86 GiB/node; summed additively with that pack lever the whole configuration reaches 4.8 % of the dive, so the fit negative stands and a green trial would not have explained it. The only right-magnitude residual is 6.22 GiB of meminfo-unaccounted host memory on the 64 KiB boot vs 2.35 GiB on an idle 1025 peer, confounded by a flare agent holding a CUDA/NVML context - measure it directly in a quartet trial rather than infer it.",
+      "provenance": "mad-science/SESSION-RECORD.md §2026-11-09 64 KiB trial",
+      "evidence": "head:~/benchmarks/ds4-64k-20261109/",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []

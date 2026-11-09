@@ -1236,6 +1236,16 @@ one place,
 so this lane does not restate a budget. Keep the two apart: treating an inferred mechanism as the
 measurement is what has cost this lane its earlier attempts.
 
+**Host-side page size is closed, and the fit negative stands (2026-11-09).** A one-shot 64 KiB-page
+kernel with the `dgx-spark-memory-saver` UVM leaf-table packing — the DKMS module genuinely shadowing
+the prebuilt one, `State: packing-enabled`, CUDA smoke passing on it — was measured idle on `.35` and
+moves nothing that can matter: host page tables *grow*, and the package's only usable-memory lever is
+a ~2 GiB `MemTotal` gain, well under 5 % of the ~107 GiB dive that killed the boot while the rank
+cgroup stayed below 5.87 GB. Read it as "page size is a small usable-memory lever, not the block": the
+mechanism is still inferred, and a quartet trial should spend itself on host-side driver/UVM and
+staging memory across `Load weight begin`, not on page size. Receipt
+`head:~/benchmarks/ds4-64k-20261109/RECEIPT.md`; register row `ds4-64k-pagesize-trial`.
+
 **Collateral, and why the row stays blocked rather than held.** The same OOM kills the BeeGFS
 services on the ranks and on the head (`beegfs-mgmtd`, `beegfs-meta` and `beegfs-storage` all
 `status=9/KILL` on the head at 12:59:14; `beegfs-storage` from the rank side on `.31` and `.33`), so

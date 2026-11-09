@@ -7003,3 +7003,58 @@ allocation and reclaim) with no client process behind them, which is where the n
 belongs; the board's "writer unnamed" holds, while "consumption" overstates a quantity
 that also falls. Two ticks on this workstation read the pool this hour and each carried a
 different slice of the same oscillation.
+
+## 2026-11-09 17:02 ET — 64 KiB pages tested and refuted as the marlin mechanism
+
+One node, one reboot, one measured answer: the page-size route cannot carry the SM121 fit negative, so it is closed
+here rather than left to a later quartet window. Receipt `head:~/benchmarks/ds4-64k-20261109/` (49 artifacts).
+
+- **What was installed, and what was proved to be in force.** `linux-{image,modules,headers,tools}-7.0.0-1019-nvidia-64k`
+  at `7.0.0-1019.19~24.04.2` plus `linux-modules-nvidia-580-open-7.0.0-1019-nvidia-64k` and
+  `nvidia-kernel-source-580-open=580.178.04-0ubuntu0.24.04.1` (simulated first: 7 new, 0 upgraded, 0 removed, no
+  NVIDIA userspace change), and `dgx-spark-memory-saver` 0.4.1 at
+  `ec1b17a8ac713c6357b8f22983ded8503a524849`, registered in DKMS **for the 64 KiB kernel only**, where its
+  `updates/dkms/nvidia-uvm.ko.zst` genuinely shadowed the distro-prebuilt module — the project's own read-only
+  `./scripts/status` answered `State: packing-enabled`, `Packing parameter: Y`, `issues: []`, and the sibling modules
+  (`nvidia`, `nvidia_drm`, `mlx5_*`) stayed prebuilt. One shot only: a top-level `menuentry` `ds4-64k-trial` in
+  `/etc/grub.d/40_custom` cloned the fleet's own 1025 command line plus `panic=60 panic_on_oops=1`, armed with
+  `grub-reboot`, persistent default left pinned to the 1025 entry. `panic=` covers panics alone — an early-init
+  deadlock would still have needed a human power cycle on a node with no BMC — and that was accepted, not fixed.
+- **Page tables got larger, and they were never a mechanism.** Idle on 4 KiB: `PageTables` 9,360 kB and
+  `nr_page_table_pages` 2,451; idle on 64 KiB: 23,552 kB and 390 pages — 16× fewer pages in **+15,156 kB** of bytes
+  (a 64 KiB page-table entry maps more, so the byte counters and the page count part company; the 14,192 kB figure is
+  the `meminfo` delta). Against the ~107 GiB host dive those are **0.0083 % and 0.021 %**, and the peak under a
+  4.5 GiB pinned host↔device copy was 49,664 kB. Page tables therefore **cannot** be the marlin mechanism: the rank
+  cgroup never exceeded **5.87 GB** while `.31` lost 106.8 GiB in 3 s and 110.3 GiB in 4 s, so the lost memory was
+  never container-charged and never page-table-shaped.
+- **The real lever is `MemTotal`, and it is small.** 127,598,700 → 129,798,848 kB = **+2,100,148 kB = +2.10 GiB**,
+  what a 16× smaller `struct page`/vmemmap array buys (~1.81 GiB by arithmetic at 64 B/page), the same order as
+  upstream's measured end-to-end 1.78–1.86 GiB/node usable. The UVM packing half was loaded and enabled yet
+  **idle-neutral by construction** — it saves at allocation time, and an idle node makes no such allocations — so its
+  effect is quoted from upstream and was not re-measured (the pack-on/off A/B was impossible: a `flare` process holds
+  `/dev/nvidia-uvm`). Summed additively with upstream's 1.78–1.86 GiB the whole configuration reaches **4.8 % of the
+  107 GiB dive**, and the two levers do not actually compose — so a green trial would not have explained the fit
+  negative, and this negative result does not refute page size either.
+- **The one residual of the right order is still confounded, and stays unattributed.** Host memory outside every
+  `/proc/meminfo` category read **6.22 GiB** on the 64 KiB boot against **2.35 GiB** on an idle 1025 peer whose
+  `nvidia_uvm` refcount is 0. The peer comparison is confounded by a process, not a service: what holds a CUDA/NVML
+  context on `.35` (and on `.30`) is a user-run `/home/red/.local/lib/flare-agent/flare agent` process — two
+  `/dev/nvidia-uvm` fds, `VmRSS` 22.6 MB on `.30` / 28.5 MB on `.35` — while `flare-agent.service` **does not exist
+  on any of the six nodes** (`systemctl list-units --all 'flare*'` is empty everywhere, `nvidia_uvm` refcount 0 on
+  `.31`–`.34`). A 22–28 MB RSS process cannot weigh 3.9 GiB, so the residual is **not** attributed to it; the
+  receipt's `flare-agent.service` naming is corrected here and the quantity is left as the thing a quartet trial must
+  measure.
+- **Rollback is complete and verified, not assumed.** `.35` rebooted once back onto `7.0.0-1025-nvidia`:
+  `getconf PAGESIZE` 4096, `/sys/module/nvidia/version` 580.178.04, `swapon --show` 16 G `/swap.img` (the original
+  `sw` entry restored, `/swap-64k.img` left `noauto`), `modinfo -k 7.0.0-1025-nvidia -F filename nvidia_uvm`
+  resolving to `/lib/modules/7.0.0-1025-nvidia/kernel/nvidia-580-open/nvidia-uvm.ko` with **no** packing parameter,
+  `MemTotal` back to 127,598,700 kB, `/proc/cmdline` still carrying `kho=off` with `CmaTotal 0`, `beegfs-storage`
+  active, `docker ps -q` 0. `systemctl --failed` carries `beegfs-mon.service` alone, which is the fleet's
+  pre-existing empty `sysMgmtdHost` config and not a regression. The kernel packages and the DKMS module **stay
+  installed and inert**, reachable only through the `ds4-64k-trial` entry, because a later quartet trial may still
+  want them.
+- **What a quartet trial has to measure instead.** Not idle page tables. It has to account for the ~107 GiB dive
+  host-side while the rank cgroups stay flat: UVM sysmem and the driver's freed-UMA pool across the exact
+  `Load weight begin` window, pinned/O_DIRECT staging during checkpoint read, and the meminfo-unaccounted pool above —
+  each with `flare` absent or measured beside it, and with the same numbers taken on a 1025 control boot of the same
+  arm. Register row `ds4-64k-pagesize-trial` is `done` on this receipt, so the route is not re-run.
