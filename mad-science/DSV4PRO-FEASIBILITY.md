@@ -22,6 +22,7 @@ no figure from this file transfers to it without its own boot.
 - [4. The llama.cpp multi-node question — answered](#4-the-llamacpp-multi-node-question--answered)
 - [5. Ranked feasibility list](#5-ranked-feasibility-list)
 - [6. Provenance](#6-provenance)
+- [7. Owner rulings (2026-11-09)](#7-owner-rulings-2026-11-09)
 
 ## 1. Architecture brief (all from the base config + cards)
 
@@ -226,3 +227,21 @@ the dsv41 baseline's role, and the `#4` fence on `.30`–`.33` applies to any bo
   2026-10-24 (URLs inline).
 - Not verified here: any boot, any RPC latency, TensorFold's `deepseek_v4` family support, the
   ryant0000 Q1_0 tier's upload completeness. All INFERRED entries are labelled.
+
+## 7. Owner rulings (2026-11-09)
+
+The two register questions this note raised were answered 2026-11-09. Recorded as positions, so the
+note reads closed: §1–§6 are not rewritten, and these two rows are the only thing that changes how
+they read.
+
+- **`#78` — DSV4-Pro is closed as a quality gamble.** Owner: *"close DSV4-Pro as a quality gamble"* —
+  no arm and no pre-gates. So the *free* first checks §5 names are not run either: the TensorFold
+  `deepseek_v4` family read, the ryant0000 Q1_0 upload-completeness check, the `-DGGML_RPC=ON` sm_121
+  image build, and a four-node RPC boot all stay unpaid. §5 is the record of what would have been
+  ranked (R1 `6block`/`qtum` IQ1_M first), not a queue.
+- **`#79` — the compute set is fixed at six GB10 nodes for the planning horizon.** Owner: *"the
+  compute set is fixed at six GB10 nodes for the planning horizon"*. Every **impossible on six
+  nodes** row of the §3 fit table is therefore a **closed verdict, not a waiting one** — rows 1–3
+  (factory FP8+MXFP4 and both NVFP4 packs), 6 (unsloth UD), 7 (DevQuasar), 8a and 9/10's Q3_K_M — and
+  the RTX PRO 6000 Blackwell coordinator row 13 needs will not arrive as fleet hardware either. A row
+  reading "needs ≥ 7–10" is the reason an artifact is out, never a pending hardware request.

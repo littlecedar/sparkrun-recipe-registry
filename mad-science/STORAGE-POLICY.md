@@ -400,8 +400,12 @@ The two lanes the register names, measured rather than assumed:
 
 ### The budget
 
-> **Runtime cache ≤ 0.5 TB per node. HF cache ≤ 2.2 TB per node. `df /home` free ≥ 1.0 TB at all
-> times, on every node.**
+> **Runtime cache ≤ 0.5 TB per node. HF cache ≤ 90 % of the BeeGFS pool's capacity (≈ 20.7 TiB of
+> 23 TiB today). `df /home` free ≥ 1.0 TB at all times, on every node.**
+>
+> The HF rule is pool-level, restated 2026-11-09 (`QUESTIONS.md #75`): the cache lives in one BeeGFS
+> pool and all six nodes report the same usage through the shared hub, so a per-node HF cap cannot be
+> measured — `AGENTS.md` §"Architecture & Data Flow", "The HF cache is one pool, not six copies".
 
 Derivation, from what the nodes hold rather than from a round number:
 
@@ -412,15 +416,17 @@ Derivation, from what the nodes hold rather than from a round number:
   staging/distribution overhead ⇒ a node that cannot show **≥ 1.0 TB free *before* the download**
   cannot be handed an arm without evicting something first. The 1.0 TB floor is therefore what covers
   both the download and that variable non-cache term at once, rather than a number picked to look round.
-- 3.7 TB − 1.0 TB free − ~0.3 TB of non-cache use ⇒ **~2.4 TB of cache per node**, split 0.5 TB
-  runtime-cache (it self-prunes at 30 days; the worst measured lobe is 295.9 GB, so 0.5 TB holds one
-  lobe plus a season of small trees) and **2.2 TB HF cache** (the rounder half, since it is the half
-  that grows by whole model repos).
+- 3.7 TB − 1.0 TB free − ~0.3 TB of non-cache use ⇒ **~2.4 TB** of node-local headroom, of which
+  **0.5 TB runtime-cache** (it self-prunes at 30 days; the worst measured lobe is 295.9 GB, so 0.5 TB
+  holds one lobe plus a season of small trees); the rest is slack the node keeps for docker images,
+  checkouts and transient staging. The HF term is no longer in this arithmetic: the weights left the
+  node when the cache moved onto the pool, so only the pool row above caps them.
 
-The number is not arbitrary, and the fleet agrees with it: `.32`/`.33` are the only runtime-cache
-breaches (734.8 / 732.1 GB), and reclaiming §2's two stale DS4 keys brings them to **497.9 / 495.2 GB**
-— under the cap. `.30` is the only HF-cache node anywhere near its cap (2.0 TB of 2.2 TB), and it is
-the head, which is also the distribution source.
+The node-local numbers are not arbitrary, and the fleet agrees with them: `.32`/`.33` are the only
+runtime-cache breaches (734.8 / 732.1 GB), and reclaiming §2's two stale DS4 keys brings them to
+**497.9 / 495.2 GB** — under the cap. The per-node HF column in §"What the nodes actually hold" is a
+2026-10-15 measurement taken *before* the pool migration; those bytes are now one deduplicated pool,
+so `.30`'s 2.0 TB is a pool budget question, not a node one.
 
 ### Enforcement — the mechanism this repo can actually hold
 

@@ -691,6 +691,97 @@ folded into the rows they govern; these rows keep them citable.
   `mad-science/TP4-HEAD-TO-HEAD-1025.md` (every figure there predates the instrument); asked
   2026-11-08 and settled the same day.
 
+## Owner round 2026-11-09 — thirteen rows from the sweep, asked and answered in one batch
+
+- **#69 — Does the TP1/TP2 freeze stay in force, or carry an exception?** *Answered 2026-11-09:* **the
+  freeze holds.** No exception for the three single-node metrics-flag smokes and none for the named TP≤2
+  rows; the 2026-11-08 metrics-flag sweep is verified on a declared quartet window against the shipped
+  knapcio arm, which is the row's own path (b). Nothing TP≤2 boots until the freeze is lifted.
+  — provenance: `QUESTIONS.md` `#69`; queue row `metrics-flag-boot-verification`; owner 2026-11-09.
+
+- **#70 — Retire the SM121 survey trio to `attic/`, or re-shape it?** *Answered 2026-11-09:* **neither —
+  diagnose the OOM first.** In the owner's words: "Upstream has working Marlin. Diagnose OOM. Never run
+  risky boots on `.30`. `.31`–`.35` can be recovered." So the trio is **not** retired, upstream's Marlin
+  path is taken as working, and the measured global OOM at 58 s into weight load is the defect to explain
+  before any re-shape or retirement; any further attempt runs on `.31`–`.35` and never `.30`. The rows stay
+  `blocked` on the new queue row `sm121-marlin-oom-diagnosis` rather than on a decision.
+  — provenance: `QUESTIONS.md` `#70`; the three `w4-survey-arm*-sm121*` rows; owner 2026-11-09.
+
+- **#71 — May the declared six-node campaign lock be narrowed or deleted?** *Answered 2026-11-09:*
+  **delete it.** `.local/fleet-window.lock` was removed the same day; a campaign's real claim is
+  `<CAMPAIGN_ROOT>/state.json` plus its systemd unit, so the manual lock was redundant for it and was
+  withholding six nodes from every other session. — provenance: `QUESTIONS.md` `#71`; `AGENTS.md`
+  §Supervision (a campaign holds nodes without writing the lock); owner 2026-11-09.
+
+- **#72 — Ratify the live earlyoom pair, or apply the drafted one?** *Answered 2026-11-09:* **ratify
+  `-m 4,1 -s 100,95` with the `--prefer`/`--avoid` lists; the drafted `-m 14,5 -s 90,80` is dropped.**
+  The measurement behind it: a healthy quartet serve leaves ~5.7 GiB free and the dive from healthy to
+  out-of-memory runs ~27 GiB/s over ~0.2 s, so no non-disruptive threshold can fire first — protection is
+  `OOMScoreAdjust` plus fit arithmetic, and the threshold value is a side argument. This closes the loop
+  the `#67` fold left open. — provenance: `QUESTIONS.md` `#72`; `SESSION-RECORD.md` 2026-11-08 "earlyoom
+  `-m 20` reverted to `-m 4,1`"; `TODO.md` `#67` and its dated correction; owner 2026-11-09.
+
+- **#74 — Change the storage topology so HF ingest never writes to `.30`'s root target, or leave the
+  single shared hub?** *Answered 2026-11-09:* **leave it as it is** — no `hf-canonical` pool, no `s:1`
+  exclusion. The shared hub shape stays, and `.30` reads 1167 GiB free in the newest census (above the
+  1.0 TB floor), so the squeeze that raised the question is not live. — provenance: `QUESTIONS.md` `#74`;
+  `BEEGFS-REPORT.md` :330-337; owner 2026-11-09.
+
+- **#75 — Restate the storage budget for the pool era, or hold it?** *Answered 2026-11-09:* **restate at
+  pool level.** Runtime cache stays `≤ 0.5 TB/node` and `df /home` free `≥ 1.0 TB/node`; the HF half
+  becomes a pool rule (`≤ 90 %` of the BeeGFS pool's capacity, ≈ 20.7 TiB of 23 TiB today), because all
+  six nodes report the same usage through the shared hub and a per-node cap cannot be measured. Follow-up
+  is queue row `cache-audit-pool-budget` (the audit tool still measures per node).
+  — provenance: `QUESTIONS.md` `#75`; `STORAGE-POLICY.md` §budget; owner 2026-11-09.
+
+- **#76 — Sign off on the installed FLARE `a161b17f` build, or require the rebuild-and-hash proof?**
+  *Answered 2026-11-09:* **accept it as installed** — no rebuild-and-hash proof required. Recorded as a
+  standing risk acceptance: the key was confirmed against the same document and the same host that serves
+  it, and every `apt upgrade` on a node carrying the key carries the same unproven gap.
+  — provenance: `QUESTIONS.md` `#76`; `FLARE.md` :373, :386; queue row `flare-agent-rollout`; owner
+  2026-11-09.
+
+- **#77 — Extend the phased `flare agent` grant to the production ranks, or hold?** *Answered 2026-11-09:*
+  **extend to `.31`–`.34` now and change the serve port to 9000.** Note the scope widened past the ask
+  (`.34` included, where the question proposed `.31`–`.33`), and the port move is the collision with the
+  production serve: the first execution step is to confirm which process owns 8000 before anything moves,
+  because a recipe-wide port change would break every client. — provenance: `QUESTIONS.md` `#77`; queue row
+  `flare-agent-rollout`; owner 2026-11-09.
+
+- **#78 — Pursue a DeepSeek-V4-Pro-0813 arm, or close it?** *Answered 2026-11-09:* **close it as a quality
+  gamble** — no arm, no pre-gates run, no window spent. The fit census stays as the record.
+  — provenance: `QUESTIONS.md` `#78`; `DSV4PRO-FEASIBILITY.md` §5 and its 2026-11-09 appendix; owner
+  2026-11-09.
+
+- **#79 — Is the compute set final at six GB10 nodes?** *Answered 2026-11-09:* **fixed at six for the
+  planning horizon** — no 7th–9th node and no RTX PRO 6000 coordinator. Every "impossible on six nodes" row
+  in the DSV4-Pro census is therefore a closed verdict, not a waiting one.
+  — provenance: `QUESTIONS.md` `#79`; `DSV4PRO-FEASIBILITY.md` 2026-11-09 appendix; owner 2026-11-09.
+
+- **#80 — Is the Mistral-Large-4 park verdict final, or authorise a rental?** *Answered 2026-11-09:*
+  **"Move it to the attic"** — the park is final, no rental is authorised, and
+  `MISTRAL-LARGE-4-FEASIBILITY.md` moved to `attic/` (content verbatim; `attic/` is frozen provenance).
+  — provenance: `QUESTIONS.md` `#80`; `attic/MISTRAL-LARGE-4-FEASIBILITY.md`; owner 2026-11-09.
+
+- **#81 — Accept the gated model licences on the staging HF account?** *Answered 2026-11-09:*
+  **`black-forest-labs/FLUX.2-dev` accepted, and `black-forest-labs/flux-3-image-klein` accepted;
+  `facebook/dinov3-vith16plus-pretrain-lvd1689m` declined for now** — "we will not accept facebook license
+  time". Consequence: `media-idol-3dgs-boot` stays blocked, because the arm needs the dinov3 ViT-H+/16
+  encoder *and* the FLUX VAE, so the accepted half does not unblock it; the row now names the declined
+  licence as its blocker instead of an unstated gate. — provenance: `QUESTIONS.md` `#81`;
+  `recipes/media/idol-1.8b-bf16-3dgs-script.yaml` header (both encoders);
+  `recipes/media/README.md` :571-573 (the 403 probe); owner 2026-11-09.
+
+- **#83 — May `OOMScoreAdjust=-900` also go on `user@1000.service`?** *Answered 2026-11-09:* **yes** —
+  alongside `ssh.service` and `NetworkManager.service`. The user manager is the third member of the
+  overrun's blast radius and its teardown is what SIGKILLs every tmux session, TUI and cluster monitor on
+  the node; the work is now in queue row `host-memory-policy-apply` beside the other two drop-ins.
+  — provenance: `QUESTIONS.md` `#83`; `SESSION-RECORD.md` 2026-11-08; owner 2026-11-09.
+
+- **Withdrawn before asking (recorded so the numbering is honest).** `#73` (BeeGFS units off `Restart=no`)
+  was already executed at 16:47 on 2026-11-08, and `#82` (`# DECISIONS` in JSON) is ruled by `QUEUE.md`
+  ("a settled question or decision stays prose … correctly outside the JSON"). Neither reached the owner.
+
 
 # TODO list
 
@@ -1093,7 +1184,7 @@ deferred**, by the 19:15 owner policy (record: `SESSION-RECORD.md`). Measurement
   `executor_config` cannot express today (`entrypoint`/`user`/`shm_size`/`ulimit`/`cap_add`/
   `restart_policy` only), so an executor-level addition or a mod precedes the boot.)* *(effort: medium)*
 
-- [ ] **Decide whether to attempt a DeepSeek-V4-Pro-0813 arm — the feasibility verdict says only sub-2-bpw
+- [x] **Decide whether to attempt a DeepSeek-V4-Pro-0813 arm — the feasibility verdict says only sub-2-bpw
   artifacts fit, and only via a llama.cpp RPC route that needs a self-built image** — the fit table, the
   resolved llama.cpp multi-node question (`deepseek4` is in upstream master; `rpc-server` is absent from the
   pinned GB10 image) and the ranked candidates with falsifiers and boot gates are
@@ -1102,6 +1193,12 @@ deferred**, by the 19:15 owner policy (record: `SESSION-RECORD.md`). Measurement
   (ii) verify the `ryant0000` Q1_0 tier is actually complete on the Hub (card said "uploads in progress");
   (iii) only then build the RPC image (`-DGGML_RPC=ON` + CUDA sm_121) and pay a 4-node boot. Any boot also
   waits on the `#4` fence *(superseded 2026-10-23: the fence lifted — `.30`–`.33` are open)*. *(effort: medium; research first — the image build is the first owner-visible cost.)*
+
+  *(Closed 2026-11-09 — owner rulings `QUESTIONS.md` `#78` and `#79`: DSV4-Pro is a quality gamble and no
+  arm is attempted, so none of the pre-gates (i)–(iii) runs and no window is spent; and the compute set is
+  fixed at the six GB10 nodes for the planning horizon, which makes every "impossible on six nodes" row in
+  [`DSV4PRO-FEASIBILITY.md`](DSV4PRO-FEASIBILITY.md) a closed verdict rather than a waiting one. The
+  feasibility note carries both rulings in a dated appendix.)*
 
 
 
