@@ -698,6 +698,14 @@ folded into the rows they govern; these rows keep them citable.
   rows; the 2026-11-08 metrics-flag sweep is verified on a declared quartet window against the shipped
   knapcio arm, which is the row's own path (b). Nothing TP≤2 boots until the freeze is lifted.
   — provenance: `QUESTIONS.md` `#69`; queue row `metrics-flag-boot-verification`; owner 2026-11-09.
+  *(Correction 2026-11-09, later the same day: **the freeze this answer confirmed is lifted** — for TP4 work, and
+  for those TP1/TP2 items that unblock a TP4 item — by the owner directive recorded below under `## Owner directive
+  2026-11-09 — TP4 unfrozen, TP1/TP2 only via TP4`, whose wording is kept verbatim there. What the lift does not
+  touch: `#70` still confines a memory-risky quartet boot to `.31`–`.35` and never `.30`, and `#58` still forbids
+  displacing the production ds4 TP=4 quartet on `.31`–`.34`, so "TP4 permitted" is permission where the hardware is
+  free, never a reason to stop a live serve; a TP1/TP2 row that unblocks no TP4 row stays blocked, and every quartet
+  boot still claims its window with `.local/fleet-window.lock` before anything starts. The answer's own text stands
+  as written — it was true at the time it was given.)*
 
 - **#70 — Retire the SM121 survey trio to `attic/`, or re-shape it?** *Answered 2026-11-09:* **neither —
   diagnose the OOM first.** In the owner's words: "Upstream has working Marlin. Diagnose OOM. Never run
@@ -782,6 +790,25 @@ folded into the rows they govern; these rows keep them citable.
   was already executed at 16:47 on 2026-11-08, and `#82` (`# DECISIONS` in JSON) is ruled by `QUEUE.md`
   ("a settled question or decision stays prose … correctly outside the JSON"). Neither reached the owner.
 
+
+## Owner directive 2026-11-09 — TP4 unfrozen, TP1/TP2 only via TP4
+- **Owner directive, 2026-11-09 (verbatim):** *"TP4 work and anything that unblocks TP4 work is now permitted. TP1 and
+  TP2 work is not permitted unless it unblocks TP4 work."* It supersedes the 2026-11-08 fleet-wide TP1/TP2 freeze that
+  `#69` had confirmed the same morning (the dated correction on that entry records the lift), and it cancels none of
+  the three standing constraints a quartet boot still meets: **`#70`** — a memory-risky TP4 boot takes its four ranks
+  from `.31`–`.35` and never `.30`, because a global OOM there costs `ssh`, the user manager and the BeeGFS units;
+  **`#58`** — the production ds4 TP=4 quartet on `.31`–`.34` is untouched indefinitely and is never stopped to open a
+  research window, so "TP4 permitted" means permitted where the hardware is free, never permission to displace a live
+  serve; and **the window mechanism** — a four-rank window is claimed in writing with `.local/fleet-window.lock` before
+  anything boots (`AGENTS.md` §"Node hygiene"), the previous owner-declared lock having been deleted today per `#71`.
+- **Reading the register under it.** `metrics-flag-boot-verification` takes its path (b) — a declared quartet window on
+  the shipped knapcio arm — as permitted, and its only remaining gate is a free four-node window that displaces no
+  production serve; its three TP=1 single-node smokes (path (a)) are withdrawn, because none of them unblocks a TP4
+  row. The five TP1/TP2 rows — `kimi-superexpert-ref-probe`, `ds4-gsq-rco-coder-llamacpp-boot`, `ripple-65b-nvfp4-tp1`,
+  `ripple-65b-nvfp4-dflash2-tp1`, `ripple-65b-bf16-tp2` — unblock no TP4 row, so each recites the new gate and stays
+  `blocked` on its own non-freeze gate; the judgement and its evidence live in each row's `notes`.
+  — provenance: owner 2026-11-09; `QUESTIONS.md` `#69` and the dated correction on its answer; `mad-science/queue.json`
+  rows named above; `AGENTS.md` §"Node hygiene".
 
 # TODO list
 
