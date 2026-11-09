@@ -692,7 +692,10 @@ preamble, session-progress and cluster-state narrative lives in `SESSION-RECORD.
 - **Node discipline** (owner directive 2026-10-19): both test nodes stay busy — `.34`/`.35` run two
   independent single-node lanes (one serve per node) and collapse to one lane only for a TP=2 boot;
   TP=4 work runs on `.30`–`.33`, TP≤2 work on `.34`/`.35`; never put `.34`/`.35` into a four-node
-  launch while their queues run. When a lane frees, the next staged arm boots immediately,
+  launch while their queues run. **Narrowed 2026-11-08** (`TODO.md` §"Settled questions" `#67`): a
+  memory-risky TP4 quartet boot picks its four ranks from `.31`–`.35` and never `.30`, because a global
+  OOM there takes `ssh`, the user manager and the BeeGFS units — `.31`–`.35` is a five-node pool, not a
+  quartet, and the `.34`/`.35` queue rule above still applies when they are chosen. When a lane frees, the next staged arm boots immediately,
   cheapest-window-first, with the next boot+suite commands prepared before the previous leg ends.
 - **Long suite legs run under `setsid` + `stdbuf -oL` writing to a file.** Verify pids
   (`ps -eo pid,etime,cmd`) before any restart, treat an empty redirected log as buffering, and never
