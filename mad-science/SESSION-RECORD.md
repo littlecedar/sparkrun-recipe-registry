@@ -6951,3 +6951,38 @@ number below was carried from a board row alone.
   not fleet work. The `beegfs-meta` restart loop on `.31`–`.35` is unchanged at a ~5 s
   cadence (`NRestarts` 6559 / 6541 / 6522 / 6507 / 6490 at the 11:41 ET read) and stays
   queued; the pool read a real 970,533,624 B shard through the mount at 11:46:00 ET.
+- **The 12:00 tick stood down: a peer tick published the 12:11 board three minutes
+earlier, and an independent six-node probe corroborates it.** Two ticks ran this hour
+on the same workstation. This one read every node at 12:03:13 and again at 12:05:20 ET
+(`docker ps -q` `0` on all six, `docker ps -a` only `.30`'s `sm121m` `dsv41-sm121-dg:0.2.1`
+leftover in `Created`, `docker volume ls -q` `0` on all six; root avail
+1 560 187 805 696 / 1 855 691 649 024 / 1 951 778 779 136 / 1 897 695 404 032 /
+1 345 070 772 224 / 1 429 979 357 184 B on `.30`–`.35`, **−17 457 152 B** against
+the 11:41:32 read and **−864 256 B** across its own 127 s pair), swept the nine
+campaign roots at 12:03:14 (**32 arms, 0 leases**, the same 7/1/1/1/18/1/1/1/1 split
+the published board carries), read `director status` (**9 measured, 9 blocked**,
+unit active since 09:12:09, `MainPID 2078281`), and re-read the register
+(**122 tasks: 97 done / 14 queued / 11 blocked / 0 claims**, `check` rc=0,
+`questions` 0). Every figure agrees with the board the peer published at 12:12:17
+(`e671b92`), whose census (12:06:38 → 12:07:51) is fresher than this probe's, so a
+second publish would have replaced fresher rows with older ones. Also corroborated:
+`beegfs-meta` on `.31`–`.35` read `NRestarts` 6863 / 6844 / 6825 / 6810 / 6793 at
+12:08:03, **+304 / 303 / 303 / 303 / 303** on the 11:41 figures (≈5.3 s per restart),
+so the 5 s loop in the queued row is unchanged.
+- **The pool's space kept going, and faster, after the published board's window
+closed.** `df -B1 /mnt/beegfs` read 12:08:04 → 12:09:35 ET: used
+12 921 799 704 576 → 12 921 823 297 536 B and avail 11 269 430 050 816 →
+11 269 406 457 856 B, i.e. **+23 592 960 B in 91 s = 259 KB/s**, against the board's
+own window (12:06:39 → 12:07:51) of +8 912 896 B in 72 s = 124 KB/s. The two windows
+chain exactly — the first ends on 12 921 799 704 576 B, where the second starts — so
+176 s of continuous consumption at a rate that roughly doubled, with the hub still at
+**102** entries and the DeepSeek-V4.1-Flash-1017 shard read through the mount at
+**970 533 624 B** (mtime `2026-10-18 01:15:47 -0400`), unchanged. What writes it stays
+unattributed: no writer process and no inode was tied to either delta this tick.
+- **Two ticks shared one fixed `/tmp` compose path, and it was clobbered mid-compose.**
+After this tick wrote and then patched `/tmp/compose-1200.py`, a read of that same path
+returned compose text this session did not author — "avail pair over the 72 s window",
+the earlyoom `-m 4,1 -s 100,95` clause — matching the peer board's wording. The skill
+already names the trap (compose to a per-session path); the durable form is to put the
+tick's identity in the compose script's name too (`/tmp/compose-<HHMM>-<pid>.py`), not
+only in the output board's.
