@@ -1945,6 +1945,21 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "beegfs-meta-restart-loop-non-meta-hosts",
+      "title": "beegfs-meta restart-loops every 5 s on .31-.35, and the loop hides a failed state behind \"activating\"",
+      "estimate_h": 0.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "Measured 2026-11-09 07:03-07:05 ET, and it is the side effect of the fix `beegfs-units-restart-no` (done) blessed: /etc/systemd/system/beegfs-meta.service.d/oom.conf (mtime 2026-11-08 16:03 on .30, 16:05 on .31) sets OOMScoreAdjust plus Restart=on-failure RestartSec=5 on every host, which is right for .30's real metadata server and wrong for the other five. On .31-.35 beegfs-meta.conf has an empty storeMetaDirectory, so each attempt exits 1 with 'Error: No metadata storage directory specified' and systemd schedules the next one 5 s later, for ever: NRestarts read 3406 on .31 at 07:03 and 3431 at 07:05 (3358 / 3339 / 3324 / 3307 on .32-.35), all since their 02:08:58-02:14:56 boots, and .31's journal already totals 956.6 MB. The 06:14:04 board landed row already read 2710 / 2692 / 2673 / 2658 / 2641 on the same host set, so the count is climbing ~1 per 5 s, not an artefact. Loop only started at the 02:08 reboot: the 23:08 board read `failed` with NRestarts=0, because the drop-in had not been applied to a start attempt yet. Harm: five nodes spawn and reap a process every 5 s and write ~7 journal lines each, and `systemctl is-active beegfs-meta` reads `activating` rather than `failed`, so any gate that treats 'not failed' as healthy now sees a unit that has never served. Not a pool outage: beegfs-storage is `active` `Result=success` on all five and the mount serves df/stat reads from every host. Fix: keep the OOMScoreAdjust the drop-in exists for, and give the meta unit Restart=no (or mask beegfs-meta) on hosts whose storeMetaDirectory is empty; acceptance is NRestarts flat over 10 min and is-active reading failed-or-inactive rather than activating on .31-.35, with .30's unit untouched.",
+      "provenance": "probe /tmp/tick-pool-20261109-0700.sh on .30 and .31; board row 2026-11-09 07:0x",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
