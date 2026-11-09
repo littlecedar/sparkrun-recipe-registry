@@ -53,7 +53,9 @@ Stdlib only.  Usage:
     uv run python -B tools/task-queue.py weight --id X         # one task's arithmetic
     uv run python -B tools/task-queue.py render                # markdown table for TODO/STATUS
     uv run python -B tools/task-queue.py render --board        # the STATUS.md `## Work queue` table
-    uv run python -B tools/task-queue.py graph                 # fenced mermaid: open rows + real edges
+    uv run python -B tools/task-queue.py graph                 # fenced mermaid: the connected rows
+    #   only rows taking part in an edge (plus the questions they reach); `--all` draws every
+    #   open row
     uv run python -B tools/task-queue.py orphans               # TODO items with no live queue row
     uv run python -B tools/task-queue.py lint [FILE ...]       # markdown that will not render (default: the board)
     uv run python -B tools/task-queue.py publish < new-board   # write the board unless the one on disk is newer
@@ -928,20 +930,15 @@ def _cell(text: str) -> str:
 
 #: Node budget for `graph`: a 100-box diagram is unreadable, and it lands in an ~80 KB board.
 GRAPH_BUDGET = 30
-#: Terse task ids look alike; a node carries a prefix and the table carries the rest.
-GRAPH_LABEL = 34
+#: Hyphenated ids are long; with the connected view at ~9 nodes there is room for most of one.
+GRAPH_LABEL = 60
 #: The three ways a row cites an owner question: `QUESTIONS.md #67`, `questions [67]`, a bare `#67`.
 QUESTION_CITE = re.compile(r"#(\d+)|questions\s*\[\s*(\d+)\s*\]")
 
-#: classDef name -> style.  Colour is the only signal a reader gets without the table.
-GRAPH_CLASSES = (
-    ("queued", "fill:#dbeafe,stroke:#1e40af,color:#111"),        # blue: ready to run
-    ("blocked", "fill:#fef3c7,stroke:#b45309,color:#111"),       # amber: waiting on a row
-    ("running", "fill:#dcfce7,stroke:#15803d,color:#111"),       # green: claimed
-    ("done", "fill:#e5e7eb,stroke:#6b7280,color:#111"),          # grey: not drawn
-    ("question", "fill:#ede9fe,stroke:#6d28d9,color:#111"),      # violet: an owner question
-    ("no-recorded-edge", "fill:#fee2e2,stroke:#b91c1c,stroke-dasharray: 4 3,color:#111"),
-)
+#: One style-only rule, and not a colour: the renderer's theme owns fill and text, so the block
+#: reads on light and dark alike. State is in the label text; the dashed stroke is a non-colour
+#: channel (it also works for colour-blind readers) marking the owner-gated rows.
+GRAPH_STYLE = ("no-recorded-edge", "stroke-dasharray: 4 3")
 
 
 def _graph_label(text: str) -> str:
@@ -956,22 +953,27 @@ def question_citations(task: dict, known: set[int]) -> list[int]:
     return sorted(found & known)
 
 
-def graph_body(data: dict, max_nodes: int = GRAPH_BUDGET) -> tuple[list[str], list[str]]:
+def graph_body(data: dict, max_nodes: int = GRAPH_BUDGET,
+               all_rows: bool = False) -> tuple[list[str], list[str]]:
     """(the mermaid lines above the closing fence, warnings) for the open rows in `data`.
 
-    Three edge tiers, because a `blocked_by`-only graph would be a lie: measured 2026-11-08,
-    every *open* blocked row stores `blocked_by: []` while the register records its gate as a
-    citation of an owner question. So: `blocks`/`blocked_by` pairs between open rows (today two
-    edges, both into `h2h-doc-refresh`), `q<n> --> row` for every row whose notes or provenance
-    cite an open question, and a dashed `no-recorded-edge` class for a blocked row that cites
-    nothing -- "gated by prose, not by a row", which is what a blank `blocked_by` really means.
+    Edge tiers, because a `blocked_by`-only graph would be a lie: measured 2026-11-08, every
+    open blocked row stores `blocked_by: []` while its gate is a citation of an owner question.
+    So: `blocks` pairs between open rows, `q<n> --> row` for every row whose notes or provenance
+    cite an open question, and nothing for the rest -- which `--all` draws dashed
+    `no-recorded-edge`, "gated by prose, not by a row".
+
+    The default view draws the connected set only: rows taking part in an edge, in either
+    direction, plus the questions they reach. On the 2026-11-08 register that is 9 nodes and
+    6 edges instead of 27 boxes with 18 isolated -- a box wall reads as "nothing depends on
+    anything", which is the failure this drawing exists to prevent. `--all` draws every open
+    row, and the counts comment names how many the default left out, so an omission is visible
+    in the raw markdown.
 
     Edges come from the blocking row's `blocks` only: `blocked_by` is a mirror `_relink`
     rewrites from it, and `validate` refuses one that disagrees -- so a mismatch is a register
-    mid-edit, and it is warned about rather than drawn. The counts comment is the diagnostic
-    (`12 blocked, 3 edges, 9 prose-gated, 2 question-gated, 1 question` on the 2026-11-08
-    register): a later tick that records real edges moves `edges`, which is how a sparse graph
-    and a wrong one are told apart from the raw markdown.
+    mid-edit, and it is warned about rather than drawn. A tick that records real edges moves
+    `edges` in the counts line, which is how a sparse graph and a wrong one are told apart.
     """
     max_nodes = max(1, max_nodes)
     tasks = sorted((t for t in data.get("tasks") or []
@@ -982,10 +984,6 @@ def graph_body(data: dict, max_nodes: int = GRAPH_BUDGET) -> tuple[list[str], li
                  if isinstance(q, dict) and isinstance(q.get("id"), int)}
     warnings: list[str] = []
 
-    # The blocking row's `blocks` is the authoritative edge source: `blocked_by` is a mirror
-    # that `_relink` (on every `update`) rewrites from it, and `validate` refuses one that
-    # disagrees. Reading `blocks` therefore needs no repair pass, and a disagreement is a
-    # register mid-edit, worth saying out loud rather than drawing as if it were an edge.
     row_edges: set[tuple[str, str]] = set()
     mirror: dict[str, set[str]] = {}
     for t in tasks:
@@ -996,7 +994,6 @@ def graph_body(data: dict, max_nodes: int = GRAPH_BUDGET) -> tuple[list[str], li
         for child in t.get("blocks") or []:
             if child in open_ids:
                 row_edges.add((tid, child))
-    # Cross-check the stored mirror; the union is NOT drawn.
     for t in tasks:
         tid = str(t.get("id"))
         stored = set(t.get("blocked_by") or []) & open_ids
@@ -1009,25 +1006,33 @@ def graph_body(data: dict, max_nodes: int = GRAPH_BUDGET) -> tuple[list[str], li
     cited = {str(t.get("id")): question_citations(t, set(questions)) for t in tasks}
     question_nodes = sorted({q for ids in cited.values() for q in ids})
     question_edges = {("q:%d" % q, tid) for tid, qs in cited.items() for q in qs}
-    # Three kinds of blocked row, and the counts line names two of them: the one a row edge
-    # reaches, the one a question edge reaches (`question-gated`), and the rest (`prose-gated`,
-    # drawn dashed). The prose itself splits further -- a decision or freeze, a recorded verdict,
-    # an external prerequisite -- but the register carries no field that says which, so the
-    # diagram does not pretend to.
     incoming = {target for _source, target in row_edges}
     blocked_ids = [str(t.get("id")) for t in tasks if t.get("state") == "blocked"]
     question_gated = [tid for tid in blocked_ids if tid not in incoming and cited[tid]]
     prose_gated = [tid for tid in blocked_ids if tid not in incoming and not cited[tid]]
+
+    participants = {tid for edge in row_edges for tid in edge}
+    participants |= {tid for _q, tid in question_edges}
+    drawn = tasks if all_rows else [t for t in tasks if str(t.get("id")) in participants]
+    omitted = len(tasks) - len(drawn)
+    counts = (f"{len(blocked_ids)} blocked, {len(row_edges)} edges, "
+              f"{len(prose_gated)} prose-gated, {len(question_gated)} question-gated, "
+              f"{len(question_nodes)} question")
+    if omitted:
+        counts += f", {omitted} rows not drawn (--all)"
+
+    classdef = f"  classDef {GRAPH_STYLE[0]} {GRAPH_STYLE[1]}"
     if not tasks:
-        # A fence with only classDefs says nothing; the reader gets a node that says it.
-        lines = ["flowchart LR",
-                 "  %% 0 blocked, 0 edges, 0 prose-gated, 0 question-gated, 0 question",
-                 '  empty["no open rows in the register"]:::done']
-        lines += [f"  classDef {cls} {style}" for cls, style in GRAPH_CLASSES]
-        return lines, warnings
+        # A fence with only a classDef says nothing; the reader gets a node that says it.
+        return (["flowchart LR", "  %% " + counts,
+                 '  empty["no open rows in the register"]', classdef], warnings)
+    if not drawn and not question_nodes:
+        return (["flowchart LR", "  %% " + counts,
+                 '  empty["no edge recorded among the open rows; --all draws every row"]',
+                 classdef], warnings)
 
     nodes = [("q:%d" % q, questions[q], "question") for q in question_nodes]
-    nodes += [(str(t.get("id")), t, "task") for t in tasks]
+    nodes += [(str(t.get("id")), t, "task") for t in drawn]
     truncated = len(nodes) > max_nodes
     shown = nodes[: max_nodes - 1] if truncated else nodes
     hidden = nodes[len(shown):]
@@ -1042,43 +1047,39 @@ def graph_body(data: dict, max_nodes: int = GRAPH_BUDGET) -> tuple[list[str], li
         else:
             task_number += 1
             name[key] = "t%d" % task_number
-    lines = ["flowchart LR",
-             f"  %% {len(blocked_ids)} blocked, {len(row_edges)} edges, "
-             f"{len(prose_gated)} prose-gated, {len(question_gated)} question-gated, "
-             f"{len(question_nodes)} question"]
+    lines = ["flowchart LR", "  %% " + counts]
     if truncated:
         lines.append(f"  %% truncated: {len(shown)} shown of {len(nodes)}")
     for key, payload, kind in shown:
         if kind == "question":
             lines.append(f'  {name[key]}["Q{payload["id"]} · '
-                         f'{_graph_label(payload.get("summary"))}"]:::question')
+                         f'{_graph_label(payload.get("summary"))}"]')
             continue
-        blocked_id = str(payload.get("id"))
-        cls = "no-recorded-edge" if blocked_id in prose_gated else str(payload.get("state"))
-        owner = " · owner" if cls == "no-recorded-edge" else ""
-        state = payload.get("state")
-        lines.append(f'  {name[key]}["{_graph_label(blocked_id)} · {state}{owner}"]:::{cls}')
+        tid = str(payload.get("id"))
+        gated = tid in prose_gated
+        owner = " · owner" if gated else ""
+        suffix = ":::" + GRAPH_STYLE[0] if gated else ""
+        lines.append(f'  {name[key]}["{_graph_label(tid)} · {payload.get("state")}{owner}"]{suffix}')
     if truncated:
         more = []
         if hidden_tasks:
             more.append(f"{len(hidden_tasks)} more open rows")
         if hidden_questions:
             more.append(f"{len(hidden_questions)} more question(s)")
-        lines.append(f'  tn["… {" + ".join(more)} (see the table)"]:::done')
+        lines.append(f'  tn["… {" + ".join(more)} (see the table)"]')
     edges = sorted({(name[a], name[b]) for a, b in row_edges | question_edges
                     if a in name and b in name},
                    key=lambda e: (e[0][0], int(e[0][1:]), e[1][0], int(e[1][1:])))
     for source, target in edges:
         lines.append(f"  {source} --> {target}")
-    for cls, style in GRAPH_CLASSES:
-        lines.append(f"  classDef {cls} {style}")
+    lines.append(classdef)
     return lines, warnings
 
 
 def cmd_graph(args, path: Path) -> None:
     """Print one fenced mermaid block, derived from the register (never from the board)."""
     data = load(path)
-    body, warnings = graph_body(data, args.max_nodes)
+    body, warnings = graph_body(data, args.max_nodes, getattr(args, "all", False))
     for warning in warnings:
         print(f"task-queue: graph: blocked_by/blocks disagree — {warning}", file=sys.stderr)
     print("```mermaid")
@@ -1242,6 +1243,8 @@ def main(argv: list[str] | None = None) -> int:
     # from the wrong file.
     p_graph.add_argument("--file", default=argparse.SUPPRESS,
                          help=f"queue JSON (default {DEFAULT_QUEUE}); the global --file works too")
+    p_graph.add_argument("--all", action="store_true",
+                         help="draw every open row, not only the rows taking part in an edge")
     p_graph.add_argument("--max-nodes", type=int, default=GRAPH_BUDGET,
                          help=f"node budget; the remainder collapses into one node "
                               f"(default {GRAPH_BUDGET})")

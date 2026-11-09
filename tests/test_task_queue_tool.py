@@ -567,14 +567,42 @@ class MarkdownLint(unittest.TestCase):
 
 
 class DependencyGraph(unittest.TestCase):
-    """`graph`: the register's open work as one mermaid block, edges from what it records.
+    """`graph`: the register's *connected* open work as one mermaid block, no baked colours.
 
-    A `blocked_by`-only graph would draw ~25 disconnected boxes and assert that nothing depends
-    on anything: measured 2026-11-08, every *open* blocked row stores `blocked_by: []` while its
-    gate is an owner-question citation (`QUESTIONS.md #67`, the TP1/TP2 freeze). The sparse
-    register is therefore the case that matters, and the counts comment is what tells a sparse
-    graph from a wrong one.
+    A `blocked_by`-only graph would draw disconnected boxes and assert that nothing depends on
+    anything: measured 2026-11-08, every *open* blocked row stores `blocked_by: []` while its gate
+    is an owner-question citation. The default view therefore draws only rows that take part in an
+    edge, in either direction -- 9 nodes and 6 edges instead of 27 boxes, 18 of them isolated --
+    and the counts comment names what it left out. `--all` draws every open row.
     """
+
+    def test_the_connected_view_draws_only_edge_participants(self):
+        rows = relink([task("a", 1.0, ["b"]), task("b", 1.0),
+                       task("c", 1.0, state="blocked"), task("d", 1.0)])
+        body, _ = tq.graph_body(qdata(rows, [67]))
+        text = "\n".join(body)
+        self.assertIn('t1["a · queued"]', text)
+        self.assertIn('t2["b · queued"]', text)
+        self.assertNotIn("c · blocked", text, "a gated row with no edge is not drawn")
+        self.assertNotIn('d · queued', text)
+        self.assertIn("2 rows not drawn (--all)", text)
+
+    def test_all_draws_every_open_row(self):
+        rows = relink([task("a", 1.0, ["b"]), task("b", 1.0),
+                       task("c", 1.0, state="blocked"), task("d", 1.0)])
+        body, _ = tq.graph_body(qdata(rows, [67]), all_rows=True)
+        text = "\n".join(body)
+        for label in ("a · queued", "b · queued", "c · blocked · owner", "d · queued"):
+            self.assertIn(label, text)
+        self.assertNotIn("rows not drawn", text, "nothing is omitted in the --all view")
+
+    def test_a_gated_row_is_drawn_dashed_only_in_the_all_view(self):
+        body, _ = tq.graph_body(qdata([task("lonely", 1.0, state="blocked")], [67]))
+        self.assertIn("no edge recorded among the open rows", "\n".join(body))
+        self.assertNotIn("-->", "\n".join(body))
+        full, _ = tq.graph_body(qdata([task("lonely", 1.0, state="blocked")], [67]),
+                                all_rows=True)
+        self.assertIn('· blocked · owner"]:::no-recorded-edge', "\n".join(full))
 
     def test_sparse_register_still_draws_the_question_edges(self):
         rows = [task("blocked-a", 1.0, state="blocked"), task("blocked-b", 1.0, state="blocked")]
@@ -584,25 +612,18 @@ class DependencyGraph(unittest.TestCase):
         text = "\n".join(body)
         self.assertIn('Q67 · owner question 67', text)
         self.assertIn("q67 --> t1", text)                 # the citation is a real edge
-        self.assertIn("no-recorded-edge", text)           # and the uncited row says so
-        self.assertIn("2 blocked, 0 edges, 1 prose-gated, 1 question-gated, 1 question", text)
+        self.assertNotIn("blocked-b", text)               # the uncited row is the omission
+        self.assertIn("2 blocked, 0 edges, 1 prose-gated, 1 question-gated, 1 question, "
+                      "1 rows not drawn (--all)", text)
         self.assertEqual(warnings, [])
 
-    def test_a_row_citing_nothing_gets_no_edge_and_its_own_class(self):
-        body, _ = tq.graph_body(qdata([task("lonely", 1.0, state="blocked")], [67]))
-        text = "\n".join(body)
-        self.assertNotIn("-->", text)
-        self.assertIn('· blocked · owner"]:::no-recorded-edge', text)
-
-    def test_the_counts_line_matches_the_drawn_nodes(self):
-        rows = [task("a", 1.0), task("b", 1.0, state="blocked"),
-                task("c", 1.0, state="blocked"), task("d", 1.0, state="done")]
-        rows[1]["notes"] = "#67"
+    def test_the_counts_comment_names_the_rows_not_drawn(self):
+        rows = relink([task("a", 1.0, ["b"]), task("b", 1.0), task("c", 1.0, state="blocked"),
+                       task("d", 1.0), task("e", 1.0)])
+        rows[2]["notes"] = "#67"
         body, _ = tq.graph_body(qdata(rows, [67]))
-        drawn = [l for l in body if '"]:::' in l]
-        self.assertEqual(len(drawn), 4, "three open rows plus the one question; done is not drawn")
-        self.assertIn("2 blocked, 0 edges, 1 prose-gated, 1 question-gated, 1 question",
-                      "\n".join(body))
+        omitted = sum(1 for t in rows if t["state"] != "done") - 3   # a, b, c participate
+        self.assertIn(f"{omitted} rows not drawn (--all)", "\n".join(body))
 
     def test_a_diamond_has_exactly_its_four_edges(self):
         tasks = relink([task("a", 1.0, ["b", "c"]), task("b", 1.0, ["d"]),
@@ -626,17 +647,52 @@ class DependencyGraph(unittest.TestCase):
 
     def test_max_nodes_collapses_the_rest_into_one_node(self):
         rows = [task(f"row-{i:02d}", 1.0) for i in range(10)]
-        body, _ = tq.graph_body({"priority_models": ["x"], "tasks": rows}, max_nodes=5)
+        body, _ = tq.graph_body({"priority_models": ["x"], "tasks": rows},
+                                max_nodes=5, all_rows=True)
         text = "\n".join(body)
         self.assertIn("%% truncated: 4 shown of 10", text)
-        self.assertIn('tn["… 6 more open rows (see the table)"]:::done', text)
+        self.assertIn('tn["… 6 more open rows (see the table)"]', text)
 
     def test_output_is_byte_deterministic_and_sorted_by_id(self):
-        rows = [task("z", 1.0, state="blocked"), task("m", 1.0), task("a", 1.0)]
-        first, _ = tq.graph_body({"priority_models": ["x"], "tasks": rows})
-        second, _ = tq.graph_body({"priority_models": ["x"], "tasks": [rows[2], rows[0], rows[1]]})
+        rows = relink([task("z", 1.0), task("m", 1.0, ["z"]), task("a", 1.0)])
+        first, _ = tq.graph_body({"priority_models": ["x"], "tasks": rows}, all_rows=True)
+        second, _ = tq.graph_body({"priority_models": ["x"], "tasks": [rows[2], rows[0], rows[1]]},
+                                  all_rows=True)
         self.assertEqual(first, second, "dict order must not reach the output")
         self.assertTrue(first[2].startswith('  t1["a · '), first[2])
+
+    def test_a_long_label_is_truncated_only_past_the_cap(self):
+        forty = "a" * 40
+        long = "b" * (tq.GRAPH_LABEL + 1)
+        rows = relink([task(forty, 1.0, [long]), task(long, 1.0)])
+        text = "\n".join(tq.graph_body({"priority_models": ["x"], "tasks": rows})[0])
+        self.assertIn(forty, text, "a 40-character id is emitted whole")
+        self.assertIn("b" * tq.GRAPH_LABEL + "…", text)
+        self.assertNotIn(long, text)
+
+    def colour_findings(self, block):
+        """What the owner's palette rule forbids: any colour literal, or a classDef that sets one."""
+        problems = []
+        if re.search(r"#[0-9a-fA-F]{3,8}\b", block):
+            problems.append("a colour literal in the block")
+        defs = [line for line in block.splitlines() if "classDef" in line]
+        if len(defs) != 1:
+            problems.append(f"{len(defs)} classDef lines, expected exactly one")
+        for line in defs:
+            if "stroke-dasharray" not in line:
+                problems.append("the classDef is not the dashed-stroke rule")
+            if "fill:" in line or "color:" in line:
+                problems.append("the classDef sets fill or colour")
+        return problems
+
+    def test_the_block_carries_no_baked_colour_and_one_stroke_only_class(self):
+        rows = relink([task("a", 1.0, ["b"]), task("b", 1.0, state="blocked")])
+        block = "\n".join(tq.graph_body(qdata(rows, [67]))[0])
+        self.assertEqual(self.colour_findings(block), [], "the renderer's theme owns colours")
+        self.assertIn("classDef no-recorded-edge stroke-dasharray: 4 3", block)
+        # Negative control: the pre-fix palette must be caught by the same predicate.
+        planted = block + "\n  classDef queued fill:#dbeafe\n"
+        self.assertIn("a colour literal in the block", self.colour_findings(planted))
 
     def test_an_empty_register_emits_a_block_that_says_so(self):
         body, warnings = tq.graph_body({"priority_models": [], "tasks": []})
@@ -698,7 +754,9 @@ class GraphFileFlag(unittest.TestCase):
             (root / "mad-science" / "queue.json").write_text(
                 json.dumps(qdata([task("default-row", 1.0)], [])), encoding="utf-8")
             named = root / "named.json"
-            self._write(named, [task("named-row", 1.0, state="blocked")])
+            # an edge, so the connected view draws it and the label proves which file was read
+            self._write(named, [task("named-row", 1.0, ["named-other"]),
+                                task("named-other", 1.0, state="blocked")])
             cwd = os.getcwd()
             os.chdir(root)
             try:
