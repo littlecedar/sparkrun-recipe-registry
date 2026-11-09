@@ -6242,3 +6242,20 @@ ended an outage — a reboot is the only one of the two that appeared here.
   "9 nodes and 6 edges" (`:967`). Recorded so the next tick does not read the mismatch as a
   contradiction to escalate, and does not "fix" the line by hand: the counts line is tool output
   and must be copied verbatim.
+- **The census probe's `pgrep` pattern matches earlyoom, not an engine, and the node mapping was
+  by magnitude.** `pgrep -f '…|llama-server|…'` hits earlyoom's own argv, which spells out
+  `--prefer (vllm|VLLM|sglang|llama-server|llama-cli|trtllm|tritonserver|ray|python3|python)` —
+  five false positives per node, and no engine on any of them (`docker ps` read `0` running, which
+  is what the row actually rests on). A future census should print its own identity inside the
+  remote block (`printf 'HOST %s\n' "$(hostname)"`) instead of mapping counts back to nodes by
+  value continuity: the labels print in ssh completion order, so a crossed pair of similar
+  magnitudes would read plausibly and be wrong.
+- **Correction, the queue row's register pointer.** `405d9e4` (17:44) is the commit that last
+  touched `mad-science/queue.json`; the read was taken at origin tip `e743a9a`. The row called the
+  first the tip while the publication row named the second, so it now reads "unchanged since
+  `405d9e4` (17:44), read at origin tip `e743a9a`" (`a077e7e`).
+- **The publish door refused a wrong `--expect-sha` before anything landed, and the sha was mine
+  to get wrong.** `--expect-sha` must be the sha of the board as *read*, not of the composed
+  output: passing the composed file's own sha gets `on disk is sha256 … not the … this board was
+  composed from — a peer wrote it in between`, which reads exactly like a peer race and was not
+  one. Read the file, edit a copy, publish the copy with the read's sha.
