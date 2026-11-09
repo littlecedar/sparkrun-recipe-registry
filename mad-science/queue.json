@@ -1940,6 +1940,21 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "gate-validate-degrades-on-broken-install",
+      "title": "Gate: the validate step degrades only when `sparkrun` is absent, not when its install is broken — a board-only commit reddens main",
+      "estimate_h": 0.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "Measured 2026-11-09 02:42 ET: gate run 42580641156 on `0e7b6cc` — a commit that touches only `mad-science/STATUS.md` — failed at `Validate recipes (degrades honestly)`. The log prints `sparkrun, version 0.4.2` and then `Traceback … File \"/home/runner/.local/bin/sparkrun\", line 5, in <module> from sparkrun.application import main` → `ModuleNotFoundError: No module named 'sparkrun'`, exit 1. The step's guard is `command -v sparkrun` (`.github/workflows/gate.yml:101-104`), which a half-installed `uv tool install` environment satisfies: the console script exists, its package does not. So the honest-degradation contract covers `sparkrun absent`, never `sparkrun present and broken`, and a commit carrying no recipe reddens main. Earlier runs of the same hour (`c8ccc71`, `0841923`) passed that step, so the state is flaky per runner rather than a tree defect. FIX: smoke the install after it (`sparkrun --version` at minimum, and one cheap `sparkrun recipe validate <arm>`) and route a smoke failure down the same visible `SKIPPED:` path instead of exit 1 — the skip stays legible, and a job that changed no recipe cannot go red on an install half-finish. Acceptance: a run whose install is broken prints the SKIPPED line and exits 0, while a genuinely invalid recipe still fails.",
+      "provenance": ".github/workflows/gate.yml:101-104; gate run 42580641156 (0e7b6cc)",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
