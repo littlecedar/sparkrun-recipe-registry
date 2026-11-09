@@ -6471,3 +6471,41 @@ session's rows, did not re-stamp or delete the live `sparkrun-vibe:tp4-boot` loc
 correct the unclaimed register row. The shared clone is **77 ahead / 126 behind** origin and its
 worktree board is the stale 23:14 one, so the board was composed from a fresh shallow clone.
 
+
+## 2026-11-09 01:16 ET — hourly tick, second writer: the +51 GB is one statfs, not two measurements
+
+- **This tick pushed nothing, and that was the right call.** It composed over the board read
+  from a `--depth 1` clone at `5e3c006`, published through `publish --expect-sha/--base/
+  --expect-remote-sha`, committed (`ecf9db7`, one path), and the push was refused non-fast-forward:
+  a peer had published `bec8c1f` ("Board: 01:12 census, and the fleet handed to a live TP4 window")
+  at 01:13:46. The peer's board carries the same census with **three** stamped reads
+  (01:03:43 / 01:05:00 / 01:06:37 ET) and a `serve` row this tick could not have written — rank 0
+  `/v1/models` 200 by 01:06:37 and `POST /v1/chat/completions 200 OK` at 01:06:11 on the quartet's
+  own argv. Re-composing over it would have swapped three reads for one, so the commit was dropped
+  and the clone reset; `main` is the peer's board.
+- **Correction to the fall both boards reported, with the discriminator run.** The pool's statfs is
+  the **sum of the six storage nodes' root filesystems**, verified rather than assumed:
+  `df -B1 /mnt/beegfs` size 24,191,229,755,392 B against 6 x 4,031,871,553,536 = 24,191,229,321,216
+  (delta 434,176 B), and used 14,380,735,922,176 B against the summed roots' 14,380,735,700,992 B
+  (delta 221,184 B). So `.35`'s root-avail fall of 51,036,016,640 B and the pool's used growth of
+  51,028,426,752 B are **one event seen twice** and cannot corroborate each other; a board row that
+  pairs them as two observations overstates the evidence.
+- **It is not new pool chunk data.** `sudo -n find /srv/beegfs/storage/chunks -type f -newermt
+  '2026-11-09 00:00'` returns **0** files on `.35` and on `.31`, while `du -sb /srv/beegfs/storage`
+  reads 1,489,745,579,043 B on `.35` and 1,422,508,085,939 B on `.31`. Under a statfs that
+  aggregates the roots, the growth is therefore somewhere else on a storage node's root, and no
+  model body was staged either (no `hub/` entry newer than 6 h).
+- **Consumer still unnamed, and the reason is structural.** On `.35`, no file larger than 1 GB was
+  created since 05:00Z (`sudo -n find / -xdev -newermt ... -size +1G` empty), the chunk store is
+  1.45 TiB, `/home` 488 GiB and `/var/lib/docker` 485 GB; its image set (36 tags, 467.5 GB) is
+  168 GB larger than `.31`'s (34 tags, 299.1 GB), so image-set parity is not a usable check and the
+  33,540,547,500 B task image being present on all four ranks does not exclude a pull. Naming the
+  consumer needs a before/after `du`, which does not exist for the pre-window state — so the honest
+  record is the peer's: growth reported, not explained.
+- **What this tick did not do**: booted nothing, claimed no node, stopped nothing, never re-stamped
+  or deleted the live `sparkrun-vibe:tp4-boot` lock, and did not touch the shared clone's branch
+  (still 77 ahead / 126 behind). One fact worth carrying forward, which the board could only half
+  state: the live quartet's register claim exists **only in the head's working copy**
+  (`metrics-flag-boot-verification` `running`, claimed by `sparkrun-vibe:tp4-boot`, sha256
+  `5a4904e1…`, 00:59:26), so a board rendered from published bytes shows a serving boot with no
+  claim.
