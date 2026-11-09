@@ -6379,3 +6379,43 @@ Board commit `e23a88c`, ten minutes after the peer's `74c728f`; gate run on it r
 - **One shared-surface note.** A peer tick (`0e466f0`) published its own 23:11 board over this one
   and then restored this board wholesale (`20fd935`); the board on origin at 23:18 is this
   composition, unchanged at 212 241 B.
+## 2026-11-09 00:09 ET — hourly board tick: three census markers, an idle holder, no fleet change
+- **Board `47ad537`, census 00:03:06 / 00:04:32 / 00:05:59 ET.** Containers
+`1 / 0 / 0 / 0 / 0 / 0` in every read and volumes `0` on all six; `sparkrun status` reads
+`No sparkrun containers running` in all three. `.30`'s lone container `7fba5dc0050b` (`sm121m`,
+`dsv41-sm121-dg:0.2.1`) has status `Created`, `StartedAt=0001-01-01T00:00:00Z` and no
+`sparkrun.recipe` label — a never-started leftover, and `.30:8000/v1/models` refuses with `000`.
+- **This hour's root fall is *not* pool staging, and the previous hour's attribution does not
+  carry.** All six node roots fell across the 173 s pair (`.30` −196,608 B, `.31` −253,952,
+`.32` −253,952, `.33` −249,856, `.34` −249,856, `.35` −253,952; ~8.4 kB/s summed), but the pool's
+own used bytes fell 236,453,888 B over the same span and the hub holds 0 entries newer than 6 h.
+Writing it up as "the fall is pool traffic" would have been a carried claim: this hour nothing was
+staged, so the fall stays unattributed rather than explained.
+- **Pool proved by read, not by unit state.** `beegfs-storage` `active` `NRestarts=0` on all six,
+`beegfs-mgmtd`+`beegfs-meta` `active` on `.30` only, `.31`–`.35`'s `beegfs-meta` on its recorded
+`failed (exit-code)` role gate, `.30`'s `beegfs-mon` `failed` since 2026-11-05. Through the mount
+on all six: `df -B1` avail 9,861,992,022,016 B / used 14,329,237,733,376 B, 111 hub entries, and
+`stat -L` on `models--orcarouter--Qwen3.8-Flash-Next-Uncensored-NVFP4/…/model-00002-of-00017.safetensors`
+returns 102,400,512,288 B.
+- **Campaign: live holder, nothing plannable.** Unit `active`, MainPID 2605, `serve --queue
+--max-parallel 1 --retries 8`; all nine `~/benchmarks/*/state.json` roots swept to **32 arms, 0
+leases**, `needs_reap` absent in every root, and `director status --root ~/benchmarks/h2h-20261107`
+rc=0 with 9 measured / 9 blocked, every block a register-state block.
+- **The window lock is 25 h 29 m old and the escalation stands.** `2039f411…a1b4f`, byte-identical
+on workstation and head, three six-node reads with 0 running containers under it, 0 leases in the
+same cycle. Not deleted, not re-stamped, reported again.
+- **Register unchanged, so the table and graph are the same bytes.** `a77f424`: 26 open of 117
+(15 queued + 11 blocked), 91 done, zero claims, `check` rc=0, 13 open questions, and the graph's
+own counts line 11 blocked / 3 edges / 1 prose-gated / 9 question-gated / 5 question / 10 rows not
+drawn. The head's copy is byte-identical (sha256 `1d8dfb7a…`, mtime 23:05:10), so the campaign
+wrote nothing this hour.
+- **Instrument note, and the trap that follows from it.** The shared clone is 119 commits behind on
+`tools/task-queue.py`, so the worktree tool has no `graph` subcommand and a tick that reaches for
+it gets `argument command: invalid choice: 'graph'` and no diagram. This tick ran the published
+tool from `git show origin/main:tools/task-queue.py`, and the diagram it drew is byte-identical to
+the board's, which is the check that the register did not move.
+- **What this tick did not do**: booted nothing, stopped nothing, claimed no node, edited no other
+session's rows, and did not re-stamp or delete the live `campaign-queue` lock. No receipt under
+`~/benchmarks` on the head is newer than the 23:11 board, so the hour landed the board restore
+(`20fd935`), a close-out (`f097e95`) and the `publish` remote-sha gate (`c81fdae`) rather than a
+measurement.
