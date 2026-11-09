@@ -662,6 +662,17 @@ folded into the rows they govern; these rows keep them citable.
   `tools/README.md` §"run-arm.sh pooling receipts"; `mad-science/STATUS.md` pool row 13:12:43 and queue
   row `beegfs-units-restart-no`); asked 2026-11-08 and settled the same day.
 
+  *(Correction 2026-11-08, hours after the answer: the earlyoom half could not be applied as drafted, and the
+  measurement is the durable part. `-m 20,10` was applied 16:10 and reverted by 16:47 — it fires at ~24.3 GiB
+  free and a healthy quartet serve leaves the node ~5.7 GiB, so it would have SIGTERMed the serve on reaching
+  steady state; live now is `-m 4,1 -s 100,95` plus the `--prefer`/`--avoid` lists, read back from
+  `/proc/$(pgrep -o earlyoom)/cmdline` on all six. The dive from "healthy" to out of memory measures ~27 GiB/s
+  over ~0.2 s, so **no non-disruptive threshold can fire first**: the protection is `OOMScoreAdjust` plus fit
+  arithmetic, and `-1000` on the BeeGFS units' drop-ins is applied and read back. `ssh.service`,
+  `NetworkManager.service` and `user@1000.service` remained unprotected as of that record — the first two are
+  this answer's (b), the third is `QUESTIONS.md` `#83`; the pair itself is `QUESTIONS.md` `#72`. Evidence:
+  `SESSION-RECORD.md` 2026-11-08 "pool survives overrun" and "earlyoom `-m 20` reverted to `-m 4,1`".)*
+
 - **#68 — How does an instrumented arm relate to its baseline now that every boot is instrumented?**
   *Answered 2026-11-08:* **the instrument may not be a confound, so the ruling is a bar rather than one
   of the three shapes.** Owner's words: "Adding metrics MUST NOT create such strong performance hit

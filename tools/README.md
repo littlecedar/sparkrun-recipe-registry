@@ -253,12 +253,16 @@ bounds only the container's host-side anonymous memory: useful against a repack 
 weight load. `sparkrun run` has no `--oom-score-adj` channel either — only the API's `extra_docker_opts`
 reaches `docker run` — so a recipe cannot even ask to be the kernel's preferred victim. The containments
 that do work are host-side, and the owner ruled on them 2026-11-08 (`mad-science/TODO.md` §"Settled
-questions" `#67`): earlyoom minimums to `-m 14,5 -s 90,80`, `OOMScoreAdjust=-900` on `ssh.service` and
-`NetworkManager.service`, and a memory-overrunning TP4 quartet boot placed on `.31`–`.35`, never on
-`.30` — that placement is memory safety, not a role, since `.30` carries BeeGFS management, meta and
-storage beside its normal worker duty; its swap term needs a per-node swap baseline before the ruling
-counts as effective, because both earlyoom tests are conjuncts and a node near 100 % swap-free never
-satisfies `-s 90`.
+questions" `#67`) — with one half superseded by measurement the same afternoon, and the finding is the
+durable part: **a threshold cannot be the protection.** Live on all six nodes is
+`-m 4,1 -s 100,95 --prefer '(vllm|…|python3|python)' --avoid '(beegfs|mgmtd|…|NetworkManager|syncthing)'`,
+reverted from the recorded `-m 20,10` within the hour because `-m 20` (~24.3 GiB) would SIGTERM a
+*healthy* quartet serve, which leaves the node ~5.7 GiB free; the dive from healthy to out of memory runs
+~27 GiB/s over ~0.2 s, so nothing non-disruptive can fire first. What protects is `OOMScoreAdjust`:
+`-1000` on the BeeGFS units' drop-ins (applied and read back on all six), the owner's `-900` on
+`ssh.service`/`NetworkManager.service`, and the placement rule that needs no threshold at all — a
+memory-overrunning TP4 quartet boot runs on `.31`–`.35`, never on `.30`, which is memory safety and not a
+role, since `.30` carries BeeGFS management, meta and storage beside its normal worker duty.
 
 ## eval-suite.py (the SOP pass)
 
