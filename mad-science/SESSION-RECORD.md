@@ -6338,3 +6338,44 @@ Board commit `e23a88c`, ten minutes after the peer's `74c728f`; gate run on it r
   `git clone --depth 40 https://github.com/littlecedar/sparkrun-recipe-registry.git` (the push needed no
   `--unshallow`). Both landed in `e08f1b5`, after `6dd4cf4` corrected the row's `4a94c51` tip to the
   `74c728f` the push actually landed on.
+
+## 2026-11-08 23:11 ET — hourly board tick: three census markers, and the register moved twice under it
+
+- **Board `b402dc6`, census 23:02:36 / 23:05:51 / 23:07:41 ET.** Containers
+  `1 / 0 / 0 / 0 / 0 / 0` in every read and volumes `0` on all six; the lone `.30` container is
+  `dsv41-sm121-dg:0.2.1` named `sm121m`, status `Created`, `StartedAt=0001-01-01T00:00:00Z`, no
+  `sparkrun.recipe` label, so it is a never-started leftover and not a serve — `sparkrun status`
+  reads `No sparkrun containers running` beside it.
+- **The hour's root fall is pool traffic, not a writer.** The 110 s stamped pair fell 839 680 B
+  (7.6 kB/s) and an opening 15 s pair fell 184 320 B, both spread over all six nodes with no node
+  carrying the fall alone; the hub held 111 entries with none newer than 6 h at 23:08:23, so no
+  body was staged this hour.
+- **Pool proved by read, not by unit state.** Units: `.30` mgmtd/meta/storage and every worker's
+  `beegfs-storage` `active` `NRestarts=0`, the workers' `beegfs-meta` still on its recorded role
+  gate and `.30`'s `beegfs-mon` still `failed` since 2026-11-05. Through the mount: avail
+  9 861 755 568 128 B, 111 hub entries, and `stat -L` on
+  `models--orcarouter--Qwen3.8-Flash-Next-Uncensored-NVFP4/…/model-mtp.safetensors` returns
+  5 214 305 456 B / 10 184 191 blocks rc=0 on both snapshots.
+- **Campaign: live holder, nothing plannable; the escalation stands.** All nine
+  `~/benchmarks/*/state.json` roots swept for per-arm `lease` objects read 32 arms / 0 leases with
+  `needs_reap` empty, unit `active` MainPID 2605, and `director status --root
+  ~/benchmarks/h2h-20261107` reports its arms `register: register state blocked`. The
+  `campaign-queue` window lock is 24 h 31 m old at the same read, byte-identical on the workstation
+  and the head, with zero running containers under it in all three of this cycle's reads.
+- **The register moved twice under the tick, and the renders followed it.** `0294e8f` (22:50)
+  filled the register's `questions` list 0 → 14 (`#69`–`#82`); `a77f424` (23:05) then withdrew
+  `#73`/`#82`, restated `#71`/`#72`/`#74` and added `#83`, closed queue row
+  `beegfs-units-restart-no` on the 16:47 drop-in evidence, and took the register to 13 open
+  questions. A table and graph rendered at `0294e8f` therefore said `0 question-gated, 0 question`
+  and would have been stale before the publish: the final renders are over `a77f424` — **26 open
+  (15 queued + 11 blocked), 91 done, zero claims**, `check` rc=0, and the graph's own counts line
+  `11 blocked, 3 edges, 1 prose-gated, 9 question-gated, 5 question, 10 rows not drawn (--all)`.
+  A peer advisory caught the first render before publish; the tip is re-asserted immediately
+  before the push, not only before the composition.
+- **What this tick did not do**: booted nothing, stopped nothing, claimed no node, edited no other
+  session's rows, and did not re-stamp or delete the live `campaign-queue` lock. No receipt under
+  `~/benchmarks` on the head is newer than the 22:22 board, so the hour landed register and ledger
+  work rather than a measurement.
+- **One shared-surface note.** A peer tick (`0e466f0`) published its own 23:11 board over this one
+  and then restored this board wholesale (`20fd935`); the board on origin at 23:18 is this
+  composition, unchanged at 212 241 B.
