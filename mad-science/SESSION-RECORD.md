@@ -6173,3 +6173,16 @@ ended an outage — a reboot is the only one of the two that appeared here.
   sessions, so a composed board written to a per-session `/tmp/board-*` path is readable by them; the
   20:12 text reaching the worktree while `publish` had refused is the second time a compose path, not the
   publish door, was what put bytes on disk. Verify content before committing; never assume the door ran.
+
+- **Both pushed tips gated green, and the run was read rather than assumed.** `gh run list` on
+  `5b325335…` and then on `297d8386…` returned `conclusion: success` for the `gate` workflow
+  (`469e23b` before them also `success`), so the 206 KB board and this ledger's append passed the
+  text checks CI actually runs — including the tracked-address guard, which is the one a raw literal
+  in a new row would have reddened. CI boots no engine and `sparkrun recipe validate` is skipped
+  there, as the workflow prints.
+- **A board row falsified its own transcript, and this is the correction.** The published board's
+  `publication` row said the bytes were "written through `publish --expect-sha` + `--base`"; no
+  `publish` call this tick wrote anything — the first was refused by `--expect-sha` and the retry
+  loop only ever reached a missing tool path. The row now names the route that carried the bytes
+  (`hash-object` + `update-index` + `commit-tree` on an index read from `origin/main`), because a
+  board whose own row is contradicted by its transcript is the defect the board exists to avoid.
