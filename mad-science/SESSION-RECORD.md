@@ -6072,3 +6072,33 @@ ended an outage — a reboot is the only one of the two that appeared here.
 - **What this tick did not do**: published no board and stopped nothing. `c4d9ace` is fresher than
   this session's composition, so adopting it is the correct close and the worktree carries its bytes
   byte-for-byte.
+
+## 2026-11-08 19:16 ET — the census cell names its sources, and the challenge against it was falsified
+
+- **A reviewer read the published census cell as two sources under one row** — a local read
+  for `.30` against ssh reads for `.31`–`.35` — and cited `.30`'s always-on infrastructure as
+  proof the count could not hold. The cell never mixed sources: the `.30` script ran on the
+  node itself over an `ssh` session, the workers over nested `ssh -n` hops from that head,
+  and this workstation's own 11 containers were read in the same turn only to be excluded.
+- **The "9 containers on the head" was my own root count, not containers.** `ls
+  ~/benchmarks/*/state.json | wc -l` prints 9, and the head's `docker ps -a` holds exactly one
+  entry (`sm121m`, `Created` 10:32:33, never started). Reproducing the quoted number is what
+  settled it: the challenge had read the wrong command's output as the count it argued about.
+- **The half of the challenge worth keeping was readability, not arithmetic.** The head's
+  infrastructure is not containerized — `sparkrun cluster monitor` is a process and
+  `flare-agent.service` / `sparkrun-campaign.service` are user units — so a census of `1`
+  has to say so, or the next reader raises the same challenge. The cell now states which host
+  produced each read and what the one container is not.
+- **A dependency the challenge asserted does not exist.** origin's `tools/task-queue.py
+  render` refuses a register that is not inside a git worktree, in `/tmp` and in a `git
+  archive origin/main` tree alike ("not a git worktree"), so a real origin checkout is not an
+  alternative route; `graph` from that archive is byte-identical to what the published board
+  carries (`cmp` clean, 2 283 bytes), so running from the clone lost nothing.
+- **The landed fold's divergence claim is now stated as observed, not attributed.** The clone reads
+  `git rev-list --left-right --count origin/main...HEAD` = 84 73; 57 of the 73 local-ahead
+  subjects appear nowhere on origin and 16 appear there under other SHAs (local `30651d4` and
+  origin `bf462c7` are both "Board: 18:11 census"), so only the 57 are unpublished lineage —
+  a cause the earlier row had implied for all 73.
+- **What this tick did not do**: started nothing, stopped nothing, claimed no node, edited no
+  other session's rows. Board commits `8afad24` and `fe58d28a`, this correction commit, and
+  gate `success` read on both of them.
