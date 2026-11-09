@@ -7193,3 +7193,26 @@ here rather than left to a later quartet window. Receipt `head:~/benchmarks/ds4-
   replay off) is **mechanically unblocked but unrun**: the b12x path boots and fits TP=4 with the host
   never below 9.28 GiB, so the remaining obstacle is scheduling, not fit. Receipt
   `head:~/benchmarks/sm121-b12x-20261109/RECEIPT.md`.
+
+## 2026-11-09 18:15 ET — the 18:00 tick folded nothing, and one clause of the 18:09 board did not survive a probe
+
+- **A peer had already folded this hour, so the deliverable was a correction, not a census.** The tick
+  read the 17:35 board at 18:00 and composed a full refresh; `publish` refused it (`disk was 18:09`),
+  and that board already carried the hour's census pair (18:02:24 / 18:05:43), pool pair, register
+  snapshot (`82212850…`, 124 tasks / 99 done / 15 queued / 10 blocked / 0 claims), the arm-3 landing and
+  the window close. Re-publishing would have replaced correct rows with the same facts, so the board
+  change is one rewritten cell and one probe row.
+- **A head-scoped fact read through a workstation shell is the defect, not a stale row.** This tick's
+  `systemctl --user is-active sparkrun-campaign.service` and `~/benchmarks/*/state.json` glob ran on the
+  workstation, where the director is not a unit and one root exists (6 arms, 0 leases). On the head the
+  unit reads `active`, MainPID 2078281, and nine roots sum 32 arms with 0 live leases, which is what the
+  18:09 board says — that row was kept verbatim and the erroneous composition was never published.
+- **The corrected clause was a mechanism, and the probe is cheap.** The 18:09 window cell read "head
+  clone never had it … so a head-side reader cannot see a window declared here". A file written into
+  this clone's `.local/` at 18:13:42 reached the head's `.local/` with its mtime and bytes inside 20 s,
+  and the arm's receipt records the lock written on head and workstation and deleted only after its own
+  0/0 check — so presence on the head at 18:03 is unverifiable after the delete and its absence is not
+  evidence of blindness. Cell rewritten, probe appended to `STATUS.md`'s landed table.
+- **Left deliberately untouched:** `mad-science/queue.json` (the arm session owns the arm-3 close-out,
+  and the board cites it as worktree bytes rather than as `origin/main` content), and the blocked set,
+  which did not move this hour.
