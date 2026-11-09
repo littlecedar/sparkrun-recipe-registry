@@ -40,6 +40,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import types
@@ -885,8 +886,8 @@ class BoardPublish(unittest.TestCase):
         self.board = self.dir / "STATUS.md"
         self.lock = self.dir / "board.lock"
 
-    def publish(self, text, wait=None, expect_sha=None, base=None):
-        if base is None and expect_sha is None:
+    def publish(self, text, wait=None, expect_sha=None, base=None, remote_sha=None):
+        if base is None and expect_sha is None and remote_sha is None:
             # The tick's own read: with no guard flag publish fails closed, so default to --base.
             base = self.dir / "base.md"
             base.write_text(self.board.read_text(encoding="utf-8"), encoding="utf-8")
@@ -898,11 +899,56 @@ class BoardPublish(unittest.TestCase):
                     argv += ["--lock-wait", wait]
                 if expect_sha is not None:
                     argv += ["--expect-sha", expect_sha]
+                if remote_sha is not None:
+                    argv += ["--expect-remote-sha", remote_sha]
                 if base is not None:
                     argv += ["--base", str(base)]
                 return tq.main(argv)
             finally:
                 sys.stdin = saved
+
+    def _commit_board(self, text):
+        """Commit `text` as STATUS.md, push it to `origin/main`, and return the composed sha.
+
+        Also leaves those bytes on disk, because that is the state a publisher reads.
+        """
+        self.board.write_text(text, encoding="utf-8")
+        git = ["git", "-C", str(self.dir), "-c", "user.email=tick@test", "-c", "user.name=tick"]
+        if not (self.dir / ".git").exists():
+            subprocess.run(["git", "init", "-q", str(self.dir)], check=True)
+        subprocess.run(git + ["add", "STATUS.md"], check=True)
+        subprocess.run(git + ["commit", "-qm", "board"], check=True)
+        subprocess.run(git + ["update-ref", "refs/remotes/origin/main", "HEAD"], check=True)
+        return hashlib.sha256(self.board.read_bytes()).hexdigest()
+
+    def test_a_peer_publish_after_the_composition_is_refused_by_the_remote_sha(self):
+        """Measured 2026-11-08 23:13: a tick composed over the 22:22 board, aligned the *disk* copy to
+        those bytes so `--expect-sha` matched, published, and pushed onto a remote a peer had moved
+        to its own 23:12 board. Both local checks were green because neither reads the remote, and
+        the push was fast-forward-clean on the fresh parent while replacing their rows.
+        """
+        composed = self._commit_board(board_text(self.OLD))
+        self._commit_board(board_text(self.NEW))          # the peer publishes after the read
+        self.board.write_text(board_text(self.OLD), encoding="utf-8")   # disk aligned to our base
+        before = self.board.read_bytes()
+        self.assertEqual(self.publish(board_text(self.NEW), expect_sha=composed,
+                                      remote_sha=composed), 1)
+        self.assertEqual(self.board.read_bytes(), before)
+
+    def test_negative_control_the_same_publish_without_the_remote_gate_replaces_it(self):
+        """Without the remote gate the identical write succeeds — the peer's board is lost, which is
+        why the gate exists rather than a note about it."""
+        composed = self._commit_board(board_text(self.OLD))
+        self._commit_board(board_text(self.NEW))
+        self.board.write_text(board_text(self.OLD), encoding="utf-8")
+        self.assertEqual(self.publish(board_text(self.NEW), expect_sha=composed), 0)
+        self.assertIn(self.NEW, self.board.read_text(encoding="utf-8"))
+
+    def test_an_unmoved_remote_lets_the_publish_through(self):
+        composed = self._commit_board(board_text(self.OLD))
+        self.assertEqual(self.publish(board_text(self.NEW), expect_sha=composed,
+                                      remote_sha=composed), 0)
+        self.assertIn(self.NEW, self.board.read_text(encoding="utf-8"))
 
     def test_newer_census_replaces_the_board(self):
         self.board.write_text(board_text(self.OLD), encoding="utf-8")

@@ -692,8 +692,8 @@ def board_title(text: str) -> str | None:
     return m.group(1) if m else None
 
 
-def committed_text(path: Path) -> str | None:
-    """The file as HEAD has it, or `None` when it is untracked or outside a repository."""
+def ref_text(path: Path, ref: str) -> str | None:
+    """The file as `ref` has it, or `None` when untracked, outside a repository, or absent there."""
     top = subprocess.run(
         ["git", "-C", str(path.parent), "rev-parse", "--show-toplevel"],
         capture_output=True, text=True)
@@ -704,9 +704,14 @@ def committed_text(path: Path) -> str | None:
         rel = path.resolve().relative_to(repo)
     except ValueError:
         return None
-    show = subprocess.run(["git", "-C", str(repo), "show", f"HEAD:{rel}"],
+    show = subprocess.run(["git", "-C", str(repo), "show", f"{ref}:{rel}"],
                           capture_output=True, text=True)
     return show.stdout if show.returncode == 0 else None
+
+
+def committed_text(path: Path) -> str | None:
+    """The file as HEAD has it, or `None` when it is untracked or outside a repository."""
+    return ref_text(path, "HEAD")
 
 
 def cmd_lint(args, path: Path) -> None:
@@ -824,6 +829,9 @@ def cmd_publish(args, path: Path) -> None:
     carrying that same 11:08 title, which the equal stamp passed in both directions and the whole
     file replaced — bytes that no commit and no `/tmp` copy held.  `--expect-sha` is that gate: the
     caller passes the sha256 it composed from and the write is refused when the disk file moved.
+    Both checks are local, so neither can see a peer who *pushed* while the composition ran: a commit
+    built on the fresh remote tip then replaces their rows with every local check green (measured
+    2026-11-08 23:13).  `--expect-remote-sha` is the same gate against `--remote-ref`.
     """
     text = sys.stdin.read()
     problems = lint_markdown(text)
@@ -867,6 +875,17 @@ def cmd_publish(args, path: Path) -> None:
                     f"refusing publish: {board} on disk is sha256 {moved[:12]}, not the "
                     f"{args.expect_sha[:12]} this board was composed from — a peer wrote it in "
                     "between; re-read and re-compose, do not replace their rows")
+        if args.expect_remote_sha:
+            # The disk checks above are local, so they cannot see a peer who pushed while this
+            # composition ran: a commit built on the fresh remote tip then replaces their rows
+            # while every local check passed (measured 2026-11-08 23:13).
+            remote = ref_text(board, args.remote_ref)
+            moved = hashlib.sha256(remote.encode()).hexdigest() if remote is not None else "(absent)"
+            if moved != args.expect_remote_sha:
+                raise QueueError(
+                    f"refusing publish: {args.remote_ref} carries board sha256 {moved[:12]}, not the "
+                    f"{args.expect_remote_sha[:12]} this board was composed from — a peer published "
+                    "in between; re-derive over theirs, do not push on their tip")
         if use_base:
             peer = dropped_peer_lines(disk_text, base_text, text)
             if peer:
@@ -1275,6 +1294,11 @@ def main(argv: list[str] | None = None) -> int:
     p_pub.add_argument("--expect-sha", default=None,
                        help="sha256 of the board this composition was read from; refuse when the file "
                             "on disk moved (guards a peer's in-place edit carrying the same title)")
+    p_pub.add_argument("--expect-remote-sha", default=None,
+                       help="sha256 of the board at --remote-ref; refuse when a peer published after "
+                            "your read — the disk sha above cannot see that (fetch first)")
+    p_pub.add_argument("--remote-ref", default="origin/main",
+                       help="ref the remote board is read from (default origin/main)")
     p_pub.add_argument("--base", default="",
                        help="board file you read before composing: a non-blank line a peer added "
                             "after it must survive into stdin, or the publish exits 3")
