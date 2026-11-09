@@ -6773,3 +6773,35 @@ claimed or stopped: this was a read-only tick.
   reboot is the one awaiting owner approval.
 - **Remains:** the loop fix is queued and unstarted; the staging write was still running at the
   07:16:36 read, so the next tick must re-read the pool rather than carry these deltas.
+## 2026-11-09 08:23 ET — hourly board tick: the quartet the previous census missed, and two publish traps
+
+- **The 07:28 board read an idle fleet because its census was taken at 07:02–07:03, before the boot.**
+  Beam-1.0 NVFP4 (`vllm/vllm-openai:reflection-beam`, image id `58aa975f…`) started four ranks at
+  **07:18:36**, so the 08:12 board is the first to carry it: a serve pid alive on every rank and
+  `/v1/models` answering **200** both from `.31`'s host port and from inside `node_0`, serving
+  `reflection/Beam-1.0-501B-A23B-NVFP4` at `max_model_len` 131072 with util 0.81. Its BFCL leg is
+  another session's (`.34`, pid 2018725) and read **716 of 1240 graded, 673 PASS / 43 FAIL** at
+  08:07:23; the `bfcl.rc` on disk (`143`, SIGTERM) belongs to the 07:38:26 launch the running one
+  replaced, so that is progress and not a verdict.
+- **Two `publish` traps, both hit.** (1) `--expect-remote-sha` takes the **sha256 of the board blob at
+  the remote ref**, never the tip's commit sha: passing `7cef6a5b…` was refused with "origin/main
+  carries board sha256 535ecd22…, not the 7cef6a5b3957 this board was composed from", which reads like
+  a peer published when none had; the value that passes is the board sha read, `535ecd22…`, identical
+  to `--expect-sha` whenever the base is the remote board. (2) The push that carries a tick is **two**
+  pathspec commits, not one — `633deb1` for the register row, `5781900` for the board — and the
+  `publication` cell said otherwise until the 08:17 peer board replaced that cell.
+- **A census that loses a node must say so.** Head's ssh now refuses `.30` on both of its aliases with
+  `Host key verification failed`, while `.30` has not rebooted since 2026-11-08 15:29:35 and answers
+  from the workstation; registered as `head-mesh-cannot-reach-30` (queued, single) with
+  `ssh-keygen -F` as the unrun discriminator, so the cause stays open. Independent corroboration: a
+  peer tick's `/tmp/tick-0800-census.txt` on the head records the same refusal at 08:03:32, and it was
+  left in place as theirs.
+- **Pool growth attributed, not inferred.** `df -B1` used 13,365,355,216,896 → 13,374,916,132,864 B
+  over 110 s (08:05:48 → 08:07:38, **86.9 MB/s**) while `models--unsloth--Qwen3.8-27B-GGUF` carried
+  `.incomplete` blobs touched inside the previous 15 min — one HF staging pull, not a fleet-local
+  writer. Hub holds 106 entries (111 at the 2026-11-08 23:08 read).
+- **Hygiene:** the census script's only node-side artefact, `/tmp/hub-newest.txt` on the head, was
+  removed; the probes wrote nothing else on any node and the in-flight session's files were left alone.
+- **Remains:** the BFCL leg is still measuring, so its window closes no earlier than 10:18; the mesh
+  fix is queued; the 08:17 peer board kept this tick's campaign, flight, window, queue and landed cells
+  verbatim, so no landed row was replaced.
