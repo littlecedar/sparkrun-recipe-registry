@@ -1900,5 +1900,104 @@
       "claimed_at": ""
     }
   ],
-  "questions": []
+  "questions": [
+    {
+      "id": 69,
+      "summary": "Does the 2026-11-08 fleet-wide TP1/TP2 freeze stay in force, or carry an exception for the three single-node metrics-flag smokes and/or the named ready TP<=2 rows (kimi-superexpert-ref-probe, ripple-65b-bf16-tp2, ripple nvfp4 pair, ds4-gsq-rco-coder-llamacpp-boot)?",
+      "status": "open — owner decision",
+      "provenance": "mad-science/QUESTIONS.md #69; queue.json rows metrics-flag-boot-verification, kimi-superexpert-ref-probe, ripple-65b-bf16-tp2 (freeze clause verbatim); owner directive 2026-11-08",
+      "asked": "2026-11-08"
+    },
+    {
+      "id": 70,
+      "summary": "Should the SM121 survey trio (w4-survey-arm3-sm121-boot, w4-survey-arm5-sm121-boot, w4-survey-arm5-control-boot) be retired to attic now that the marlin lever is measured and the boot ends in a global OOM at 58 s, or re-shaped onto another MoE backend in a new quartet window?",
+      "status": "open — owner decision",
+      "provenance": "mad-science/QUESTIONS.md #70; queue.json rows for the trio carry 'QUESTIONS.md #<pending>'; STATUS.md In-flight rows; #53 settled a different gate",
+      "asked": "2026-11-08"
+    },
+    {
+      "id": 71,
+      "summary": "Does the owner-declared six-node campaign claim (.local/fleet-window.lock, session campaign-queue, 2026-11-07, all six nodes) still stand now that its holder holds no lease and 0 containers, or should it be narrowed or deleted so other sessions may boot the named nodes?",
+      "status": "open — owner decision",
+      "provenance": "mad-science/QUESTIONS.md #71; .local/fleet-window.lock 414 B sha256 2039f411..a1b4f; STATUS.md In flight window row; SESSION-RECORD.md stale-lock analysis",
+      "asked": "2026-11-08"
+    },
+    {
+      "id": 72,
+      "summary": "Were the earlyoom minimums in #67's answer (-m 14,5 -s 90,80) meant literally, or does the stricter live pair (-m 20,10 -s 100,95) on all six nodes stay?",
+      "status": "open — owner decision",
+      "provenance": "mad-science/QUESTIONS.md #72; queue.json row host-memory-policy-apply (reconciliation + 16:18 ET proof); TODO.md settled #67",
+      "asked": "2026-11-08"
+    },
+    {
+      "id": 73,
+      "summary": "May the head's BeeGFS server units (beegfs-mgmtd, beegfs-meta, beegfs-storage on .30) be restarted/repaired so each carries Restart=on-failure instead of Restart=no?",
+      "status": "open — owner decision",
+      "provenance": "mad-science/QUESTIONS.md #73; queue.json rows pool-window-invalid-cells (dependency clause), beegfs-units-restart-no; STATUS.md pool rows",
+      "asked": "2026-11-08"
+    },
+    {
+      "id": 74,
+      "summary": "Do you want .30's root disk relieved before further HF ingest (pool configured so s:1 is out of the write path, or that target expanded/moved), or accept that a pool fill squeezes mgmtd/meta on the controller?",
+      "status": "open — owner decision",
+      "provenance": "mad-science/QUESTIONS.md #74; BEEGFS-REPORT.md:84-85,:98-100,:330-337; STORAGE-POLICY.md:420-423",
+      "asked": "2026-11-08"
+    },
+    {
+      "id": 75,
+      "summary": "Should the per-node storage budget be restated for the pool era (keep runtime <= 0.5 TB/node and df /home free >= 1.0 TB/node, replace HF <= 2.2 TB/node with a pool-level cap), or hold it and treat every node over it as an ingest block?",
+      "status": "open — policy",
+      "provenance": "mad-science/QUESTIONS.md #75; STORAGE-POLICY.md:403-404,:420-423; BEEGFS-REPORT.md:98-100; AGENTS.md shared-hub shape; #20 covers only when to move",
+      "asked": "2026-11-08"
+    },
+    {
+      "id": 76,
+      "summary": "Does the owner accept the installed flare-inference a161b17f build as-is (pin rotated, no out-of-band key confirmation, no rebuild-to-hash), or must the rebuild-and-hash proof land before the key reaches nodes beyond .30/.35?",
+      "status": "open — owner decision",
+      "provenance": "mad-science/QUESTIONS.md #76; FLARE.md:228,:241-244,:373,:386; TODO.md settled #6",
+      "asked": "2026-11-08"
+    },
+    {
+      "id": 77,
+      "summary": "Should the phased flare agent grant be extended to the production ranks .31-.33 (.34 excluded), or stay scoped to .30/.35 until a 'proven harmless' criterion is named and met?",
+      "status": "open — owner decision",
+      "provenance": "mad-science/QUESTIONS.md #77; queue.json row flare-agent-rollout ('only then ask'); FLARE.md:335,:563-566; TODO.md settled #6",
+      "asked": "2026-11-08"
+    },
+    {
+      "id": 78,
+      "summary": "Should a DeepSeek-V4-Pro-0813 arm be pursued at all on this fleet (only sub-2-bpw GGUFs fit, via a self-built llama.cpp RPC route), or is DSV4-Pro closed as a quality gamble and its three free pre-gates dropped?",
+      "status": "open — owner decision",
+      "provenance": "mad-science/QUESTIONS.md #78; DSV4PRO-FEASIBILITY.md:207-214,:161-183; TODO.md:1085 unowned checkbox",
+      "asked": "2026-11-08"
+    },
+    {
+      "id": 79,
+      "summary": "Is the compute set final at the six GB10 nodes for the planning horizon, or will a 7th-9th GB10 node and/or an RTX PRO 6000 96 GB coordinator ever be added?",
+      "status": "open — hardware",
+      "provenance": "mad-science/QUESTIONS.md #79; DSV4PRO-FEASIBILITY.md:88-92,:101,:106-111,:207-211",
+      "asked": "2026-11-08"
+    },
+    {
+      "id": 80,
+      "summary": "Is the park verdict on Mistral-Large-4 final, or should the one-day 8xB200 rental ($672–1,572 for 24 h) be authorised to measure the model as published?",
+      "status": "open — owner decision",
+      "provenance": "mad-science/QUESTIONS.md #80; MISTRAL-LARGE-4-FEASIBILITY.md:256-269; queue.json row mistral-large-4-feasibility (done)",
+      "asked": "2026-11-08"
+    },
+    {
+      "id": 81,
+      "summary": "Will the owner accept the gated model licences (facebook/dinov3-vith16plus-pretrain-lvd1689m, black-forest-labs/FLUX.2-dev) on the staging HF account so media-idol-3dgs-boot can stage and boot?",
+      "status": "open — authorization",
+      "provenance": "mad-science/QUESTIONS.md #81; queue.json row media-idol-3dgs-boot blocker (1); #19 covers a different licence class",
+      "asked": "2026-11-08"
+    },
+    {
+      "id": 82,
+      "summary": "Should the ~500-line TODO.md '# DECISIONS' prose be imported into queue.json as a {id,summary,date,provenance} array, or stay prose?",
+      "status": "open — policy",
+      "provenance": "mad-science/QUESTIONS.md #82; QUEUE.md:176-181 (the deliberate deviation)",
+      "asked": "2026-11-08"
+    }
+  ]
 }

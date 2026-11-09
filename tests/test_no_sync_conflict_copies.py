@@ -33,7 +33,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # the gate; `.github/` is GitHub's loader. The repo root is scanned separately in
 # `conflict_copies`, since it is neither a launcher tree nor a subdirectory worth re-walking.
 WATCHED = ("recipes", "mods", "tools", "tests", "benchmarking", "plugins", "tuning", ".sparkrun",
-           ".github")
+           ".github",
+           # `mad-science/` is read by name rather than walked, so a copy there cannot shadow
+           # `queue.json` -- but on 2026-11-08 nine `queue.sync-conflict-*.json` copies had
+           # accumulated (each a strict id-subset of the register) with nothing to report them,
+           # and a register copy is exactly the file a human opens when a tool's output looks wrong.
+           "mad-science")
 PATTERN = "*sync-conflict*"
 # The one documented exemption: tracked on purpose (27 lines of header explain it), never deleted.
 FIXTURE = "tests/test_qwen3_vl_embeddings.sync-conflict-20260919-005631-AY4HZ2K.py"
@@ -115,6 +120,17 @@ class NegativeControls(unittest.TestCase):
             self.assertEqual(conflict_copies(tmp),
                              ["AGENTS.sync-conflict-20261108-115119-Y5KSV46.md"],
                              "a conflict copy at the repo root must be reported")
+
+    def test_a_copy_under_mad_science_is_caught_too(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for d in WATCHED:
+                (Path(tmp) / d).mkdir(parents=True)
+            planted = Path(tmp) / "mad-science/queue.sync-conflict-20261108-061603-TOW2T6H.json"
+            planted.write_text("{\"tasks\": []}\n", encoding="utf-8")
+            self.assertEqual(
+                conflict_copies(tmp),
+                ["mad-science/queue.sync-conflict-20261108-061603-TOW2T6H.json"],
+                "a register copy under mad-science/ must be reported")
 
     def test_a_missing_watched_dir_raises(self):
         with tempfile.TemporaryDirectory() as tmp:
