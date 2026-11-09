@@ -7027,9 +7027,11 @@ here rather than left to a later quartet window. Receipt `head:~/benchmarks/ds4-
   4.5 GiB pinned host↔device copy was 49,664 kB. Page tables therefore **cannot** be the marlin mechanism: the rank
   cgroup never exceeded **5.87 GB** while `.31` lost 106.8 GiB in 3 s and 110.3 GiB in 4 s, so the lost memory was
   never container-charged and never page-table-shaped.
-- **The real lever is `MemTotal`, and it is small.** 127,598,700 → 129,798,848 kB = **+2,100,148 kB = +2.10 GiB**,
-  what a 16× smaller `struct page`/vmemmap array buys (~1.81 GiB by arithmetic at 64 B/page), the same order as
-  upstream's measured end-to-end 1.78–1.86 GiB/node usable. The UVM packing half was loaded and enabled yet
+- **The real lever is `MemTotal`, and it is small.** 127,598,700 → 129,798,848 kB = **+2,200,148 kB = +2.10 GiB**,
+  i.e. what a 16× smaller `struct page`/vmemmap array buys (~1.81 GiB by arithmetic at 64 B/page), the same order as
+  upstream's measured end-to-end 1.78–1.86 GiB/node usable. (Corrected 2026-11-09 17:25: the subtraction is 2,200,148 kB;
+  the earlier `+2,100,148` was one digit off — the capture pair is `baseline-4k-meminfo.txt` / `matched-64k-meminfo.txt`,
+  and the receipt's §5 already stated 2,200,148.) The UVM packing half was loaded and enabled yet
   **idle-neutral by construction** — it saves at allocation time, and an idle node makes no such allocations — so its
   effect is quoted from upstream and was not re-measured (the pack-on/off A/B was impossible: a `flare` process holds
   `/dev/nvidia-uvm`). Summed additively with upstream's 1.78–1.86 GiB the whole configuration reaches **4.8 % of the
