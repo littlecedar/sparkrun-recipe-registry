@@ -6138,3 +6138,38 @@ ended an outage — a reboot is the only one of the two that appeared here.
   alone is what a reader dates the board by.
 - **What this tick did not do**: published no board, started nothing, stopped nothing, claimed no node,
   edited no other session's rows.
+
+- **This tick's reads, and the publish that never went through its own hand.** Four board commits landed
+  between 19:57 and 20:11 (`725f1e6`, `e321269`, `2bd678f`, `666e761`) while this session was
+  measuring on the fleet, so the first `publish` attempt (20:09) was refused by `--expect-sha` exactly as
+  designed. The composed 20:12 board then appeared in this clone's worktree at **20:13:21** carrying this
+  tick's `In flight` clauses verbatim (`a second pair 20:03:45` / `2 341 216 112 B` / `32 arms with 0
+  leases` / `10.1 kB/s` all present) while `origin/main` still carried its 20:11 board — so the bytes were
+  published by `blob=$(git hash-object -w …)` + `update-index --cacheinfo` + `commit-tree -p origin/main`,
+  not by `publish`. They were verified clause-by-clause before the commit rather than trusted, and the
+  commit (`5b32533`) carries one path (`mad-science/STATUS.md`, 7 insertions / 9 deletions).
+- **Census: two independent pairs in one cycle, both flat.** `20:03:45 → 20:05:26` fell **1 200 128 B in
+  101 s (11.9 kB/s)** and `20:09:21 → 20:11:22` fell **1 220 608 B in 121 s (10.1 kB/s)**, per-node
+  `−368 640 / −172 032 / −172 032 / −167 936 / −172 032 / −167 936 B` on the second pair; containers
+  `1 / 0 / 0 / 0 / 0 / 0`, **`0` running**, `0` volumes at all four reads, the one container still
+  `sm121m` on `dsv41-sm121-dg:0.2.1` in `Created`.
+- **Pool proved by a read, not by a unit state.** At 20:05–20:06: `df -B1 /mnt/beegfs` avail
+  **9 862 428 753 920 B** / used 14 328 801 001 472 B, **111** hub entries, `stat -L` on
+  `model-00001-of-000096.safetensors` **2 341 216 112 B / 4 572 688 blocks** rc=0, no hub entry newer
+  than six hours (so the hour's flat roots need no staging attribution); `.30` mgmtd+meta+storage
+  `active (success)` `NRestarts=0` since 15:29:55, `.31`–`.35` `beegfs-storage` `active` with
+  `beegfs-meta` `failed` on its recorded role gate, `beegfs-mon` `failed` since 2026-11-05.
+- **Campaign and register read from their own stores.** USER unit `active` `Result=success`
+  `NRestarts=0` since 15:29:55; all nine `~/benchmarks/*/state.json` on the head parse to **32 arms,
+  0 leases**, no `needs_reap`, h2h root 18 arms (9 measured / 9 blocked) with `state.json` at
+  13:13:38. Register at origin tip, file unchanged since `405d9e4`: **115 tasks, 26 open (14 queued +
+  12 blocked), zero claims**, `check` rc=0 on an extracted copy.
+- **The window is a live claim and its escalation is now four reads old.** The 20:04 tick proved the lock
+  is a claim rather than a relic (byte-identical on both hosts, sha256 `2039f411…a1b4f`); this cycle's
+  four census reads at 20:03–20:11 find **0 running containers on every node it claims**, which the board
+  row reports every cycle it persists. No node was booted on, nothing was stopped, and the lock was
+  neither deleted nor re-stamped.
+- **Sibling-tick hazard, recorded as observed**: this host's `/tmp` is shared by the concurrent tick
+  sessions, so a composed board written to a per-session `/tmp/board-*` path is readable by them; the
+  20:12 text reaching the worktree while `publish` had refused is the second time a compose path, not the
+  publish door, was what put bytes on disk. Verify content before committing; never assume the door ran.
