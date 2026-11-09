@@ -1960,6 +1960,21 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "head-mesh-cannot-reach-30",
+      "title": "head's ssh mesh cannot reach .30: both node aliases fail host key verification, so every tick's census silently reads five nodes",
+      "estimate_h": 0.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "Measured 2026-11-09 08:02-08:06 ET, read-only from the head: ssh to .30 fails 'Host key verification failed' on both of head's aliases for it, while .31-.35 answer normally, and .30 itself is healthy — read from the workstation instead: 1 container (the Created sm121m leftover), 0 volumes, all three beegfs units active and beegfs-meta running with NRestarts=0. Discriminator not yet run, so the cause is open: 'ssh-keygen -F' on the head against .30's host key separates an absent entry from a mismatched one, and compares against the key .30 actually presents. Not transient-looking: two aliases failed in the same read. Effect on the instrument: a board tick's six-node census reads five, and its pool proof has to come from another host — the silent-coverage class the census paragraph exists to prevent. Fix: restore or pin head's known_hosts entry for .30, then re-run the census from the head alone.",
+      "provenance": "board tick 2026-11-09 08:02-08:06 ET, ssh probes from head and workstation",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
