@@ -6590,3 +6590,28 @@ bytes: `/tmp/board-0120.md` with the heading line removed, `python3 -B tools/tas
 tree holding it as `mad-science/STATUS.md`, prints `ok: 1 markdown file(s) render` and exits 0 while
 the file carries two `## ` headings and the landed table sits under `## Work queue`. So the gate that
 caught it was the section-list assertion, never lint — a structural check belongs in the compose step.
+
+## 2026-11-09 06:10 ET — board tick: the remote-sha guard refused a stale composition
+- **Census, two reads from this workstation**: 06:04:04 → 06:04:07 (one probe per node) and 06:07:45.
+  Containers `1 / 0 / 0 / 0 / 0 / 0`, running `0` on six, volumes `0` on six, `.30`'s `sm121m` still
+  `Created`; root avail falls **1 490 944 B over 218 s** (6.8 kB/s) with nothing running, and the
+  uptimes are unchanged from the 02:0x rolling reboot.
+- **Pool role gate re-read, which the peer's `.30`-only probe had dropped**: `.31`–`.35`
+  `beegfs-storage` `active` `Result=success` `NRestarts=0`, `beegfs-mgmtd` `inactive`, `beegfs-meta`
+  `activating` on restart counters **2742 / 2724 / 2705 / 2690 / 2673** (2075… at 05:09:34) — the
+  config-less loop still retrying. Through mount the avail falls 1 572 864 B in the same 218 s.
+- **Campaign and register agree that there is nothing to run**: unit restarted 05:47:17 (MainPID
+  1829923) and logs `queue: no runnable rows`; nine roots hold 32 arms and 0 leases; the register is
+  24 open of 120 with zero claims, its `questions` list empty, and **all 13 queued rows are code/doc
+  rows with no `recipe`** while all 11 boot arms are `blocked` — so the drained director is arithmetic,
+  not a stalled worker.
+- **The `--expect-remote-sha` door refused this tick's first board, and that is the finding.** The
+  composition was built over the 05:16 published board (`31d815b4…`) and `publish` refused it with
+  `origin/main carries board sha256 3d3544bb…, not the 31d815b4… this board was composed from`, because
+  a peer tick had published `d271d96` at 06:08 in between. `--expect-sha` could not have caught it: the
+  clone's own board on disk was still the 05:16 copy, so the local check passed against a file no one
+  had committed. Re-derived over the peer's bytes, kept their six `In flight` rows and their three
+  commit rows, extended only census/pool/publication, pushed as `844a8cd`.
+- Note for a later tick: this hour produced three boards (05:16, 06:08, 06:10) and two of them from
+  peers settling at the same census. Re-deriving over the newest is cheap; re-composing over one's own
+  read is what the guard exists to stop.
