@@ -1,61 +1,38 @@
-# Board — generated 2026-11-08 19:21 ET
+# Board — generated 2026-11-08 19:57 ET
 
 ## In flight
 
 | where | owner | what |
 |---|---|---|
-| census | tick's own read — read-only: booted nothing, claimed no node, stopped nothing | **2026-11-08 19:03:16 → 19:03:40 ET**: containers `1 / 0 / 0 / 0 / 0 / 0` on `.30`–`.35`, `docker ps` empty on five, so the single container is `sm121m` (`dsv41-sm121-dg:0.2.1`, `Created` 10:32:33, never started) and no research workload runs; volumes `0` on all six; root avail bytes second sweep `.30` 1 253 660 160 000 / `.31` 1 643 063 844 864 / `.32` 1 720 765 194 240 / `.33` 1 604 158 447 616 / `.34` 1 073 966 931 968 / `.35` 1 337 883 291 648 — two sweeps 23.1 s apart fell **200 704 B across the fleet** (`.30` −4 096, `.31` −53 248, `.32` −57 344, `.33` −57 344, `.34` −16 384, `.35` −12 288), **8.7 kB/s flat**, the same character as the 18:12 pair (9.5 kB/s) and the 18:09 pair (4.4 kB/s); the hub entry count held at **111** across both tick reads, so no body was staged and the fall is pool chunk-store traffic on node roots, not a local writer; **which host produced each read**: the `.30` read ran on the node itself over an `ssh` session, `.31`–`.35` over nested `ssh -n` hops from that head, and the workstation is a different host this row does not count. The head's infrastructure is not containers — the cluster monitor is a process, the flare-agent and campaign director are user units — so `1` is the whole container census |
-| pool | — (nobody; serving, roles per host) | **serving, and reads proved on head**: units re-read 19:04:16 ET — `.30` `beegfs-mgmtd`/`beegfs-meta`/`beegfs-storage` all `active`, `Result=success NRestarts=0 ActiveEnterTimestamp` **15:29:55**; `.31`–`.35` `beegfs-storage` `active` `Result=success NRestarts=0` (entered 15:30:39 / 15:29:39 / 15:29:40 / 15:29:50 / 15:29:54), `beegfs-meta` `failed` `Result=exit-code` — the recorded role-config gate, unchanged since the 15:29 fleet restart, not an outage — and `beegfs-client` `inactive` on all six (the client runs inside rank containers). Reads 19:04:23 ET: `/mnt/beegfs` lists fstype `beegfs`, `df -B1` avail **9 862 542 524 416 B** / used 14 328 687 230 976 B — against 18:12's 9 862 608 060 416 / 14 328 621 694 976, so 65.5 MB moved into the store in ~6 h with no body staged — **111** hub entries, and one shipped snapshot resolved: `models--Aleph-Alpha--Kolibri-1/snapshots/258cae8ffff…/model-00001-of-00032.safetensors` `stat -L` **3 156 374 416 B / 6 164 794 blocks** |
-| campaign | `campaign-queue`, root `~/benchmarks/h2h-20261107` on head | **unit `active` (USER scope), no lease, and the lease question settled across every root**: head reads `active`, `Result=success`, `NRestarts=0`, `ActiveEnterTimestamp` **2026-11-08 15:29:55**; `state.json` mtime **13:13:38**, 18 arms — **9 measured / 9 blocked**, no arm carrying `lease`, no `needs_reap`. **All nine `~/benchmarks/*/state.json` roots on head re-parsed 19:04: 32 arms across them, lease total 0, `needs_reap` empty** (arm counts 7 / 1 / 1 / 1 / 18 / 1 / 1 / 1 / 1), so the director holds nothing anywhere on the fleet; one root's empty lease list is not evidence about the others. This workstation's own user unit reads `inactive` and its local copy is 2026-11-07 22:43, so the live state is the head's |
-| queue | register `mad-science/queue.json` at origin **`405d9e4`** (its own last change; origin tip `fe40e27` is later and carries only the board) | **26 open of 115: 14 queued + 12 blocked, 89 done, zero claims**, `priority_models` 5 entries, `check` rc=0; the 26 rows below are `render --board` and the block above them `graph`, both run in this tick from the same **origin** register (`git show origin/main:mad-science/queue.json`, staged to a git-ignored path because the tool refuses a register outside a worktree, and removed at close-out), whose counts line reads `%% 12 blocked, 3 edges, 9 prose-gated, 2 question-gated, 1 question` — three row edges (`h2h-beam-house-and-bfcl-category` and `h2h-second-boot-ladder` → `h2h-doc-refresh`, `kimi-pruned75-tp4-boot` → `kimi-pruned75-dspark-tp4-boot`) plus three Q67 question edges, every blocked row lacking a recorded edge drawn `· owner`. Origin's register is a **strict superset** of the clone's: identical ids and states, and origin additionally holds `metrics-flag-boot-verification` and `pool-window-invalid-cells`, so the worktree copy (113 rows) is two rows behind and is not this table's source. Origin's `tools/task-queue.py` is the one that ran — the clone's copy predates its `graph` subcommand |
-| window | `campaign-queue` | **present, declared, idle at census**: `.local/fleet-window.lock` (mtime **2026-11-07 22:37:33**) declares all six nodes to `campaign-queue` at `window_stamp 2026-11-08T03:37Z` with `census: 0 containers / 0 volumes`, and the 19:03 census reads **0 running containers on every node it declares**; per the owner's 2026-11-08 policy the quartet is **reserved for `tensor_parallel: 4` arms**, so an idle quartet does not hold TP1/TP2 rows and the queue's real blockers are register-side. Another session's claim: not deleted, not re-stamped |
-| publication | this tick | **composed over `origin/main`'s own bytes, not the clone's branch**: base copy `git show origin/main:mad-science/STATUS.md` sha `4c9f379ace74aa38a5f9f2c58ef0ccf0a5901d3ff2b63864b104a789a95495c4` (worktree file identical and unmoved since 18:23), written through `publish --expect-sha` over that copy, then carried as one commit on `origin/main`'s parent — no merge, no reset, no force; the clone's local `main` stays 73 commits ahead / 84 behind on its own lineage and is not published from |
-
+| census | this tick's own read — read-only: booted nothing, claimed no node, stopped nothing | **2026-11-08 19:56:1x ET, six nodes, from this session**: containers `1 / 0 / 0 / 0 / 0 / 0` on `.30`–`.35` with nothing live, so the one container is still the never-started `sm121m` and no node runs a workload; volumes `0` on all six; root avail bytes `.30` 1 253 655 408 640 / `.31` 1 643 042 754 560 / `.32` 1 720 744 108 032 / `.33` 1 604 137 353 216 / `.34` 1 073 945 804 800 / `.35` 1 337 862 197 248 — a **single read**, so this cell carries counts and no byte rate |
+| pool | — (nobody; serving, roles per host) | **serving, units re-read 19:56 ET**: `.30` `beegfs-mgmtd`/`beegfs-meta`/`beegfs-storage` all `active (success)`, `NRestarts=0`, `ActiveEnterTimestamp` **15:29:55**; `beegfs-storage` `active (success)` on `.31`–`.35`; the metadata `failed` lines on `.31`–`.35` are the recorded role config gate, not an outage. **No mount read was taken by this tick** — the last read proof is the 17:27 one (111 hub entries, `df -B1` 9 862 742 278 144 B avail, one snapshot rc=0), and a dead BeeGFS mount is exactly what this tick must not test blind |
+| campaign | `campaign-queue`, root `~/benchmarks/h2h-20261107` | **unit `active` (USER scope), no lease, nothing plannable**: `systemctl --user is-active sparkrun-campaign.service` → `active`; `state.json` unmoved since **13:13**, **18 arms — 9 measured / 9 blocked**, so the director holds nothing and its 9 blocked arms are register-refused, not live holds |
+| queue | register `mad-science/queue.json` on `origin/main` (`3bf4680`) | **26 open of 115: 14 queued + 12 blocked, 89 done, zero claims**; the 26 rows below are `render --board` over that register. **The graph above is the connected view, not the whole register**, and its counts line says so: `%% 12 blocked, 3 edges, 9 prose-gated, 2 question-gated, 1 question, 18 rows not drawn (--all)` — 9 nodes, 6 edges, the 18 undrawn rows being **rows not drawn** (queued rows with no edge included), never "gated" |
+| window | `campaign-queue` | **present, declared, and idle a fourth hour**: `.local/fleet-window.lock` (mtime **2026-11-07 22:37:33**) declares all six nodes to `campaign-queue` at `window_stamp 2026-11-08T03:37Z`, while the 19:56 census reads **0 running containers on every node it declares**; per the 2026-11-08 policy the quartet is **reserved for `tensor_parallel: 4` arms**, so it does not hold the TP1/TP2 rows. Another session's claim: not deleted, not re-stamped |
+| publication | this tick | **published on `origin`'s lineage without touching this clone's branch**: board composed over `git show origin/main:mad-science/STATUS.md`, written through `publish --expect-sha` into the worktree file, then carried as a tree built from `origin/main` in a temporary `GIT_INDEX_FILE` + `commit-tree` + one refspec push — no merge, no reset, no force |
 ## Work queue
-
 ```mermaid
 flowchart LR
-  %% 12 blocked, 3 edges, 9 prose-gated, 2 question-gated, 1 question
-  q67["Q67 · May host memory policy change on a…"]:::question
-  t1["beegfs-units-restart-no · queued"]:::queued
-  t2["board-render-state-truncation · queued"]:::queued
-  t3["ds4-gsq-rco-coder-llamacpp-boot · blocked · owner"]:::no-recorded-edge
-  t4["engine-exit-capture-watches-5s-for… · queued"]:::queued
-  t5["executor-release-host-claim-on-fai… · queued"]:::queued
-  t6["glm-flash-concurrency-degradation-… · queued"]:::queued
-  t7["h2h-beam-house-and-bfcl-category · queued"]:::queued
-  t8["h2h-doc-refresh · queued"]:::queued
-  t9["h2h-second-boot-ladder · queued"]:::queued
-  t10["kimi-pruned75-dspark-tp4-boot · blocked"]:::blocked
-  t11["kimi-pruned75-tp4-boot · blocked · owner"]:::no-recorded-edge
-  t12["kimi-superexpert-ref-probe · blocked · owner"]:::no-recorded-edge
-  t13["media-idol-3dgs-boot · blocked · owner"]:::no-recorded-edge
-  t14["metrics-flag-boot-verification · queued"]:::queued
-  t15["pool-window-invalid-cells · queued"]:::queued
-  t16["quartet-boot-host-oom-containment · blocked"]:::blocked
-  t17["ripple-65b-bf16-tp2 · blocked · owner"]:::no-recorded-edge
-  t18["ripple-65b-nvfp4-dflash2-tp1 · blocked · owner"]:::no-recorded-edge
-  t19["ripple-65b-nvfp4-tp1 · blocked · owner"]:::no-recorded-edge
-  t20["run-arm-appearance-window-300s · queued"]:::queued
-  t21["run-arm-harvest-enumerate-reaped-l… · queued"]:::queued
-  t22["run-arm-stall-verdict-reads-as-dea… · queued"]:::queued
-  t23["task-queue-write-clobbers-live-cla… · queued"]:::queued
-  t24["w4-survey-arm3-sm121-boot · blocked · owner"]:::no-recorded-edge
-  t25["w4-survey-arm5-control-boot · blocked"]:::blocked
-  t26["w4-survey-arm5-sm121-boot · blocked · owner"]:::no-recorded-edge
-  q67 --> t14
-  q67 --> t16
-  q67 --> t25
-  t7 --> t8
-  t9 --> t8
-  t11 --> t10
-  classDef queued fill:#dbeafe,stroke:#1e40af,color:#111
-  classDef blocked fill:#fef3c7,stroke:#b45309,color:#111
-  classDef running fill:#dcfce7,stroke:#15803d,color:#111
-  classDef done fill:#e5e7eb,stroke:#6b7280,color:#111
-  classDef question fill:#ede9fe,stroke:#6d28d9,color:#111
-  classDef no-recorded-edge fill:#fee2e2,stroke:#b91c1c,stroke-dasharray: 4 3,color:#111
+  %% 12 blocked, 3 edges, 9 prose-gated, 2 question-gated, 1 question, 18 rows not drawn (--all)
+  q67["Q67 · May host memory policy change on all six nodes so an overrun…"]
+  t1["h2h-beam-house-and-bfcl-category · queued"]
+  t2["h2h-doc-refresh · queued"]
+  t3["h2h-second-boot-ladder · queued"]
+  t4["kimi-pruned75-dspark-tp4-boot · blocked"]
+  t5["kimi-pruned75-tp4-boot · blocked · owner"]:::no-recorded-edge
+  t6["metrics-flag-boot-verification · queued"]
+  t7["quartet-boot-host-oom-containment · blocked"]
+  t8["w4-survey-arm5-control-boot · blocked"]
+  q67 --> t6
+  q67 --> t7
+  q67 --> t8
+  t1 --> t2
+  t3 --> t2
+  t5 --> t4
+  classDef no-recorded-edge stroke-dasharray: 4 3
 ```
+
+
 
 | job | node cost | holds | state |
 |---|---|---|---|
@@ -364,3 +341,4 @@ flowchart LR
 | 19:06 | measurement, queue register | **origin's register is a strict superset of the clone's, so the worktree copy is the wrong source for this board**: both hold the same ids in the same states, origin adds `metrics-flag-boot-verification` and `pool-window-invalid-cells` (115 vs 113 rows), `check` rc=0, 26 open (14 queued + 12 blocked), zero claims |
 | 19:07 | fold | **nothing landed on origin since the 18:23 board** — origin tip was `fe40e27`, so this cycle adds no commit row. The clone reads `git rev-list --left-right --count origin/main...HEAD` = **84 73**, stated as observed rather than attributed: **57** of the 73 local-ahead subjects appear nowhere on origin, while **16** appear there under other SHAs (local `30651d4` and origin `bf462c7` are both 'Board: 18:11 census'), so only the 57 are unpublished lineage |
 | 19:21 | `8afad24`, `fe58d28a`, `b3ae2cb`, `cfd7c45` | **four board commits this cycle**: the census cell names which host produced each read and why `1` is the whole container census; the fold states the clone's divergence as observed (**57** of 73 local-ahead subjects absent from origin, **16** present there under other SHAs) instead of attributing all 73; the queue row gives the command that produces its bytes in place of the staging copy the tick deletes; gate `success` read on `8afad24` and `fe58d28a`, and the two later commits' runs still in flight at write |
+| 2026-11-08 19:5x | graph re-render, tool `3bf4680` | the block under `## Work queue` was **re-rendered from the new tool, not edited**: default is the **connected view** (9 nodes, 6 edges) with `--all` the opt-in for every row, and the palette is gone by construction — `classDef no-recorded-edge stroke-dasharray: 4 3` is the only class and there is **no `fill:`/hex literal in the block**, so the renderer's theme owns colour. The counts line now ends `18 rows not drawn (--all)`, and the undrawn count is **rows not drawn**, not gated: it includes queued rows that simply carry no edge. Verification: the pasted bytes are byte-identical to `python3 -B tools/task-queue.py graph --file <published register>`'s stdout (diffed, and `tool_output in board` afterwards); the old `dependency graph unavailable` line is absent from the graph slot |
