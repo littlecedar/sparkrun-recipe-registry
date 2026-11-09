@@ -201,6 +201,14 @@ Rules that follow:
 - **The board is derived.** `task-queue.py render --board` emits the `## Work queue` table that
   `STATUS.md` carries; a tick copies it instead of re-typing it, and `render` (no flag) still emits
   the weighted ordering table for a human.
+- **A publish is not complete until the worktree copy is written.** After `publish` and the push,
+  copy the published bytes into this clone's worktree with
+  `git show origin/main:mad-science/STATUS.md > mad-science/STATUS.md` — the same for
+  `mad-science/SESSION-RECORD.md` when the tick appended to it — content only, never a checkout,
+  reset or branch change, because peer sessions and humans read the worktree file and this clone's
+  `main` cannot fast-forward, so a board that only reaches origin reads as no update at all. The
+  tick's `publication` In-flight row ends with `worktree refreshed: <path> @ <sha>` (or
+  `worktree refreshed: no`, which is the defect signal).
 - **Coverage is checkable, and bounded at the freeze.** `task-queue.py orphans --todo
   mad-science/TODO.md` reads the `<!-- archive-frozen: <sha> -->` marker in the archive and reports only
   open items **added since that commit** (plus markers naming an unknown id); it exits non-zero on
