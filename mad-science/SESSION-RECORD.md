@@ -6324,6 +6324,13 @@ ended an outage — a reboot is the only one of the two that appeared here.
   earlyoom runs `-m 20,10 -s 100,95` on all six, so the answer's drafted `-m 14,5 -s 90,80` would
   loosen the trigger; `quartet-boot-host-oom-containment` closed on its own stated condition, which
   is what moves the board's queue row to **117 tasks, 27 open (16 queued + 11 blocked), 90 done**.
+- **Two register closes, and the committed copy lags the head's by one.** This cycle renders the head's
+live copy: 26 open 119 (15 queued + 11 blocked), 93 done, zero claims. `metrics-flag-boot-verification`
+closed on the head at 01:10, while `origin`'s 01:24 commit (`3381458`) carries
+`host-memory-policy-apply` → `done` and still shows the metrics row queued. The memory-policy close is
+verified here rather than quoted: `systemctl show` reads `OOMScoreAdjust=-900` on `ssh.service`,
+`NetworkManager.service` and `user@1000.service` on `.30`, `.33` and `.35`, which is the `#72`/`#83`
+remainder live; the row keeps its own open finding that configured `-900` and live `sshd` `-1000` differ.
 - **What this tick did not do**: booted nothing, stopped nothing, claimed no node, edited no other
   session's rows, and did not re-stamp or delete the live `campaign-queue` window lock.
 
@@ -6509,3 +6516,42 @@ worktree board is the stale 23:14 one, so the board was composed from a fresh sh
   (`metrics-flag-boot-verification` `running`, claimed by `sparkrun-vibe:tp4-boot`, sha256
   `5a4904e1…`, 00:59:26), so a board rendered from published bytes shows a serving boot with no
   claim.
+## 2026-11-09 01:22 ET — second board refresh: the quartet measured metrics, then released the fleet
+- **Why a second refresh this hour.** The 01:12 board was composed over `origin`'s committed register
+(`5e3c006`), which still read `metrics-flag-boot-verification` `queued` and 28 open, and over a census
+taken while four ranks were serving. Both had moved by then: the head's live register copy carried the
+claim at 00:59:26 and closed the row `done` at 01:10, and the quartet was gone by 01:19:52. The board is
+a coordination surface, so it is corrected rather than left describing a finished flight as in
+progress; the correction is an appended landed row, not an edit of the earlier rows.
+- **The measurement is real and the flag provably reached the engine.** `--enable-metrics` appears in
+`engine-argv.txt` for **4/4 ranks**, `server_args` reads `enable_metrics: True`, the launcher's
+`EXTRA_SGLANG_ARGS` ends in the flag (`launch.log:76`), and `/metrics` returns **http-200 on all four
+ranks** with 28–71 KB bodies. The quality battery landed **36/37** (easy 19/19, hard 17/18; the single
+miss `hard-rev reply nrukraps` is the lane's recorded miss since 2026-10-18), throughput discarded per
+`#68` since an instrumented arm has no pre-instrument baseline. `SPARKRUN_EXIT=0`, TTR port-open
+327.997 s / HTTP-ready 360.662 s, pin `sha256:7c3cb394…` tagged `canary-roce-aff52fa5` on the four ranks,
+image id `sha256:3f448081…`, evidence `~/benchmarks/tp4-metrics-20261109/` on the head.
+- **Every holder is now clean, and both ends are dated.** The window lock is gone and the register
+records it released with 0 containers per rank; the campaign unit stopped at **00:59:11**
+(`signal 15: stopping after this tick`) and restarted at **01:10:35** (`MainPID 4025774`, `worker w1`
+one second later) with 0 leases across nine roots; the six-node census at 01:19:52 reads
+`1 / 0 / 0 / 0 / 0 / 0` containers and 0 volumes, the lone `.30` container being the `Created` leftover.
+- **The pool reading was one event seen twice, and `08a73de` says so.** `df -B1 /mnt/beegfs` on the head
+reports `size` 24,191,229,755,392 B against 6 × 4,031,871,553,536 = 24,191,229,321,216 B of the six
+nodes' own roots, and `used` 14,380,735,922,176 B against the roots' summed 14,380,735,700,992 B —
+within 221,184 B. So `.35`'s root fall and the "pool used growth" are the same bytes counted twice, and
+neither corroborates the other; this tick's phrasing inherited that bad pairing until the peer commit
+landed mid-publish and forced the correction. The consumer is still unnamed, and structurally so rather
+than for want of a probe: `find /srv/beegfs/storage/chunks -type f -newermt '2026-11-09 00:00'` returns
+0 files on `.35` and `.31`, no `hub/` entry is newer than 6 h, and no file at depth ≤ 6 under `hub/` is
+newer than 4 h. Naming it needs a before/after `du` the window does not have.
+- **Instrument note: a clone render is only as fresh as the last commit.** `task-queue.py graph` and
+`render` read a file, and the register's authoritative copy during a live session is the writer's
+(here the head's, mtime 01:10), not `origin`'s tip — so a tick that renders the clone can understate a
+live claim and an already-closed row. This cycle copied the head's `queue.json` into the clone for the
+render, restored it before the commit, and the queue row names that source.
+- **What this tick did not do**: booted nothing, stopped nothing, claimed no node, edited no other
+session's rows, and did not commit the head's register (that close-out belongs to the session that
+measured it). Gate: `lint` ok on the published board, address-hygiene 7/7 on the pushed tree, and the
+gate run for `bec8c1f` completed `success` before this push.
+
