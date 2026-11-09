@@ -6186,3 +6186,51 @@ ended an outage — a reboot is the only one of the two that appeared here.
   loop only ever reached a missing tool path. The row now names the route that carried the bytes
   (`hash-object` + `update-index` + `commit-tree` on an index read from `origin/main`), because a
   board whose own row is contradicted by its transcript is the defect the board exists to avoid.
+
+## 2026-11-08 21:07 ET — the hour's census, and a board published off origin's lineage
+
+- **Census taken twice, both reads on all six.** `21:02:22` and `21:05:00` ET read containers
+  `1 / 0 / 0 / 0 / 0 / 0` with `0` running and `0` volumes everywhere; the one `.30` container is
+  the `Created` `sm121m` leftover. Byte pairs: `1 339 392 B` over the 158 s pair (8.5 kB/s) and
+  `82 227 200 B` over the `20:11:22 → 21:02:22` window (26.9 kB/s), spread over six roots with no
+  node above 17.9 MB. Nothing booted, nothing stopped, no node claimed.
+- **The first census attempt returned nothing, and the cause was the probe, not the fleet.**
+  `ssh -n host 'bash -s' <<'EOS'` discards the heredoc (`-n` takes stdin from `/dev/null`), so six
+  hosts printed their `NODE` label and no counts. Dropping `-n` is what produced the numbers above;
+  the empty result was never a fleet reading.
+- **The pool is serving by read, not by unit state.** `21:05:01` on the head: `df -B1 /mnt/beegfs`
+  9 862 340 673 536 B avail / 14 328 889 081 856 B used with **111** hub entries, `stat -L` on a
+  shipped Kolibri shard rc=0 at 3 156 374 416 B, and `find -newermt '-6 hours'` under `hub/`
+  returning nothing, so no body is staging. `.30` carries mgmtd+meta+storage `active`
+  `NRestarts=0` since 15:29:55; `.31`–`.35` `beegfs-storage` `active` with `beegfs-meta` `failed`
+  and `beegfs-mgmtd` `inactive`, the recorded per-host role gate. `beegfs-mon` stays `failed` from
+  2026-11-05.
+- **The live holder has an empty plan, and that is the escalation.** All nine
+  `~/benchmarks/*/state.json` roots on the head parse to **32 arms, 0 leases**, `needs_reap` empty,
+  under a user unit `active` since 15:29:55 with `NRestarts=0` and MainPID 2605; the h2h root's 18
+  arms have not moved since 13:13:38. `.local/fleet-window.lock` is still the live six-node
+  `campaign-queue` claim (414 B, sha256 `2039f411…a1b4f`, mtime 2026-11-07 22:37:33, 22 h 28 m old).
+  Reported again; not deleted, not re-stamped.
+- **Register unchanged, and re-read from origin rather than the worktree.** Origin tip `405d9e4`
+  (17:44) holds 115 rows: 89 done, 14 queued, 12 blocked, zero claims, `check` rc=0. The queue
+  table and graph were both re-rendered from that file with origin's own `tools/task-queue.py`;
+  the graph's counts line reads `12 blocked, 3 edges, 9 prose-gated, 2 question-gated, 1 question,
+  18 rows not drawn (--all)`.
+- **The board was published from a throwaway clone, because the shared clone cannot publish.**
+  `git rev-list --left-right --count HEAD...origin/main` reads **76 99**, and the worktree's
+  `tools/task-queue.py` predates the `graph` subcommand, so composing here would have drawn the
+  previous tool's view. Route used: `git clone --no-hardlinks` → `fetch gh` →
+  `checkout -B main gh/main` (`e743a9a`) → compose over
+  `git show origin/main:mad-science/STATUS.md` (sha `9d96120c…`) → `publish --expect-sha` +
+  `--base` (a saved copy of that same read) → one `-o mad-science/STATUS.md` commit →
+  `push gh HEAD:main`. No merge, no reset, no force. Pushed `e743a9a..a35476a`, with the message
+  amended **before** the push, and only to correct `mad-science/fleet-window.lock` to
+  `.local/fleet-window.lock`.
+- **A compose defect the linter caught, recorded because it is silent otherwise.** Replacing the
+  whole `## In flight` body dropped its `| where | owner | what |` header and `|---|---|---|`
+  delimiter; `publish` refused with `table-missing-delimiter: 6 row(s) begin here but line 5 is not
+  a 3-column delimiter row`, i.e. GFM would have rendered seven rows as one paragraph. The fix
+  restored both lines, and `lint` then read `ok: 1 markdown file(s) render`.
+- **Folded, not rewritten:** five peer board/ledger commits since the 20:11 row (`666e761`,
+  `469e23b`, `5b32533`, `297d838`, `e743a9a`) plus this tick's own fold row were appended to
+  `## Landed session`; every existing row is untouched.
