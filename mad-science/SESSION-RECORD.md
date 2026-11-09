@@ -6284,3 +6284,47 @@ ended an outage — a reboot is the only one of the two that appeared here.
   `test_doc_hygiene` and `test_tracked_address_hygiene` green there while red in the lagged worktree.
   The lag is a clone condition, not a repo one, and the next session's first act should be a pull
   before it trusts any count read off this worktree.
+
+## 2026-11-08 22:22 ET — hourly board tick: census, the settled-question graph, no fleet change
+
+- **Board published on `origin`'s lineage, not from the shared clone.** The clone reads
+  `git rev-list --left-right --count origin/main...HEAD` = **106 / 76** (origin ahead 106, HEAD
+  ahead 76), so the board was composed over `git show origin/main:mad-science/STATUS.md`
+  (sha `99387081…`) and published from a `git clone --no-hardlinks` of the GitHub remote checked
+  out at `74c728f`. `publish --base` + `--expect-sha` passed twice; the first push attempt was
+  refused because the peer's `74c728f` landed between compose and push, and the board was
+  re-derived over that register rather than rebased.
+- **Census: three marker reads, all six nodes, `0` running containers and `0` volumes.**
+  22:03:35/22:03:45 fell 152 448 B; 22:06:56/22:08:32 fell 897 008 640 B, of which `.30` alone is
+  896 520 192 B; 22:13:11/22:15:01 fell 3 092 480 B (`.30` −196 608, `.31` −155 648,
+  `.32` −163 840, `.33` −163 840, `.34` −167 936, `.35` −2 244 608). Each block prints its own
+  `hostname`, so the labels are the nodes' and not a magnitude guess — the fix the 21:21 ledger
+  asked for.
+- **The head's 855 MiB is a released transient, and it is recorded unattributed.** `df` at
+  22:12:57 reads 1 253 260 144 640 B, i.e. 816 934 912 B (779 MiB) of it back. Nothing above 5 MB
+  was written under `/tmp`, `~` (depth 4) or `/srv/beegfs` in 15 min; `~/src`'s git objects are 16
+  files / 1 000 105 B in 25 min; the hub has no entry newer than 6 h. A full-root
+  `sudo find / -xdev -newermt '-12 minutes' -size +20M` had printed no hit when its 180 s budget
+  expired — an incomplete scan, stated as one, and not a clean bill.
+- **Pool proved on a second body, campaign lease-free across every root.** `df -B1 /mnt/beegfs`
+  avail 9 861 967 904 768 B / used 14 329 261 850 624 B, **111** hub entries, `stat -L` on
+  `models--orcarouter--Qwen3.8-Flash-Next-Uncensored-NVFP4/…/model-mtp.safetensors` = 5 214 305 456 B
+  / 10 184 191 blocks. Units: `.30` mgmtd+meta+storage `active (success)` `NRestarts=0` since
+  15:29:55; `.31`–`.35` storage `active` with meta `failed (exit-code)`, the recorded role gate. All
+  nine `~/benchmarks/*/state.json` roots: 32 arms, **0 leases**, `needs_reap` empty; the h2h root is
+  18 arms at 9 measured / 9 blocked with `state.json` unmoved at 13:13:38.
+- **Two board defects fixed in place, neither carried forward.** The inbound board carried a second
+  `|---|---|---|` delimiter under its census row, which split the six live rows into two tables —
+  one delimiter kept. And `publish`'s new `future-stamp` lint refused the first two compositions
+  because their titles were a minute ahead of the clock; the title is now stamped from `date` at
+  compose time rather than typed.
+- **The register moved under the tick, and the row follows the register.** `3f77f52` settled `#67`
+  and `#68` (so the graph's `Q67` node is gone and the counts line reads `0 question-gated,
+  0 question, 22 rows not drawn`), and `74c728f` reconciled that policy with what is already live:
+  earlyoom runs `-m 20,10 -s 100,95` on all six, so the answer's drafted `-m 14,5 -s 90,80` would
+  loosen the trigger; `quartet-boot-host-oom-containment` closed on its own stated condition, which
+  is what moves the board's queue row to **117 tasks, 27 open (16 queued + 11 blocked), 90 done**.
+- **What this tick did not do**: booted nothing, stopped nothing, claimed no node, edited no other
+  session's rows, and did not re-stamp or delete the live `campaign-queue` window lock.
+
+Board commit `e23a88c`, ten minutes after the peer's `74c728f`; gate run on it read after the fact.
