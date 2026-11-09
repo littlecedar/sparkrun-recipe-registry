@@ -6728,3 +6728,48 @@ claimed or stopped: this was a read-only tick.
 - **What the tick did not do**: booted nothing, stopped nothing, claimed no node, and touched no
   other session's rows. The register is unchanged since `5e31aec`, so the queue table and graph
   were re-rendered and compared byte-for-byte rather than replaced.
+
+## 2026-11-09 07:26 ET — hourly board tick: the `beegfs-meta` loop has a mechanism, and the fleet is free and unclaimed
+
+- **Board published over `9d1956b`.** This tick's first publish landed on `38b980e` and its push was
+  refused by `9d1956b`, so the composition was re-derived over the new tip instead of forced; every
+  landed row of the peer's survives, and this tick's three rows follow them. Census **07:02:39 →
+  07:03:09 ET**: containers `1 / 0 / 0 / 0 / 0 / 0`, volumes `0` on all six, `sparkrun status` idle on
+  every host. The one container is `.30`'s `created` `sm121m` leftover, which the 06:51 cleanup
+  deliberately kept because a receipt names it.
+- **`beegfs-meta` on `.31`–`.35` is a restart loop, and the cause is the drop-in working as designed on
+  a host where it cannot succeed.** `/etc/systemd/system/beegfs-meta.service.d/oom.conf` (mtime
+  2026-11-08 16:03 on `.30`, 16:05 on `.31`) carries `OOMScoreAdjust=-1000`, `Restart=on-failure`,
+  `RestartSec=5` — the owner-authorised pool protection the 2026-11-08 section above records as written
+  with **no unit restarted**, so it took effect at the next start, which the 02:08 reboot supplied. On
+  the five role-gated hosts `storeMetaDirectory` is empty, so each attempt exits 1 `Error: No metadata
+  storage directory specified` and systemd schedules the next: NRestarts read **3406 → 3431 on `.31`
+  in two minutes** (3358 / 3339 / 3324 / 3307 on the rest), `.31`'s journal is **956.6 MB**, and
+  `is-active` reads `activating` — the state a gate reads as alive. Registered as
+  `beegfs-meta-restart-loop-non-meta-hosts` (queued, single); the remedy is to mask or disable that
+  unit on the five, never to remove the drop-in or the score.
+- **The pool's used bytes fell 1.4 TB on the cleanup and are climbing on one staging write.** Used
+  12,934,060,703,744 B (07:03:15) → 12,970,863,624,192 B (07:08:24) → **13,057,790,050,304 B
+  (07:16:36)**, +123,729,346,560 B in 13 min, with `.30`'s root avail down 13,277,167,616 B over the
+  first five of those minutes. The writer is named by hub mtimes rather than inferred:
+  `models--meta-models--Muse-Glimmer-30B-assistant` written 06:54 and
+  `models--unsloth--Qwen3.8-27B-GGUF` 06:58 with blobs still arriving 07:04, against a chunk store
+  that lives on the node roots. Six `df` reads inside one 3 s window differ by up to 359 MiB, so they
+  stay per-host snapshots and never a byte series.
+- **`models--ricursiveAI--Ripple-65B-Preview-NVFP4` is an empty shell**: one snapshot id, **0 files
+  beneath it**, so the register's NVFP4 hold stands and the directory's appearance is not evidence of
+  a body.
+- **No window and no lock, corroborated rather than assumed.** `.local/fleet-window.lock` is absent on
+  this workstation and on the head, 0 running containers sit on all six nodes, and the nine campaign
+  roots hold 32 arms with **0 leases** under a unit that stopped on SIGTERM at **07:07:06**
+  (`Result=success`, `Restart=on-failure` with `RestartPreventExitStatus=2`, so it stays down) and
+  read `inactive` again at 07:16:36.
+- **Two of this tick's own published cells were corrected in the same push, and both were stale
+  phrasing rather than measurement.** The campaign row's "no receipt newer than the 06:33 board" was
+  the scan's negative, not the tree's — its `find` filtered `*.json`/`*.yaml`/`*.log` and so never saw
+  the 06:51 `cleanup-20261109/cleanup.md` the board itself carries three rows above; it now names the
+  scan. The census row now cites `mad-science/TODO.md`'s attribution of the 07:07–07:16Z reboots to
+  making the `OOMScoreAdjust` drop-ins live on `.31`–`.35`, and says `.30` is still up because its
+  reboot is the one awaiting owner approval.
+- **Remains:** the loop fix is queued and unstarted; the staging write was still running at the
+  07:16:36 read, so the next tick must re-read the pool rather than carry these deltas.
