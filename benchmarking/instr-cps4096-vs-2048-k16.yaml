@@ -43,6 +43,10 @@
 #     artifact of the aggregate/tg_req ratio rather than of the running batch).
 #   * both far below 16 (e.g. 2-4)                 -> the interesting case: neither prior reading is
 #     right and the step loop is admission-limited at a level nobody modelled.
+# RESOLVED (owner, 2026-11-08, `mad-science/TODO.md` §"Settled questions" `#68`): the constraint above is
+# now the fleet rule, because `tools/run-arm.sh` scrapes /metrics on every arm. Bar: an instrumented
+# figure compares with an uninstrumented one only after a metrics-on/off A/B on the identical recipe
+# shows no ROM-level throughput difference; the receipt's `metrics` marker names the era.
 framework: llama-benchy
 metadata:
   description: >

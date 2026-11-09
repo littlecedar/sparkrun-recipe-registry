@@ -453,7 +453,11 @@ remove what the session created** — a leftover is anything undocumented, unkno
   **incidental** — they may never be used to describe it as unavailable, reserved, "controller only",
   "idle as controller", or excluded "by role"; navigating from it says nothing about where it runs
   work. **Leaving `.30` idle while research runs is a violation, not a policy** — an idle node is
-  reported as "nothing live (no reservation)", never with a reason. **This framing has regressed three
+  reported as "nothing live (no reservation)", never with a reason. **The one placement constraint is
+  memory risk, and it is still not a role** (owner, 2026-11-08, `mad-science/TODO.md` §"Settled
+  questions" `#67`): a memory-overrunning TP4 quartet boot runs on `.31`–`.35`, never on `.30`, because
+  a global OOM there takes `ssh`, `NetworkManager` and the BeeGFS units — `.30` remains a normal worker
+  for every boot that is not that memory-risky TP4 shape. **This framing has regressed three
   times (2026-10-24 twice, 2026-10-25/26): sweep it on sight in board rows, briefs, lock rows, skills
   and memory, and correct the wording before anything else in the turn.** **If a production workload is
   running on a node, leave it alone and ask; never displace it** (`TP4-BGFS Q2`): a cell on ranks that

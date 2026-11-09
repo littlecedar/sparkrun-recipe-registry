@@ -252,8 +252,13 @@ meta log still carried `Root directory loaded.` and `I got root`.
 bounds only the container's host-side anonymous memory: useful against a repack copy, never against the
 weight load. `sparkrun run` has no `--oom-score-adj` channel either — only the API's `extra_docker_opts`
 reaches `docker run` — so a recipe cannot even ask to be the kernel's preferred victim. The containments
-that do work are host-side (earlyoom minimums, `OOMScoreAdjust` on `ssh.service` and `NetworkManager.service`)
-and are the owner's call in `mad-science/QUESTIONS.md` `#67`.
+that do work are host-side, and the owner ruled on them 2026-11-08 (`mad-science/TODO.md` §"Settled
+questions" `#67`): earlyoom minimums to `-m 14,5 -s 90,80`, `OOMScoreAdjust=-900` on `ssh.service` and
+`NetworkManager.service`, and a memory-overrunning TP4 quartet boot placed on `.31`–`.35`, never on
+`.30` — that placement is memory safety, not a role, since `.30` carries BeeGFS management, meta and
+storage beside its normal worker duty; its swap term needs a per-node swap baseline before the ruling
+counts as effective, because both earlyoom tests are conjuncts and a node near 100 % swap-free never
+satisfies `-s 90`.
 
 ## eval-suite.py (the SOP pass)
 

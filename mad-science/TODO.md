@@ -641,6 +641,45 @@ folded into the rows they govern; these rows keep them citable.
   pattern kill would have ended this session. — provenance: `SESSION-RECORD.md` 2026-11-06 16:20 ET
   entry (the backlog it described is gone); asked and settled 2026-11-06.
 
+## Owner round 2026-11-08 — the two rows that emptied the register
+
+- **#67 — May host memory policy change on all six nodes, so an overrunning quartet boot cannot take
+  the head offline?** *Answered 2026-11-08:* **yes to (a) and (b), and (c) is narrowed to a placement
+  rule.** earlyoom minimums move to the drafted `-m 14,5 -s 90,80` (`/etc/default/earlyoom`);
+  `OOMScoreAdjust=-900` lands on `ssh.service` and `NetworkManager.service`; and **risky TP4 jobs run
+  only on `.31`–`.35`, never `.30`.** The exclusion is the owner's addition to (c), and it is a
+  memory-safety placement, not a role: `.30` remains a normal worker for every workload that is not a
+  memory-risky TP4 boot, because a global OOM there costs more than the arm it kills — the kernel took
+  `ssh` and `NetworkManager`, the second event named `task_memcg=user@1000.service` so the user
+  manager's teardown SIGKILLed every tmux session and client TUI on that node, and `.30`'s BeeGFS
+  mgmtd/meta/storage units ended `code=killed, status=9/KILL` and stayed down 39 minutes, in which no
+  node on the fleet could read a weight. The apply is a queue row (`host-memory-policy-apply`) rather
+  than a repo change, and its own caveat stands: earlyoom's two tests are conjuncts, so the swap term's
+  reach must be measured per node before the ruling is called effective (`.34` idles at 99.98 %
+  swap-free, where a `-s 90` term is unreachable), and `.30` is not rebooted without owner approval.
+  — provenance: this row's original text and its own `path:line` list (`/etc/default/earlyoom:11`;
+  `journalctl` 11:27:57 and 12:59:14; `docker inspect` `Memory=0 OomScoreAdj=0`;
+  `tools/README.md` §"run-arm.sh pooling receipts"; `mad-science/STATUS.md` pool row 13:12:43 and queue
+  row `beegfs-units-restart-no`); asked 2026-11-08 and settled the same day.
+
+- **#68 — How does an instrumented arm relate to its baseline now that every boot is instrumented?**
+  *Answered 2026-11-08:* **the instrument may not be a confound, so the ruling is a bar rather than one
+  of the three shapes.** Owner's words: "Adding metrics MUST NOT create such strong performance hit
+  that causes reasonable confound … must no difference between Rough Orders Magnitude (ROM) estimations
+  between throughput and instrumented arms." Instrument everything — the scrape has been fleet-wide
+  since `d6fae84`, and `5fe0db1` reads it into the campaign receipt — and treat a figure as comparable
+  with a pre-instrument row only once a metrics-on/off A/B on the identical recipe shows no ROM-level
+  throughput difference; the receipt's `metrics` marker carries which era a row belongs to, so the
+  distinction lives in the data instead of in a per-arm policy sentence. The owner also authorized the
+  decomposition that makes the bar checkable: name the metrics knobs that are genuinely
+  performance-impacting and show the rest insignificant — queue row `metrics-instrument-confound`.
+  Read as a decision, this supersedes the register's (a)/(b)/(c): (a)'s stated risk is exactly what the
+  bar answers, and (b) and (c) buy nothing if the bar holds. — provenance:
+  `benchmarking/instr-cps4096-vs-2048-k16.yaml` (the comparability constraint the answer generalizes);
+  `tools/run-arm.sh` `# metrics-scrape` block (`:918` start, `:1000` end);
+  `mad-science/TP4-HEAD-TO-HEAD-1025.md` (every figure there predates the instrument); asked
+  2026-11-08 and settled the same day.
+
 
 # TODO list
 

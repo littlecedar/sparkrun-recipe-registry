@@ -1868,15 +1868,37 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "host-memory-policy-apply",
+      "title": "Apply `#67` host memory policy on all six nodes: earlyoom `-m 14,5 -s 90,80`, `OOMScoreAdjust=-900` on ssh and NetworkManager, risky TP4 boots on `.31`–`.35`",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "Owner answer 2026-11-08 to `#67`, three parts. (a) `/etc/default/earlyoom` moves to `-m 14,5 -s 90,80` (line 11 today reads `-m 1 -s 70`). (b) `OOMScoreAdjust=-900` on `ssh.service` and `NetworkManager.service` — a systemd drop-in on each of the six nodes, then `systemctl daemon-reload` and a `systemctl show -p OOMScoreAdjust <unit>` per unit as the receipt. (c) placement rule recorded, not code: risky TP4 boots run on `.31`–`.35`, never `.30`; `.30` stays a normal worker for every boot that is not memory-risky TP4, and the exclusion is memory safety, not role. Host configuration only, because GPU unified-memory pages are not in RSS, so a container limit or `CONSTRAINT_MEMCG` can never fire and every event is a global OOM (the 2026-11-08 quartet evidence and the mechanism: `mad-science/TODO.md` §\"Settled questions\" `#67`, `tools/README.md` §\"run-arm.sh pooling receipts\"). The answer's own caveat is the real work of the apply step: earlyoom's two tests are conjuncts, so a node whose swap-free sits near 100 % never satisfies a `-s 90` term — `.34` idles at 99.98 % swap-free — therefore measure every node's swap baseline and confirm where the trigger actually sits on that node instead of assuming the drafted fractions work. `.30` must not be rebooted without owner approval (its BeeGFS mgmtd/meta/storage units and the head account's session live there). Not bootable: no `recipe`/`tp`/`env`, host configuration only, so no scheduler may boot it.",
+      "provenance": "owner answer 2026-11-08, `mad-science/TODO.md` §\"Settled questions\" `#67`; `mad-science/QUESTIONS.md` `#67` and its `path:line` list (`/etc/default/earlyoom:11`; `journalctl -u earlyoom` 11:27:57 and 12:59:14); `tools/README.md` §\"run-arm.sh pooling receipts\"; `mad-science/queue.json` row `quartet-boot-host-oom-containment`",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "metrics-instrument-confound",
+      "title": "Metrics knob decomposition: one identical recipe, metrics-on vs metrics-off, name the performance-impacting knobs (`#68` ROM bar)",
+      "estimate_h": 4.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "Owner's `#68` authorises the decomposition that makes the comparability bar checkable: on ONE identical recipe, boot instrumented (`tools/run-arm.sh` scrapes `/metrics` on every arm since `d6fae84`, and `5fe0db1` reads the scrape into the campaign receipt) and boot uninstrumented, measure throughput in both legs, then split the delta by metric family/knob — engine `/metrics` families, GPU counters, host probe, log-tail scrape, monitor footer — so the knobs that are genuinely performance-impacting are named and the remainder is shown insignificant. Acceptance is the owner's bar: no rough-order-of-magnitude throughput difference between the instrumented and the uninstrumented arm, the per-knob split turning that one number into a checklist. Not bootable yet: no recipe chosen — `benchmarking/instr-cps4096-vs-2048-k16.yaml` is itself a metrics-flag knob comparison and its header records why an instrumented arm cannot serve as the uninstrumented control — so no `recipe`/`tp`/`env` on this row; the executing session picks the identical recipe for both legs and fills the bootable fields before launch. Until this A/B clears the bar, a figure from an instrumented boot is not comparable with a pre-instrument baseline; the campaign receipt's `metrics` marker names which era a row belongs to.",
+      "provenance": "owner answer 2026-11-08, `mad-science/TODO.md` §\"Settled questions\" `#68`; `benchmarking/instr-cps4096-vs-2048-k16.yaml` header (the comparability constraint the answer generalizes); `tools/run-arm.sh` `# metrics-scrape` block",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
-  "questions": [
-    {
-      "id": 67,
-      "summary": "May host memory policy change on all six nodes so an overrunning quartet boot cannot take the head offline? (a) raise EARLYOOM_ARGS minimums above `-m 1 -s 70` -- proposed `-m 14,5 -s 90,80`, the proposer would pick `-m 30,15 -s 100,100`; (b) OOMScoreAdjust=-900 on ssh.service and NetworkManager.service",
-      "status": "open",
-      "provenance": "QUESTIONS.md #67; /etc/default/earlyoom:11; journalctl -u earlyoom 11:27:03-11:27:57 and dmesg -T 11:27:55-57 on the head; tools/README.md section 'run-arm.sh pooling receipts'",
-      "asked": "2026-11-08"
-    }
-  ]
+  "questions": []
 }

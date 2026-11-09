@@ -273,6 +273,13 @@ recipe, never with a baseline recorded before this rollout (the qwen4 ladders, t
 comparisons, the marlin attempts). Re-measure both arms in one window, or mark the cell
 instrumented and do not import it (`benchmarking/instr-cps4096-vs-2048-k16.yaml:29-35`).
 
+**The bar for reopening a baseline is measured, not argued** (owner, 2026-11-08, `mad-science/TODO.md`
+§"Settled questions" `#68`): `tools/run-arm.sh` now scrapes `/metrics` on every arm, so the instrument
+may not create a confound strong enough to matter — an instrumented figure is comparable with an
+uninstrumented one only once a metrics-on/off A/B on the identical recipe shows **no
+rough-order-of-magnitude throughput difference**. The receipt's `metrics` marker records which era a row
+belongs to.
+
 The pre-instrumentation record is everything measured before 2026-11-08: the qwen4 lane ladders
 (decode ladder, aggregate peaks, pool-112→128 cells), the ds4 TP=4 ladder and v2.4-line cells, the
 `h2h-20261107` marlin control, and every `house.yaml` under `~/benchmarks`. A recipe declaring
