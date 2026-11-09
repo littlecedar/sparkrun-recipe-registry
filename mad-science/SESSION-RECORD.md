@@ -6555,3 +6555,30 @@ session's rows, and did not commit the head's register (that close-out belongs t
 measured it). Gate: `lint` ok on the published board, address-hygiene 7/7 on the pushed tree, and the
 gate run for `bec8c1f` completed `success` before this push.
 
+## 2026-11-09 01:24 ET — third tick: composed board refused by the peer that published first
+- **What this tick read, and nothing else.** Census at 01:02:32 / 01:10:34 / 01:17:27 ET — containers
+`1 / 1 / 1 / 1 / 0 / 1` on `.30`–`.35`, then `1 / 0 / 0 / 0 / 0 / 0` at both later reads, volumes `0`
+throughout, `sparkrun status` idle at the third; the pool by unit state on all six plus a through-mount
+`stat -L` on `models--deepseek-ai--DeepSeek-V4.1-Flash-1017/snapshots/1bae0e10…/model-00019-of-00048.safetensors`
+= 7 389 761 368 B; the campaign unit stopped 00:59:11 and active again 01:10:35 (MainPID 4025774) with
+0 leases across nine roots; `.local/fleet-window.lock` absent on the head and in this clone; the head's
+register 27 open / 92 done at 01:12 on the `PROVEN` close-out, 26 / 93 once the second close landed.
+The statfs identity was re-verified rather than repeated: `df -B1 /mnt/beegfs` size 24 191 229 755 392 B
+against 6 × 4 031 871 553 536 = 24 191 229 321 216 B (Δ 434 176 B) and used 14 380 738 543 616 B against
+the roots' summed 14 380 738 379 776 B (Δ 163 840 B).
+- **The composition was superseded and its push refused, so this tick published no board.** A 01:20 board
+over the 01:12 one was composed (`17 ins / 10 del`: title, seven `In flight` rows replaced by six, the
+graph's counts line, one closed queue row gone, five landed rows appended) and `git push` was rejected
+non-fast-forward by `c55f165` (01:22), which already carried every cell. The local commit `db09335` lived
+only in the throwaway clone and was dropped with it; nothing was force-pushed and no peer board was
+overwritten.
+- **Trap for the next tick: a heading-drop in the compose step is silent.** Splitting on
+`(?m)^(## .*)$` leaves the heading itself in the list, so `parts[parts.index('## Landed session') + 1]`
+is the section body without its title: the first composition carried two `## ` headings and put the
+whole landed table under `## Work queue`. `lint` passed that file; only asserting the section list and
+the queue-row count caught it.
+- **Trap: a `launch.log` read while the launch is still writing cannot be trusted for its tail.** A
+01:03 read returned a tail ending `SPARKRUN_EXIT=0` with `TTR HTTP-ready 360.662 s` at a moment when a
+container created `2026-11-09T06:00:04Z` could not yet have been ready. The consistent series is the
+container's `Created` plus the TTR line's own value equalling the file's mtime (01:06:05), so correlate
+the three before quoting a tail.
