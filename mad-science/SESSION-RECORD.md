@@ -6582,3 +6582,11 @@ the queue-row count caught it.
 container created `2026-11-09T06:00:04Z` could not yet have been ready. The consistent series is the
 container's `Created` plus the TTR line's own value equalling the file's mtime (01:06:05), so correlate
 the three before quoting a tail.
+
+## 2026-11-09 01:31 ET — correction: the lint blind-spot claim, with the command that proves it
+- The 01:24 entry asserts `lint` passes a board whose `## Landed session` heading was dropped. That was
+read off `lint_markdown`'s rules (tables and fences only) at the time, then reproduced on the actual
+bytes: `/tmp/board-0120.md` with the heading line removed, `python3 -B tools/task-queue.py lint` in a
+tree holding it as `mad-science/STATUS.md`, prints `ok: 1 markdown file(s) render` and exits 0 while
+the file carries two `## ` headings and the landed table sits under `## Work queue`. So the gate that
+caught it was the section-list assertion, never lint — a structural check belongs in the compose step.
