@@ -1,4 +1,4 @@
-# Board — generated 2026-11-08 19:26 ET
+# Board — generated 2026-11-08 19:21 ET
 
 ## In flight
 
@@ -363,3 +363,4 @@ flowchart LR
 | 19:04 | measurement, campaign leases | **no campaign holds a node, and the claim rests on every root**: nine `~/benchmarks/*/state.json` on head = 32 arms, **0 leases**, `needs_reap` empty; the head's h2h root is 18 arms with `state.json` still at 13:13:38, and user unit `sparkrun-campaign` reads `active` `Result=success` `NRestarts=0` since 15:29:55 |
 | 19:06 | measurement, queue register | **origin's register is a strict superset of the clone's, so the worktree copy is the wrong source for this board**: both hold the same ids in the same states, origin adds `metrics-flag-boot-verification` and `pool-window-invalid-cells` (115 vs 113 rows), `check` rc=0, 26 open (14 queued + 12 blocked), zero claims |
 | 19:07 | fold | **nothing landed on origin since the 18:23 board** — origin tip was `fe40e27`, so this cycle adds no commit row. The clone reads `git rev-list --left-right --count origin/main...HEAD` = **84 73**, stated as observed rather than attributed: **57** of the 73 local-ahead subjects appear nowhere on origin, while **16** appear there under other SHAs (local `30651d4` and origin `bf462c7` are both 'Board: 18:11 census'), so only the 57 are unpublished lineage |
+| 19:21 | `8afad24`, `fe58d28a`, `b3ae2cb`, `cfd7c45` | **four board commits this cycle**: the census cell names which host produced each read and why `1` is the whole container census; the fold states the clone's divergence as observed (**57** of 73 local-ahead subjects absent from origin, **16** present there under other SHAs) instead of attributing all 73; the queue row gives the command that produces its bytes in place of the staging copy the tick deletes; gate `success` read on `8afad24` and `fe58d28a`, and the two later commits' runs still in flight at write |
