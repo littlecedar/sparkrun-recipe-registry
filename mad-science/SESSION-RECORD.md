@@ -6805,3 +6805,32 @@ claimed or stopped: this was a read-only tick.
 - **Remains:** the BFCL leg is still measuring, so its window closes no earlier than 10:18; the mesh
   fix is queued; the 08:17 peer board kept this tick's campaign, flight, window, queue and landed cells
   verbatim, so no landed row was replaced.
+
+## 2026-11-09 08:24 ET — `.30` read from its own host, the staging pull named, and a clone that was not the clone
+
+Landed on the board two cells the 08:12 board could not fill: a direct `.30` host read
+(the head's mesh cannot reach it), a stamped 14 s six-root root-avail pair, and the
+staging repos named by directory mtime. Everything else was the peer's, kept verbatim.
+
+- **`.30` answers from the workstation while the head's mesh cannot reach it.** Peer
+  registered `head-mesh-cannot-reach-30` this hour; the host itself reads containers `1`,
+  running `0`, the same `Created` `sm121m` leftover, root avail 1,478,558,777,344 →
+  1,478,359,826,432. The gap is the route, not the host.
+- **A six-root root-avail pair in 14 s (08:08:37 → 08:08:51) sums to −1,459,306,496 B,
+  including `.30` and `.34`, which rank nothing** — the pool's chunk store on each node
+  root absorbing the staging write. A root fall on a host with no workload is the pool
+  body arriving, not a local writer.
+- **The body is named by mtime, not inferred**: `hub/` mtimes 07:41:19 on
+  `models--incoai--Qwen3.8-27B-DFlash2` and `models--meta-models--Muse-Glimmer-30B-assistant`
+  refs, 07:59:17 on `models--unsloth--Qwen3.8-27B-GGUF` blobs; pool used
+  13,057,790,050,304 B (07:16:36) → 13,384,792,145,920 B (08:08:52), +327,002,095,616 B.
+- **The head's clone is not the clone, and `HEAD:` of this one is neither.** A draft said
+  the head's copy reads 119 tasks, two rows short, five closes missing; that was `HEAD:`
+  of the *workstation's* clone (`3eaba1c1`). The head's file (`04e9f97f`) is **120 tasks /
+  24 open**, one row short, all five closes present. Two disjoint clones, both called
+  "the clone": say whose bytes you counted.
+- **Two publishes lost to the same race, and both were re-derived rather than forced.** A
+  composition over `7cef6a5` had its push refused when a peer published the 08:12 board;
+  the ledger append was then refused by `ba5b781`. Re-fetch, re-derive, append last.
+- **Remains:** the BFCL leg still measures (progress, not a result); `beegfs-meta`'s loop is
+  queued and unstarted; staging continues, so pool deltas must be re-read, not carried.
