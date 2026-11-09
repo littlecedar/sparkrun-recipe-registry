@@ -728,6 +728,20 @@ folded into the rows they govern; these rows keep them citable.
   `OOMScoreAdjust` plus fit arithmetic, and the threshold value is a side argument. This closes the loop
   the `#67` fold left open. — provenance: `QUESTIONS.md` `#72`; `SESSION-RECORD.md` 2026-11-08 "earlyoom
   `-m 20` reverted to `-m 4,1`"; `TODO.md` `#67` and its dated correction; owner 2026-11-09.
+  *Corroborated 2026-11-09 — the pair's first live proof:* the two SM121 marlin TP=4 boots on
+  `.31/.32/.33/.35` (`~/benchmarks/sm121-oom-20261109/boot-2/`, 01:37–01:38 ET, and `boot-3/`,
+  01:44–01:45 ET) each drove their host to 0.45–2.14 % free and cost exactly one process — rank-0's
+  serve exited `-15`, and the **earlyoom unit log** names the victim and the signal on every rank in
+  both boots (`.31` `sending SIGTERM … "sglang::schedul": badness 977`; `.32`/`.33`/`.35` 976–978;
+  `.33` and `.35` escalating to SIGKILL after 1.2 s / 0.9 s). Both falsifiers were run: `journalctl -k
+  … | grep -c "oom-kill"` = **0 on all four ranks** in both windows, and each launcher's own
+  `kill_process_tree called` line lands 1–2 s *after* the earlyoom SIGTERM (`boot-2/launch.log:123`,
+  `boot-3/launch.log:123`), so the engine teardown is the consequence, not the cause. Nothing else
+  died: no ssh, no user manager, no pool unit. The `OOMScoreAdjust` half was still a next-start effect
+  at those boots (NetworkManager live `0`, `user@1000` live `100`) and became live on `.31`–`.35` only
+  after the sequential reboots of 2026-11-09 07:07–07:16Z (`.30` awaits owner approval). Command and
+  full per-rank output: `head:~/benchmarks/sm121-oom-20261109/VERDICT.md` §"Attribution — the kill was
+  earlyoom's" and `attribution-earlyoom-windows.txt` beside it.
 
 - **#74 — Change the storage topology so HF ingest never writes to `.30`'s root target, or leave the
   single shared hub?** *Answered 2026-11-09:* **leave it as it is** — no `hf-canonical` pool, no `s:1`
