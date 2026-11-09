@@ -6834,3 +6834,120 @@ staging repos named by directory mtime. Everything else was the peer's, kept ver
   the ledger append was then refused by `ba5b781`. Re-fetch, re-derive, append last.
 - **Remains:** the BFCL leg still measures (progress, not a result); `beegfs-meta`'s loop is
   queued and unstarted; staging continues, so pool deltas must be re-read, not carried.
+
+## 2026-11-09 11:46 ET — TP4's fit negatives, the Beam BFCL cell, host policy live, and 1.312 TiB reclaimed
+
+The TP4 window that opened 01:00 ET produced one verification, one measurement, and two
+rejections, and the night's remaining work closed the two h2h rows, the host-memory policy,
+and the fleet cleanup. Receipts are cited by the root that holds them. The two fit verdicts
+are arithmetic over bodies measured in the pool, not readings of a failed boot, and no
+number below was carried from a board row alone.
+
+- **The metrics verification boot proves the flag reaches the engine, not only the recipe.**
+  The shipped knapcio TP4 recipe ran from its file path (never `@littlecedar`) on
+  `.31`/`.32`/`.33`/`.35` as task `sparkrun_b020d2dd178343a5_b632751318c7`, pin
+  `…dsv41@sha256:7c3cb394…` resolved to image id `sha256:3f448081…` on all four ranks,
+  `SPARKRUN_EXIT=0`, TTR port-open 327.997 s / HTTP-ready 360.662 s. `EXTRA_SGLANG_ARGS`
+  ends `--enable-metrics` (`launch.log:76`), every rank's `sglang.launch_server` cmdline
+  carries it (`engine-argv.txt`, 4/4), the server_args dump reads `enable_metrics: True`,
+  and `/metrics` answered HTTP 200 on 4/4 ranks with 28,204–71,750 B bodies
+  (`metrics-status.txt`). Cell: `quality-battery.py` easy 19/19 plus hard 17/18 = 36/37, the
+  sole miss `hard-rev / nrukraps`, the same single miss as the lane's 2026-10-18 record;
+  throughput discarded per `#68`. `.30` was untouched per `#67`/`#70`. Receipt
+  `head:~/benchmarks/tp4-metrics-20261109/`.
+
+- **The SM121 marlin line is a fit negative, and the host policy proved itself in the
+  process.** Two instrumented boots ran on `.31`/`.32`/`.33`/`.35` with `.30` driving
+  `sparkrun` and never a rank: `boot-2`, task `1c0dffa45afa6e47_bc046dfe041f`, and
+  `boot-3`, task `…_cc6ffc677667`, the latter with `-o env.DSV41_FAST_LOAD=0` and
+  `MAX_TOTAL_TOKENS=6849792` in force. `.31`'s MemFree fell 115,808,796 → 3,800,692 kB =
+  **106.8 GiB in 3 s**, then 117,522,996 → 1,889,340 kB = **110.3 GiB in 4 s**, while the
+  rank container's cgroup never exceeded **5.87 GB** (peaks 5,870,653,440 and
+  5,867,200,512 B; `.32`/`.33`/`.35` each 4.45 GB). earlyoom `-m 4` sent SIGTERM to
+  `sglang::schedul` (badness 977; 976–978 on the workers), the driver logged
+  `NVRM … NV_ERR_NO_MEMORY` first at 01:37:59–01:38:01, and `journalctl -k` counts **0**
+  `oom-kill` lines on all four ranks. A ~110 GiB dive therefore cost one serve process and
+  no pool unit, no `sshd`, and no user manager — `#67`/`#72` working in anger. The row
+  closes `done` as a fit negative; the three `w4-survey-arm*` rows stay `blocked` on it plus
+  the flashinfer `hidden/intermediate % 128` refusal, not on an owner retirement call.
+  Receipt `head:~/benchmarks/sm121-oom-20261109/` (`VERDICT.md`, `boot-2/`, `boot-3/`).
+
+- **Both Kimi TP4 rows are fit rejections, and the rejection is arithmetic, not staging.**
+  The body is complete in the pool: 96/96 shards, 442.8512 GiB, `refs/main` `fc72e5a1`, zero
+  `.incomplete`. Demand per rank = 110.7128 GiB of weights (442.8512/4) + 3.05 + 0.42 KDA +
+  context at 30,816 B/token (24 DSA layers × [(512+64)×2 + 128+4] B). Best-ever free is
+  115.02 GiB, so the maximum margin is **0.84 GiB at ctx 0**, the largest positive-margin
+  context is 29,171 tokens, the shipped 16,384 leaves 0.37 GiB and is **−2.32 GiB at the
+  worst free 112.33**; util 0.92 budgets 111.95 GiB and is 2.70 GiB short at 16k, and the
+  requestable util ceiling 0.9452 clears 115.02 with neither a 2 nor a 5 GiB margin. The
+  DSpark sibling adds the 4.19 GiB drafter: 114.9028 GiB of weights, 118.3728 GiB with no
+  KV, 3.35 GiB above best-ever free, required util 0.9728 against the 0.9452 ceiling. Both
+  rows stay `blocked` as fit-negative and keep their parent edge. Memo
+  `.scratch/kimi-pruned75-fit-20261109/rederivation.md`; the derivation is also in the
+  register notes.
+
+- **The Beam BFCL cell landed at 1112/1240 = 89.68 %, and it is an accuracy cell only.**
+  One direct `tools/bfcl-eval.py --json` run over five categories and 1240 questions at
+  rc=0: simple 381/400 = 95.25 %, multiple 189/200 = 94.50 %, parallel 179/200 = 89.50 %,
+  parallel_multiple 172/200 = 86.00 %, and irrelevance 191/240 = 79.58 %. The boot used
+  `-o gpu_memory_utilization=0.81` — the recipe's 0.85 settled 1.98 GiB free and 0.90 would
+  request 109.52 GiB against 106.22 GiB of startup free, so 0.81 budgets 98.57 GiB with
+  21.14 GiB of KV — plus `-o extra_args=--enable-auto-tool-choice`, and the client ran on
+  `.34` under `oom_score_adj=-900` with the engine's `tensorfold` comm outside earlyoom's
+  `--prefer` list. That is not the arm's recorded performance configuration, and the row's
+  note says so rather than letting the category table read as one. Receipt
+  `head:~/benchmarks/h2h-20261107/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm/client/bfcl.json`
+  (1,896,782 B).
+
+- **The two remaining h2h rows closed on their numbers.** `h2h-second-boot-ladder` closed
+  because all four second boots exist, so the head-to-head table's sigma column is
+  computable and the per-cell C1/C2/C5/C10 means, sample standard deviations, and
+  boot-to-boot deltas now live in the doc; `glm-flash-concurrency-degradation-search`
+  closed on three legs at one image, `sha256:7f8f1b38…`: the same-window shipped control
+  read C1 103.25±5.46 / C2 109.41±31.29 / C5 94.18±2.62 / C10 86.65±1.31 t/s, boot2 read
+  105.90 / 120.46 / 96.80 / 86.87 (C2→C10 −20.8 %), the no-drafter leg read
+  53.20 / 74.29 / 76.47 / 71.25 (C2→C10 −4.1 %, flat inside the C2 sigma) while losing
+  17.8–48.5 % at every rung, and the 4-slot leg read 100.2 / 117.1 / 84.6 / 79.4 and still
+  fell past C2. The C5→C10 fall therefore survives with no DFlash2 at all, so the drafter
+  is not its cause. Receipts `head:~/benchmarks/h2h-20261107/`.
+
+- **Host memory policy is live on all six nodes, and `.30`'s next-start residual is gone.**
+  After the 07:07Z–07:16Z reboots, `.31`–`.35` read `OOMScoreAdjust=-900` on `ssh.service`,
+  `NetworkManager.service`, and `user@1000.service`. `.30` needed no reboot: `fd89b1a`
+  restarted its `NetworkManager` and `user@1000`, and the 11:41 ET read finds both units at
+  `-900` **and** their running PIDs' `/proc/<pid>/oom_score_adj` at `-900` (NM pid 1828861,
+  `user@1000` pid 1829910), so the configured-but-pending state is gone by read-back rather
+  than by assumption. Pool units keep `-1000`, and the campaign director still inherits the
+  user manager's `-800`, below the policy's `-900`; that remains a recorded finding, not a
+  regression. Receipt `head:~/benchmarks/host-mem-policy-20261109/`.
+
+- **The fleet cleanup reclaimed 1,442,780,551,520 B = 1.312 TiB, and its own rule was
+  rewritten by the result.** Nine `hf cache rm model/<org>/<name>` deletions
+  (`Qwen/Qwen3-1.7B`, `Qwen/Qwen3.5-2B`, `incoai/Qwen3.8-27B-DFlash2`,
+  `meta-models/Muse-Glimmer-30B-assistant`, `RadixArk/Muse-Glimmer-NVFP4`,
+  `Qwen/Qwen3.5-122B-A10B-FP8`, `bertholomus/…EXL3-2.5bpw` and `…EXL3-4.0bpw`, and
+  `unsloth/Qwen3.8-27B-GGUF`), 11 unreferenced image ids removed one at a time, 8
+  runtime-cache trees triaged by provenance, 41 scratch files, two dangling symlinks on
+  `.34`, and a 48 GiB root-owned staging duplicate on `.33`; `.30`'s `sm121m` was kept
+  because a receipt names it. HF net is 1,105,242,551,008 B = 1.029 TiB and the observed
+  pool endpoint is 14,381,376,602,112 → 13,008,533,192,704 B; the node side's
+  337,538,000,512 B carries the session total to the stated 1.312 TiB. The first pass
+  counted mentions as consumers, so **four bodies were restored and then re-deleted**
+  (`incoai`, `meta-models`, `RadixArk`, and `unsloth`; two xet failures and one 84.16 GB
+  `.incomplete` were removed on the way). The rule that came out of it:
+  **"retirement notes are not consumers"** — a mention that records a retirement,
+  recommends a reclaim, or reports a finished prefetch is a deletion instruction, not a
+  guard, and the rule cuts the other way too. Receipt
+  `head:~/benchmarks/cleanup-20261109/cleanup.md`.
+
+- **What remains blocked, and why.** 11 blocked rows: the three SM121 survey arms (the fit
+  negative above plus the flashinfer 128-multiple kernel refusal), the two Kimi TP4 rows
+  (the fit rejection above), the GSQ-RCO llama.cpp boot (needs an image at or above
+  llama.cpp b11870 and the 110.60 GB Engram file present on the node), the three
+  Ripple-65B rows (the NVFP4 repo is absent from the pool; the BF16 TP=2 control is still
+  unmeasured), media-idol 3DGS (the facebook DINOv3 licence was not accepted, owner
+  `#81`), and the Kimi SuperExpert reference probe (the serve is chat-only; the measurement
+  path is the block). A further 14 rows are queued and all are instrument or gate defects,
+  not fleet work. The `beegfs-meta` restart loop on `.31`–`.35` is unchanged at a ~5 s
+  cadence (`NRestarts` 6559 / 6541 / 6522 / 6507 / 6490 at the 11:41 ET read) and stays
+  queued; the pool read a real 970,533,624 B shard through the mount at 11:46:00 ET.
