@@ -813,6 +813,13 @@ builtins.__import__ = _import
 # cannot go stale; if none is found the line below says so instead of failing
 # quietly. Never let a failure here kill the server: the stock behaviour is a
 # loud AttributeError, not a silent exit.
+# The adapter is identified by its own modules sitting beside the file, not by
+# the filename alone: every Debian/Ubuntu interpreter ships
+# /usr/lib/python3.x/sitecustomize.py, and importing that instead would be a
+# silent miss of exactly what this chain exists to restore.
+ADAPTER_MARKERS = ("moe_b12x_next.py", "engram_backend.py")
+
+
 def _shadowed_sitecustomize(here):
     for entry in sys.path:
         if not entry:
@@ -821,7 +828,9 @@ def _shadowed_sitecustomize(here):
         if directory == here:
             continue
         candidate = os.path.join(directory, "sitecustomize.py")
-        if os.path.exists(candidate):
+        if os.path.exists(candidate) and any(
+            os.path.exists(os.path.join(directory, marker)) for marker in ADAPTER_MARKERS
+        ):
             return candidate
     return None
 

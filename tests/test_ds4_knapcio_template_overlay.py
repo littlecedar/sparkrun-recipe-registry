@@ -37,6 +37,7 @@ import io
 import importlib.util
 import os
 import sys
+import sysconfig
 import tempfile
 import types
 import unittest
@@ -225,6 +226,7 @@ class InlineSystemShim(unittest.TestCase):
         # the symbol on the real module object the server reads.
         namespace: dict = {}
         real_import = builtins.__import__
+        had_adapter = "dsv41_adapter_sitecustomize" in sys.modules
         try:
             namespace["__file__"] = str(sitecustomize)
             exec(compile(source, str(sitecustomize), "exec"), namespace)
@@ -237,6 +239,11 @@ class InlineSystemShim(unittest.TestCase):
         finally:
             builtins.__import__ = real_import
             sys.modules.pop(namespace.get("TARGET", ""), None)
+            # A distribution python's own sitecustomize can be the file this exec
+            # chains to, and the chain registers it; leave no module behind for the
+            # guards after this one, which assert on a clean sys.modules.
+            if not had_adapter:
+                sys.modules.pop("dsv41_adapter_sitecustomize", None)
 
     def test_an_image_that_needs_nothing_is_left_alone(self):
         cases = {
@@ -258,13 +265,21 @@ class InlineSystemShim(unittest.TestCase):
         self.module.ensure_inline_system_shim(env)
         self.assertEqual(env["PYTHONPATH"], "%s:/opt/dsv41/adapter" % self.shimdir)
 
-    def _run_shim(self, source, name="shim", checks=None):
-        """Exec the staged shim with a real ``__file__`` and restore every global it touches."""
+    def _run_shim(self, source, name="shim", checks=None, path=None):
+        """Exec the staged shim with a real ``__file__`` and restore every global it touches.
+
+        ``path`` constructs ``sys.path`` instead of inheriting the host's: a
+        Debian/Ubuntu interpreter ships ``/usr/lib/python3.x/sitecustomize.py``,
+        so a test that trusts the ambient path asserts a property of the machine
+        rather than of the shim (CI caught exactly that, 2026-11-09).
+        """
         real_import = builtins.__import__
         real_meta_path = list(sys.meta_path)
         real_path = list(sys.path)
         had_adapter = "dsv41_adapter_sitecustomize" in sys.modules
         try:
+            if path is not None:
+                sys.path[:] = list(path)
             exec(compile(source, name, "exec"), {"__file__": name})
             if checks is not None:
                 checks()
@@ -282,6 +297,7 @@ class InlineSystemShim(unittest.TestCase):
         (directory / "sitecustomize.py").write_text(
             "with open(%r, 'w') as handle:\n"
             "    handle.write('ran')\n" % str(marker), encoding="utf-8")
+        (directory / "moe_b12x_next.py").write_text("", encoding="utf-8")
         return directory
 
     def test_the_shim_chains_to_the_adapter_sitecustomize(self):
@@ -301,14 +317,14 @@ class InlineSystemShim(unittest.TestCase):
 
         marker = Path(self._tmp.name) / "adapter-ran"
         adapter_dir = self._adapter_stub(marker)
-        sys.path[:0] = [str(adapter_dir), str(self.shimdir)]
+        path = [str(adapter_dir), str(self.shimdir)]
 
         def check():
             self.assertEqual(marker.read_text(encoding="utf-8"), "ran",
                              "the staged shim must run the sitecustomize it shadows")
             self.assertIn("dsv41_adapter_sitecustomize", sys.modules)
 
-        self._run_shim(source, name=str(shim), checks=check)
+        self._run_shim(source, name=str(shim), checks=check, path=path)
 
     def test_the_chain_call_is_what_runs_the_adapter(self):
         """Negative control: the same tree, with the trailing chain call removed."""
@@ -321,24 +337,39 @@ class InlineSystemShim(unittest.TestCase):
 
         marker = Path(self._tmp.name) / "adapter-not-run"
         adapter_dir = self._adapter_stub(marker)
-        sys.path[:0] = [str(adapter_dir), str(self.shimdir)]
 
-        self._run_shim(stripped, name=str(shim))
+        self._run_shim(stripped, name=str(shim),
+                       path=[str(adapter_dir), str(self.shimdir)])
         self.assertFalse(marker.exists(),
                          "without the chain call nothing may execute the shadowed file")
 
-    def test_a_missing_adapter_is_survivable_and_says_so(self):
-        """No shadowed file on ``sys.path``: the shim still imports, and reports it."""
+    def test_a_distro_sitecustomize_is_not_mistaken_for_the_adapter(self):
+        """Every Debian/Ubuntu interpreter ships one; importing it would be a silent miss.
+
+        This is the CI failure of 2026-11-09: the shim scanned ``sys.path`` for
+        any ``sitecustomize.py`` and the GitHub runner's system interpreter
+        offers ``/usr/lib/python3.12/sitecustomize.py``, which the shim then
+        imported instead of reporting that no adapter was found. The adapter is
+        therefore identified by its own modules sitting beside the file.
+        """
         self.stage(self.CALLER, "import os\n")
         self.module.ensure_inline_system_shim({})
         shim = self.shimdir / "sitecustomize.py"
         source = shim.read_text(encoding="utf-8")
-        sys.path[:0] = [str(self.shimdir)]
+
+        distro = Path(self._tmp.name) / "distro-python"
+        distro.mkdir()
+        (distro / "sitecustomize.py").write_text(
+            "open(%r, 'w').write('distro-ran')\n" % str(Path(self._tmp.name) / "distro-marker"),
+            encoding="utf-8")
 
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
-            self._run_shim(source, name=str(shim))
+            self._run_shim(source, name=str(shim),
+                           path=[str(distro), str(self.shimdir)])
         self.assertIn("overlay patches NOT installed", stderr.getvalue())
+        self.assertFalse((Path(self._tmp.name) / "distro-marker").exists(),
+                         "a distro sitecustomize must never be executed in its place")
         self.assertNotIn("dsv41_adapter_sitecustomize", sys.modules)
 
 
