@@ -1372,7 +1372,9 @@
       "blocks": [
         "w4-survey-arm3-indexer-scoring"
       ],
-      "blocked_by": [],
+      "blocked_by": [
+        "sm121-marlin-oom-diagnosis"
+      ],
       "state": "blocked",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
@@ -1396,7 +1398,9 @@
       "blocks": [
         "w4-survey-arm5-trtllm-mla"
       ],
-      "blocked_by": [],
+      "blocked_by": [
+        "sm121-marlin-oom-diagnosis"
+      ],
       "state": "blocked",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
@@ -1486,7 +1490,9 @@
       "blocks": [
         "w4-survey-arm5-trtllm-mla"
       ],
-      "blocked_by": [],
+      "blocked_by": [
+        "sm121-marlin-oom-diagnosis"
+      ],
       "state": "blocked",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
@@ -1903,7 +1909,11 @@
       "id": "sm121-marlin-oom-diagnosis",
       "title": "SM121 Marlin OOM diagnosis: name the cause of the 58 s global OOM, then a fitting configuration or a recorded negative",
       "estimate_h": 4.0,
-      "blocks": [],
+      "blocks": [
+        "w4-survey-arm3-sm121-boot",
+        "w4-survey-arm5-sm121-boot",
+        "w4-survey-arm5-control-boot"
+      ],
       "blocked_by": [],
       "state": "queued",
       "model": "dsv4.1-1017",
