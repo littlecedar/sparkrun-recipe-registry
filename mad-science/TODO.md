@@ -812,6 +812,15 @@ folded into the rows they govern; these rows keep them citable.
   process, and the drop-ins (`[Service]` + `OOMScoreAdjust=-900`, written 2026-11-09 01:18:37 EST)
   cover every future start. sshd and the three BeeGFS units were untouched — their live processes
   already read `-1000`. Receipt: `head:~/benchmarks/host-mem-policy-20261109/inplace-scores-30.md`.
+  *Superseded the same day by the restart the owner then authorised:* the in-place write proved the value
+  but left it pinned only to a live process, so both units were restarted instead — `NetworkManager` via a
+  detached `systemd-run --collect` unit issued from a peer (new pid `1828861`, was `1465`) and
+  `user@1000` (new pid `1829910`, was `2103`), each now inheriting `-900` from its drop-in through a real
+  fork. Management address and both rails came back, a peer's `df -h /mnt/beegfs` still read the pool, the
+  user manager's campaign unit came back on its own and reported `queue: no runnable rows` against six
+  hosts. The management profile turns out to be volatile (`/run/NetworkManager/system-connections`, no
+  keyfile in `/etc`), so restart-by-name is cheap where a reboot would lean on the netplan file; the
+  recovery archives are named in the receipt. — `head:~/benchmarks/host-mem-policy-20261109/unit-restart-30.md`.
 
 - **Withdrawn before asking (recorded so the numbering is honest).** `#73` (BeeGFS units off `Restart=no`)
   was already executed at 16:47 on 2026-11-08, and `#82` (`# DECISIONS` in JSON) is ruled by `QUEUE.md`
