@@ -6419,3 +6419,55 @@ session's rows, and did not re-stamp or delete the live `campaign-queue` lock. N
 `~/benchmarks` on the head is newer than the 23:11 board, so the hour landed the board restore
 (`20fd935`), a close-out (`f097e95`) and the `publish` remote-sha gate (`c81fdae`) rather than a
 measurement.
+## 2026-11-09 01:12 ET — hourly board tick: the fleet changed hands, a quartet is serving unclaimed
+- **Board `published` on `origin`'s lineage**, census 01:03:43 / 01:05:00 / 01:06:37 ET. Containers
+`1 / 1 / 1 / 1 / 0 / 1` on `.30`–`.35` against `1 / 0 / 0 / 0 / 0 / 0` at the 00:09 tick: four ranks
+of one quartet appeared on `.31`/`.32`/`.33`/`.35`, `.30`'s never-started `sm121m` leftover sits
+unchanged, `.34` is empty, and volumes are `0` on all six.
+- **The campaign released the fleet instead of draining it.** `sparkrun-campaign.service` reads
+`inactive` `Result=success` with `ExecMainExitTimestamp` **00:59:11**, `Consumed 1min 5.858s CPU`, its
+last journal lines naming nine arms `blocked: … register: register state blocked`; the nine
+`~/benchmarks/*/state.json` roots hold **32 arms, 0 leases** with `needs_reap` absent, and the h2h
+root's `state.json` is unmoved at 2026-11-08 13:13:38. No lease was cut, so no arm lost a window.
+- **A new window claim replaced the old one in the same minute.** `.local/fleet-window.lock` is
+**282 B**, mtime **00:59**, byte-identical on workstation and head: `sparkrun-vibe:tp4-boot` on
+`.31`/`.32`/`.33`/`.35`, `2026-11-09 01:00-04:00 ET`, reason `TP4 metrics-flag verification (#69
+unfreeze)`. This is the directive `953ac4a` recorded an hour earlier being executed, and `#70`'s
+`.30` exclusion is honoured in the node list, so `.30`'s absence is not a role statement.
+- **The live boot is the shipped knapcio ds4 arm and it already answers.** Task
+`b020d2dd178343a5_b632751318c7`, `sparkrun.recipe`
+`recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`, image `sha256:3f4480818acb…`,
+`StartedAt 06:00:04Z`; the engine argv carries `--tp 4 --attention-backend dsv4
+--moe-runner-backend flashinfer_mxfp4 --mem-fraction-static 0.78 --context-length 1048576
+--max-running-requests 16`; rank 0 returns `/v1/models` 200 (`POST /v1/chat/completions 200 OK` at
+01:06:11 ET) with GPU 6 % and 102 of 121 GB at 01:07. Peers answer 404 on their own port and `.30`/`.34`
+`000`, which is the correct shape for a rank-0-only API.
+- **Its register row is `queued` and unclaimed.** `metrics-flag-boot-verification` reads
+`state: queued`, `claimed_by: ''` at `5e3c006`, and no receipt under `~/benchmarks` is newer than the
+00:09 board. Recorded, not corrected: the claim belongs to the session that boots the arm, and this
+tick never edits another session's row. The register's own count therefore says 28 open / zero claims
+while a quartet of it is live.
+- **The pool's +51.1 GB of used growth is reported, not explained.** `df -B1` used
+14,380,270,354,432 → 14,380,616,384,512 → 14,380,731,203,584 B across 01:03:43 → 01:07:08, and the
+77 s pair puts the whole fleet fall on `.35` (−343,511,040 B) with the other five roots rising.
+Excluded as causes: no `hub/` entry newer than 6 h, no file at depth ≤ 6 under `hub/` newer than 4 h,
+nothing matching `-newermt -12 min` under the storage tree, and no download/rsync/pull process on the
+node whose root carries the fall. Last hour already refuted the inherited "root fall is pool traffic"
+wording on the same evidence, so the row inherits neither claim.
+- **Register moved five times between boards.** `bcbdff3` ledger, `50117b1` thirteen answers folded
+(`QUESTIONS.md` empty again, 50 settled), `3263084` the SM121 trio's block made machine-readable
+(`blocks`/`_relink`, `graph` 3 edges → 6, diagnosis sorts first), `be24567` DSV4-Pro closed by a note
+under an untickable item, `953ac4a` the TP4 unfreeze directive plus seven re-gated rows, `5e3c006` the
+GSQ-RCO gate sentence naming only open rows. Final renders are over `5e3c006` — 119 tasks,
+**28 open (17 queued + 11 blocked), 91 done, zero claims**, `check` rc=0, and the graph's own counts
+line `11 blocked, 6 edges, 7 prose-gated, 0 question-gated, 0 question, 19 rows not drawn (--all)`.
+- **Instrument note: the publish door caught a real markdown break, and the cause was the fold shape.**
+The first composition appended the new landed rows after the existing table's trailing blank line,
+so nine rows began a table with no delimiter (`table-missing-delimiter`, stdin:374) and `publish`
+refused rather than shipping a board GFM would render as one paragraph. Appending to a table must
+strip the blank line first; `lint` passes once it does.
+- **What this tick did not do**: booted nothing, stopped nothing, claimed no node, edited no other
+session's rows, did not re-stamp or delete the live `sparkrun-vibe:tp4-boot` lock, and did not
+correct the unclaimed register row. The shared clone is **77 ahead / 126 behind** origin and its
+worktree board is the stale 23:14 one, so the board was composed from a fresh shallow clone.
+
