@@ -670,8 +670,13 @@ class DependencyGraph(unittest.TestCase):
         self.assertIn("b" * tq.GRAPH_LABEL + "…", text)
         self.assertNotIn(long, text)
 
-    def colour_findings(self, block):
-        """What the owner's palette rule forbids: any colour literal, or a classDef that sets one."""
+    def style_findings(self, block, expected_classes):
+        """What the owner's style rule forbids: colour literals, and any class name but the rule.
+
+        Mermaid ignores an unknown class silently, so a dead `:::queued` on an ordinary node
+        renders fine and rots unseen -- a no-colour regex cannot see it, which is why the class
+        set is asserted too.
+        """
         problems = []
         if re.search(r"#[0-9a-fA-F]{3,8}\b", block):
             problems.append("a colour literal in the block")
@@ -683,16 +688,30 @@ class DependencyGraph(unittest.TestCase):
                 problems.append("the classDef is not the dashed-stroke rule")
             if "fill:" in line or "color:" in line:
                 problems.append("the classDef sets fill or colour")
+        classes = set(re.findall(r":::([A-Za-z0-9_-]+)", block))
+        if classes != set(expected_classes):
+            problems.append(f"class references {sorted(classes)}, expected {sorted(expected_classes)}")
         return problems
 
-    def test_the_block_carries_no_baked_colour_and_one_stroke_only_class(self):
-        rows = relink([task("a", 1.0, ["b"]), task("b", 1.0, state="blocked")])
-        block = "\n".join(tq.graph_body(qdata(rows, [67]))[0])
-        self.assertEqual(self.colour_findings(block), [], "the renderer's theme owns colours")
-        self.assertIn("classDef no-recorded-edge stroke-dasharray: 4 3", block)
-        # Negative control: the pre-fix palette must be caught by the same predicate.
-        planted = block + "\n  classDef queued fill:#dbeafe\n"
-        self.assertIn("a colour literal in the block", self.colour_findings(planted))
+    def test_the_block_carries_no_baked_colour_and_only_the_dashed_class(self):
+        rows = relink([task("a", 1.0, ["b"]), task("b", 1.0, state="blocked"),
+                       task("c", 1.0, state="blocked")])
+        connected = "\n".join(tq.graph_body(qdata(rows, [67]))[0])
+        everything = "\n".join(tq.graph_body(qdata(rows, [67]), all_rows=True)[0])
+        self.assertEqual(self.style_findings(connected, set()), [],
+                         "the theme styles ordinary nodes; they carry no class at all")
+        self.assertEqual(self.style_findings(everything, {"no-recorded-edge"}), [],
+                         "the only class a block may name is the dashed stroke rule")
+        self.assertIn("classDef no-recorded-edge stroke-dasharray: 4 3", everything)
+        # Negative control (palette): the pre-fix classDef must be caught.
+        planted_palette = everything + "\n  classDef queued fill:#dbeafe\n"
+        self.assertIn("a colour literal in the block",
+                      self.style_findings(planted_palette, {"no-recorded-edge"}))
+        # Negative control (dead class): a colour-free `:::queued` must be caught too.
+        planted_class = connected.replace('t1["a · queued"]', 't1["a · queued"]:::queued')
+        self.assertNotEqual(planted_class, connected, "the mutation must change the block")
+        self.assertIn("class references ['queued'], expected []",
+                      self.style_findings(planted_class, set()))
 
     def test_an_empty_register_emits_a_block_that_says_so(self):
         body, warnings = tq.graph_body({"priority_models": [], "tasks": []})
