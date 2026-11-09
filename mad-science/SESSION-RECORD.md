@@ -6700,3 +6700,31 @@ cells extended, one measurement row appended, every inherited row and the whole
 stated counts, tracked addresses). Two later peer boards (`8474a9b`, `f5e2732`) built
 linearly on top and all four clauses survive on origin. Nothing on the fleet was booted,
 claimed or stopped: this was a read-only tick.
+
+## 2026-11-09 07:13 ET — board tick (hourly), composed in `/tmp/boardclone-0700`
+
+- **Campaign stopped, and the row does not invent the actor.** `sparkrun-campaign.service` took
+  SIGTERM at 07:07:06 ET (`Result=success`, `ExecMainStatus=0`, `Restart=on-failure` with
+  `RestartPreventExitStatus=2`), so it is down by a stop request, not a crash; its own journal
+  line names the signal, its final pass printed `9 blocked, 9 measured`, and nine roots swept to
+  32 arms / 0 leases. A plain `systemctl --user stop` records no actor in the user journal, so the
+  row says the actor is unknown instead of guessing.
+- **The pool's hour is a release, then a re-fetch, and the board carries both.** Used bytes went
+  `14,381,371,359,232 → 12,979,046,187,008` (−1.402 TB) on the cleanup receipt's nine
+  `hf cache rm` deletions (its own pair: `14,381,376,602,112 → 12,966,706,544,640`), while a live
+  `hf download unsloth/Qwen3.8-27B-GGUF --revision 4ca72078…` (pid 1919393, started 06:58:24) has
+  put ~69 GB back, measured at 84.6 MB/s over a 30 s pair. Reading only the hour's endpoints would
+  have called the whole move a deletion.
+- **Root avail rose by more than the receipt measured, and that is stated as two measurements.**
+  Fleet root avail is +1,191,938,793,472 B against the receipt's derived after-state — the same
+  order as its pool release, and consistent with BeeGFS reclaiming chunk-store bytes on node
+  roots, but the row assigns no single cause.
+- **Published as `9d1956b`** from a throwaway `--depth 20` clone, because the shared worktree's
+  `mad-science/STATUS.md` is a peer's uncommitted 23:11 draft (`59a314e9…`) while origin carried
+  the 06:33 board (`548a7933…`): satisfying `--expect-sha` against the shared file would have
+  meant overwriting bytes no commit holds. One `publish` with `--base` + `--expect-sha` +
+  `--expect-remote-sha` on that same read, `lint` `ok`, single-path commit, `HEAD:main` push
+  `38b980e..9d1956b`; the shared clone is untouched and its draft survives.
+- **What the tick did not do**: booted nothing, stopped nothing, claimed no node, and touched no
+  other session's rows. The register is unchanged since `5e31aec`, so the queue table and graph
+  were re-rendered and compared byte-for-byte rather than replaced.
