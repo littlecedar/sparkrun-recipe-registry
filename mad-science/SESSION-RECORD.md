@@ -7099,3 +7099,50 @@ here rather than left to a later quartet window. Receipt `head:~/benchmarks/ds4-
   boot 0 started **16:59:17** on the default `7.0.0-1025-nvidia`; the node now reads 0 containers, 0 volumes,
   `kho=off` on its cmdline, `CmaTotal`/`CmaFree` 0, and `dgx-spark-memory-saver/0.4.1` DKMS installed for the
   64k kernel only.
+
+## 2026-11-09 17:35 ET — hourly tick: 64 KiB trial's delta corrected, three board cells rebuilt
+
+- **Read-only on the fleet.** Six-node census 17:04:19–17:04:44 ET from the workstation alias: containers
+  `1 / 0 / 0 / 0 / 0 / 0`, `docker ps -q` 0 on all six, volumes 0 on all six, `.30`'s single container the
+  never-started `Created` leftover; root `df -B1 /` fell **8 634 368 B** over the pair with `.31` carrying
+  **97 %** of it. All six on `7.0.0-1025-nvidia`, `kho=off` on every cmdline, `CmaTotal`/`CmaFree`/
+  `nr_free_cma` all 0, so the RDMA-registration guard survived `.35`'s reboot. Uptimes `.30` 2026-11-08
+  15:29:35, `.31`–`.34` 02:08:49–02:13:17 unchanged, `.35` 16:59:17.
+- **Pool, campaign, register, window.** Pool served a pair 17:07:33 → 17:08:38 moving **524 288 B** with a
+  `stat -L` on the shipped DeepSeek-V4.1-Flash-1017 shard returning 970 533 624 B, hub 102 entries, and
+  **0 files under `huggingface/` newer than 90 min** — while `used` sat **18 403 557 376 B** above the 16:03
+  read, so the hour's growth stayed unattributed and no mechanism was named. Campaign unit `active`
+  (MainPID 2078281, worker `w1`), head's nine roots **32 arms / 0 live leases**, h2h root **9 measured,
+  9 blocked**; queue mode had **no eligible row**, all 15 `queued` register rows lacking a `recipe` id.
+  Register `892197ee…` **124 tasks / 98 done / 15 queued / 11 blocked / 0 claims**, `check` rc=0,
+  `questions` 0. The `ds4-64k-trial` window lock stood at 17:04 (mtime 16:25) and was **absent from both
+  copies at 17:14**, with `.35`'s own boot list showing the trial boot 16:41:24 → 16:59:03 and the stock
+  kernel from 16:59:22.
+- **The correction that mattered.** The trial's lever was stated as `MemTotal +2,100,148 kB` in three
+  committed carriers — the register note, `SESSION-RECORD.md`'s own trial section, and the board's 17:09
+  landed row — while the captures subtract to **2,200,148 kB = 2.10 GiB** and the same sentences quoted
+  `2.10 GiB`. All three now read 2,200,148 kB with the capture pair named; the ruling is unchanged (page
+  tables 0.0083 % → 0.021 % of the dive, whole configuration 4.8 %). The `+15,156 kB` beside it is **not**
+  a slip and was left alone: it is the page-count derivation (390 × 64 KiB − 2 451 × 4 KiB), which is why
+  the ledger separates it from the 14 192 kB meminfo delta.
+- **A commit that had to be undone, and was.** The first attempt (`8fc451a`) was built with
+  `git commit -F - -- <three paths>` and swept ~40 lines of another session's uncommitted close-out into
+  the ledger file. It was reset with `git reset --mixed 41a05ca` **before any push**, the worktree keeping
+  that session's section intact, and rebuilt through a throwaway `GIT_INDEX_FILE` + `write-tree` +
+  `commit-tree` so the commit carried only this tick's three hunks (`cc10aed`); that session then committed
+  its own section as `4910f34`.
+- **Three publication cells were wrong before this one, and the chain is resolved rather than hidden.**
+  The 17:15 composition was refused by `publish` when a peer's 17:16 board landed under it, so the tick
+  rebuilt on that board and published at 17:21 (`cc10aed`). `5d01981` then re-labelled the census read and
+  rewrote the publication cell, but shipped a doubled date and named the previous publish's size, sha and
+  commit as its own; `304b856` fixed that shape yet named the 17:21 board as the base when its real base was
+  the 17:27 one (`110b3f41`, 208 304 B, origin `5d01981`). This board states each predecessor's true base and
+  bytes and defers its own sha and commit to this commit's body, since a board cannot hash itself.
+- **Verified, and what remains.** Gates ran green on all four of this tick's commits (`cc10aed`, `5d01981`,
+  `304b856`, and this one), read back from `gh run list` and not assumed. Still open and unfixed here: the
+  pool's ~18 GB/hour growth with no file author in the mount; `beegfs-meta` restarting every ~5 s on
+  `.31`–`.34` (NRestarts 10 211–10 264, `.35` 61 after its reboot) under row
+  `beegfs-meta-restart-loop-non-meta-hosts`; and `.35`'s new persistent state from the trial — the
+  `7.0.0-1019-nvidia-64k` package, its `beegfs/8.4.1` DKMS module, `/etc/default/grub.d/zz-dgx-spark-memory-saver.cfg`
+  pinning `GRUB_DEFAULT` to the 1025 entry, and `/var/lib/dgx-spark-memory-saver/preparation`, all inert but
+  installed, so a later window must not assume stock GRUB on that node.
