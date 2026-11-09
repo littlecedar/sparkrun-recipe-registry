@@ -6634,3 +6634,35 @@ caught it was the section-list assertion, never lint — a structural check belo
   composition was re-derived over the new tip (`2a95424`) and pushed, never forced. Both are the same
   lesson as the 06:10 entry: the guards protect the *read*, and only the remote sha says what the read
   was.
+## 2026-11-09 06:21 ET — the director sits under the -900 policy, and a full recomposition was the wrong shape
+- **Folded one clause, on the board**: the campaign director's own `oom_score_adj` is **-800**, not the
+  -900 the ratified `#72` policy puts on the system units. Read from `/proc` rather than from the
+  property alone: the unit property and MainPID `1829923` both answer -800, the unit file carries no
+  `OOMScoreAdjust` line, its one drop-in is `retries3.conf`, and the **user manager's own**
+  `DefaultOOMScoreAdjust` answers -800 (`syncthing.service` reads the same). The -900 reaches
+  `user@1000.service` at pid `1829910` and stops at that boundary; the director inherits -800 as a
+  child. The pair that produced `1829923` was graceful, not a crash: `Stopping` 05:46:19, the director
+  logging `signal 15: stopping this tick`, `Stopped` 05:46:20, `Started` 05:47:17 under a replaced
+  manager (`systemd[2103]` → `systemd[1829910]`), `uptime -s` still 2026-11-08 15:29:35.
+- **Abandoned: the six-row recomposition this tick first built.** Composed at 06:10 over the 05:16
+  board with its own census/pool/campaign/queue/window/publication rows, it was refused by `publish`
+  because a peer had published `d271d96` (06:08) in between; recomposed once more, refused again after
+  `844a8cd`. By then the peer board already carried the same census and pool state, the same campaign
+  pid, and the `abc3e6d`/`fd89b1a`/`5e31aec` rows, so re-stating them would have duplicated clauses —
+  the documented trap. What the board actually lacked was one fact, so one clause is what landed
+  (`f5e2732`, pulled up over `8474a9b`).
+- **The publish-then-push path needs the retry loop, not one fetch.** Four attempts this cycle: two
+  `publish` refusals on the moving remote, then a clean publish, then a **push** refusal because
+  `8474a9b` landed between the publish and the push. A single `fetch → compose → publish → push`
+  sequence cannot hold the board for that long while peers publish every ~2 min; re-deriving over the
+  newest tip each attempt did.
+- **Two census reads 13 s apart are not interchangeable for disk totals.** This tick's own read
+  (06:02:48–06:02:51 ET, containers `1 / 0 / 0 / 0 / 0 / 0`, volumes 0, running empty) sums the six
+  root falls to **122,597,376 B** against the 05:03:51 baseline; the peer's read
+  (06:03:02–06:03:04) sums **175,104,000 B** against the same baseline, a **52,506,624 B** gap in
+  13 s with nothing running on any node. The state agrees, the bytes do not, so this tick did not
+  publish its census as a row and neither figure should be quoted as a settled total.
+- **A pool read from one client is not the fleet's read.** `.31`–`.35` answered byte-for-byte
+  identically (used 14,381,371,883,520 B / avail 9,809,857,871,872 B) while `.30`'s own read came back
+  **exactly 1,048,576 B** higher in used. Quoted per host rather than averaged: a six-host mean would
+  hide a 1 MiB client-side difference behind a plausible number.
