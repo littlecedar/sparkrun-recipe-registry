@@ -11,8 +11,10 @@ carry the instrument and its config in the pointer.
 
 - [Ladder cells (decode t/s)](#ladder-cells-decode-ts)
 - [Second boots and first clients (2026-11-08, campaign h2h-20261107)](#second-boots-and-first-clients-2026-11-08-campaign-h2h-20261107)
+- [Second-boot deltas (receipts re-read 2026-11-09)](#second-boot-deltas-receipts-re-read-2026-11-09)
 - [Quality / capability cells](#quality--capability-cells)
 - [Reading (grounded in the rows above, no new claims)](#reading-grounded-in-the-rows-above-no-new-claims)
+- [Failure class: SM121 marlin fit negative and earlyoom (2026-11-09)](#failure-class-sm121-marlin-fit-negative-and-earlyoom-2026-11-09)
 - [Provenance index](#provenance-index)
 
 ## Ladder cells (decode t/s)
@@ -38,8 +40,9 @@ elsewhere, per-run stds 6–16 t/s).
 ## Second boots and first clients (2026-11-08, campaign `h2h-20261107`)
 
 One controlled second boot per arm, measured on the live campaign root at
-`head:/home/red/benchmarks/h2h-20261107/`. Cells are `ladder.json` `tg_throughput` (mean ± sample sd
-over the run's five samples) and are **not** interchangeable with the 2026-10-18/26 rows above —
+`head:/home/red/benchmarks/h2h-20261107/`. Cells are `ladder.json` `tg_throughput` (mean ± the
+receipt's own sd over the run's five samples; the exporter writes population sd, so sample sd is
+×1.119 of the printed value) and are **not** interchangeable with the 2026-10-18/26 rows above —
 different boot, same recipe. The campaign's `house.*` artefact is the standard-suite
 (`benchmarking/standard-suite.yaml`, framework `tool-eval-bench`) run, so its score is the table's
 "tools leg" number, not the 37/37 quality battery; the battery ran only as the first client below.
@@ -50,13 +53,40 @@ different boot, same recipe. The campaign's `house.*` artefact is the standard-s
 | GLM-5.3-Flash EXL3 4bpw TF TP=4, boot2 | 105.90 ± 5.68 | 120.46 ± 28.43 | 96.80 ± 1.92 | 86.87 ± 1.16 | **100** | `~/benchmarks/h2h-20261107/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2/{ladder.json,house.json}`; `receipts/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2.json` |
 | GLM-5.3-Flash, first client (same arm, other boot) | — (client cell, not a ladder) | — | — | — | house battery **37/37** (easy 19/19, hard 18/18) @4096 thinking-on; image `sha256:7f8f1b38…` | `…/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang/client/{client.json,house.json}` |
 | Beam-1.0-501B NVFP4 vLLM TP=4, no drafter, boot2 | 33.09 ± 2.50 | 44.91 ± 3.50 | 59.71 ± 10.50 | 69.86 ± 7.41 | open — the same boot's standard-suite artefact scores 0/"Poor", which is not a quality verdict | `~/benchmarks/h2h-20261107/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2/{ladder.json,house.json}` |
-| GLM-5.3 EXL3 3bpw TP=4 (753B) | not measured — first boot rejected by the harness readiness ceiling (2250 s vs measured TTR 2538.9 s); re-boot pending `ARM_READY_TIMEOUT` | | | | | campaign receipt `receipts/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.json` (rc=4); `tools/run-arm.sh:290-294`, `recipes/glm/README.md:57-58` |
+| GLM-5.3 EXL3 3bpw TP=4 (753B), boot2 (attempt 6) | 30.27 ± 1.88 | 28.70 ± 1.01 (agg 37.8) | 29.61 ± 1.24 (agg 79.8) | 29.32 ± 3.62 (agg 151.6) | — (ladder only) | `~/benchmarks/h2h-20261107/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang/{ladder.json,ladder.csv}`; the rc=4 first-attempt receipt is retained in `receipts/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.json` |
 
 Boot-to-boot spread is the finding these rows carry: ds4's C1 is 51.11 against the first boot's
 69.28, GLM-Flash's 105.90 against 83.03, Beam's 33.09 against 26.20 — 25-30 % at C1 in both
 directions, so a single-boot C1 is a boot's number, not the arm's. Signatures survive: ds4 still
 rises monotonically to C10, GLM-Flash still peaks at C2 and falls, Beam still rises with
 concurrency.
+
+### Second-boot deltas (receipts re-read 2026-11-09)
+
+Each cell is `first ± sd → second ± sd, Δ on the mean`. The sd is the receipt's own
+(`t_s_std` / `tg_throughput.std`, population as written; sample sd = ×1.119). The table above
+prints sample sd where it prints ± for the GLM arms (e.g. C2 first is ±24.01 there against the
+receipt's ±21.48 here); the means are identical. The ds4 pair is
+deliberately `~/benchmarks/tp4-20261018/knapcio-ladder-suiteboot.csv` → the h2h ladder, **not**
+its sibling `knapcio-ladder.csv` (that file carries 69.65 / 89.89 / 113.44 / 115.36 and is a
+different boot). The 753B arm keeps the doc's per-request convention with aggregate in
+parentheses, so neither series is read as the other.
+
+| arm | C1 | C2 | C5 | C10 | shape on the second boot | receipts |
+|---|---|---|---|---|---|---|
+| ds4-1017 knapcio | 69.28 ± 4.70 → 51.11 ± 16.24, −26.2 % | 86.40 ± 3.21 → 91.79 ± 3.92, +6.2 % | 108.78 ± 12.69 → 128.88 ± 4.59, +18.5 % | 116.27 ± 5.56 → 159.88 ± 10.14, +37.5 % | rises monotonically to C10 in both boots | `~/benchmarks/tp4-20261018/knapcio-ladder-suiteboot.csv` → `~/benchmarks/h2h-20261107/deepseek-v4.1-flash-knapcio-tp4-1m-sglang/ladder.json` |
+| glm-flash | 83.03 ± 15.87 → 105.90 ± 5.68, +27.5 % | 102.36 ± 21.48 → 120.46 ± 28.43, +17.7 % | 79.48 ± 10.14 → 96.80 ± 1.92, +21.8 % | 73.37 ± 7.55 → 86.87 ± 1.16, +18.4 % | still peaks at C2 and falls (C2 > C5 > C10) | `~/benchmarks/tp4-20261018/glm-ladder.csv` → `~/benchmarks/h2h-20261107/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2/ladder.json` |
+| glm-753b (per-request; agg in parens) | 28.83 ± 1.37 → 30.27 ± 1.88, +5.0 % (agg 28.8 → 30.3) | 28.94 ± 0.99 → 28.70 ± 1.01, −0.8 % (agg 37.4 → 37.8) | 26.71 ± 5.44 → 29.61 ± 1.24, +10.9 % (agg 76.3 → 79.8) | 28.21 ± 3.49 → 29.32 ± 3.62, +3.9 % (agg 145.8 → 151.6) | flat 27–30 t/s per-request C1→C10 in both; aggregate scales ~5× | `~/benchmarks/tp4-window3-20261024/glm-perf-ladder.csv` → `~/benchmarks/h2h-20261107/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang/ladder.json` |
+| beam-b1 | 26.20 ± 0.60 → 33.09 ± 2.50, +26.3 % | 40.66 ± 0.91 → 44.91 ± 3.50, +10.5 % | 63.96 ± 1.42 → 59.71 ± 10.50, −6.7 % | 69.80 ± 1.85 → 69.86 ± 7.41, +0.1 % | rises with concurrency in both (the second boot's C5 dip sits inside its ±) | `~/benchmarks/tp4-window4-20261026/beam-b1-ladder.csv` → `~/benchmarks/h2h-20261107/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2/ladder.json` |
+
+**What this is not.** Each ± is a within-boot sd over five samples, and each delta is one
+observed pair. Together they are *not* a boot-to-boot variance estimate: a sigma column on the
+table above would need a third boot per arm on the same plan, so none is printed. The observed
+C1 shifts (−26.2 % ds4, +27.5 % glm-flash, +5.0 % 753B, +26.3 % beam) are pair deltas, not
+distributions. **Era boundary:** the 2026-11-09 metrics boot
+(`sparkrun_b020d2dd178343a5_b632751318c7`) was **instrumented** (`--enable-metrics`), so its
+throughput must not enter this table (owner ruling `#68`); the two GLM-Flash ladder numbers
+above predate that instrument.
 
 ## Quality / capability cells
 
@@ -92,6 +122,32 @@ concurrency.
   7200/14400 s — the rung needs an ~8-h dedicated quartet window at that arm's prefill rate; the
   flash arm took the cap-by-precedent), so a 983k capability comparison is not on the table without
   the owner ordering that window.
+
+## Failure class: SM121 marlin fit negative and earlyoom (2026-11-09)
+
+**The sm121 marlin path cannot fit TP=4 on the plan it was booted with.** Two instrumented boots
+on `.31/.32/.33/.35` — the first with the fast loader (`MAX_TOTAL_TOKENS=0`), the second with
+`-o env.DSV41_FAST_LOAD=0` and the stock pin `6,849,792` proven in the launcher line — both drove
+host `MemFree` down in 3–4 s: **106.8 GiB** (115,808,796 → 3,800,692 kB) on `.31` in the first,
+**110.3 GiB** (117,522,996 → 1,889,340 kB) in the second, while the rank container's cgroup never
+exceeded **5.87 GB** (`cg_current` peak 5,870,653,440 B). The memory was therefore held outside
+container accounting (driver/UMA), and the kernel logged the driver's own
+`NVRM: … NV_ERR_NO_MEMORY (0x51) … _memdescAllocInternal` at the crossing. Against a declared
+`0.78 × 124,608 MiB = 101.9 GB` static budget and the shipped knapcio arm's measured 19.49 GB
+headroom, a ~75 GB padded-copies repack transient cannot fit; the stock loader did not change
+it. The same 552B checkpoint boots healthy on the shipped knapcio TP4 arm with shared-expert K
+padding armed (`RowParallelLinear padded (5120, 576) -> (5120, 640)`), so the delta is the sm121
+line's backend/padding, not the model. Verdict and CSVs:
+`head:~/benchmarks/sm121-oom-20261109/VERDICT.md` (boots `boot-2/`, `boot-3/`).
+
+**earlyoom with `--prefer python3` turned two would-be host kills into one dead serve.** On all
+four ranks, at the 4 % available line, `earlyoom -m 4` sent SIGTERM to `sglang::schedul`
+(badness 976–978, VmRSS ~2.3 GiB; `.35` escalated to SIGKILL after 0.9 s in the second boot); the
+process exited in 1.4–2.8 s and the memory was released. `journalctl -k` recorded `oom-kill`
+**0 times** on every rank, and ssh, the user manager, the pool server units
+(`OOMScoreAdjust=-1000`) and `/mnt/beegfs` (23T/9.0T before and after) survived. That is the
+`#67`/`#72` host policy working as designed on a ~110 GiB dive — and the reason this failure
+class now costs one serve per occurrence instead of a node.
 
 ## Provenance index
 
