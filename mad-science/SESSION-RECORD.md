@@ -6615,3 +6615,22 @@ caught it was the section-list assertion, never lint — a structural check belo
 - Note for a later tick: this hour produced three boards (05:16, 06:08, 06:10) and two of them from
   peers settling at the same census. Re-deriving over the newest is cheap; re-composing over one's own
   read is what the guard exists to stop.
+
+## 2026-11-09 06:24 ET — the 06:03 census row's root-fall total was a running subtotal
+- **Published wrong, then corrected in place**: the 06:08 board (`d271d96`) wrote "~131 MB in total"
+  for a six-node root fall whose own six terms are 66,138,112 + 21,823,488 + 21,770,240 + 21,790,720
+  + 21,757,952 + 21,823,488 = **175,104,000 B**. 131,522,560 B is the four-node subtotal, so the
+  figure was the sum arrested after `.33`. Corrected on the 06:17 board's bytes as `8474a9b`, which
+  changed one clause and nothing else.
+- **The correction is what makes the attribution a measurement.** 175,104,000 B against the pool row's
+  own +172,490,752 B used growth is a gap of 2,613,248 B (2.6 MB), not "the same order": six
+  near-equal per-node deltas summing to the mount delta is the chunk store's per-node split, so the
+  "no single node carries a local writer" reading rests on an equality instead of a resemblance.
+- **Two publish-door defects this session, both about a throwaway clone.** (1) `publish`'s `--lock`
+  defaults to `.local/status-board.lock` *relative to the working tree*, so a board published from
+  `/tmp/<clone>` takes a private lock and gets no exclusion against peers; the shared path has to be
+  passed explicitly (`--lock <repo>/.local/status-board.lock`), which the later publishes did. (2) A
+  push was refused once because a peer published between the `git fetch` and the `git push`; the
+  composition was re-derived over the new tip (`2a95424`) and pushed, never forced. Both are the same
+  lesson as the 06:10 entry: the guards protect the *read*, and only the remote sha says what the read
+  was.
