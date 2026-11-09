@@ -202,12 +202,14 @@ Rules that follow:
   `STATUS.md` carries; a tick copies it instead of re-typing it, and `render` (no flag) still emits
   the weighted ordering table for a human.
 - **A publish is not complete until the worktree copy is written.** After `publish` and the push,
-  copy the published bytes into this clone's worktree with
-  `git show origin/main:mad-science/STATUS.md > mad-science/STATUS.md` — the same for
-  `mad-science/SESSION-RECORD.md` when the tick appended to it — content only, never a checkout,
-  reset or branch change, because peer sessions and humans read the worktree file and this clone's
-  `main` cannot fast-forward, so a board that only reaches origin reads as no update at all. The
-  tick's `publication` In-flight row ends with `worktree refreshed: <path> @ <sha>` (or
+  refresh this clone's worktree from `origin/main` — content only, never a checkout, reset or branch
+  change — because peer sessions and humans read the worktree file and this clone's `main` cannot
+  fast-forward, so a board that only reaches origin reads as no update at all. Skip a path whose
+  blob already matches: `test "$(git hash-object mad-science/STATUS.md)" = "$(git rev-parse origin/main:mad-science/STATUS.md)"`;
+  otherwise write a same-directory temp and rename it,
+  `git show origin/main:mad-science/STATUS.md > mad-science/.STATUS.md.wtmp && mv -f mad-science/.STATUS.md.wtmp mad-science/STATUS.md`,
+  and do the same for `mad-science/SESSION-RECORD.md` when the tick appended to it. The tick's
+  `publication` In-flight row ends with `worktree refreshed: <path> @ <sha>` (or
   `worktree refreshed: no`, which is the defect signal).
 - **Coverage is checkable, and bounded at the freeze.** `task-queue.py orphans --todo
   mad-science/TODO.md` reads the `<!-- archive-frozen: <sha> -->` marker in the archive and reports only
