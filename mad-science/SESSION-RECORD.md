@@ -6259,3 +6259,28 @@ ended an outage — a reboot is the only one of the two that appeared here.
   output: passing the composed file's own sha gets `on disk is sha256 … not the … this board was
   composed from — a peer wrote it in between`, which reads exactly like a peer race and was not
   one. Read the file, edit a copy, publish the copy with the read's sha.
+
+## 2026-11-08 21:58 ET — the register emptied, on host memory policy and a metrics bar
+
+- **Both open rows asked and answered in one turn**, the way the 2026-11-06 round was: `#67` (may host
+  memory policy change on all six nodes, so an overrunning quartet boot cannot take the head offline)
+  and `#68` (how an instrumented arm relates to its uninstrumented baseline now that every boot is
+  instrumented) were the register's only rows. `#67` answered `(a)` earlyoom `-m 14,5 -s 90,80` and
+  `(b)` `OOMScoreAdjust=-900` on `ssh.service` and `NetworkManager.service`, and added a placement
+  constraint the row had not proposed as its own candidate: **risky TP4 jobs run only on `.31`–`.35`,
+  never `.30`**. `#68` answered with a bar instead of one of the three shapes the row costed: adding
+  metrics may not create a confound as large as a rough-order-of-magnitude throughput difference, so
+  the metrics knobs get decomposed by cost to show the bar holds.
+- **The apply is a queue row, not a fleet action taken here.** `host-memory-policy-apply` carries the
+  exact host changes plus the caveat the answer alone cannot settle: earlyoom's two tests are
+  conjuncts, so the swap term's reach must be measured per node (`.34` idles at 99.98 % swap-free)
+  before the ruling counts as effective, and `.30` is not rebooted without owner approval.
+  `metrics-instrument-confound` carries the decomposition.
+- **Stale worktree, clean base.** This clone's worktree was far behind `origin/main` — its `AGENTS.md`
+  still stated 1423 tests where the tree discovers 1523, and it lacked the peer's push-gate paragraph —
+  so the fold was rebuilt on `origin/main`'s own bytes (`git archive origin/main`, seven files,
+  re-applied rather than merged) and committed as `3f77f52`. The gate ran in a real checkout of that
+  commit (`git clone --no-hardlinks … && git checkout 3f77f52`): **1523 tests, OK (4 skipped)**, with
+  `test_doc_hygiene` and `test_tracked_address_hygiene` green there while red in the lagged worktree.
+  The lag is a clone condition, not a repo one, and the next session's first act should be a pull
+  before it trusts any count read off this worktree.
