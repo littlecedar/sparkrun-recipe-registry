@@ -799,6 +799,19 @@ folded into the rows they govern; these rows keep them citable.
   overrun's blast radius and its teardown is what SIGKILLs every tmux session, TUI and cluster monitor on
   the node; the work is now in queue row `host-memory-policy-apply` beside the other two drop-ins.
   — provenance: `QUESTIONS.md` `#83`; `SESSION-RECORD.md` 2026-11-08; owner 2026-11-09.
+  *Corroborated 2026-11-09 — activated in place, no reboot and no unit restart:* on the head (`.30`,
+  which was deliberately not rebooted because it carries the pool's mgmtd/meta/storage and needs owner
+  approval) the two remaining units were repaired the way the 2026-11-08 BeeGFS fix repaired those
+  units: `echo -900 | sudo tee /proc/$(systemctl show -p MainPID --value <unit>)/oom_score_adj` — one
+  write each for `NetworkManager.service` and `user@1000.service`, nothing reloaded, nothing restarted.
+  Both PIDs were unchanged before and after (`1465`, `2103`), the scores went `0 -> -900` and
+  `100 -> -900`, the session count stayed 8, both tmux panes kept their creation times, and the
+  `sparkrun-campaign.service` --user unit (a child of `user@1000`) stayed `active` — which is exactly
+  why the restart route was refused: it would have killed 16 processes, the tmux pair and the campaign.
+  Durability splits two ways and both halves are in place: the in-place write covers the running
+  process, and the drop-ins (`[Service]` + `OOMScoreAdjust=-900`, written 2026-11-09 01:18:37 EST)
+  cover every future start. sshd and the three BeeGFS units were untouched — their live processes
+  already read `-1000`. Receipt: `head:~/benchmarks/host-mem-policy-20261109/inplace-scores-30.md`.
 
 - **Withdrawn before asking (recorded so the numbering is honest).** `#73` (BeeGFS units off `Restart=no`)
   was already executed at 16:47 on 2026-11-08, and `#82` (`# DECISIONS` in JSON) is ruled by `QUEUE.md`
