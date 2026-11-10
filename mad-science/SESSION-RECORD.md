@@ -7741,3 +7741,46 @@ boots were the plain `pruned75` arm on the pinned nightly
 - **Fix applied to the A/B row:** `blocked`, with `recipe`/`tp`/`env` intact and a note naming the shard
   and file counts, pid and log path at write time — the rule this cost is that a precondition a scheduler
   cannot observe belongs in the row's *state*, never only in its notes.
+
+## 2026-11-10 02:05 ET — replay-off 1M cell passes at `MEM_FRACTION_STATIC=0.75`; two deltas stay open, and the director restart exposed an exec bit
+
+- **The cell ran and passed** (task `sparkrun_1c0dffa45afa6e47_e8cf69f365b1` on `.31`–`.34`, image
+  `dsv41-sm121-dg:0.2.1` re-proved on all four, `-o env.MEM_FRACTION_STATIC=0.75`, replay off,
+  identical single-stream cell `--context-length 1039999 --chars-per-token 6.65 --concurrency 1
+  --max-tokens 128`). Boot gate lines: `Load weight end 83.30 s`, `full_token=1239040`,
+  `max_total_num_tokens=1239040`, `Ready: API on port 8000` at 06:48:28Z (TTR 238 s), zero kernel
+  `oom-kill`, zero earlyoom lines. Cell: **prompt 1,035,623 tokens, TTFT 565.4 s, needle 1/1,
+  44.7 ms/step over 3 steps (67.42 tok/s)**, `CELL_EXIT=0`. Per-rank `MemAvailable` minima
+  **9.04 / 6.74 / 6.35 / 6.14 GiB** (`.31`/`.32`/`.33`/`.34`); the 6.0 GiB guard never fired.
+  So the replay-off line *can* carry the 1M cell at 0.75 and the earlier "cannot run it" reading is
+  replaced. Receipt `head:~/benchmarks/fit-ds4-frac75-20261110/RECEIPT.md`.
+- **Two deltas it does not explain, and they decide the next lever.** (i) The floor is 6.14 GiB, not
+  the ~9.3 GiB the launcher arithmetic predicted from the 0.78 control's 5.68 + 3.65: the pool came
+  out at 1.24M tokens (request at 84 % of it) and the trough rank differs from the 0.78 control
+  (`.34` here, `.35` there) — cross-node, cross-pool, so "0.75 buys 3.65 GiB" is not claimed.
+  (ii) Prefill ran **1,831 tok/s** against the shipped line's 4,090 tok/s 1M mean (245 s), 2.2×
+  slower; the 6 GiB floor with 94.6 % Engram hits, the smaller pool, and the rank set are
+  candidates, and a same-node 0.78 control separates them. Decode 44.7 ms/step vs arm 3's 56.2 is
+  open for the same reason. Do not quote the 1M prefill rate as a property of 0.75 yet.
+- **Director boundary, and a restart defect it exposed.** The unit was stopped by this session at
+  **06:49:39Z** on its own account (the campaign had attempted a quartet launch at 06:42:57Z and does
+  not read the declared window; the protocol gap is the `campaign-ignores-declared-window` row, not a
+  by-id bug — the campaign's reaper is recipe-labelled, `campaign/sparkrun_campaign/fleet.py:57-64`
+  and `:104-113`). Restart at 06:59:30Z **failed** (`status=2`): `cannot start: no executable per-arm
+  executor at …/tools/run-arm.sh` — the file is committed mode **100644** (mtime 2026-11-09 15:15) and
+  the old running director had passed that check before the mode changed. `chmod +x` on the head (and
+  a mode-only commit) restored it; the unit is **active/running at 07:00:37Z**. The lesson: a fleet
+  service's restart precondition lives in a tracked mode bit, so a commit two days earlier can make
+  the next restart fail.
+- **Teardown verified:** `sparkrun stop` by literal id at 06:58:49Z → `Workload stopped on 4 host(s)`;
+  `ctns=0 vols=0` on every rank; samplers stopped and `/tmp/fit-ds4-<ip>` removed; window lock deleted
+  07:00:51Z; serve logs harvested **before** the stop.
+- **The spark-ds41f log was mined and the prefill claim does not survive it.** The supplied artefact
+  is a boot log with zero throughput lines; the repo's own TP4 rows are 6,030 / 5,985 / 5,680 / 5,173
+  tok/s at 32K / 131K / 256K / 512K and its three-node 1M run measured 4,460 / 4,384, so "8,000 t/s"
+  is not in either artefact and nothing near 2× our 4,090 is published. Config and the one fit lever
+  that transfers (explicit `kv-cache-memory-bytes`, which skips profiling) are recorded in
+  `recipes/ds4/README.md` §"The boot log, mined (2026-11-10)"; the stack is not a lever for the
+  blocked SM121 rows.
+- **Register untouched** (peer owns `queue.json`): mutations for `sm121-arm3-control-1m-cell` and
+  `w4-survey-arm5-control-boot` are in the session report and the receipt, not applied.

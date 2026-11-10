@@ -1365,23 +1365,28 @@ guard, the `flashinfer_cutlass` exclusion and the marlin padding/OOM above are p
 sglang image we run — a patched TileLang gives exact MXFP4 on sm_121a (LIKELY; our measured negative
 on this image stands).
 
-**Fit arithmetic for the replay-off 1M cell, and the instrument gap — not measured (2026-11-10).**
-Two open ds4 items, scoped from the tree after the two-boot Kimi window, no boot spent on either:
+**Fit arithmetic for the replay-off 1M cell, and the instrument gap (2026-11-10).**
+Two open ds4 items; the first is now measured, the second scoped from the tree:
 
-- **The replay-off floor is the static reserve, not the flag.** The control boot's 5.68 GiB
-  `MemAvailable` floor at `.35` is what this serve line *documents* for a 1M cold prefill: the
-  launcher's own comment records "at 0.80 a 1M prefill left the head 2.7 GiB available, at 0.78 it
-  leaves 5.7 GiB" (`launcher.py:143-149`), and `MEM_FRACTION_STATIC` is 0.78
+- **The replay-off floor is the static reserve, and 0.75 lets the cell run — with two open deltas.**
+  The control boot's 5.68 GiB `MemAvailable` floor at `.35` is what this serve line *documents* for a
+  1M cold prefill: the launcher's own comment records "at 0.80 a 1M prefill left the head 2.7 GiB
+  available, at 0.78 it leaves 5.7 GiB" (`launcher.py:143-149`), and `MEM_FRACTION_STATIC` is 0.78
   (`launcher.py:149`). The engine's budget is `available_bytes = available_gpu_memory −
-  pre_model_load × (1 − mem_frac)` (`launcher.py:173-177`), so **each 0.01 of fraction is
-  ~1.217 GiB of non-static headroom**; 0.78 → 0.75 adds ~3.65 GiB to the headroom the cold prefill
-  draws on and shrinks the fast-loader pool by the same bytes (~2.3M tokens at 1670.75 B/token,
-  still ≥ the 1M cell). So the replay-off boot is consistent with the shipped serve line rather
-  than anomalous, and the honest lever is the serving-side reserve — **not** the cell shape for a
-  single-stream cell and never the 6.0 GiB guard. Next boot would test
-  `-o env.MEM_FRACTION_STATIC=0.75` on `zz-ds4-1017-sm121-arm3-control.yaml` with the identical 1M
-  single-stream cell; falsifier is the boot's own `full_token=` line plus a floor ≥6.0 GiB for the
-  whole prefill. (Arithmetic from the launcher, `SPECULATIVE` until that boot.)
+  pre_model_load × (1 − mem_frac)` (`launcher.py:173-177`), i.e. ~1.217 GiB of non-static headroom
+  per 0.01 of fraction. **Measured on `.31`–`.34` with `-o env.MEM_FRACTION_STATIC=0.75` and the
+  identical single-stream 1M cell (task `…_e8cf69f365b1`, receipt
+  `head:~/benchmarks/fit-ds4-frac75-20261110/`): the cell PASSES** — prompt **1,035,623** tokens,
+  TTFT **565.4 s**, **1/1** needle, **44.7 ms/step** over 3 steps (6 tokens), boot line
+  `full_token=1,239,040`, floor **6.14 GiB** (`.34`; `.33` 6.35, `.32` 6.74, `.31` 9.04), zero
+  kernel `oom-kill`, zero earlyoom lines, guard never fired. So the line *can* carry the cell and
+  the earlier "cannot run it" reading is replaced. Two deltas are **not** explained by this boot and
+  decide the next lever: (i) the floor is 6.14 GiB, not the ~9.3 GiB the arithmetic predicted from
+  5.68 + 3.65, and the pool came out at 1.24M tokens (the request at 84 % of it) on a different rank
+  set (`.34` here, `.35` in the 0.78 control) — cross-node and cross-pool, so "0.75 buys 3.65 GiB"
+  is not claimed; (ii) prefill ran **1,831 tok/s** against the shipped line's 4,090 tok/s 1M mean
+  (245 s), 2.2× slower, with the 6 GiB floor and 94.6 % Engram hit rate as candidates — a same-node
+  0.78 control separates them. Decode 44.7 ms/step vs arm 3's 56.2 is likewise open.
 - **The ladder's missing symbol is a one-line shim, and it is register-worthy.** The adapter's
   `block_verify.py:106` calls `dflash_utils.build_dflash_verify_target_probs`, which the pinned
   engine spells `build_speculative_verify_target_probs`. Cheapest honest fix, with no vendored
@@ -1430,6 +1435,65 @@ route reaches `boot.py`, so "the dry run looked identical" proves nothing about 
 **Do not** copy their `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` — our launcher sets `False`
 deliberately (`launcher.py:332-334`): expandable segments produced NaN logits above 64 prefill query
 tokens on V4.1.
+
+### The boot log, mined (2026-11-10): config, memory, and what the "2× prefill" claim rests on
+
+A friend's 224-line serve log for this stack was supplied 2026-11-10 (untracked;
+`head:~/benchmarks/fit-ds4-frac75-20261110/friend-spark-ds41f.log`) and read against the repo's own
+release config (`releases/spark-ds41f-1107/cluster.json`, `docs/current-state.md`, `docker/README.md`
+at `main` `798baf21`). It is a **boot log only**: `grep -ciE 'tokens/s|t/s|throughput'` = **0**, so it
+carries no prefill measurement at all.
+
+- **Boot identity.** vLLM `0.29.1rc1.dev187+gaf1c01499` on the canonical ARM64 nightly
+  `docker.io/vllm/vllm-openai:nightly-af1c01499…` (digest `sha256:3cf14c52…`), vLLM tree
+  `local-inference-lab/vllm` `19f2c20e…` (`integration/karmic-kraken-beta`), NCCL 2.30.7, image tag
+  `spark-ds41f:1107` — a **local tag**: `docs/current-state.md:267` gives its built image id
+  `sha256:3f32a962ce04`, and `docker/README.md` shows `bin/spark build image --apply`, no registry
+  push. The log's served body is **not** the repo baseline 1017@`1bae0e10`: it is
+  `dealignai/…-UNCENSORED-FP8` snapshot `c19ca5ca`, 48 shards (draft load selected 3/48), payload
+  75.45 GB/rank.
+- **Serve argv, as the engine printed it** (`non-default args`, log line 53): `load_format='direct'`,
+  `attention_backend='TILELANG'`, `moe_backend='tilelang'`, `gpu_memory_utilization=0.82` **and**
+  `kv_cache_memory_bytes=11274289152` (10.5 GiB), `max_model_len=1048576`, `max_num_seqs=16`,
+  `max_num_batched_tokens=16384`, `long_prefill_token_threshold=16288`, `enable_chunked_prefill`,
+  `async_scheduling`, `prefill_yield='short'`, prefix caching with 8192-token retention, dspark
+  k=5 at `draft_tensor_parallel_size=4` with adaptive verification (row cost 0.035), CUDA graphs
+  `FULL_AND_PIECEWISE` to 96 rows, **no `kv-cache-dtype` flag and no `--enforce-eager`**. The engine's
+  own line proves the KV knob's precedence: "Initial free memory 113.16 GiB, reserved 10.5 GiB memory
+  for KV Cache as specified by kv_cache_memory_bytes config and **skipped memory profiling. This does
+  not respect the gpu_memory_utilization config**".
+- **Memory, as the engine printed it.** `Model loading took 70.56 GiB memory and 44.4 s`;
+  `[memory_breakdown] weights=70.56 GiB kv_cache=10.5 GiB workspace=1.54 GiB other_torch=1.88 GiB
+  cudagraph=1.93 GiB non_torch_cuda=13.57 GiB free_memory=22.82 GiB`; `GPU KV cache size: 11,547,894
+  tokens` (→ **976 B/token**, their packed layout, against our SGLang's 1670.75 B/full token);
+  `API ready at +134.2 s`.
+- **Their fit discipline.** Explicit KV cap instead of profiling; `--memory=112g --memory-swap=112g`
+  on the container; host guards 5 GiB at 0.25 s pre-launch and 3 GiB at 2 s steady, each killing on
+  the first sample below; `--load-format direct` loads 75.45 GB of payload in 30.88 s (2.44 GB/s) with
+  "0.00 GB BF16 expanded in the ring, 0.00 GB converted in the GPU scratch, 0.00 GB copied by Torch",
+  plus a 12-bit packed BF16 LM head.
+- **The 8,000 t/s claim is not in either artefact.** The repo's own TP4 four-node prefill rows are
+  **6,030 / 5,985 / 5,680 / 5,173 tok/s at 32K / 131K / 256K / 512K** (`README.md` table, r6x vs
+  `-1022`, both on 1017@`1bae0e10`), and its three-node 1M run measured 4,460 / 4,384 at 32K / 131K.
+  Our 1M cold-prefill mean is 4,090 tok/s at ~999k prompt tokens. So the comparable shipped numbers
+  sit in one band (~4–6k), the repo publishes **no TP4 1M prefill cell**, and a 2× claim would need a
+  log line the supplied artefact does not contain: an engine `Avg prompt throughput` with its prompt
+  token count, or a client timing of one 1M-token prefill. Do not quote 8,000 t/s.
+- **Is it a fit lever for our rows?** Only in mechanisms we already have equivalents for. The explicit
+  KV cap is the same direction as `max_total_tokens` / `MEM_FRACTION_STATIC` (the boot below tests
+  it); `--load-format direct` removes the transient double materialisation (a host-spike and TTR
+  lever, not a steady-state one — and our b12x_next loader is already in-place); the 12-bit LM-head
+  pack and disk Engram save ~1 GiB-scale bytes, and our lane streams Engram from NVMe already. Their
+  init ends at 22.82 GiB free on 113.16 GiB — **not** lower than our line's 34.92 GB post-load before
+  the pool — so nothing here lowers our floor; the 6.3 GiB weight difference is their FP8-mixed
+  quant against our MXFP4 body. The container `--memory=112g` cap is a blast-radius practice worth
+  copying. The prefill-speed machinery (TileLang kernels, prefill sequence parallelism, L2 prefetch,
+  async scheduling) is speed, not fit.
+- **Reproducibility here.** Needs a ~40-patch vLLM fork built with `bin/spark build` on an idle host
+  (no published image; our four ranks hold none), ~40 GB image and hours of build, license Apache-2.0
+  for the repo (the checkpoint carries its own). A one-command boot is not available until that build
+  exists; the build host would be `.30`/`.35` when not booting. This is **not** a lever for the
+  blocked SM121 rows and must not be adopted as one.
 
 ## Upgrade candidates (measured elsewhere, not queued)
 
