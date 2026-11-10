@@ -8680,3 +8680,45 @@ id, so the pin is unresolved rather than proven wrong.
 - **The production window lock is byte-identical on the head and in this clone** (901 B, sha256
   `5c980895…`, mtime 05:16:53 ET), so the claim the board reports is the one both copies carry.
 - **Landed row folded**: `8a3b927`, the 07:20 ledger close, which the 07:13 board could not cover.
+
+## 2026-11-10 09:10 ET — hourly board tick: the same idle fleet, the same register, and a pool writer the falsifiers still cannot name
+
+- **Board published as `97033b7`** on the 14:02:41-14:04:24Z read, `lint` rc=0 and
+  `tools/push-gate.py` rc=0 before the push. `publish` accepted the composition first time this
+  cycle, so the ET-stamp trap the 08:08 tick hit did not need re-learning: the title carries `date` at
+  the moment the file is written (09:10), not the minute the first ssh landed (09:02).
+- **Census.** `docker ps -aq` `1/1/1/1/1/0`, running `0/1/1/1/1/0`, volumes `0` on all six. `.30`
+  still carries the `sm121m` container in `Created` from 2026-11-08 15:32:33Z; `.31`-`.34` carry the
+  production knapcio serve (image id `3f4480818acb`, `sha256:3f448081…a67a4d5` in both `Image` and
+  `Config.Image`, started 10:12:03Z), and this cycle proves liveness past `/v1/models`: `pgrep -a -f
+  sglang.launch_server` inside each of the four rank containers finds pids 271/310/310/312, and the
+  endpoint answers 200 at `max_model_len` 1048576.
+- **Root avail fell 954 368 B over ~100 s, again spread.** `.30` -131 072, `.31` -176 128, `.32`
+  -172 032, `.33` -176 128, `.34` -176 128, `.35` -122 880. No node sits more than 53 KB outside the
+  band, so this cycle leaves per-node churn unexplained rather than inventing a mover, as the last two
+  ticks did.
+- **Pool grew 11 010 048 B in 222 s and its writer is still unnamed — but this time the falsifiers
+  were re-run instead of inherited.** Used 13 866 196 008 960 B (14:03:36Z) to 13 866 207 019 008 B
+  (14:07:18Z), avail 10 325 033 746 432 to 10 325 022 736 384 B of 24 191 229 755 392 B (58 %), 102
+  hub entries, and `stat -L` through the mount on the `08c8657f` snapshot's `config.json` reads 3 311 B.
+  Three separate probes came back empty: no `hf`/`huggingface-cli`/`hf_transfer` process on any of the
+  six nodes (pgrep matched only its own pattern), `find /mnt/beegfs/huggingface/hub -maxdepth 3
+  -newermt '-30 minutes'` empty, and no `rsync`/`scp` on the head. Two of the four reads closed exactly
+  +524 288 B over 45 s while the 132 s gap between them carried +9 961 472 B, so the rate is not a
+  steady trickle either: the arithmetic to explain is a burst pattern with no process behind it, and
+  the next probe belongs at the storage target's own byte accounting.
+- **Campaign: still active, still holding nothing, still landing nothing.** Head unit `active`,
+  `MainPID 4140537`, `NRestarts=0`, entered 05:16:53 ET and unchanged across six ticks;
+  `director status --root ~/benchmarks/h2h-20261107` reads 9 measured / 10 blocked of 19; `lease` null
+  on every arm of all nine `~/benchmarks/*/state.json` roots (33 arms: 15 measured, 10 blocked, 3
+  failed, 5 skipped); the h2h `state.json` mtime is still 07:00:37Z; and **no file under
+  `~/benchmarks` is newer than 13:00Z** (count 0, so this is an enumeration, not a tail).
+- **Register did not move**: `cd5a86b4` at read, at snapshot, and re-hashed at publish -- 146 tasks,
+  106 done, 29 queued, 11 blocked, 40 open, 0 claims, 0 questions; `check` reads `ok: 146 task(s)`,
+  and the 09:10 board carries the same graph comment and the same 40 rows as the 07:13 board.
+- **Window lock byte-identical** on the head and in this clone (901 B, sha256 `5c980895…`, mtime
+  05:16:53 ET), so the production claim the board reports is the one both copies carry.
+- **Landed rows folded**: `e4e389f` (the 08:08 board, committed 08:09 with its title stamped a minute
+  behind the ET clock), `d6d10cd` (its ledger close), and `69b62f4` (the census row's dropped
+  preposition restored). All three were the previous tick's own work, so nothing from another
+  session needed homing first.
