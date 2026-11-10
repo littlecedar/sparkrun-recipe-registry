@@ -465,6 +465,11 @@ class ServedModelNameNotRebound(unittest.TestCase):
         # The arm-5 fi073 probe mounts the same overlay and renders the same line, so the
         # launcher normalizes it identically.
         "ds4/zz-ds4-1017-sm121-arm5-fi073.yaml",
+        # The two marlin loader probes are that control with one extra engine flag
+        # (serial loader / dummy load), so they carry the same line and the same
+        # overlay launcher that normalizes it back to the repo id.
+        "ds4/zz-ds4-1017-sm121-arm3-control-marlin-serial.yaml",
+        "ds4/zz-ds4-1017-sm121-arm3-control-marlin-dummy.yaml",
         # The 1017 template A/B is the knapcio arm byte for byte except the pin, so it inherits
         # the same `--served-model-name {model}` line and the same overlay launcher that
         # normalizes it back to the repo id.
