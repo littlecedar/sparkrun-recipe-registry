@@ -62,6 +62,14 @@ Usage
     # enable_thinking:
     python3 run_benchmarks.py --base-url http://host:4000 --model k2 \
         --bench all --reasoning-effort low --max-tokens-scale 2 --limit 200
+
+    # a checkpoint that ships no chat template (e.g. a Base checkpoint): the
+    # chat route answers HTTP 400, so post the plain prompt instead.  Scores
+    # choices[0].text through the same scorers; --thinking/--reasoning-effort
+    # are refused here, and every record carries `mode: completions`.
+    python3 run_benchmarks.py --base-url http://host:8000 \
+        --model baidu/ERNIE-5.5-Flash-Base --bench gsm8k --limit 200 --seed 1234 \
+        --completions --outdir results
 """
 from __future__ import annotations
 
@@ -92,7 +100,17 @@ DATA = os.path.join(HERE, "data")
 # --------------------------------------------------------------------------
 # transport
 # --------------------------------------------------------------------------
-def chat(base, model, prompt, max_tokens, thinking, reasoning_effort="default"):
+def request_spec(model, prompt, max_tokens, thinking, reasoning_effort="default",
+                 completions=False):
+    """``(path, body)`` -- the one place the two routes differ.
+
+    ``completions`` posts the plain prompt and carries no chat_template_kwargs:
+    a checkpoint that ships no chat template has nothing to key --thinking on, so
+    main() refuses that flag instead of sending a control nothing reads.
+    """
+    if completions:
+        return "/v1/completions", {"model": model, "prompt": prompt,
+                                   "temperature": 0, "max_tokens": max_tokens}
     body = {"model": model, "messages": [{"role": "user", "content": prompt}],
             "temperature": 0, "max_tokens": max_tokens}
     # Both keys ride in the SAME chat_template_kwargs: --thinking and
@@ -105,22 +123,39 @@ def chat(base, model, prompt, max_tokens, thinking, reasoning_effort="default"):
         kwargs["reasoning_effort"] = reasoning_effort
     if kwargs:
         body["chat_template_kwargs"] = kwargs
-    req = urllib.request.Request(base.rstrip("/") + "/v1/chat/completions",
+    return "/v1/chat/completions", body
+
+
+def reply_from(out, completions=False):
+    """The text the scorers see: the completions choice's ``text``, else the
+    chat message's ``content``."""
+    choice = out["choices"][0]
+    if completions:
+        return choice.get("text") or ""
+    return (choice.get("message") or {}).get("content") or ""
+
+
+def chat(base, model, prompt, max_tokens, thinking, reasoning_effort="default",
+         completions=False):
+    path, body = request_spec(model, prompt, max_tokens, thinking,
+                              reasoning_effort, completions)
+    req = urllib.request.Request(base.rstrip("/") + path,
                                  data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"})
     t0 = time.time()
     with urllib.request.urlopen(req, timeout=900) as r:
         out = json.load(r)
-    msg = out["choices"][0]["message"]
+    choice = out["choices"][0]
+    reply = reply_from(out, completions)
     usage = out.get("usage", {}) or {}
     reason = (usage.get("completion_tokens_details") or {}).get("reasoning_tokens")
     if reason is None:
         reason = usage.get("reasoning_tokens")  # SGLang reports it top-level
-    return (msg.get("content") or ""), {
+    return reply, {
         "elapsed_s": round(time.time() - t0, 2),
         "completion_tokens": usage.get("completion_tokens"),
         "reasoning_tokens": reason,
-        "finish_reason": out["choices"][0].get("finish_reason"),
+        "finish_reason": choice.get("finish_reason"),
         "tensorfold": out.get("tensorfold"),
     }
 
@@ -292,7 +327,8 @@ def run_bench(a, bench, model):
                 continue
             try:
                 reply, meta = chat(a.base_url, model, item["prompt"],
-                                   item["max_tokens"], a.thinking, a.reasoning_effort)
+                                   item["max_tokens"], a.thinking, a.reasoning_effort,
+                                   a.completions)
                 ok = score_item(bench, item, reply)
                 err = None
             except Exception as e:  # noqa: BLE001
@@ -302,8 +338,11 @@ def run_bench(a, bench, model):
                    "correct": ok, "error": err,
                    # Per-record so a _raw resume is self-describing: the filename
                    # carries the effort too, but a record read in isolation (or
-                   # copied beside another run's) must not need it.
-                   "reasoning_effort": a.reasoning_effort, **meta}
+                   # copied beside another run's) must not need it.  `mode` says
+                   # which endpoint produced the reply, because a chat record and
+                   # a completions record are not the same measurement.
+                   "reasoning_effort": a.reasoning_effort,
+                   "mode": "completions" if a.completions else "chat", **meta}
             done[item["id"]] = rec
             rawf.write(json.dumps(rec) + "\n")
             rawf.flush()
@@ -322,6 +361,7 @@ def run_bench(a, bench, model):
     # it shows up as a wrong answer.
     finishes = Counter(str(r.get("finish_reason")) for r in recs)
     out = {"model": model, "bench": bench, "thinking": a.thinking, "n": n,
+           "mode": "completions" if a.completions else "chat",
            "reasoning_effort": a.reasoning_effort,
            "correct": correct, "pct": 100.0 * correct / n if n else 0.0,
            "by_category": {c: {"n": len(v), "correct": sum(v)} for c, v in sorted(by_cat.items())},
@@ -362,8 +402,24 @@ def main() -> int:
                     help="items per dataset benchmark (house is always full)")
     ap.add_argument("--seed", type=int, default=1234)
     ap.add_argument("--tag", default="", help="extra suffix for output files, e.g. run2")
+    ap.add_argument("--completions", action="store_true",
+                    help="post the plain prompt to /v1/completions and score "
+                         "choices[0].text: the route a checkpoint with no chat "
+                         "template answers. Refuses --thinking/--reasoning-effort, "
+                         "which are chat-template controls that would do nothing")
     ap.add_argument("--outdir", default=os.path.join(HERE, "results"))
     a = ap.parse_args()
+
+    # A template-less checkpoint has no chat template to key a thinking control
+    # on, so those flags are refused instead of sent as controls nothing reads
+    # (the same silent no-op the docstring warns about for enable_thinking).
+    if a.completions:
+        if a.thinking is not None or a.reasoning_effort != "default":
+            print("--completions refuses --thinking/--reasoning-effort: a "
+                  "template-less checkpoint has no chat template to key them on",
+                  file=sys.stderr)
+            return 2
+        a.thinking = "none"  # no thinking mode exists there; keeps the file stem unique
 
     # Back-compat resolution.  Both new flags are inert when unset, so a bare
     # invocation reproduces the old request body exactly (thinking off ->

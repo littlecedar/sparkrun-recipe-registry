@@ -85,6 +85,28 @@ can size budgets without editing code. Every summary JSON records the
 count, which is how a truncation is told apart from a real answer; each
 `_raw/*.jsonl` record carries its effort too, so a resume is self-describing.
 
+### A checkpoint with no chat template (`--completions`)
+
+A Base or researched checkpoint that ships no `chat_template.jinja` answers
+`/v1/chat/completions` with HTTP 400 (`Cannot use chat template functions because
+tokenizer.chat_template is not set`), and every item then records as a wrong
+answer while the run still exits 0 — a 200-item accuracy gate that measured
+nothing. `--completions` posts the plain prompt to `/v1/completions`
+(`{"model", "prompt", "temperature": 0, "max_tokens"}`), scores
+`choices[0].text` through the same scorers, and keeps the sample, resume,
+`--max-tokens-scale`, `finish_reasons` and `empty_replies` instruments unchanged.
+Each `_raw` record and each summary carries `mode: chat|completions`, and the run
+file stem carries `none` instead of a thinking mode, so the two never share a
+resume file. `--thinking`/`--reasoning-effort` are **refused** (exit 2) there:
+they are chat-template controls, and a template-less checkpoint would silently
+read neither.
+
+```sh
+python3 run_benchmarks.py --base-url http://<node>:8000 \
+    --model baidu/ERNIE-5.5-Flash-Base --bench gsm8k --limit 200 --seed 1234 \
+    --completions
+```
+
 ### Secondary — thinking on (diagnostic only)
 
 Forced `enable_thinking=true`, GSM8K n=60. This is *not* the headline config; it
