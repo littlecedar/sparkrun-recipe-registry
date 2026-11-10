@@ -7924,13 +7924,17 @@ boots were the plain `pruned75` arm on the pinned nightly
   16,722 B, sha256 `95b7033a…`. The 48 shard entries are symlinks into `blobs/`, but the payload is a **second
   full copy**: the pinned snapshot stores its shards as plain files (nlink 1), so nothing is shared and the pool
   moved 52 % → 54 % of 23 TB during the pull. `refs/main` now also names `08c8657f`.
-- **That `refs/main` move cost a quartet boot, which is why it is a row and not a footnote.** The fit session's
-  control boot (`sparkrun_1c0dffa45afa6e47_eb5100b2911f`) died at 143 s on `model-00047-of-00048.safetensors`
-  while its recipe pinned `1bae0e10…`: the ds4 launcher resolves the checkpoint through the cache's `refs/main`,
-  so the recipe's `model_revision` never reaches the engine and the `unpinned-model-revision` finding every ds4
-  arm carries is **not** cosmetic on this line. New row `ds4-model-revision-inert` carries the mechanism, the
-  `-o env.MODEL_PATH=` workaround that proved it, and the acceptance (launcher honours the pin or refuses to boot
-  when `refs/main` disagrees).
+- **That `refs/main` move cost a quartet boot, and the mechanism is open, not established.** The fit session's
+  control boot (`sparkrun_1c0dffa45afa6e47_eb5100b2911f`) died at 143 s on `model-00047-of-00048.safetensors` while
+  its recipe pinned `1bae0e10…`, on a snapshot that was 46 of 48 shards at that moment. The tempting reading — "the
+  recipe pin is inert, the launcher reads `refs/main`" — is **unverified and probably wrong**: the launcher resolves
+  the checkpoint in three branches (`launcher.py:901-940`) and `refs/main` is branch 3 only, taken for a repo id or a
+  dry run, while a real launch renders `{model}` to the prepared snapshot path, so branch 2 serves that path and never
+  reads `refs/main`; sparkrun's own pool-cache resolution is the other candidate. New row
+  `ds4-quartet-served-incomplete-pool-snapshot` records the observation with that discriminator (the boot's launcher
+  line plus its `server_args`/`MODEL_PATH`) and the acceptance (a boot whose served path is proven, and either a
+  refusal on an incomplete snapshot or a pin that is honoured). The operational half — `refs/main` naming a
+  half-present snapshot while the pull ran — belongs to the A/B row and disappeared when the body completed at 07:43Z.
 
 ## 2026-11-10 02:47 ET — two flights ended inside one tick, and a board written four times under guard
 - **What the tick read, all machine-captured.** Census pair
