@@ -1,0 +1,102 @@
+recipe_version: "2"
+model: deepseek-ai/DeepSeek-V4.1-Flash-1017
+# The launcher sets SKIP_PREPARE=1 and serves the snapshot sparkrun renders from
+# {model}, so this pin -- not the image's baked REVISION -- decides the weights.
+# A/B half of the 1017 template refresh: 08c8657f ships its own
+# chat_template.jinja, so launcher.ensure_template_overlay returns early
+# (launcher.py:680-681) and the upstream template is served instead of the mod's
+# patched copy. Keep the mod listed -- it is what stages the template at the pin,
+# which is this arm's control.
+model_revision: 08c8657f02291e11b6f6b63e0e16014f8e748518
+runtime: sglang
+container: ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb3947005e75afd8f8c10adf9dc1db4e5f96ea54c6411e960a4eeee073c5c
+min_nodes: 4
+
+description: >-
+  A/B probe of the DeepSeek-V4.1-Flash-1017 chat-template refresh: the
+  shipped knapcio TP=4 arm byte for byte except the pin, moved to revision
+  08c8657f, whose only change upstream is a chat_template.jinja. Same serve
+  line, mods and defaults; because that snapshot ships a template,
+  launcher.ensure_template_overlay returns early and SGLang serves the
+  upstream template instead of the mod patched copy. Control is the shipped
+  arm's own overlay path at pin 1bae0e10 (4x DGX Spark GB10, SGLang, native
+  MXFP4/F8 checkpoint Engram on NVMe, TP=4 EP=1, DSpark k=5, 1M context,
+  RoCEnante RDMA transport). Adaptation of
+  knapcio/DeepSeek-V4.1-Flash-4x-DGX-Spark-TP4 @ aff52fa5 (v2.5+, 2026-10-24;
+  the image's vendored tree, downstream of
+  MiaAI-Lab's recipe; the launcher, adapters, b12x kernels and measurement
+  design are theirs, kept under the upstream licenses). See AGENTS.md and
+  README.md in this directory for provenance, boot gates and limits.
+metadata:
+  model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: mxfp4
+  model_mtp_dtype: mxfp4
+  kv_dtype: fp8
+  tags: official, fast, large_context, lcg_favorite, vision
+
+mods:
+  - "mods/dsv41-sglang-overlay"
+
+executor_config:
+  entrypoint: ""
+  shm_size: 32gb
+
+env:
+  # Metrics rollout 2026-11-08: /metrics on the API port, engine flags ride
+  # EXTRA_SGLANG_ARGS because the launcher owns argv (launcher.py:471-502).
+  EXTRA_SGLANG_ARGS: "--enable-metrics"
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  max_model_len: 1048576
+  # DSpark verify-window gamma. The launcher's shipped default is the same 5;
+  # the knob exists so a sweep can reach it (-o dspark_block_size=3), since
+  # `-o env.DSPARK_BLOCK_SIZE=` is clobbered by the launcher's production env.
+  dspark_block_size: 5
+  # The memory line and the extra sglang flags are launcher-owned (mods/
+  # dsv41-sglang-overlay/launcher.py: RECIPE_ENV + AB_ENV): 0.78 mem fraction,
+  # 8192 -> 16384 chunks (2026-10-24, the #2 cell: 2.35x the 1M prefill, needle
+  # 5/5 at ~999k), a PER-MODE KV pin (owner 2026-10-24, closing QUESTIONS #21:
+  # 6,849,792 on the stock loader, unpinned under the fast loader — the
+  # launcher's apply_recipe_env derives it), 16 slots and --swa-prefix-tails 128.
+  # The prefill-decode
+  # interleave ships OFF: it cost 17-28 % of steady-state ladder throughput on
+  # this fleet's profile (2026-10-18), so it is opt-in, not default.
+  # They travel as container env, so an A/B flips one without editing a file:
+  # -o env.MEM_FRACTION_STATIC=0.80, -o env.CHUNKED_PREFILL_SIZE=4096,
+  # -o env.MAX_TOTAL_TOKENS=0 (unpin), -o env.SWA_PREFIX_TAILS=0 (engine default),
+  # -o env.PREFILL_DECODE_INTERVAL=2 (the multi-user interleave). The launcher
+  # prints every effective value on its boot line.
+
+# The dense FP8 GEMM backend is declared HERE rather than inherited from the
+# image. boot.py's required_sglang_args() strips every --fp8-gemm-backend from
+# EXTRA_SGLANG_ARGS and appends its own last (boot.py:264-287 @ 27616bec), keyed
+# off DSV41_MXFP8_BACKEND (image default b12x) -- so the arg cannot win the
+# order, and an undeclared recipe boots with a substitution warning ("effective
+# value 'auto (omitted)' replaced") instead of a value anyone wrote. Carrying it
+# here makes the guard's rewrite value-identical, silences that warning, and
+# keeps the b12x dense route (DSV41_MXFP8_BACKEND=b12x needs
+# flashinfer_cutlass) even if the image's env default goes away. The launcher
+# maps it to EXTRA_SGLANG_ARGS; see mods/dsv41-sglang-overlay/launcher.py.
+command: >
+  python3 /workspace/mods/dsv41-sglang-overlay/launcher.py
+  --boot
+  --model {model}
+  --port {port}
+  --tp {tensor_parallel}
+  --served-model-name {model}
+  --context-length {max_model_len}
+  --dspark-block-size {dspark_block_size}
+  --fp8-gemm-backend flashinfer_cutlass
+  --enable-cache-report
+
+readiness:
+  # inference must stay false: readiness would otherwise drive /chat/completions,
+  # and the engine answers /health (with HTTP 200) from the moment the server binds.
+  inference: false
+  port_timeout_s: 7200
+  health_timeout_s: 3600
