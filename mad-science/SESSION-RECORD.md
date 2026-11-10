@@ -8247,3 +8247,47 @@ row's to fix.
   without a claim; `head-mesh-cannot-reach-30` needs its note widened from `.30` to all six names or
   a new row filed; and the flint fetch's client machine is still unnamed.
 
+## 2026-11-10 03:56 ET — tick that landed two measurements and found a second window
+
+- **The upstream-template A/B quartet ran to a full verdict, and its 1M cell passes.** Task
+  `sparkrun_b020d2dd178343a5_36a7ab92551a` on `.31`–`.34` reached ready at 08:13:47Z (TTR 427 s) with
+  `max_total_num_tokens=3,440,896` at `context_len=1048576`, then `C1 wall=413.1 s prompt=[1035623]
+  ms/step=72.0 tok/s=41.67 needle=1/1 err=0`. All three decision artefacts settle as the receipt
+  predicts: the served template is the snapshot's own `95b7033a…` (16,722 B) with **no**
+  `/cache/runtime/model-overlay`, `reasoning_effort: "minimal"` answers **200** (`reasoning_tokens: 8`)
+  where the mod copy answers 400, and a 64×64 red PNG answers **200 "Red"** with `image_tokens: 184`,
+  so the upstream placeholder guards do not regress vision. Teardown verified 08:21:57Z
+  (`ctns=0 vols=0`), tmp cleared, lock deleted 08:22:04Z, director restarted 08:22:07Z. Evidence:
+  `head:~/benchmarks/fit-ds4-template-ab-20261110/`.
+- **`.35`'s GSQ-RCO boot 3 measured a full ladder before it was reaped.** Watchdog `verdict=healthy` at
+  `t=1288 s` (TTR 21m28s against boot 2's 21m56s), then c1/c2/c5/c10 agg **6.417 / 12.101 / 17.770 /
+  31.543 t/s** with 0 errors, `mem_min_GiB` 46.4 on every cell, `nic_rx_MiB` 0.0 with
+  `nic_rx_bytes_per_token` 0.0 on all four (reads served locally, matching boot 2), and
+  `majflt_per_token` falling 44.47 → 0.72. Evidence:
+  `head:~/benchmarks/ds4-gsq-rco-20261110/cells-analysis-boot3.{json,log}`, `boot3-offload-counts.txt`.
+- **A second four-rank window was declared twelve minutes after the first was released, and the same
+  session has since booted three quartet instances in 45 minutes.** The old lock's deletion at
+  08:22:04Z is in its own holder's timeline; `.local/fleet-window.lock` reappeared at 08:34:27Z naming
+  `ds4 revision 08c8657f end-to-end validation (house+needle+ladder)` on the same ranks with
+  `launched` and `suspended` equal, and by 08:55:01Z the ranks carried `…_2520a3ca7d7f` (four ranks up
+  about a minute, `health: starting`) after `…_36a7ab92551a` tore down and a two-rank `819f27c403b9`
+  appeared at 08:49:17Z. Every one of them is hand-run: register row `ds4-1017-template-refresh-ab`
+  reads `blocked`, so the board and the register disagree about the same work by construction.
+- **Two instrument traps cost compositions this tick, both in the class the board exists to prevent.**
+  (1) The peer board published at 03:15 ET read a *drained* fleet from a pair straddling the frac75
+  teardown (08:03:48Z) and the A/B container's creation (08:06:41Z) — `docker ps -q` 0 × 6 with a live
+  flight either side of it; the correct reading needs a pair that does not straddle an event.
+  (2) `systemctl --user is-active sparkrun-campaign.service` reads **`inactive` on this workstation
+  and `active` on the head** (MainPID 3686739, started 03:22:04 EST); lease state lives on the head's
+  unit and its `<CAMPAIGN_ROOT>/state.json`, so a local unit read is not the campaign's state. Two of
+  four composed boards were discarded unpublished rather than replace `In flight` cells with state
+  four minutes stale.
+- **The publish door now refuses a raw cluster address in the window row.** Quoting the new lock
+  verbatim fails `publish` with a `cluster-address` refusal, so the `ranks=` line is carried as
+  `.31`–`.34` and the masking is stated in the cell rather than silently applied.
+- **Left open.** `ds4-1017-template-refresh-ab` still reads `blocked` while its own boot runs;
+  `ds4-gsq-rco-coder-llamacpp-boot` likewise `blocked` with no claim after a measured boot 3;
+  `head-mesh-cannot-reach-30` still covers only `.30`; and the `.31`–`.34` window's purpose line names
+  the end-to-end validation while the ranks have since run a fourth instance, so a peer reading the
+  lock alone cannot tell which boot holds them.
+
