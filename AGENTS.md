@@ -16,7 +16,7 @@ and rewrites both statements from that same discovery; only its skip count needs
 which is why that half carries a date. What only a run can know stays a *dated snapshot*: **2026-11-10
 — every tracked recipe passes plain `validate`, and `--strict` prints exactly the roster below over
 the whole tracked tree (re-measured 2026-11-10, the date on this line: 118 tracked recipes scanned,
-66 of them printing a finding, 31 with a warning and the rest suggestions only; the LiquidAI arms
+67 of them printing a finding, 32 with a warning and the rest suggestions only; the LiquidAI arms
 still add no row, because an accuracy declaration belongs inside `metadata:` where
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
@@ -258,7 +258,7 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
   `--strict` prints exactly the findings in the roster below — it adds none of its own and only exits
   non-zero on the rows whose findings include a `warning`. Re-measured 2026-11-10 over the current 118
   tracked recipes, so the snapshot was re-taken rather than
-  adjusted: thirty rows carry `unpinned-model-revision` — the pin never reaches the engine as
+  adjusted: thirty-one rows carry `unpinned-model-revision` — the pin never reaches the engine as
   `--revision` — one carries `deprecated-topology` instead, and every other row carries suggestions
   only, which never gate. No denominator is written here for the reason the snapshot
   paragraph gives: a fraction that scales with the tree goes stale silently. Findings are listed in
@@ -284,6 +284,7 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
 | `ds4/zz-ds4-1017-08c8657f-template-ab.yaml` | `unpinned-model-revision` |
   | `ds4/zz-ds4-1017-sm121-arm3-control.yaml` | `unpinned-model-revision` |
   | `ds4/zz-ds4-1017-sm121-arm3-control-marlin.yaml` | `unpinned-model-revision` |
+  | `ds4/zz-ds4-1017-sm121-arm5-fi073.yaml` | `unpinned-model-revision` |
   | `ds4/zz-ds4-1017-sm121-arm5-trtllm-mla.yaml` | `unpinned-model-revision` |
   | `ds4/zz-ds4-1017-sm121-indexer-scoring.yaml` | `unpinned-model-revision` |
   | `ds4/zz-ds4-1017-malloc-pin-sglang.yaml` | `unpinned-model-revision` |
