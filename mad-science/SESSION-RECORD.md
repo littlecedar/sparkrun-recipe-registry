@@ -8411,3 +8411,38 @@ row's to fix.
   4,242 tok/s / floor 8.98 GiB, three-way confounds named); NEW `boot-wrapper-auto-cell` (queued: the
   inherited launch wrapper runs its own post-Ready 1M cell, so any hand-started cell races it — measured
   contamination tonight; fix = wait for `cell done` or gate the wrapper's cell behind a flag).
+
+## 2026-11-10 04:40 ET — hourly board tick, folded onto three peer publishes
+
+- **The ranks are staging, not serving.** At 09:20:31Z all four ranks of the window read 0
+  containers — the clean canary boot was down — and at 09:39:23Z `.31`–`.34` carry sparkrun's
+  `oci-relay-receiver-…` containers distributing `lmsysorg/sglang:dev-dsv41`
+  (`sha256:85c1ffc3…`, the image id the canary cells recorded) for the ERNIE TP=4 session the
+  window is held for. Volumes 0 × 6 in both reads; `.30`'s `sm121m` `Created` leftover is the only
+  other container on the fleet.
+- **The pool is filling at ≈105 MB/s and the writer is named.** `df -B1` through the head's mount
+  read used 13 630 740 889 600 B at 09:10:18Z, +276 281 950 208 B over 2 631 s against the
+  08:26:27Z read; the writer is a live `hf download baidu/ERNIE-5.5-Flash-Base --revision
+  028544b2…` (head, pid 3961488), and the fleet-wide root fall (−60 619 632 640 B over 570 s,
+  −106.4 MB/s, no node rising) is that body landing in the chunk store on the node roots.
+- **The 91.4 ms/step canary figure is the contaminated one.** The `fit-ds4-canary-1m-20261110`
+  boot's cell overlapped the launch wrapper's own post-Ready cell — two identical prompts on one
+  prefix, both finishing 09:01:53Z at 91.4 ms/step — so the shipped line's decode is the clean
+  re-run's **61.1 ms/step** (TTR 145 s, pool 2 729 984, prefill 4 242 tok/s, needle 1/1, floor
+  `.34` 8.98 GiB). This tick landed neither figure: the peer's 04:15 correction row already
+  carries both, and a second copy would be the duplicate the fold rule forbids.
+- **Three peer publishes landed inside the tick, so it folded three times.** Bases `44965698…` →
+  `a1c9f306…` → `3da1331f…` → `a0526bd4…`; the final composition replaced only the `flight` row,
+  appended the census's sixth and seventh reads, and left the peer's `queue` row and whole
+  `## Work queue` block (both already deriving `1762e3e9…`) untouched. Published through
+  `task-queue.py publish` with `--base`, `--expect-sha` and `--expect-remote-sha` all matching,
+  then committed as `2544a88` on top of `a29403d` through a throwaway index, so the peer's
+  `recipes/ds4/README.md` commit was not reverted by a stale tree.
+- **A stale worktree copy of this ledger was caught before it could delete a peer's close-out.**
+  The clone's `SESSION-RECORD.md` (mtime 04:20:45) was 41 lines behind `HEAD`, so a pathspec commit
+  of it would have removed the peer's newer close-out; this append was built from `HEAD`'s bytes
+  plus the new section instead.
+- **Left open.** `arm3-control-cell-canary-line` still reads `queued` on the board's register render
+  although its cell has been measured twice — the close belongs to the session that ran it;
+  `ds4-1017-template-refresh-ab` is `done` on the A/B verdict (`749cb27`); and the ERNIE TP=4 row
+  the download is staging was not resolved by this read-only tick.
