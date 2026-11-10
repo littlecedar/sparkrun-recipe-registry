@@ -2308,6 +2308,21 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "hf-cache-20261110-cache-consistency-defects",
+      "title": "HF cache consistency defects: four repos hf ignores on a refs/main byte defect, one on a broken absolute symlink, plus 204 GB of stray non-cache trees in the hub root",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "Measured 2026-11-10 with `hf cache ls --no-truncate --show-warnings` on .30 after the update loop finished a pass. (1) refs/main carries a trailing newline in models--lodestones--Kromoss (41 B; ref a4fe9744, snapshots 0c5417ec + a4fe9744), models--mistralai--Timestral-5M (41 B) and models--mistralai--Timestral-209M (41 B): hf reads the 41-byte value literally, warns \"Reference(s) refer missing commit hashes: {'<sha>\\n': {'main'}}\" and IGNORES the repo — so `hf cache ls | … | hf download <repo>` loops (the owner's updater is exactly that loop) silently skip them forever. Fix is a one-byte ref truncation per repo (printf %s of the stripped value), not a delete. (2) models--InternScience--Sage-A1.5-Q4_K_M-GGUF refs/main 10b179b52f is a genuinely absent commit (only 203833ac is present) — it needs `hf download InternScience/Sage-A1.5-Q4_K_M-GGUF`, which the loop cannot reach because the repo is ignored. (3) models--ISTA-DASLab--DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF is ignored because of a broken ABSOLUTE symlink a boot wrote inside the snapshot (snapshots/54229d38…/DeepSeek-V4.1-Flash-Engram-IQ4_NL.gguf -> /cache/huggingface/…): the repo is invisible to hf, so its snapshot can never be verified again. (4) Three entries have no snapshots dir (models--black-forest-labs--FLUX.2-dev, datasets--gorilla-llm--Berkeley-Function-Calling-Leaderboard, models--facebook--dinov3-vith16plus-pretrain-lvd1689m). (5) Two non-cache trees sit in the hub ROOT and are invisible to every cache reader: hub/dsv41-engram 189 GB (2026-10-14) and hub/mellum-mtp-head 15 GB (2026-10-25) — 204 GB that `hf cache prune` will never report, so a capacity audit that trusts hf understates the pool. (6) 32 incomplete downloads, 24.1 GB. Nothing here was deleted or rewritten; the ref repairs and the stray-tree disposition need their own say-so. Cross-ref: hf-cache-20261110-pool-fetch-gaps (the same repos, seen from the recipe side).",
+      "provenance": "head:~/benchmarks/hf-cache-update-20261110/RECEIPT.md §5; `hf cache ls --no-truncate --show-warnings` on .30 (2026-11-10T08:36Z); od -c on the four refs/main files; du -sh on hub/dsv41-engram, hub/mellum-mtp-head",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
