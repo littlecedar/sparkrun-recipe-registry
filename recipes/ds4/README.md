@@ -1192,7 +1192,7 @@ booting, and carry `:0.2.1` only for the arm-5 pair below.
 |:--|:--|:--|
 | 3, indexer scoring (section 10.5) | `zz-ds4-1017-sm121-indexer-scoring.yaml` (`:0.2.1`) | the shipped `canary-roce-aff52fa5` line |
 | 3, arm-5's paired control | `zz-ds4-1017-sm121-arm3-control.yaml` (`:0.2.1`, replay off) | — |
-| 5, TRT-LLM sparse MLA (section 10.7) — **blocked on hardware 2026-11-10** (`trtllm-gen` requires SM100/SM103; GB10 is SM121), not on config | `zz-ds4-1017-sm121-arm5-trtllm-mla.yaml` (`:0.2.1`, `EXTRA_SGLANG_ARGS: "--dsv4-attn-backend trtllm"`, replay off) | arm 3 **on the same digest** (`arm3-control`) — cell shape under review, 6.0 GiB guard unchanged |
+| 5, TRT-LLM sparse MLA (section 10.7) — **blocked on the FlashInfer API, not the GPU** (corrected 2026-11-10: `trtllm-gen` is SM100/103-only in every release through `v0.7.4rc2`; SM12x has its own `sparse` backend, unreachable through this fork's hardcoded `backend="trtllm-gen"` and its pre-0.7 argument shape) | `zz-ds4-1017-sm121-arm5-trtllm-mla.yaml` (`:0.2.1`, `EXTRA_SGLANG_ARGS: "--dsv4-attn-backend trtllm"`, replay off) | arm 3 **on the same digest** (`arm3-control`) — cell shape under review, 6.0 GiB guard unchanged |
 
 All three recipes now pin `:0.2.1`, so the whole survey runs on one digest: `0.2.1` adds the two
 arm-5 gates and leaves this arm's serve line unchanged (it sets neither flag). Arm 3's
@@ -1409,7 +1409,23 @@ dispatch refused the device: `ValueError: backend='trtllm-gen' requires SM100/SM
 `flashinfer/mla/_core.py:1061` via `sglang …/deepseek_v4_trtllm_backend.py:354` — flag admitted at
 the arg layer (`server_args dsv4_attn_backend='trtllm'`), refused by the installed FlashInfer's
 capability gate, `kill_process_tree` exiting all four ranks before readiness. **The arm's verdict is
-hardware**, not configuration, and it is not retried on this image. The paired control
+the library, not the hardware** (corrected 2026-11-10 by desk audit; the gate text is identical at
+`flashinfer/mla/_core.py:1062` of tag `v0.6.18`): `trtllm-gen` is refused on SM12x in every release
+through `v0.7.4rc2` (`:1241-1244`), because SM12x has a *different* backend — `is_sm120_family = cc in
+((12, 0), (12, 1))` and `"auto"` resolves to `"sparse"` (`:1226-1255`, present since `v0.7.0` at
+`:1341`) — whose kernel ships as `flashinfer_jit_cache_sm121a-0.7.3+cu130/…/sparse_mla_sm120.so`.
+Three things, all in the fork, keep this arm off it: `deepseek_v4_trtllm_backend.py:366,506` hardcode
+`backend="trtllm-gen"`; the 0.7.x SM12x call surface splits the pools (`swa_kv_cache` +
+`swa_topk_lens`, compressed via `extra_sparse_indices`/`extra_sparse_topk_lens`) where the fork passes
+one `sparse_indices`/`sparse_topk_lens` pair; and the fork's
+`_fi_core._get_trtllm_gen_multi_ctas_kv_counter_buffer` monkeypatch target (`:102`) no longer exists
+in 0.7.3. **So the unlock is an ABI migration of those two call sites onto `kv_cache_format` /
+`swa_topk_lens` + `extra_*`, not a flag and not a two-token edit**, and no local image can boot it
+tonight: every image carrying the knapcio adapter (`:0.2.1`, `canary-roce-aff52fa5`,
+`canary-roce-20261022`, `c3-reconciled`, `pin-fabbe8615bb9`) is FlashInfer 0.6.18, and the only image
+with 0.7.3 (`lmsysorg/sglang:nightly-dev-cu13-20261110-4a5c6b8f`) has no `/opt/dsv41`. The lane's
+indexer-gate restore (`sglang#49182`, 2026-11-08) is the same stale-gate family, already fixed there.
+The paired control
 (`zz-ds4-1017-sm121-arm3-control.yaml`) passed every boot gate on the same digest —
 `[moe_b12x_next] armed`, no ÷128, `Load weight end 167.24 s`, `/v1/models` 200 at
 `max_model_len 1048576`, `Ready` at TTR 317 s — and its 128K C5 cell was correctly stopped by the

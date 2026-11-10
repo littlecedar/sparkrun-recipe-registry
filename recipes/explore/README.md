@@ -1043,13 +1043,32 @@ Exception: Capture cuda graph failed: sparse_attn_decode_interface,
 Unsupported architecture for sparse decode fwd
 ```
 
-The model's MLA layers run `flashmla_sparse` only (its own override pins `--dsa-decode-backend
-flashmla_sparse`), and FlashMLA's sparse decode kernel has no SM121 build — the same arch-gate class
-as the ds4 lane's DeepGEMM paged-sparse logits (SM100-only at csrc, GB10 is SM121). The engine's three
-suggested workarounds (smaller `--mem-fraction-static`, smaller `--cuda-graph-max-bs-decode`, disable
-decode graphs) cannot help: the kernel is unsupported on this arch, so decode fails with or without a
-captured graph. **No flag retry is warranted; the arm is blocked on an upstream SM121 kernel, not on
-this recipe.** Per-rank `MemAvailable` minima over the boot were **14.79 / 14.98 / 14.98 / 15.04 GiB**
+**Corrected mechanism (desk audit 2026-11-10; the boot result above stands).** The pin is not a flag
+and not the arg resolver: `--dsa-*` is resolved first, then `Ernie5_5MlaAttnBackend.__init__`
+**assigns over it** after `super().__init__()` — `self.dsa_prefill_impl = self.dsa_decode_impl =
+"flashmla_sparse"` (`srt/layers/attention/ernie55_backend.py:83-85`, comment "Learnable sinks are only
+wired into flashmla_sparse"). So `--dsa-decode-backend flashinfer_sparse_mla` is refused by the
+parent's GLM-only whitelist (`kernels/ops/attention/flash_mla_sm120.py:678-713`) and every other
+value is silently discarded — no flag retry is warranted, and the reason is engine wiring, not the
+chip. FlashMLA really has no SM12x build, twice over: `setup.py:29` builds `sm_100a`/`sm_103a` only at
+HEAD `395cb3af` (2026-10-27), the shipped wheel's cubins are `sm_90a/100a/103a/107a` with no 12x, and
+the gate is `is_sm100f() { return major == 10; }` (`csrc_legacy/api/common.h:94-96` at
+`sgl-project/FlashMLA@46b6727a`, raise at `csrc_legacy/api/sparse_decode.cpp:386`). Patching that gate
+would not be enough either: the decode kernel's plan is `static_assert(smem_size <= 227*1024)` with
+`cudaFuncSetAttribute(MaxDynamicSharedMemorySize, …)` (`csrc/kernels/sm100/decode/sparse/head64/kernel.cuh:892-894`
+at `ba89a3466`), and GB10's opt-in dynamic smem measures **101,376 B** (probe on `.30`, 2026-11-10),
+the wall upstream's SM120 report hit at `kernel.cuh:729` (`FlashMLA#124`, 2026-10-01). The engine's
+three suggested workarounds cannot help, so decode fails with or without a captured graph.
+**FlashInfer is not the blocker it looked like:** the same image carries 0.7.3, whose
+`mla/_sparse_mla_sm120` declares `@supported_compute_capability([120, 121])`, carries an `attn_sink`
+contract and the envelope ERNIE lands in exactly (d_qk 576, d_v 512, 656 B/token, 16 heads at TP=4,
+topk 2048 → the DSv3.2 family, `_sparse_mla_sm120/_policy.py:134`). What does not fit is the wiring:
+the `top-k + last window` append lives only inside ERNIE's `_forward_flashmla_sparse`
+(`ernie55_backend.py:180-189`), so an impl switch loses the window; `topk_length` never reaches
+`_forward_flashinfer_sparse_mla` (`dsa_backend.py:3545-3572`); the sink gate raises for any other impl
+(`:2815-2818`); and the adapter passes no `sinks`. **Verdict: no single flag exists on any public
+image — the unlock is a five-site backend switch in SGLang, i.e. `sgl-project/sglang#31481` (open
+since 2026-07-16, +864/−7), not a recipe change.** Per-rank `MemAvailable` minima over the boot were **14.79 / 14.98 / 14.98 / 15.04 GiB**
 against the untouched 6.0 GiB floor, so the fit arithmetic was never contradicted — it was never
 reached. Teardown verified `ctns=0 vols=0` on all four ranks. Receipt:
 `head:~/benchmarks/ernie-tp4-20261110/` (`RECEIPT.md`, `serve-reaped-…node_0.log`, `mem-10_0_4_3*.log`).
