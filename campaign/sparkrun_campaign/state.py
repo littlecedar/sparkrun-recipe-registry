@@ -198,7 +198,8 @@ class Campaign:
         del record["history"][:-HISTORY_CAP]
 
     def add(self, arm: str, path: str, tp: int = 1, env: dict[str, str] | None = None,
-            task: str = "") -> dict[str, Any]:
+            task: str = "", memory_risky: bool = False,
+            exclude_hosts: list[str] | tuple[str, ...] = ()) -> dict[str, Any]:
         """One arm. `task` is its register row id: a queue campaign closes the row it claimed."""
         if arm in self.data["arms"]:
             raise StateError(f"{arm!r} is already in this campaign")
@@ -207,6 +208,8 @@ class Campaign:
             "tp": int(tp),
             "env": dict(env or {}),
             "task": task,
+            "memory_risky": bool(memory_risky),
+            "exclude_hosts": list(exclude_hosts),
             "status": PENDING,
             "attempts": 0,
             "failures": 0,
@@ -223,7 +226,8 @@ class Campaign:
         return record
 
     def refresh(self, arm: str, *, path: str, tp: int, env: dict[str, str],
-                task: str) -> bool:
+                task: str, memory_risky: bool = False,
+                exclude_hosts: list[str] | tuple[str, ...] = ()) -> bool:
         """Adopt a register row's current launch fields for an arm that is not running now.
 
         Queue mode's precedence: the row is the current launch plan, so an arm awaiting its next
@@ -234,12 +238,15 @@ class Campaign:
 
         `path`/`tp`/`task` move only when no reap is outstanding: the containers a reap must find
         are labelled with the path that launched them, so the old path stays until `prepare` has
-        proved the hosts clear (`Campaign.cleared`).
+        proved the hosts clear (`Campaign.cleared`). The placement fields move with `env`: they are
+        what the next assignment reads, and a row that now declares its shape memory-risky must
+        not be placed from a stale record.
         """
         record = self.arm(arm)
         if record["status"] in (LEASED, MEASURED, SKIPPED):
             return False
-        fresh: dict[str, Any] = {"env": dict(env)}
+        fresh: dict[str, Any] = {"env": dict(env), "memory_risky": bool(memory_risky),
+                                 "exclude_hosts": list(exclude_hosts)}
         if not record["needs_reap"]:
             fresh.update({"path": path, "tp": int(tp), "task": task})
         changed = sorted(key for key, value in fresh.items() if record.get(key) != value)

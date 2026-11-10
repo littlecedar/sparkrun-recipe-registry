@@ -281,6 +281,39 @@ class PlanFromTheRegister(QueueCase):
         self.assertEqual(self.shell.calls, [], "a manifest campaign has no register to write")
 
 
+class MemoryRiskyRows(QueueCase):
+    """A row that needs the excluded host is refused by name; one that fits is placed off it."""
+
+    HOSTS = ("node.30", "node.31", "node.32", "node.33", "node.34", "node.35")
+
+    def test_a_shape_that_needs_the_excluded_host_is_refused_by_name(self) -> None:
+        # E3's shape: TP=2 x PP=3 is six ranks, and the row declares the risk, so a `tp >= 4`
+        # predicate would pass it and place it on the head. It stays queued and the next row runs.
+        six = row("six-task", "recipes/lane/six.yaml", 6)
+        six["memory_risky"] = True
+        self.shell.rows = [six, row("good-task", "recipes/lane/good.yaml", 1, node_cost="single")]
+        leader, campaign = self.build(hosts=self.HOSTS)
+        leader.prepare()
+
+        self.assertEqual(campaign.order, ["good"])
+        self.assertNotIn("six", campaign.arms())
+        self.assertIn("queue-skip: six-task (memory-risky shape needs 6 ranks, 5 declared outside "
+                      "node.30)", self.out.getvalue())
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        self.assertEqual((lease["arm"], lease["hosts"]), ("good", ["node.31"]))
+        self.assertEqual([flag(call, "--id") for call in self.shell.updates()], ["good-task"],
+                         "a refused row is left queued and never claimed")
+
+    def test_a_tp4_row_on_six_hosts_is_placed_off_the_excluded_host(self) -> None:
+        self.shell.rows = [row("quartet-task", "recipes/lane/one.yaml", 4, node_cost="quartet")]
+        leader, campaign = self.build(hosts=self.HOSTS)
+        leader.prepare()
+
+        self.assertEqual(campaign.order, ["one"])
+        self.assertEqual(leader.handle(protocol.poll("w1"))["lease"]["hosts"],
+                         ["node.31", "node.32", "node.33", "node.34"])
+
+
 class Claims(QueueCase):
     def setUp(self) -> None:
         super().setUp()

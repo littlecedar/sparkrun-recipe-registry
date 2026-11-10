@@ -77,7 +77,21 @@ Exclusions are named, never truncated:
 | `blocked_by` not an explicit empty list | skipped by name (`queue-skip: <row> (blocked by <ids>)`): a live dependency edge holds the row whatever its `state`, and a missing mirror is not an edit that opens it |
 | no `recipe`/`tp` | counted in one line (`authoring, not bootable`): most rows are prose work |
 | `tp` > declared hosts | skipped by name (`tp=4 needs 4 hosts, 2 declared`); a quartet is never cut onto fewer nodes |
+| memory-risky shape with no room outside the excluded hosts | skipped by name (`queue-skip: <row> (memory-risky shape needs 6 ranks, 5 declared outside .30)`); the row stays queued, never narrowed onto the head |
 | two rows naming one recipe | one arm: any non-runnable sibling (`blocked`, `done`, a live edge, another session's claim) holds it by name (`queue-skip: <row> (recipe also named by sibling <id> is 'blocked')`), so a blocked or done row protects the recipe; two runnable rows are an ambiguity, named with both ids and skipped for that tick only, because the register has not said which row the numbers would close |
+
+**Placement keeps the head available, never a rank.** `--exclude-host` (default `.30`; a placement
+decision of the run, never a node role) sorts excluded hosts last in the free list, so a shape with
+room on the safe hosts never takes the head whatever its `tp`, while a single-rank arm still uses
+`.30` when it is the only host free. A **memory-risky** shape is declared by its row
+(`memory_risky: true`, or `exclude_hosts` naming hosts for that arm) and, absent a declaration, by
+`node_cost: quartet` — the class that has overrun the pool. `tp` alone is the wrong lever in both
+directions: a TP=2 x PP=3 six-node shape overruns while a ~20 GiB/rank quartet does not. A risky
+shape that cannot fit the declared hosts outside the exclusion is refused in the table above; one
+that is only short on *free* safe hosts waits rather than spill onto one, and is never truncated
+onto an excluded host. An explicit `memory_risky: false` overrides the cost fallback for a shape
+measured to fit. The trigger and its hosts travel with the row into the state record
+(`memory_risky`, `exclude_hosts`), so assignment reads the row's current declaration.
 
 **Ordering is the register's.** The plan is `tools/task-queue.py queue --json` in the order it
 prints — tier, then weight ascending, then id, which is exactly what the weight is for: a row that
@@ -205,9 +219,10 @@ document or the new one, never a truncated one. A `flock` on `state.json.lock` m
 director refuse to start — two directors over one plan is the double-boot this project exists to
 prevent, so the refusal is at open time.
 
-Per arm: `path`, `tp`, `env`, `status`, `attempts`, `failures`, `lease`, `needs_reap`, `last`,
-and a bounded history of transitions. Statuses are `pending`, `leased`, `measured`, `failed`,
-`skipped`, `blocked`. There is no separate `running`: the lease is the record of what is running.
+Per arm: `path`, `tp`, `env`, `memory_risky`, `exclude_hosts`, `status`, `attempts`, `failures`,
+`lease`, `needs_reap`, `last`, and a bounded history of transitions. Statuses are `pending`,
+`leased`, `measured`, `failed`, `skipped`, `blocked`. There is no separate `running`: the lease is
+the record of what is running.
 
 Start-up (`Director.prepare`) is the resume, in this order:
 

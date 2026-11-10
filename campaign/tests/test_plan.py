@@ -22,8 +22,10 @@ from .support import manifest, recipe
 LANE_DOC = "line one\nline two\n"
 
 
-def arm_record(tp: int = 1, status: str = "pending", failures: int = 0, reaped: bool = True) -> dict[str, Any]:
+def arm_record(tp: int = 1, status: str = "pending", failures: int = 0, reaped: bool = True,
+               memory_risky: bool = False) -> dict[str, Any]:
     return {"tp": tp, "status": status, "failures": failures,
+            "memory_risky": memory_risky,
             "needs_reap": [] if reaped else ["node-a"]}
 
 
@@ -116,6 +118,44 @@ class Assignment(unittest.TestCase):
     def test_a_skipped_arm_is_never_assigned(self) -> None:
         arms = {"one": arm_record(status="skipped")}
         self.assertIsNone(plan.next_assignment(["one"], arms, ["node-a"]))
+
+
+#: Declared host order with the head first, as `--hosts` is written in the service env.
+HOSTS = ("node.30", "node.31", "node.32", "node.33", "node.34", "node.35")
+
+
+class MemoryRiskyPlacement(unittest.TestCase):
+    """The head sorts last, and a risky shape that needs it waits instead of taking it."""
+
+    def test_a_tp4_shape_on_six_hosts_never_takes_the_excluded_host(self) -> None:
+        arms = {"kimi": arm_record(tp=4, memory_risky=True)}
+        self.assertEqual(plan.next_assignment(["kimi"], arms, list(HOSTS)),
+                         ("kimi", HOSTS[1:5]))
+
+    def test_the_same_shape_places_normally_when_the_excluded_host_is_not_declared(self) -> None:
+        hosts = list(HOSTS[1:])
+        self.assertEqual(plan.next_assignment(["kimi"], {"kimi": arm_record(tp=4, memory_risky=True)},
+                                              hosts),
+                         ("kimi", tuple(hosts[:4])))
+
+    def test_a_single_rank_row_leaves_the_excluded_host_usable(self) -> None:
+        arms = {"solo": arm_record()}
+        self.assertEqual(plan.next_assignment(["solo"], arms, [HOSTS[0]]),
+                         ("solo", (HOSTS[0],)))
+        self.assertEqual(plan.next_assignment(["solo"], arms, list(HOSTS)),
+                         ("solo", (HOSTS[1],)), "a free safe host is preferred when there is one")
+
+    def test_a_six_rank_shape_is_skipped_for_the_next_candidate(self) -> None:
+        # E3's TP=2 x PP=3 shape is six ranks, so a `tp >= 4` predicate would pass it and hand it
+        # the head. It cannot be placed without one and is not truncated onto it.
+        arms = {"six": arm_record(tp=6, memory_risky=True), "next": arm_record(tp=1)}
+        self.assertEqual(plan.next_assignment(["six", "next"], arms, list(HOSTS)),
+                         ("next", (HOSTS[1],)))
+
+    def test_the_control_with_no_excluded_hosts_places_on_the_head(self) -> None:
+        arms = {"kimi": arm_record(tp=4, memory_risky=True)}
+        self.assertEqual(plan.next_assignment(["kimi"], arms, list(HOSTS), 0, ()),
+                         ("kimi", HOSTS[:4]))
 
 
 class NegativeControls(unittest.TestCase):

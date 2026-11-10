@@ -36,6 +36,33 @@ from .state import FAILED, LEASED, PENDING, SKIPPED
 TP_VALUES = (1, 2)
 #: The register, relative to `--repo-root`, when `--queue` is given without a path.
 DEFAULT_QUEUE = "mad-science/queue.json"
+#: Hosts a memory-risky shape may not take. The head (`.30` in this fleet) carries ssh,
+#: NetworkManager and BeeGFS; a global pool overrun there takes those units with it, so the
+#: memory-overrunning shapes run on the other five and `.30` stays an ordinary worker for the
+#: rest. Shorthand on purpose: tracked files may not carry cluster addresses, and a host matches
+#: an entry exactly or by that tail (an address ending in `.30` matches `.30`).
+MEMORY_RISKY_EXCLUDED_HOSTS = (".30",)
+
+
+def barred(host: str, entries: tuple[str, ...] | list[str]) -> bool:
+    """Whether `host` matches any exclusion entry (exact, or the `.30` tail shorthand)."""
+    return any(host == entry or (entry.startswith(".") and host.endswith(entry))
+               for entry in entries)
+
+
+def memory_risky(row: dict[str, Any]) -> bool:
+    """Whether a shape may not take an excluded host.
+
+    The row decides, explicitly: `memory_risky: true`, or `exclude_hosts` naming hosts for this
+    arm alone. Absent both, the only numeric shape declaration the register carries is
+    `node_cost`, and a quartet is the class that has overrun the pool. `tp` alone is wrong in both
+    directions -- a TP=2 x PP=3 six-node shape overruns while a ~20 GiB/rank quartet does not --
+    so a shape the row does not classify is not refused; the excluded hosts still sort last for
+    it, so it cannot displace a safe host it had room for.
+    """
+    if "memory_risky" in row:
+        return bool(row["memory_risky"])
+    return bool(row.get("exclude_hosts")) or row.get("node_cost") == "quartet"
 
 
 class PlanError(RuntimeError):
@@ -135,6 +162,7 @@ def sibling_hold(others: list[dict[str, Any]], session: str) -> str:
 
 def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
                   held: set[str] | frozenset[str] = frozenset(),
+                  excluded_hosts: tuple[str, ...] = MEMORY_RISKY_EXCLUDED_HOSTS,
                   ) -> tuple[list[dict[str, Any]], list[str], dict[str, str]]:
     """(entries, explanation lines, arm -> why it is not runnable) from the register's ordering.
 
@@ -196,6 +224,21 @@ def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
             lines.append(f"queue-skip: {task} ({reason})")
             excluded[arm] = reason
             continue
+        risky = memory_risky(row)
+        declared = row.get("exclude_hosts") or ()
+        per_arm = tuple(str(host) for host in declared) if isinstance(declared, (list, tuple)) else ()
+        if risky:
+            # A shape that cannot be placed without an excluded host is refused by name, never
+            # narrowed onto that host: the row stays queued for a human to reshape.
+            barred_for_arm = tuple(excluded_hosts) + per_arm
+            safe = [host for host in hosts if not barred(host, barred_for_arm)]
+            if tp > len(safe):
+                hit = [host for host in hosts if barred(host, barred_for_arm)]
+                reason = (f"memory-risky shape needs {tp} ranks, {len(safe)} declared outside "
+                          f"{', '.join(hit) or 'the excluded hosts'}")
+                lines.append(f"queue-skip: {task} ({reason})")
+                excluded[arm] = reason
+                continue
         hold = sibling_hold([other for other in by_recipe.get(arm, []) if other is not row],
                             session)
         if hold:
@@ -215,7 +258,8 @@ def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
             continue
         owner[arm] = task
         entries.append({"arm": arm, "path": recipe, "tp": int(tp),
-                        "env": dict(row.get("env") or {}), "task": task})
+                        "env": dict(row.get("env") or {}), "task": task,
+                        "memory_risky": risky, "exclude_hosts": list(per_arm)})
     if authoring:
         lines.append(f"queue: {authoring} row(s) queued without a recipe (authoring, not bootable)")
     return entries, lines, excluded
@@ -288,6 +332,7 @@ def next_assignment(
     arms: dict[str, dict[str, Any]],
     free_hosts: list[str],
     retries: int = 0,
+    excluded_hosts: tuple[str, ...] = MEMORY_RISKY_EXCLUDED_HOSTS,
 ) -> tuple[str, tuple[str, ...]] | None:
     """The next arm and the hosts it takes, or None when no pending arm fits.
 
@@ -295,6 +340,13 @@ def next_assignment(
     outstanding: a host may still be running the arm's own container, and handing the arm out
     again while that is unverified is how a second boot lands on a held port. A TP=2 arm takes two
     hosts in one lease -- `tools/run-arm.sh` is launched once with both, so one worker owns the pair.
+
+    Hosts keep the declared order except that excluded ones come last, so a shape with room on
+    the safe hosts never takes the head whatever its `tp`. A memory-risky shape that is short on
+    free safe hosts waits instead of spilling onto one; the plan has already refused it by name
+    when the declared set could never cover it, and truncating onto the excluded host is the
+    2026-11-10 defect. A risky shape still runs when the safe hosts cover it: a ~20 GiB/rank
+    quartet on five safe hosts is placed, never refused.
     """
     free = list(free_hosts)
     for arm in order:
@@ -308,7 +360,12 @@ def next_assignment(
         if record["needs_reap"]:
             continue
         need = int(record["tp"])
+        barred_for_arm = tuple(excluded_hosts) + tuple(record.get("exclude_hosts") or ())
+        safe = [host for host in free if not barred(host, barred_for_arm)]
+        if record.get("memory_risky") and len(safe) < need:
+            continue
         if len(free) < need:
             continue
-        return arm, tuple(free[:need])
+        tail = [host for host in free if barred(host, barred_for_arm)]
+        return arm, tuple((safe + tail)[:need])
     return None

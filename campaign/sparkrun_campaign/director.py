@@ -94,6 +94,7 @@ class Director:
         fleet_reap: Callable[..., dict[str, list[tuple[str, str]]]] = fleet.reap,
         register: plan.Register | None = None,
         once: bool = False,
+        exclude_hosts: tuple[str, ...] = plan.MEMORY_RISKY_EXCLUDED_HOSTS,
     ):
         self.campaign = campaign
         self.entries = entries
@@ -109,6 +110,8 @@ class Director:
         #: manifest mode, whose behavior is unchanged (one list, no register, drain and exit).
         self.register = register
         self.once = once
+        #: Hosts a memory-risky shape may not take; a placement decision of this run, never a role.
+        self.exclude_hosts = tuple(exclude_hosts)
         self._last_poll = 0.0
         self._idle_said = False
         self.max_parallel = int(campaign.data.get("max_parallel", 1))
@@ -208,7 +211,7 @@ class Director:
             return list(self.entries), [], {}
         entries, lines, excluded = plan.queue_entries(
             self.register.rows(), list(self.campaign.data.get("hosts", [])),
-            self.register.session, set(self.campaign.arms()))
+            self.register.session, set(self.campaign.arms()), self.exclude_hosts)
         runnable: list[dict[str, Any]] = []
         for entry in entries:
             if (self.repo_root / entry["path"]).is_file():
@@ -236,7 +239,9 @@ class Director:
         for entry in entries:
             if entry["arm"] not in self.campaign.arms():
                 self.campaign.add(entry["arm"], entry["path"], entry["tp"],
-                                  self._env_for(entry.get("env")), task=entry.get("task", ""))
+                                  self._env_for(entry.get("env")), task=entry.get("task", ""),
+                                  memory_risky=bool(entry.get("memory_risky")),
+                                  exclude_hosts=entry.get("exclude_hosts") or ())
 
     def _pin_receipts_root(self) -> None:
         """Write this invocation's `--receipts-root` into every arm that can still run."""
@@ -267,7 +272,9 @@ class Director:
                 entry = runnable[arm]
                 self.campaign.refresh(arm, path=str(entry["path"]), tp=int(entry["tp"]),
                                       env=self._env_for(entry.get("env")),
-                                      task=str(entry.get("task", "")))
+                                      task=str(entry.get("task", "")),
+                                      memory_risky=bool(entry.get("memory_risky")),
+                                      exclude_hosts=entry.get("exclude_hosts") or ())
                 if record["status"] != BLOCKED or not unblock:
                     continue
                 if record["needs_reap"]:
@@ -483,6 +490,7 @@ class Director:
                 self.campaign.arms(),
                 self.campaign.free_hosts(now),
                 self.campaign.retries,
+                self.exclude_hosts,
             )
             if choice is None:
                 return None
@@ -868,6 +876,11 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--once", action="store_true",
                        help="queue mode: run the rows runnable now, then exit instead of polling")
     serve.add_argument("--hosts", required=True, help="comma-separated hosts the campaign may use")
+    serve.add_argument("--exclude-host", action="append", metavar="HOST",
+                       help="host a memory-risky shape may not take (repeatable, comma-separated; "
+                            "default: "
+                            f"{','.join(plan.MEMORY_RISKY_EXCLUDED_HOSTS)}; pass an empty value to "
+                            "disable)")
     serve.add_argument("--root", required=True,
                        help="campaign directory: state, receipts, logs and the socket")
     serve.add_argument("--name", default="", help="campaign id (default: the root's name)")
@@ -899,6 +912,9 @@ def main(argv: list[str] | None = None) -> int:
     if len(set(hosts)) != len(hosts):
         print(f"cannot start: duplicate hosts in {hosts!r}", file=sys.stderr)
         return 2
+    excluded = (plan.MEMORY_RISKY_EXCLUDED_HOSTS if args.exclude_host is None else
+                tuple(host.strip() for value in args.exclude_host
+                      for host in value.split(",") if host.strip()))
     if args.once and args.queue is None:
         print("cannot start: --once is a queue-mode flag; a manifest campaign drains and exits",
               file=sys.stderr)
@@ -935,6 +951,7 @@ def main(argv: list[str] | None = None) -> int:
         run_arm_sh=Path(args.run_arm),
         register=register,
         once=args.once,
+        exclude_hosts=excluded,
     )
     try:
         director.validate()
