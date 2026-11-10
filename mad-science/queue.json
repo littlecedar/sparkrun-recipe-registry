@@ -2081,6 +2081,21 @@
         "ARM_EXTRA_CLIENT": "sh -c \"cd /home/red/src/sparkrun-recipe-registry && python3 -B tools/longctx-cell.py --base-url http://$NODE:$PORT --model $SERVED --context-length 1039999 --chars-per-token 6.65 --concurrency 1 --max-tokens 128 --image-id \\\"$ARM_IMAGE_ID\\\" --json $L/longctx-1m-canary.json\"",
         "ARM_EXTRA_TIMEOUT": "3600"
       }
+    },
+    {
+      "id": "queue-mode-done-sibling-holds-canary-row",
+      "title": "Queue mode will not lease a row whose recipe a done sibling already holds",
+      "estimate_h": 0.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "blocked",
+      "model": "ds4",
+      "node_cost": "single",
+      "notes": "Measured 2026-11-10 00:05-00:16 ET, read-only: arm3-control-cell-canary-line (registered 23:21 by df9d40b) is the register's first queued row carrying both recipe: and tp: (quartet, tp 4, recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml), i.e. work serve --queue exists to pull, and the live director leases nothing while all six nodes read idle (docker ps -aq 1/0/0/0/0/0, 0 running, 0 volumes; no lock in either clone; 0 campaign leases across nine state.json roots). The refusal is plan.sibling_hold's: an arm is keyed on Path(recipe).stem, so this row and done row h2h-second-boot-ds4-1017 are the same arm, and a done sibling holds a recipe by design (sibling_hold docstring cites the 2026-11-08 survey pair). Re-derived in process against that snapshot, not quoted from a journal: queue-skip: arm3-control-cell-canary-line (recipe also named by sibling h2h-second-boot-ds4-1017 is 'done'). Consequence: the row reads queued, the fleet reads idle, and neither is evidence about the other. THREE EXITS, and the third is not a tick's call: (a) close the done sibling's row so the recipe has one row; (b) give the canary cell its own recipe file so the key differs; (c) change sibling_hold's ordering so a done sibling no longer holds - which would reverse a deliberate design decision from 2026-11-08. Note that an env:-only difference can never distinguish two rows, because the hold is keyed on the recipe path, so the canary cell's cell shape alone cannot make it its own arm.",
+      "provenance": "campaign/sparkrun_campaign/plan.py sibling_hold and queue_entries; mad-science/SESSION-RECORD.md 2026-11-10 00:16 ET; mad-science/queue.json row registers arm3-control-cell-canary-line (df9d40b)",
+      "evidence": "mad-science/STATUS.md 2026-11-10 00:15 ET queue row; commit 52b99ef",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
