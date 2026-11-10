@@ -7240,3 +7240,44 @@ here rather than left to a later quartet window. Receipt `head:~/benchmarks/ds4-
 - **One swept hunk outlived its block.** The isolation I wrote used `sysconfig`, and `3c9030e`'s rewrite
   replaced that block with an explicit `path=`, so the import I had added became dead on main; deleted
   in this commit. The module-cleanup hunk it kept is what the caller guard still needs.
+
+## 2026-11-09 19:13 ET — the 19:00 tick: a healthy control cell that measured nothing, and a 475 GiB pool fall no instrument can name
+
+- **The board's landed rows close the previous session's open item.** The 18:15 addendum asked only for
+  the next tick's row on `3c9030e`; this board carries that row plus `6ff2d05` and `63b0310`, so the
+  red-guard episode now reads where a reader looks.
+- **A measured arm with no cell is the hour's real news.** `Sm121Arm5` booted the arm-5 paired control on
+  `dsv41-sm121-dg:0.2.1` (`sha256:85c1ffc3…`), the arm-3 serve line, and it reached readiness in about
+  two minutes — `[moe_b12x_next] armed` on rank 0, weight load 64.62 s against the 214.72 s the arm-3
+  boot recorded at 18:03, `/v1/models` at `max_model_len 1048576`, watchdog `verdict=healthy … ranks=4`
+  at 18:55:15 ET. Its ladder then produced **zero cells**: llama-benchy's first warm-up request took the
+  adapter's `AcceptSampling` top-k branch and `/opt/dsv41/adapter/block_verify.py:106` called
+  `dflash_utils.build_dflash_verify_target_probs`, which the pinned engine spells
+  `build_speculative_verify_target_probs`. The 128K cell that followed is therefore transport noise
+  (`C5 err=2 needle=0/5`, `C10 err=10`, `no usage.prompt_tokens`), not a context result, and nothing may
+  be quoted from it. Memory was never the constraint: `MemAvailable` minima 12.09–16.45 GiB, peak rank
+  cgroup 32.97 GiB, page tables ≤ 0.09 GiB. Teardown is verified `ctns=0 vols=0` on all four ranks.
+- **The pool fell 510 133 796 864 B (475.1 GiB) and nothing can name what left.** Used read
+  12 937 335 406 592 B at 18:03 and 12 427 201 609 728 B at 19:03, with a six-sample 60 s pair flat
+  (+524 288 B) inside that window; the hub dir's own mtime moved to 18:45:48 and entries went
+  102 → 101 with `models--*` 97 → 96. A repo directory was removed at 18:45 and no other mechanism fits
+  the three observations together. **Which repo is unanswerable from the instruments this fleet keeps**:
+  every tick has counted hub entries and never their names, and `hub/.locks` holds 157 names against 96
+  dirs — locks outlive removals, so they cannot be diffed for the answer either. The 08:52 cleanup
+  receipt names only 7 models, and no per-entry roster exists. The recipe-side check that *can* run did:
+  the four shipped recipe-named models absent from the hub (`convaiinnovations/laya`,
+  `vllm-sr/Decision-2.0-Nox-4B`, `vllm-sr/d3-edge`, `unsloth/Ornith-1.5-122B-GGUF`) are names no tick
+  ever recorded as staged, and arm 5's own body `models--deepseek-ai--DeepSeek-V4.1-Flash-1017` is present.
+- **The durable fix is a capture, not a diagnosis.** Census rows should carry the hub entry *names* (one
+  `ls`), so the next removal is attributable the moment it happens; a count alone can only say that
+  something left. Whether this removal was sanctioned — the deletion rule keeps a body while any
+  reference survives outside `attic/` — cannot be judged until the name is known, so this session
+  recorded the delta and withheld the verdict.
+- **A contradiction left standing, deliberately.** The register still reads
+  `w4-survey-arm5-sm121-boot` `blocked` on the sm121 fit negative while that arm's `launch-treatment.sh`
+  was staged at 18:59 and the window stays open. The hold is the owning session's call; a tick that
+  unblocked it, or drew around it, would be editing another session's decision, so the board states the
+  disagreement in the window cell and nothing more.
+- **Left untouched:** `mad-science/queue.json` (uncommitted peer edit; the board cites snapshot
+  `0c9bc711…` and its sha was re-checked immediately before publishing), `.idea/modules.xml`, every
+  node's containers and volumes, and the campaign (no lease taken or released, no arm leased or closed).
