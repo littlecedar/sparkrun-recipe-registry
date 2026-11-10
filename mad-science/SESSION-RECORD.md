@@ -9373,3 +9373,63 @@ pushing counts without the peer's recipes reddens trunk the other way.
 - **Deferred.** pool growth still has no named writer past the depth-≤2 probe, and
 the board is ~304 KB — the `board-render-state-truncation` row's defect, not a
 tick action.
+
+## 2026-11-10 14:50-15:35 ET — the quartet window: steady state, the 0.77 pair, marlin's read term, ERNIE's route
+
+Receipts `head:~/benchmarks/tp4-20261110b/`. Campaign suspended 16:50:47Z (inactive/dead
+16:50:50Z), restored 18:34:16Z, re-suspended 19:09:46Z for the ERNIE boot and restored 19:34:04Z;
+final `.31`-`.35` `ctns=0 vols=0`. Window lock written 16:52Z, released 18:35Z; not re-taken for the
+ERNIE boot, which is a lapse, not a rule.
+
+**Arm 3 has a steady-state number, and it overturns the 56.2 headline.** `zz-ds4-1017-sm121-indexer-scoring`
+at `MEM_FRACTION_STATIC=0.77`, pool `full_token=1,997,824`, prompt 1,035,624 tokens, TTFT 411.6 s:
+**64 answer tokens over 37 decode steps = 31.8 ms/step, 51.04 tok/s**, needle 1/1, floor 10.87 GiB.
+The old 56.2 / 54.8 / 55.4 were 3-step medians where the first step carries the prefill hand-off;
+`--max-tokens 512` never lengthened the sample, and the lever did (`--min-answer-tokens 64 --task
+long-generation --chars-per-token 6.65`). Every C>=2 median in this window (14,364 / 22,906 / 82,652
+ms/step) is prefill **queueing**, not decode.
+
+**The 0.77 pair exists.** Replay off: 2,135,552 tokens, floor 7.64 GiB; replay on: 1,997,824, floor
+10.87 GiB; the 1,035,623-token prompt fits both. The "replay-on and 1M cannot coexist" reading was
+a two-point sampling artefact (0.75 and 0.78 only): `available_bytes` is steep near 0.75 because a
+2.25 GB fixed SWA term is subtracted first.
+
+**The 6.0 GiB guard was not the blocker for C5 at 0.75**: five concurrent 131,072-token prefills ran
+(282.8 s, 5/5 needles, zero errors, floor 10.67 GiB), so `w4-survey-arm5-control-boot`'s shape
+reduction is unnecessary and the guard stays at 6.0.
+
+**Marlin's killer is the read path, not the loader window and not the parameter set.** Serial loader
+boot: flag in effect (`Multi-thread loading shards` absent, serial shard line present), trough
+unchanged at 5.31 / 5.56 / 5.70 GiB — H1 falsified. Dummy-load isolator: the padded set allocates
+**82.99 GB + 2.26 GB draft and leaves 26.09 GiB**, then refuses `--mem-fraction-static=0.6` with its
+own `0.768` minimum — H2 falsified as the killer, H4 falsified. The dive needs reads (H3, the
+per-module repack copy, with the fast loader's "weight copies paced to 6.0 GB in flight"); H5 (page
+cache) stays open because this window's sampler recorded only `MemAvailable`. A paired-flag refusal
+worth keeping: `Model loader extra config is not supported for load format LoadFormat.DUMMY`.
+
+**The TensorFold TP=4 negative is source-confirmed and has a named unlock.** The pinned image's
+`cli.py:252-253` still gates on `CUDA_TP4`, declared only by `families/glm5_next/__init__.py:20`;
+upstream PR #391 was closed unmerged 2026-10-06 ("the Python engine is frozen; the Zig engine has no
+DeepSeek-V4.1 family yet"). The unlock is a Zig-engine build on `deepseek-v41-zig-tp4`, a new
+image + engine + kit arm, never an override.
+
+**The ERNIE FlashInfer sparse route boots and keeps the window.** `Ready` at t=770 s on the pinned
+nightly, engine's own `Use ernie55 attention backend … page_size=256, kv_cache_dtype=fp8_e4m3`;
+needle planted in the **final 128 tokens** answered `ZX81-4321` while the middle control garbled it,
+so the tail arrives through `append_window_to_topk` rather than being silently dropped. The quality
+gate (greedy GSM8K >= 0.93) did not run: a clean boot plus a window check is not a correctness result
+and the arm stays open.
+
+**The campaign leased into a declared window, twice in one day.** With the lock held it took
+`arm3-control-marlin` (rc=4, 18:38:23Z) and `malloc-pin-sglang` on `.30`-`.33` (rc=0 measured,
+18:45:41Z); the second lease is a second measurement of `ds4-malloc-pin-ab` and the first put `GPU
+has an existing allocation` in front of this session's launch. Register row
+`campaign-ignores-declared-window`. The malloc-pin treatment itself booted clean (b12x `a7d7d29b`
+armed, zero divide-by-128, `Ready`, 1M advertised, `kv_cache_dtype fp8_e4m3`, chat and image 200s,
+ladder C1 54.6 / C2 186.6 ms/step PASS, load floors 12.31-17.07 GiB); its control half was not booted
+by this session.
+
+**Published**: the three loader experiment recipes (`zz-…-marlin-serial`, `zz-…-marlin-dummy`,
+`zz-kimi-…-load-format-dummy-vllm-tp4`) and the served-name guard exception for the two marlin arms —
+CI green on `d13f8dd` (run 42888010746). Untried when the window closed: marlin dummy at 0.78, the
+Kimi parameter floor, the malloc-pin control, and Kimi TP=2 x PP=3 on six nodes.
