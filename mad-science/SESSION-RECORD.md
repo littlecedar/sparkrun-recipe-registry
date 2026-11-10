@@ -7439,3 +7439,50 @@ attribute the next removal. (b) The 19:42 next action — the arm-3 paired contr
 `.31`-`.35` and the identical 1M cell — was **not touched** this hour, so arm 3's 56.2 ms/step still
 has no falsifier. (c) Left untouched: every node's containers and volumes, `mad-science/queue.json`
 (read only, snapshot rendered by the tool), `.idea/modules.xml`, and the campaign.
+
+## 2026-11-09 22:45 ET — arm 3's paired control line cannot run the 1M cell under the host guard; the arm's 56.2 repeats at matched sample length
+
+- **Identity settled before launch.** Arm 3's measured boot
+  (`1c0dffa45afa6e47_61ab7a786592`) launched
+  `recipes/ds4/zz-ds4-1017-sm121-indexer-scoring.yaml` (register row
+  `w4-survey-arm3-sm121-boot` carries that `recipe:`). `zz-ds4-1017-sm121-arm3-control.yaml`
+  differs from it by exactly **one engine knob** — `SWA_BOUNDED_REPLAY: "0"` → launcher adds
+  `--no-enable-decoder-swa-bounded-replay` — on the same image
+  (`dsv41-sm121-dg:0.2.1` = `sha256:85c1ffc3…9195dc7`), same revision, same command, same
+  other env (the rest is comments and a stale `description:` still claiming `:0.2.0` for the
+  indexer arm). So the boot is a same-digest, same-protocol sample from the **replay-off**
+  line, not a repeat of arm 3's line and not a same-config control; the contrast is
+  replay-off vs replay-default.
+- **The control boot passed every gate, then the guard stopped its cell.** Task
+  `1c0dffa45afa6e47_893bded0d5ba` on `.31`/`.32`/`.33`/`.35`: `[moe_b12x_next] armed …
+  a7d7d29b`, no ÷128 `ValueError`, `Load weight end` 110.41 s, `Ready: API on port 8000`
+  (TTR 278 s), `/v1/models` 200 at `max_model_len 1048576`, image pin resolved to the same
+  id, and `EXTRA_SGLANG_ARGS` carrying the replay-off flag. Its identical 1M cell
+  (`--context-length 1039999 --chars-per-token 6.65 --concurrency 1 --max-tokens 128`) was
+  stopped at 190.3 s with `RemoteDisconnected` and no `usage.prompt_tokens`: `.35` fell to
+  **5.68 GiB** `MemAvailable` during cold prefill (`.33` 6.46, `.31` 7.02, `.32` 9.72 GiB),
+  eight consecutive 2 Hz samples under the 6.0 GiB floor wrote the trigger, and the guard
+  issued `sparkrun stop` at 03:26:12Z. Zero kernel `oom-kill` and zero earlyoom SIGTERM/kill
+  lines (unit still `active`); earlyoom's 4 % line is 4.87 GiB, so the stop kept 0.81 GiB of
+  order. Peak rank cgroup 35.05 GB.
+- **The second boot closes the confound and repeats the arm sample.** The arm line
+  (`zz-ds4-1017-sm121-indexer-scoring.yaml`, task `1c0dffa45afa6e47_41b2d1c0cb36`, TTR
+  228 s) passed the same gates with **no** replay-off flag; its 1M cold prefill floored at
+  **9.94–10.71 GiB** across ranks in the same session, 0.99–4.35 GiB above the replay-off
+  boot, so the one knob is the only named difference behind the guard stop. Two repeats at
+  the **identical sample length** (3 steps, 6 tokens, prompt 1,035,623 tokens, needle pass
+  `ZX81-1208`) measured **54.8** and **55.4 ms/step** — −2.5 % and −1.4 % against arm 3's
+  56.2, i.e. inside a 5 % band — and `--max-tokens 512` still answered **6 tokens**, so
+  max-tokens is not the lever to steady state: the tool's "answer the code only" question
+  sets the sample length.
+- **Verdict and what remains.** Arm 3's falsifier is **still undecided**: the control line
+  produced no cell, and the mechanism is the mandatory host guard, not the harness — the
+  1M single-stream cell is not runnable on the replay-off line at this shape (a measured
+  negative, not a scheduling gap). The arm's 56.2 is reproducible within 2.5 % at the same
+  3-step length, but that is a repeat, not steady state, and no ≥5 % claim exists in either
+  direction. Steady state needs a prompt that asks for a long generation (a protocol change),
+  not another flag or a lower guard. Register `sm121-arm3-control-1m-cell`; receipt
+  `head:~/benchmarks/sm121-arm3-control-20261109/`. Boot 1's serve-log tail was lost to the
+  guard's stop (harvest ordering), so its gate lines were captured live before the cell;
+  boot 2's four serve logs are in the receipt. Teardown verified 0 containers / 0 volumes on
+  all four ranks after both boots, lock deleted, two boots only, no third.

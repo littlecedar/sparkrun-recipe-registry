@@ -1284,12 +1284,16 @@ dive with rank cgroups ≤5.87 GB. Cell (retry JSON `longctx-1m.json`): prompt *
 TTFT **277.2 s**, needle **1/1 PASS** (`ZX81-1208`), **56.2 ms/step** median over **3 decode steps**
 (6 tokens, 0.112 s, 53.57 tok/s). The exact lane command overshot first — 1,039,999 predicted,
 1,072,210 counted, HTTP 400 — so it was retried with the tool's own `--chars-per-token 6.65`
-(observed 6.6778); both JSONs are kept. **The arm's falsifier is undecided**: 3 steps is not steady
-state and no same-protocol control ms/step exists, so nothing here is a ≥5 % claim — it needs
-`arm3-control` booted on the same digest. **The control's receipt must state its own decode-step and
-token counts**, and a control that steps materially more than 3 re-runs this cell at that length
-instead of being compared to a 3-step median: this cell answered in 6 tokens (0.112 s), so a control
-allowed to run longer would report a steadier sample and any "win" could be the sample length alone.
+(observed 6.6778); both JSONs are kept. **The arm's falsifier is still undecided, but now for a measured reason**: the paired
+control boot (`zz-ds4-1017-sm121-arm3-control.yaml`, same digest, decoder SWA bounded replay off)
+passed every gate and then the mandatory host guard stopped the identical 1M cell mid-prefill — `.35` fell to
+**5.68 GiB** `MemAvailable` (`.33` 6.46, `.31` 7.02, `.32` 9.72 GiB) against the 6.0 GiB stop rule —
+so no same-protocol control ms/step exists and nothing here is a ≥5 % claim. The same session shows
+the one-knob difference costs host memory: the arm line's 1M cold prefill floored at **9.94–10.71
+GiB**. The arm line's cell also **repeats at the identical sample length** — **54.8** and **55.4
+ms/step** over 3 steps / 6 tokens (needle pass) against this cell's 56.2, i.e. −2.5 % and −1.4 %,
+inside a 5 % band — and `--max-tokens 512` still answered 6 tokens, so max-tokens is not the lever to
+steadier state. Receipt `head:~/benchmarks/sm121-arm3-control-20261109/`.
 The boot checklist's `Mean acceptance length 1` wording
 does not occur in SGLang's logs; the decode line reports `accept len: 3.12` and the metric
 `sglang:spec_accept_length` 3.125, i.e. speculative decode active. Teardown 23:03:58Z read 0

@@ -2022,6 +2022,28 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "sm121-arm3-control-1m-cell",
+      "title": "SM121 arm 3 same-protocol control: 1M single-stream cell on zz-ds4-1017-sm121-arm3-control (replay-off)",
+      "estimate_h": 1.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "done",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "STOP POINT 2026-11-10T03:26:12Z (host guard): control boot 1c0dffa45afa6e47_893bded0d5ba on dsv41-sm121-dg:0.2.1 (sha256:85c1ffc3...95dc7) passed every gate - [moe_b12x_next] armed a7d7d29b, zero divide-by-128 ValueError, Load weight end 110.41 s, Ready: API on port 8000 (TTR 278 s), /v1/models 200 at max_model_len 1048576, EXTRA_SGLANG_ARGS carrying --no-enable-decoder-swa-bounded-replay - then its identical 1M cell was stopped at 190.3 s (RemoteDisconnected, no usage.prompt_tokens): .35 fell to 5.68 GiB MemAvailable during cold prefill (.33 6.46, .31 7.02, .32 9.72 GiB), eight consecutive 2 Hz samples under the 6.0 GiB floor wrote the trigger; zero kernel OOM and zero earlyoom SIGTERM lines. NO CONTROL SAMPLE EXISTS and arm 3 falsifier stays undecided because the replay-off line cannot run this cell shape under the mandatory guard. Second boot on the arm own recipe (1c0dffa45afa6e47_41b2d1c0cb36, TTR 228 s) had cold-prefill floor 9.94-10.71 GiB and repeated the arm cell at identical length (3 steps / 6 tokens, needle pass): 54.8 and 55.4 ms/step vs 56.2 (-2.5 % / -1.4 %, inside a 5 % band); --max-tokens 512 still answered 6 tokens, so max-tokens is not the lever to steady state. Teardown 0/0 on all four ranks; two boots only. Control recipe description: still stale (says 0.2.0 / canary-roce-aff52fa5), file pins 0.2.1.",
+      "provenance": "recipes/ds4/README.md §SM121 survey arms (arm 3 measured 56.2 ms/step over 3 steps, falsifier undecided); .local/RESUME.md next action 1; register row w4-survey-arm5-control-boot is the same recipe blocked on the infeasible 128K C5 shape, not on this 1M single-stream cell",
+      "evidence": "head:~/benchmarks/sm121-arm3-control-20261109/",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/ds4/zz-ds4-1017-sm121-arm3-control.yaml",
+      "tp": 4,
+      "env": {
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/sm121-arm3-control-20261109",
+        "ARM_EXTRA_CLIENT": "sh -c \"cd /home/red/src/sparkrun-recipe-registry && python3 -B tools/longctx-cell.py --base-url http://$NODE:$PORT --model $SERVED --context-length 1039999 --chars-per-token 6.65 --concurrency 1 --max-tokens 128 --image-id \\\"$ARM_IMAGE_ID\\\" --json $L/longctx-1m-control.json\"",
+        "ARM_EXTRA_TIMEOUT": "3600"
+      }
     }
   ],
   "questions": []
