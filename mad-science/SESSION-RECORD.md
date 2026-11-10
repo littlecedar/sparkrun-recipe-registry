@@ -8127,3 +8127,54 @@ row's to fix.
   assert `usage.prompt_tokens`); `ds4-recipe-pin-not-enforced` unchanged in state but its acceptance and
   cause now read as the discriminator section of the control receipt.
 
+## 2026-11-10 03:28 ET — hourly tick: two flights replaced each other inside four reads, and the register outran the board
+
+- **Board, two guarded writes this hour: `fb37ef7a…` → `ee12ba81…` → `71edd074…`.** The first was
+  composed over the peer board published at 03:15 ET (disk and `origin/main` byte-equal at that read)
+  and replaced `In flight` with this tick's own reads; the second was re-taken because the quartet the
+  first reported as loading had ended by the fourth read and the campaign had restarted at 03:22:04
+  EST. Both went through `publish` with `--base`, `--expect-sha` and `--expect-remote-sha` taken from
+  the copy actually read; nothing was clobbered and no peer row was dropped.
+- **Census, read-only, four reads: 08:05:23 / 08:06:12 / 08:10:49 / 08:26:26 UTC.** `docker ps -aq`
+  reads `1 / 0 / 0 / 0 / 0 / 0`, then `1 / 1 / 1 / 1 / 1 / 0`, `1 / 1 / 1 / 1 / 1 / 1`, and finally
+  `1 / 0 / 0 / 0 / 0 / 1`; volumes `0 × 6` at every read; `.30`'s `sm121m` `Created` leftover
+  throughout; uptimes unchanged, so nothing rebooted. Root `df -B1` avail fell 6 875 533 312 B over
+  read 1→2 (49 s), 221 240 131 968 B over read 2→3 (278 s) and 1 003 274 240 B over read 3→4 (937 s).
+- **The pool's fill is winding down, and its writer is named.** Through the head's mount, used reads
+  13 104 597 958 656 B at 08:05:47Z, 13 334 988 980 224 B at 08:10:49Z (+230 391 021 568 B over
+  302 s ≈ 763 MB/s) and 13 354 458 939 392 B at 08:26:27Z (+19 469 959 168 B over 938 s ≈ 20.8 MB/s),
+  55 % of 24 191 229 755 392 B, 101 hub entries. The writer is `hf download unsloth/flint-GGUF` (head
+  pid 3314265, `lstart` 02:38:10 EST) holding a live `.incomplete` blob; the pool's chunk store sits
+  on every node's root, which is what read 2→3's ~56 GB/node cluster measures (**LIKELY**, no inode
+  tie). The pruned75 body still reads 96 of 96 shards.
+- **Two hand-run flights, neither leased, and one replaced the other.** The quartet
+  `zz-ds4-1017-08c8657f-template-ab` (task `sparkrun_b020d2dd178343a5_36a7ab92551a`, image
+  `sha256:3f4480818acb…`) appeared at 08:05:49Z, read 48/48 shards by 08:08:58Z and was gone by the
+  08:26 read; its own receipt records TTR 427 s and the three artefacts. `.35` carried a **raw**
+  `docker run` at 08:10:05Z — `vigorous_mclaren`, image `sha256:50359e0ae2ae…`, `llama-server` on
+  `Ternary-Bonsai-2-9B-PQ2_0.gguf --port 8099 --ctx-size 512`, no `sparkrun.recipe` label, no
+  published port — and by 08:26 that container was gone and a sparkrun task
+  `sparkrun_764ef61b64791742_bdf143e8a992_solo` on the same image was 14 minutes old, running the
+  GSQ-RCO recipe whose register row reads `blocked`. So the board's `.35` row had to be rewritten
+  between the two writes, not carried.
+- **Window released, campaign back, and the register moving faster than the board.** The lock is
+  absent from both clones at 03:24–03:26 (deleted 08:22:04Z per the holder's close-out, director
+  restarted 08:22:07Z); the unit reads `active`, MainPID 3686739, started 03:22:04 EST, with 33 arms
+  and **0 live leases** across nine roots and `director status` at **9 measured / 10 blocked**, each
+  blocked line naming `register: register state blocked` — the `578039f3` hold-at-assignment gate
+  working. The register snapshot is `3ba3d164…` (143 tasks, 101 done / 30 queued / 12 blocked, 0
+  claims, 42 open, `check` rc=0) while `origin/main` still held `a454cec8…` (139 tasks) at the read
+  and `1172130` landed during the composition, so the board cites its snapshot and says so.
+- **Three instrument defects, each caught before it landed.** (1) A section copy built with
+  `text.split("## Work queue")[1].split("## Landed")[0]` truncated at a **`## Landed` string inside a
+  row's note**, producing a 205 KB board with the `## Landed session` heading missing and 440 lint
+  problems; the heading scan and the ragged-table count caught it, and the fix is to carry the peer's
+  section through the `re.split` parts list rather than re-splitting the raw text. (2) `ssh -n host
+  'python3 -' < script` silently swallows stdin — `-n` is `/dev/null` — so the first lease probe
+  printed nothing and read as "no output"; the same probe without `-n` answered `ROOTS 9 ARMS 33 LIVE
+  0`. (3) A `graph --file` render looked like it had dropped its edge arrow (`t2 t1`); `od -c` on the
+  file shows `t2 --> t1`, so the loss was in the display path, not the tool — no defect registered.
+- **Left open.** `.35`'s GSQ-RCO solo is unleased and its register row is `blocked`, which is the
+  owning session's to close; the register's uncommitted rows (`3ba3d164…`) are a peer's to commit; and
+  the meta restart loop's `NRestarts` keeps climbing because the row that owns it is queued, not done.
+
