@@ -23,6 +23,17 @@ Prompt length is calibrated against the server's own tokenizer with one small
 probe request, then verified from the streaming response's `usage.prompt_tokens`.
 A length the server did not count is a finding, not a pass.
 
+Decode sample length is the other half. The stock needle question stops after
+~6 tokens, so its ms/step median is a 3-step median, not steady state. With
+`--min-answer-tokens N` the body also carries `ignore_eos: true` and
+`min_tokens: N` (vllm and sglang both honour them; sglang rejects
+`min_tokens > max_tokens`, so `--max-tokens` must cover N), the needle becomes a
+prefix check over the first 200 characters of the reply, and the result records
+`answer_tokens`, `decode_steps` and the flags used. `--task long-generation`
+asks for the code followed by a long continuation instead of "code only", so a
+server that ignores the lever still generates. A long sample costs wall time at
+1M context; the lever is off by default and the default request body is unchanged.
+
 Stdlib only, like the rest of tools/: it runs on the head with no venv.
 
 Usage
@@ -31,6 +42,8 @@ Usage
         --context-length 1039999 --concurrency 1 --max-tokens 128 --json out.json
     python3 -B tools/longctx-cell.py --base-url http://NODE:8000 \
         --context-length 131072 --concurrency 5,10 --max-tokens 8
+    python3 -B tools/longctx-cell.py --base-url http://NODE:8000 \
+        --context-length 1039999 --max-tokens 192 --min-answer-tokens 192
 
 Exit codes: 0 every cell measured and retrieved the code; 1 transport failure or
 unreachable endpoint; 2 bad flags; 3 a cell measured but failed its own checks
@@ -48,10 +61,20 @@ import time
 import urllib.error
 import urllib.request
 
-VERSION = "1.0"
+VERSION = "1.1"
 DEFAULT_CPT = 3.5  # chars per token, only a starting guess; calibrated in run
 CALIBRATION_TOKENS = 8192
 REACHED_FRACTION = 0.97
+PREFIX_CHARS = 200  # needle lives at the head of a long sample; tail is filler
+QUESTIONS = {
+    "retrieval":
+        "What is the access code stated in the document? Answer with the code only.",
+    "long-generation":
+        "What is the access code stated in the document? Begin your reply with the "
+        "code, then write a long, detailed continuation of the report in the same "
+        "style, at least 300 words.",
+}
+LEVER_FIELDS = ("ignore_eos", "min_tokens")
 WORDS = (
     "annual report revenue margin segment region quarter shipment inventory "
     "supplier forecast logistics warehouse dispatch variance audit ledger "
@@ -83,11 +106,12 @@ def resolve_model(base: str, model: str, api_key: str | None, timeout: float) ->
         return json.load(resp)["data"][0]["id"]
 
 
-def build_prompt(target_tokens: int, seed: int, cpt: float) -> tuple[str, str]:
+def build_prompt(target_tokens: int, seed: int, cpt: float,
+                 task: str = "retrieval") -> tuple[str, str]:
     """Return ``(prompt, code)``: a unique haystack with one access code at ~50 %."""
     rng = random.Random(seed)
     code = "ZX81-%04d" % rng.randrange(1000, 9999)
-    question = "What is the access code stated in the document? Answer with the code only."
+    question = QUESTIONS[task]
     budget = max(400, int(target_tokens * cpt) - len(question) - 128)
     parts: list[str] = []
     written = 0
@@ -105,23 +129,41 @@ def build_prompt(target_tokens: int, seed: int, cpt: float) -> tuple[str, str]:
     return prompt, code
 
 
-def streaming_chat(base, model, prompt, max_tokens, timeout, api_key):
+def request_body(model, prompt, max_tokens, min_answer_tokens=0):
+    """The one body both streaming_chat and the lever preflight send.
+
+    ``min_answer_tokens > 0`` is the opt-in decode-sample lever: both fields are
+    standard OpenAI-compatible sampling fields (vllm: protocol.py; sglang maps
+    ``min_tokens`` to ``min_new_tokens`` and rejects it above ``max_tokens``).
+    """
     body = {"model": model, "messages": [{"role": "user", "content": prompt}],
             "temperature": 0, "max_tokens": max_tokens, "stream": True,
             "stream_options": {"include_usage": True}}
+    if min_answer_tokens > 0:
+        body["ignore_eos"] = True
+        body["min_tokens"] = min_answer_tokens
+    return body
+
+
+def streaming_chat(base, model, prompt, max_tokens, timeout, api_key,
+                   min_answer_tokens=0):
+    body = request_body(model, prompt, max_tokens, min_answer_tokens)
     req = urllib.request.Request(_url(base, "/v1/chat/completions"),
                                  data=json.dumps(body).encode(),
                                  headers=_headers(api_key))
     return urllib.request.urlopen(req, timeout=timeout)
 
 
-def run_request(base, model, prompt, code, max_tokens, timeout, api_key):
+def run_request(base, model, prompt, code, max_tokens, timeout, api_key,
+                min_answer_tokens=0, prefix=False):
     rec = {"code": code, "error": None, "ttft_s": None, "steps": 0,
            "completion_tokens": None, "prompt_tokens": None,
-           "needle": False, "reply": "", "stamps": []}
+           "needle": False, "reply": "", "stamps": [],
+           "min_answer_tokens": min_answer_tokens, "needle_prefix": prefix}
     started = time.perf_counter()
     try:
-        resp = streaming_chat(base, model, prompt, max_tokens, timeout, api_key)
+        resp = streaming_chat(base, model, prompt, max_tokens, timeout, api_key,
+                              min_answer_tokens)
     except urllib.error.HTTPError as exc:
         rec["error"] = "HTTP %s: %s" % (exc.code, exc.read()[:200].decode(errors="replace"))
         rec["wall_s"] = time.perf_counter() - started
@@ -137,9 +179,16 @@ def run_request(base, model, prompt, code, max_tokens, timeout, api_key):
         rec["decode_s"] = round(st[-1] - st[0], 3)
         gaps = [b - a for a, b in zip(st, st[1:])]
         rec["ms_per_step"] = round(statistics.median(gaps) * 1000.0, 1)
-    rec["needle"] = code in rec["reply"]
+    rec["answer_tokens"] = rec["completion_tokens"] or rec["steps"]
+    rec["decode_steps"] = rec["steps"]
+    rec["needle"] = needle_hit(rec["reply"], code, prefix)
     rec["wall_s"] = round(time.perf_counter() - started, 3)
     return rec
+
+
+def needle_hit(reply, code, prefix):
+    """Default cells keep the old anywhere-check; a long sample checks its head."""
+    return code in (reply[:PREFIX_CHARS] if prefix else reply)
 
 
 def _consume(resp, rec):
@@ -176,15 +225,36 @@ def calibrate(base, model, cpt, timeout, api_key):
     return len(prompt) / rec["prompt_tokens"], rec
 
 
-def cell(args, base, model, cpt, concurrency):
-    prompts = [build_prompt(args.context_length, args.seed * 1000 + i, cpt)
+def probe_lever(base, model, min_answer_tokens, task, timeout, api_key):
+    """One short request proving the fields land; returns ``(task, fields, note)``.
+
+    A 4xx means the server refuses the fields, and a short reply means it read
+    them and ignored them. Either way the cell falls back to a prompt that does
+    not stop early (``long-generation``), which still carries the needle.
+    """
+    prompt, code = build_prompt(256, 4242, DEFAULT_CPT, task)
+    rec = run_request(base, model, prompt, code, min_answer_tokens,
+                      timeout, api_key, min_answer_tokens, prefix=True)
+    if rec["error"]:
+        return ("long-generation", (),
+                "lever rejected (%s); falling back to a long-generation prompt" % rec["error"])
+    if (rec["answer_tokens"] or 0) < min_answer_tokens:
+        return ("long-generation", LEVER_FIELDS,
+                "engine produced %d of %d requested tokens; long-generation prompt as fallback"
+                % (rec["answer_tokens"] or 0, min_answer_tokens))
+    return task, LEVER_FIELDS, None
+
+
+def cell(args, base, model, cpt, concurrency, sent_min=0):
+    prompts = [build_prompt(args.context_length, args.seed * 1000 + i, cpt, args.task)
                for i in range(concurrency)]
     recs: list = [None] * concurrency
 
     def one(i):
         prompt, code = prompts[i]
         recs[i] = run_request(base, model, prompt, code, args.max_tokens,
-                              args.timeout, args.api_key)
+                              args.timeout, args.api_key, sent_min,
+                              prefix=args.min_answer_tokens > 0)
 
     t0 = time.perf_counter()
     threads = [threading.Thread(target=one, args=(i,)) for i in range(concurrency)]
@@ -193,17 +263,26 @@ def cell(args, base, model, cpt, concurrency):
     for t in threads:
         t.join()
     wall = time.perf_counter() - t0
-    return summarize(recs, concurrency, wall)
+    return summarize(recs, concurrency, wall, args.min_answer_tokens, args.task,
+                     sent_min)
 
 
-def summarize(recs, concurrency, wall):
+def summarize(recs, concurrency, wall, min_answer_tokens=0, task="retrieval",
+              sent_min=0):
     good = [r for r in recs if not r["error"]]
     steps = [r["ms_per_step"] for r in good if r.get("ms_per_step")]
     rates = [r["completion_tokens"] / r["decode_s"] for r in good
              if r.get("completion_tokens") and r.get("decode_s")]
+    answers = [r["answer_tokens"] for r in good if r.get("answer_tokens")]
+    decode_steps = [r["decode_steps"] for r in good if r.get("decode_steps")]
     tokens = sum(r["completion_tokens"] or r["steps"] for r in good)
     return {
         "concurrency": concurrency,
+        "task": task,
+        "min_answer_tokens": min_answer_tokens,
+        "min_tokens_sent": sent_min,
+        "answer_tokens_median": int(statistics.median(answers)) if answers else None,
+        "decode_steps_median": int(statistics.median(decode_steps)) if decode_steps else None,
         "wall_s": round(wall, 3),
         "errors": len(recs) - len(good),
         "needle_hits": sum(1 for r in good if r["needle"]),
@@ -226,9 +305,24 @@ def verdict(cells, wanted):
         for pt in c["prompt_tokens"]:
             if pt < wanted * REACHED_FRACTION:
                 problems.append("%s: server counted %d tokens, asked %d" % (label, pt, wanted))
+        want = c.get("min_answer_tokens") or 0
+        for r in c["requests"]:
+            if not r["error"] and (r.get("answer_tokens") or 0) < want:
+                problems.append("%s: answer %d tokens < min_tokens %d (engine ignored the lever?)"
+                                % (label, r.get("answer_tokens") or 0, want))
     if not any(c["prompt_tokens"] for c in cells):
         problems.append("no usage.prompt_tokens: prompt length unverified")
     return problems
+
+
+def check_flags(args):
+    if args.min_answer_tokens < 0:
+        return "--min-answer-tokens must be >= 0"
+    if args.min_answer_tokens > args.max_tokens:
+        return ("--min-answer-tokens %d needs --max-tokens >= %d "
+                "(sglang rejects min_tokens > max_tokens)"
+                % (args.min_answer_tokens, args.min_answer_tokens))
+    return None
 
 
 def parse(argv):
@@ -239,6 +333,12 @@ def parse(argv):
                     help="prompt tokens: 1039999, 131072 or 1m")
     ap.add_argument("--concurrency", default="1", help="comma-separated levels, ascending")
     ap.add_argument("--max-tokens", type=int, default=128)
+    ap.add_argument("--min-answer-tokens", type=int, default=0,
+                    help="decode-sample lever: 0 keeps today's body; >0 sends "
+                         "ignore_eos + min_tokens so the sample is at least N steps")
+    ap.add_argument("--task", choices=sorted(QUESTIONS), default="retrieval",
+                    help="retrieval = 'code only' (stops early); long-generation = "
+                         "code then a long continuation")
     ap.add_argument("--timeout", type=float, default=3600.0, help="per-request seconds")
     ap.add_argument("--api-key", default=None, help="bearer token; never printed")
     ap.add_argument("--seed", type=int, default=1017)
@@ -269,6 +369,10 @@ def main(argv=None):
     if not args.base_url or not args.context_length:
         print("--base-url and --context-length are required", file=sys.stderr)
         return 2
+    bad = check_flags(args)
+    if bad:
+        print(bad, file=sys.stderr)
+        return 2
     args.context_length = parse_length(args.context_length)
     levels = [int(x) for x in args.concurrency.split(",") if x.strip()]
     cpt = args.chars_per_token
@@ -283,21 +387,35 @@ def main(argv=None):
     except Exception as exc:
         print("endpoint unreachable: %s: %s" % (type(exc).__name__, exc), file=sys.stderr)
         return 1
+    fields, note, sent_min = (), None, 0
+    if args.min_answer_tokens:
+        args.task, fields, note = probe_lever(args.base_url, model,
+                                              args.min_answer_tokens, args.task,
+                                              args.timeout, args.api_key)
+        sent_min = args.min_answer_tokens if fields else 0
+        if note:
+            print("lever: " + note, file=sys.stderr, flush=True)
     cells = []
     for level in levels:
-        print("C%d: prompting %d tokens, max_tokens=%d" % (level, args.context_length,
-              args.max_tokens), file=sys.stderr, flush=True)
-        cells.append(cell(args, args.base_url, model, cpt, level))
+        print("C%d: prompting %d tokens, max_tokens=%d min_tokens=%d task=%s" % (
+            level, args.context_length, args.max_tokens, sent_min, args.task),
+            file=sys.stderr, flush=True)
+        cells.append(cell(args, args.base_url, model, cpt, level, sent_min))
         c = cells[-1]
-        print("C%-3d wall=%8.1fs prompt=%s ms/step=%s tok/s=%s agg=%s needle=%d/%d err=%d" % (
-            c["concurrency"], c["wall_s"], c["prompt_tokens"] or "?",
-            c["ms_per_step_median"], c["tok_per_s_median"], c["aggregate_tok_per_s"],
-            c["needle_hits"], c["concurrency"], c["errors"]))
+        print("C%-3d wall=%8.1fs prompt=%s ms/step=%s ans=%s steps=%s tok/s=%s agg=%s "
+              "needle=%d/%d err=%d" % (
+                  c["concurrency"], c["wall_s"], c["prompt_tokens"] or "?",
+                  c["ms_per_step_median"], c["answer_tokens_median"],
+                  c["decode_steps_median"], c["tok_per_s_median"],
+                  c["aggregate_tok_per_s"], c["needle_hits"], c["concurrency"],
+                  c["errors"]))
     problems = verdict(cells, args.context_length)
     report = {
         "tool_version": VERSION, "base_url": args.base_url, "model": model,
         "context_length": args.context_length, "max_tokens": args.max_tokens,
         "chars_per_token": round(cpt, 4), "image_id": args.image_id,
+        "task": args.task, "min_answer_tokens": args.min_answer_tokens,
+        "sampling": {"fields_sent": list(fields), "note": note},
         "cells": cells, "problems": problems,
     }
     if args.json:
@@ -314,6 +432,22 @@ def selftest():
     assert code in prompt and prompt.count("ZX81-") == 1, "needle plant"
     assert len(prompt) > 6000, len(prompt)
     assert parse_length("1m") == 1000000 and parse_length("131072") == 131072
+    plain = request_body("m", "p", 128)
+    assert "ignore_eos" not in plain and "min_tokens" not in plain, plain
+    assert plain["max_tokens"] == 128
+    lever = request_body("m", "p", 192, 192)
+    assert lever["ignore_eos"] is True and lever["min_tokens"] == 192, lever
+    assert lever["max_tokens"] == 192, lever
+    long_prompt, long_code = build_prompt(2000, 7, 3.5, "long-generation")
+    assert long_prompt.count("ZX81-") == 1 and long_code in long_prompt
+    assert "continuation" in long_prompt
+    assert needle_hit("the code is " + code + " then filler", code, True)
+    assert not needle_hit("x" * 400 + code, code, True)
+    assert needle_hit("x" * 400 + code, code, False)
+    args = parse([]).parse_args(["--max-tokens", "8", "--min-answer-tokens", "8"])
+    assert check_flags(args) is None
+    args = parse([]).parse_args(["--max-tokens", "8", "--min-answer-tokens", "9"])
+    assert check_flags(args), "min_tokens above max_tokens must be refused"
     rec = {"error": None, "needle": True, "completion_tokens": 100,
            "decode_s": 2.0, "ms_per_step": 20.0, "prompt_tokens": 200000,
            "steps": 100, "reply": code, "code": code}
