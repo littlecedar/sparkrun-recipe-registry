@@ -40,6 +40,7 @@ the pyannote diarizer. Explore keeps the language and agentic/RAG arms.
 - [zz-spark-x2.6-4b-int8-sglang](#zz-spark-x26-4b-int8-sglang)
 - [ternary-bonsai-2-9b-q2_0-llamacpp](#ternary-bonsai-2-9b-q2_0-llamacpp)
 - [zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm](#zz-beam-10-501b-a23b-nvfp4-tp4-vllm)
+- [zz-ernie-5.5-flash-base-tp4-sglang](#zz-ernie-55-flash-base-tp4-sglang)
 - [zz-sage-a1.5-35b-a3b-fp8-sglang](#zz-sage-a15-35b-a3b-fp8-sglang)
 - [zz-sage-a1.5-35b-a3b-q4km-llamacpp](#zz-sage-a15-35b-a3b-q4km-llamacpp)
 - [zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm](#zz-kimi-k31-pro-superexpert-24b-q4p-ref-vllm)
@@ -972,6 +973,94 @@ candidate. Boot-gate PASSED window 3 (kernel falsifier never fired; record `DEEP
 
 Receipts: `head:~/benchmarks/tp4-window4-20261026/` (preregistrations, per-attempt serve
   logs, ladder/BFCL/needle JSON). TODO item: `mad-science/TODO.md` §Retry queue window 4.
+
+## [zz-ernie-5.5-flash-base-tp4-sglang](zz-ernie-5.5-flash-base-tp4-sglang.yaml)
+
+SGLang (nightly `nightly-dev-cu13-20261110-4a5c6b8f`, arm64) · **4 nodes (TP=4)** · **DRAFT probe,
+not shippable — body staged and image-proven 2026-11-10; boot queued in the ds4 window's handover**.
+
+`baidu/ERNIE-5.5-Flash-Base` — 280B-total / ~14B-active MoE, 43 layers at hidden 4096, top-10 of 512
+routed experts, vocab 201,216, 1M `max_position_embeddings`, weights FP8 e4m3 with ue8m0 block scales
+at 128×128. TP=4 is forced by size, not by taste: 128 shards measure 288,464,891,869 B = 268.65 GiB,
+so TP=4 is 67.16 GiB per rank against 121.69 GiB unified, while TP=2 would need 134.3 GiB and could
+not load.
+
+**Engine route.** No release carries the arch. `srt/models/ernie55.py` (with `ernie55_nextn.py` and
+`ernie55_dspark.py`) landed on SGLang `main` at `ed61eca1` (2026-11-06) with an import fix at
+`6d1ce5b8` (2026-11-07); it is absent from v0.5.22, v0.5.23, the `dev-cu13` tag and the local
+`sglang-main-arm64:6563312` build, and vLLM has no `ernie5_5_moe`. This arm therefore pins the
+2026-11-10 nightly — main `4a5c6b8f`, arm64 manifest `sha256:59197db6…`, tag index
+`sha256:d4a56f6f…`, resolved image id `97de25b1…`, 38 GB — which is a **pull, not a build**, and
+public on Docker Hub so every rank can fetch it. Proven inside that container:
+`python3 -c "import sglang.srt.models.ernie55"` prints `IMPORT OK
+/sgl-workspace/sglang/python/sglang/srt/models/ernie55.py` (sglang `0.0.0.dev1+g4a5c6b8f6`), and
+`sglang serve --help` carries both `--enable-metrics` and `--enable-cache-report` (both exist in the
+pinned tree's `observability.py` / `serving.py`, which is what the metrics-rollout guard checks).
+
+**Body.** Revision `028544b2ffceea189b2d8768ed2b9d09b06f2343` staged on the pool and verified against
+the Hub's own `/tree/<sha>?recursive=1` listing by name+size: 139/139 files, 288,464,891,869 B on both
+sides, missing=0, size mismatches=0. The pin is the identity — a SHA-keyed fetch writes no `refs/`
+entry, and `refs/main` moves under the owner's cache-wide sweep, so a boot that resolved it could
+serve a half-present tree.
+
+**Window and KV.** `max_model_len: 131072` is the only context upstream's own e2e test validates
+(`test/registered/e2e/models/test_ernie55_flash.py`: four B200s, GSM8K ≥ 0.93). The engine's own
+sizing, read from the pinned tree: 6 full-context MLA layers cost 788 B/token each (656 B fp8 latent
+via `fp8_ds_mla_row_width(512, 64)` + 132 B DSA index key), 37 HCA layers at compression ratio 128
+cost 5.125 B each, and the 0.1 `swa_full_tokens_ratio` adds 2,427 B/token — about **7.2 KiB/token**.
+At `mem_fraction_static 0.78` a 121.69 GiB device gives a 94.92 GiB static budget; minus 67.16 GiB of
+weights that is **27.76 GiB for KV**, i.e. ~4.06M tokens. 131072 costs **0.90 GiB** of it (3.2 %) and
+leaves ~29 more full windows; `max_running_requests` 64 (the ladder tops at C10). The checkpoint's 1M
+is **unproven by fit here** and is not promised — only a winner re-checks it.
+
+**No chat template.** `tokenizer_config.json` carries none and `chat_template.jinja` is 404, so
+`/v1/chat/completions` has no prompt contract on this checkpoint; `/v1/completions` is the answering
+endpoint until a template is staged (the ds4 template-overlay is the prior art). This is a finding
+about the checkpoint, not a boot blocker.
+
+**License: new class, probe only.** ERNIE 5.5 Flash Base Model License v1.0 — free non-commercial
+use; commercial use permitted only up to US$50 M annual revenue, with attribution and a one-time
+written notice (§4.2), otherwise separate authorization (§4.3). That is neither an Apache/MIT nor a
+non-commercial-only class, so shipping it as a default needs an owner ruling first; the recipe carries
+the license banner and `metadata.caveats` and stays a `zz-` probe.
+
+**Staging throughput (fleet fact).** HF caps one connection at ~1.5 MB/s from this head (two 12 s
+`resolve` probes: 1.54 and 1.60 MB/s); the default 8 workers gave 12 MB/s (~6 h for this body) and
+`--max-workers 32` gave **150.4 MB/s** over a 60 s window. A concurrent 37 GB docker pull shares the
+2.5 GbE NIC and stalled on its last layers for ~60 min; killing and restarting it with the fetch
+paused finished it in 130 s, so *pause the stage to unblock a pull*, not the reverse.
+
+**Boot: BLOCKED at decode-graph capture — FlashMLA sparse decode has no SM121 build (2026-11-10).**
+Task `sparkrun_e59088ba4d0f3858_3780b01ec8c1` on `.31`–`.34` loaded all 128 shards
+(`Load weight begin avail mem=108.61 GB`, `Detected fp8 checkpoint.`, `Found local HF snapshot …
+snapshots/028544b2…; skipping download` — the resolved path is the pinned snapshot, which is the
+difference from the ds4 overlay launcher that follows `refs/main`), then died inside decode CUDA-graph
+capture at `avail mem=23.34 GB`:
+
+```
+Exception: Capture cuda graph failed: sparse_attn_decode_interface,
+/flashmla/csrc_legacy/api/sparse_decode.cpp:386,
+Unsupported architecture for sparse decode fwd
+```
+
+The model's MLA layers run `flashmla_sparse` only (its own override pins `--dsa-decode-backend
+flashmla_sparse`), and FlashMLA's sparse decode kernel has no SM121 build — the same arch-gate class
+as the ds4 lane's DeepGEMM paged-sparse logits (SM100-only at csrc, GB10 is SM121). The engine's three
+suggested workarounds (smaller `--mem-fraction-static`, smaller `--cuda-graph-max-bs-decode`, disable
+decode graphs) cannot help: the kernel is unsupported on this arch, so decode fails with or without a
+captured graph. **No flag retry is warranted; the arm is blocked on an upstream SM121 kernel, not on
+this recipe.** Per-rank `MemAvailable` minima over the boot were **14.79 / 14.98 / 14.98 / 15.04 GiB**
+against the untouched 6.0 GiB floor, so the fit arithmetic was never contradicted — it was never
+reached. Teardown verified `ctns=0 vols=0` on all four ranks. Receipt:
+`head:~/benchmarks/ernie-tp4-20261110/` (`RECEIPT.md`, `serve-reaped-…node_0.log`, `mem-10_0_4_3*.log`).
+
+**Instrument lesson (cost one boot).** The first attempt was killed by our own watchdog, not by the
+engine: `boot-watchdog.py` builds `sparkrun_<task-id>_node_0`, and passing the id as `sparkrun status`
+prints it (with the `sparkrun_` prefix) produced `sparkrun_sparkrun_…_node_0`, which never exists — the
+tool armed anyway, sat in `dead_candidate` from t=0 and its 120 s `--dead-grace` fired `sparkrun stop`
+at 09:43:44Z while the sampler's minimum was 37.3 GiB and shard load sat at 13/128. **A watchdog log
+whose last lines are `nothing captured` + `sparkrun stop` is a failed instrument, not a dead boot** —
+check the sampler and the kernel log before recording a verdict.
 
 ## [zz-sage-a1.5-35b-a3b-fp8-sglang](zz-sage-a1.5-35b-a3b-fp8-sglang.yaml)
 
