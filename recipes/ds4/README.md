@@ -1497,20 +1497,23 @@ indexer-gate restore (`sglang#49182`, 2026-11-08) is the same stale-gate family,
 `dsv41-sm121-dg:0.2.1-fi073` (`sha256:7752ccd687be0cf618942f617f2aeafd0d69d56211160431131fe929da098571`,
 35.1 GB, built on `.35` from `recipes/ds4/Dockerfile.dsv41-fi073`) layers flashinfer_python 0.7.3, the
 jit-cache shim and the `sm121a` provider (all sha256-pinned by URL) over `:0.2.1`, then applies the
-three deltas above with `recipes/ds4/patch_dsv41_fi073.py` (every anchor asserted once, so a tree move
+five deltas above with `recipes/ds4/patch_dsv41_fi073.py` (every anchor asserted once, so a tree move
 fails the build). GPU-less rungs measured inside the built image: `flashinfer.__version__` `0.7.3`,
 `supported_sparse_mla_sm120_configs()['dsv3_2'].supports_decode(num_heads=16, topk=2048,
 page_block_size=64)` `True`, provider `sm121a` 589 modules including `sparse_mla_sm120` (`.so` where
-the provider manifest says), and the patched backend module imports. **It is not a bootable arm yet:**
-the 0.7.3 route `_trtllm_batch_decode_sparse_mla_dsv4_sm120` (`_core.py:1262`) also requires a BF16
-query (`:1304-1306`) and a packed `uint8` KV cache at 528/584-byte rows, or a dense BF16 cache
-(`:1384-1400`); this image still hands it FP8 queries and the fork's 512 B/token footerless uniform
-pool, so the first attention call raises `ValueError`. Probe recipe
-`zz-ds4-1017-sm121-arm5-fi073.yaml` (arm 5's contract and env pin, control still `arm3-control` on
-`:0.2.1`) exists for that measurement: `/health` 200 is not port success, and the two remaining
-deltas (BF16 Q prep, 528-byte inline-scale KV) are written up in
-`mad-science/SM121-SPARSE-MLA-PORT.md` §"Stop verdict". Carry the image to each booting rank with the
-`docker save | ssh 'docker load'` command above and check its id there before arming it.
+the provider manifest says), and the patched backend module imports. **That digest is not a bootable
+arm:** the 0.7.3 route `_trtllm_batch_decode_sparse_mla_dsv4_sm120` (`_core.py:1262`) also requires a
+BF16 query (`:1304-1306`) and a packed `uint8` KV cache at 528/584-byte rows, or a dense BF16 cache
+(`:1384-1400`); the built tree hands it FP8 queries and the fork's 512 B/token footerless uniform
+pool, so its first attention call raises `ValueError`. Deltas 4 (BF16 query) and 5 (528-byte
+`fp8_dsv41_inline` KV) are now implemented in the patch script and dry-run against the extracted
+`:0.2.1` tree (all five patched files `py_compile`), so the tag must be **rebuilt** before it can
+boot; the write-up and the evidence classes are in `mad-science/SM121-SPARSE-MLA-PORT.md`
+§"Implementation status". Probe recipe `zz-ds4-1017-sm121-arm5-fi073.yaml` (arm 5's contract and env
+pin, control still `arm3-control` on `:0.2.1`) is the measurement: `/health` 200 is not port
+success, and only the canary answer comparison catches a wrong-logits port. Carry the image to each
+booting rank with the `docker save | ssh 'docker load'` command above and check its id there before
+arming it.
 The paired control
 (`zz-ds4-1017-sm121-arm3-control.yaml`) passed every boot gate on the same digest —
 `[moe_b12x_next] armed`, no ÷128, `Load weight end 167.24 s`, `/v1/models` 200 at

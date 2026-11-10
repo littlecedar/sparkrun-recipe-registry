@@ -51,6 +51,21 @@ Target: DeepSeek-V4.1 TRT-LLM sparse MLA (`--dsv4-attn-backend trtllm`) on GB10.
    in 0.7.3. Both call sites already pass `multi_ctas_kv_counter_buffer=` (a 0.7.3 kwarg), so the
    fork's shared-buffer WAR becomes unnecessary — but the install path must be guarded, not left
    to raise `AttributeError` at the first decode.
+4. **BF16 query** (see the stop verdict below). `srt/models/deepseek_v4.py:2294-2306` allocates an
+   `float8_e4m3fn` `q_out` whenever `token_to_kv_pool.uniform_fp8`; the SM12x route rejects FP8
+   queries (`_core.py:1304-1306`), so that buffer becomes `torch.bfloat16` on capability major 12
+   and the two `q.to(float8)` casts in the backend (`:335`, `:472`) are skipped there. SM100/103
+   keeps both casts.
+5. **528 B `fp8_dsv41_inline` KV ABI** (see the stop verdict below). The uniform-FP8 pool rows go
+   from 512 B to 528 B on SM12x: the same 512 e4m3 data bytes plus each token's 16 UE8M0 group-32
+   scale bytes, written once as the constant `0x7F` (unit scale) at allocation. Touches the pool
+   (`get_bytes_per_token`, `create_buffer`, `kv_cache_total_dim`, `bytes_per_page_padded`,
+   `set_key_buffer_fused`), the uniform SWA store (`kv_norm_rope_store.py` row pitch, now a
+   `row_bytes` launch parameter), the backend views (`:250-260` → `uint8` `(pages, 1, page, 528)`)
+   and an explicit `kv_cache_format=` on both calls. The fused c1/c2 compressor store is compiled
+   for 512 B rows, so on SM12x it is bypassed to the torch path that ends in the pool's own
+   `set_key_buffer_fused`; the packed FlashMLA SWA store (`set_swa_key_buffer_radix_fused`) asserts
+   rather than write 512 B rows at the new pitch.
 
 ### Build shape — this is the real cost
 
@@ -74,6 +89,14 @@ public wheels are `flashinfer_python-0.7.3-py3-none-any.whl` (79.8 MB, sha256 `5
 and `flashinfer_jit_cache_sm121a-0.7.3+cu130` aarch64 (234 MB, sha256 `e5059124…b01ed`), and it
 fixes none of deltas 2–3, so it buys a boot that dies in the same place with a different
 traceback.
+
+**Carry cost, once per digest (VERIFIED 2026-11-10).** The built image
+`dsv41-sm121-dg:0.2.1-fi073` (`sha256:7752ccd687be…`, 35.1 GB) exists only on `.35`, where it was
+built. A quartet boot needs it on `.31`–`.34` too: `docker save … | ssh red@<node> docker load`
+per rank, ~140 GB over the fabric per experiment, once per digest. A receipt must record the carry
+and a per-rank `docker image inspect -f '{{.Id}}'` match, so a later session does not silently boot
+a stale image on three ranks. (Stale-image boots are invisible in the logs: the ranks disagree on
+kernel ABI, not on the tag.)
 
 ### Acceptance ladder (each rung is a stop)
 
@@ -150,6 +173,40 @@ Two corrections to the deltas as written above:
 `dsv41-sm121-dg:0.2.1` + FlashInfer 0.7.3 + the three deltas is **not a bootable arm**. A viable
 Port A is a five-delta port (4 and 5 above plus the three) and needs a host to measure; nothing was
 built and no image tag was created for it.
+
+### Implementation status (2026-11-10, `arm5-port`)
+
+All five deltas are now implemented in `recipes/ds4/patch_dsv41_fi073.py` against the extracted
+`:0.2.1` tree, every anchor asserted exactly once and a final post-condition set that fails the
+build instead of shipping a half-patched image: no `backend="trtllm-gen"` survives, both call sites
+carry `backend="auto"` and `kv_cache_format`, both query paths assert BF16 on SM12x, the pool
+carries `_SM12X_ROW_BYTES = 528` / `_SM12X_SCALE_BYTE = 0x7F`, the kernel takes a `row_bytes`
+parameter, and all four fused-compressor branches are gated. The five patched files pass
+`py_compile`; SM100/103 semantics are unchanged because every branch is behind
+`is_sm120_supported()`.
+
+Evidence status of the two new deltas' *contract* (read from the 0.7.3 wheel, not measured):
+
+- VERIFIED — the SM120 route requires a BF16 query (`_core.py:1304-1306`) and packed `uint8`
+  caches at 528 B/token for `fp8_dsv41_inline`, on both the SWA and compressed pools
+  (`_core.py:1347-1350`, `:1384-1400`, `:1462-1466`); `"fp8_dsv41_inline"` requires
+  `backend="sparse"` and selects the `ue8m0_g32_inline` model type (`:1162-1196`, `:1503-1509`).
+- VERIFIED — inline records are rows at a uniform pitch that is a 16-byte multiple
+  (528 = 16 x 33), with a page stride of whole rows; `sparse_indices`/`extra_sparse_indices` then
+  address row `page * (page_stride // row_pitch) + slot`, i.e. the flat slot id when pages carry no
+  padding (`_core.py:2183-2192`). The fork's compressed tail is already flat physical compressed
+  slots (`phys_page * compressed_page_size + offset` from `topk_transform_paged`), so the page-id
+  worry from the earlier plan does not apply to this format. Still a measurement point, not an
+  assumption to skip: the first decode's tail indices are compared against the table values.
+- LIKELY — the UE8M0 group-32 footer for a unit-scale store is the constant `0x7F` (2^0). Unmeasured;
+  the first boot's canary answer comparison is what would catch it.
+- SPECULATIVE — numerics: BF16 query (no FP8 Q quantization) and the compressor's fused → torch
+  store switch change the rounding path, so this arm is not bit-identical to arm-3-control even at
+  greedy settings. It must be judged by the canary answer cell, as the falsifier section says.
+
+Not done: no image was rebuilt (`.35` is held by the quartet session until released), so the tag
+`dsv41-sm121-dg:0.2.1-fi073` still describes the three-delta build. Report reads "deltas in, waiting
+for the build host".
 
 ## Port B — `ernie-flashinfer-sparse-sink-port`
 

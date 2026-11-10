@@ -10,9 +10,10 @@ runtime: sglang
 # port (mad-science/SM121-SPARSE-MLA-PORT.md section Port A). Layers over
 # dsv41-sm121-dg:0.2.1 (byte-identical arm-3 control digest below) are:
 # flashinfer_python 0.7.3 + the jit-cache shim + the sm121a provider (ships
-# jit_cache/sparse_mla_sm120/sparse_mla_sm120.so), then three tree deltas via
+# jit_cache/sparse_mla_sm120/sparse_mla_sm120.so), then five tree deltas via
 # recipes/ds4/patch_dsv41_fi073.py: backend="trtllm-gen" -> "auto", the split
-# SWA/compressed sparse table call, and the removed 0.7 counter-buffer WAR.
+# SWA/compressed sparse table call, the removed 0.7 counter-buffer WAR, the
+# BF16 query (SM12x rejects FP8 Q), and the 528-byte fp8_dsv41_inline KV pool.
 # Built by recipes/ds4/Dockerfile.dsv41-fi073.
 # Image ID (local, byte-identifies the artifact; nothing pushed):
 #   sha256:7752ccd687be0cf618942f617f2aeafd0d69d56211160431131fe929da098571
@@ -30,16 +31,16 @@ description: >-
   arm-5/arm-3 image, DeepSeek V4 attention still `--dsv4-attn-backend trtllm`.
   CONTROL IS ARM 3 ON `dsv41-sm121-dg:0.2.1` (same tree, replay off,
   `zz-ds4-1017-sm121-arm3-control.yaml`): this image's only delta is FlashInfer
-  plus the three adapter deltas, so a booted cell would compare against that
+  plus the five adapter deltas, so a booted cell would compare against that
   digest, not against `:0.2.0`.
-  PREDICTION (desk read of 0.7.3, not measured): the SM12x route dispatches to
-  `_trtllm_batch_decode_sparse_mla_dsv4_sm120`, which requires a BF16 query and
-  a packed uint8 KV cache (528/584 B rows) or a dense BF16 cache. This image
-  still feeds FP8 queries and the fork's 512 B/token footerless FP8 pool, so the
-  first attention call should raise `ValueError` — `/health` answering 200 is
-  NOT evidence the port works. Read
-  mad-science/SM121-SPARSE-MLA-PORT.md "Stop verdict" before spending a window;
-  a viable port needs two further deltas (BF16 Q prep, 528 B inline-scale KV).
+  STATUS (2026-11-10): all five deltas are in the patch script, so this tag
+  must be REBUILT before it can boot; the digest in the header describes the
+  three-delta build, which raises `ValueError` on its first attention call by
+  construction. The rebuilt image feeds a BF16 query and a 528-byte
+  `fp8_dsv41_inline` KV pool. `/health` answering 200 is still NOT evidence the
+  port works: the contract is met by reading the wheel, the numerics are
+  unmeasured, so only the canary answer comparison in
+  mad-science/SM121-SPARSE-MLA-PORT.md section "Acceptance ladder" counts.
 metadata:
   model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
