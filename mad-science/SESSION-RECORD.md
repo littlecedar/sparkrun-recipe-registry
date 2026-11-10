@@ -8138,11 +8138,14 @@ row's to fix.
 - **Census, read-only, four reads: 08:05:23 / 08:06:12 / 08:10:49 / 08:26:26 UTC.** `docker ps -aq`
   reads `1 / 0 / 0 / 0 / 0 / 0`, then `1 / 1 / 1 / 1 / 1 / 0`, `1 / 1 / 1 / 1 / 1 / 1`, and finally
   `1 / 0 / 0 / 0 / 0 / 1`; volumes `0 × 6` at every read; `.30`'s `sm121m` `Created` leftover
-  throughout; uptimes unchanged, so nothing rebooted. Root `df -B1` avail fell 6 875 533 312 B over
-  read 1→2 (49 s), 221 240 131 968 B over read 2→3 (278 s) and 1 003 274 240 B over read 3→4 (937 s).
+  throughout; uptimes unchanged, nothing rebooted. Root `df -B1` avail fell 6 875 533 312 B over
+  read 1→2 (49 s), **227 234 131 968 B** over read 2→3 (278 s) and **19 372 830 720 B** over read
+  3→4 (937 s) — the two later figures corrected 03:41 ET against the board's script-derived census
+  cell, which is the surviving derivation: the capture files went with the tick directory, and this
+  sentence had been typed from an earlier series (221 240 131 968 and 1 003 274 240).
 - **The pool's fill is winding down, and its writer is named.** Through the head's mount, used reads
   13 104 597 958 656 B at 08:05:47Z, 13 334 988 980 224 B at 08:10:49Z (+230 391 021 568 B over
-  302 s ≈ 763 MB/s) and 13 354 458 939 392 B at 08:26:27Z (+19 469 959 168 B over 938 s ≈ 20.8 MB/s),
+  302 s ≈ 762 MB/s) and 13 354 458 939 392 B at 08:26:27Z (+19 469 959 168 B over 938 s ≈ 20.8 MB/s),
   55 % of 24 191 229 755 392 B, 101 hub entries. The writer is `hf download unsloth/flint-GGUF` (head
   pid 3314265, `lstart` 02:38:10 EST) holding a live `.incomplete` blob; the pool's chunk store sits
   on every node's root, which is what read 2→3's ~56 GB/node cluster measures (**LIKELY**, no inode
