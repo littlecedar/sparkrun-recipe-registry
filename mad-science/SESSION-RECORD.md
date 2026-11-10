@@ -8035,3 +8035,51 @@ session's row, not this tick's. The window lock is deleted, 0 leases stand, and 
 free as of `07:45:27Z`; the lease-vs-live-serve hazard is the `campaign-ignores-declared-window`
 row's to fix.
 
+## 2026-11-10 03:15 ET — a window whose ranks were already gone, and a campaign stopped to take it
+- **Census, read-only, 08:03:20Z → 08:05:29Z UTC (129 s pair).** Six nodes: `docker ps -aq` reads
+  `.30` 1 and `.31`–`.35` 0, `docker ps -q` 0 × 6, volumes 0 × 6; the one container is named at the
+  08:10:42Z read as `sm121m` (`dsv41-sm121-dg:0.2.1`, status `Created`, the 2026-11-08
+  never-started leftover). Root `df -B1` avail fell on every node — `.30` −4 112 961 536 B, `.31`
+  −1 786 335 232, `.32` −1 792 618 496, `.33` −4 110 954 496, `.34` −2 328 530 944, `.35`
+  −2 329 022 464 — net **−16 460 423 168 B** (≈128 MB/s). Uptimes unchanged from the 02:46 board,
+  so nothing rebooted.
+- **Pool: the mount serves, and the meta loop still owns five hosts.** Units were re-read per host:
+  `beegfs-meta` `active` `NRestarts=0` on `.30` and `activating` `Result=exit-code` on `.31`–`.35`
+  with NRestarts 17 206 / 17 184 / 17 164 / 17 139 / 6 997; storage `active` × 6, mon `failed` × 6.
+  Through the head's mount at 08:04Z: 24 191 229 755 392 B total, 13 097 930 063 872 B used,
+  11 093 299 691 520 B avail (55 %), 101 hub entries / 96 `models--*`, and a `stat -L` on the new
+  revision's `chat_template.jinja` = 16 722 B proves the read rather than the listing.
+- **The frac75 window tore down while its claim stands.** Boot `sparkrun_1c0dffa45afa6e47_b4aadcb8fd3e`
+  on the same digest `sha256:85c1ffc3…9195dc7` reached ready 07:53:42Z (TTR 175 s,
+  `max_total_num_tokens=702208`), then the **1M cell failed as a server-side truncation** —
+  `C1: server counted 1 tokens, asked 1039999`, needle 0/1, no decode — while the 512K cell
+  completed on 522 421 prompt tokens (TTFT 136.3 s, needle 1/1, 72.2 ms/step). Teardown was
+  verified 08:03:31Z and both census reads see zero containers on all four ranks, yet
+  `.local/fleet-window.lock` is still present on both clones at 08:10Z. The claim outlives the
+  ranks; this tick did not touch another session's lock.
+- **The campaign was stopped by hand in the same second the window opened.** `sparkrun-campaign.service`
+  reads `inactive` `Result=success`; its journal drains `unmeasured: … no marker and no
+  machine-readable artefact` and then takes SIGTERM at 02:48:49 EST (07:48:49Z). Nine roots hold
+  33 arms and **0 live leases**, `director status --root ~/benchmarks/h2h-20261107` reads
+  **9 measured, 10 blocked**. So the window was taken cleanly — nothing was launched against it.
+- **Register snapshot `a454cec8…`, re-checked equal to the live file before publish.** 139 tasks
+  (101 done, 26 queued, 12 blocked), 0 claims, 38 open, `check` rc=0. Graph and table were rendered
+  off the snapshot — `graph --file` (positional, since the top-level form silently reads the
+  clone's register) and the top-level `--file` for `render`. The counts line is copied verbatim:
+  `12 blocked, 1 edges, 11 prose-gated, 0 question-gated, 0 question, 36 rows not drawn (--all)`.
+- **Three instrument defects, each caught before it landed.** (1) The first unit sweep ran all six
+  `systemctl` calls **on the head** and labelled them `.31`–`.35`, which reads exactly like a fixed
+  pool — discarded and re-run with an `ssh` hop per host; the trap is the same one the census
+  section warns about, in a loop that never had a hop. (2) A prose cell quoting `## Work queue`
+  produced a third section heading in the heading scan, fixed before publish. (3) `publish` refused
+  the board on a raw cluster address taken from the lock body, which is the guard working: the
+  cell now says ranks `.31`–`.34`.
+- **Shared clone mechanics.** The index held an obsolete 02:40 board blob (a peer's staged
+  composition superseded by its 02:46 commit); the commit took the worktree bytes by pathspec, so
+  that blob was never included and nothing of the peer's was reverted. Push-gate green on
+  `a0aee7a` and the gate run for it completed `success`. No amend, no force.
+- **Left open.** The lock is another session's to delete, so a reader who trusts the census rather
+  than the lock would boot `.31`–`.34`; the 1M truncation at `MEM_FRACTION_STATIC=0.75` needs a
+  cause before that half can be compared to the replay-off cell's 565.4 s TTFT; and the meta
+  restart loop's NRestarts keeps climbing because the row that owns it is queued, not done.
+
