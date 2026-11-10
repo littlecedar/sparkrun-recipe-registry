@@ -247,6 +247,10 @@ class MemoryIsProgress(unittest.TestCase):
 
         def fake_run(argv, **_kwargs):
             calls.append(list(argv))
+            # The arming check lists containers once; the fixture's container must exist, as it
+            # does on the node by the time a watchdog is armed after `node0 container up`.
+            if argv[0] == "ssh" and "docker ps --format" in argv[-1]:
+                return mock.Mock(stdout="sparkrun_abc123_solo\n", stderr="")
             return mock.Mock(stdout="", stderr="")
 
         if isinstance(per_rank, list):
@@ -481,6 +485,8 @@ class ServeLogIsCapturedBeforeTheStop(unittest.TestCase):
         def fake_run(argv, **_kwargs):
             calls.append(list(argv))
             if argv[0] == "ssh":
+                if "docker ps --format" in argv[-1]:
+                    return mock.Mock(stdout="sparkrun_abc123_solo\n", stderr="")
                 if capture_error is not None:
                     raise capture_error
                 return mock.Mock(stdout=capture_stdout, stderr="")
@@ -545,6 +551,67 @@ class ServeLogIsCapturedBeforeTheStop(unittest.TestCase):
                     (tmp / "serve-reaped-sparkrun_abc123_solo.log").exists(),
                     "an empty capture was written as if it were evidence",
                 )
+
+
+class TestArmRefusal(unittest.TestCase):
+    """A watchdog that cannot name its container must not arm (2026-11-10, ERNIE TP=4).
+
+    The caller passed the id `sparkrun status` prints, which already carries the `sparkrun_`
+    prefix; the resolver prepended another, matched nothing, and the tool armed against a
+    container that did not exist. Its `--dead-grace` then stopped a healthy load 120 s in
+    (shard 13/128, 37.3 GiB free). Refusal is the fix: no stop path, exit 4.
+    """
+
+    def test_a_doubled_prefix_is_refused_with_the_reason(self):
+        why = bw.container_arm_refusal(
+            "sparkrun_1c0dffa45afa6e47_eb5100b2911f",
+            "sparkrun_sparkrun_1c0dffa45afa6e47_eb5100b2911f_node_0",
+            ["sparkrun_1c0dffa45afa6e47_eb5100b2911f_node_0"],
+        )
+        self.assertIsNotNone(why, "the doubled prefix armed the watchdog against no container")
+        self.assertIn("sparkrun_", why)
+        self.assertIn("bare", why)
+
+    def test_a_container_absent_from_the_node_is_refused(self):
+        why = bw.container_arm_refusal("abc123", "sparkrun_abc123_node_0", ["sparkrun_other_solo"])
+        self.assertIsNotNone(why, "armed against a container the node does not run")
+        self.assertIn("sparkrun_abc123_node_0", why)
+        self.assertIn("docker ps", why)
+
+    def test_a_present_container_arms(self):
+        self.assertIsNone(
+            bw.container_arm_refusal("abc123", "sparkrun_abc123_node_0", ["sparkrun_abc123_node_0"])
+        )
+
+    def test_main_exits_4_and_never_stops_on_a_doubled_prefix(self):
+        calls: list[list[str]] = []
+
+        def fake_run(argv, **_kwargs):
+            calls.append(list(argv))
+            return mock.Mock(stdout="sparkrun_other_solo\n", stderr="")
+
+        tmp = Path(tempfile.mkdtemp())
+        fake = mock.Mock(run=fake_run, SubprocessError=subprocess.SubprocessError)
+        with mock.patch.object(bw, "subprocess", fake):
+            rc = bw.main(
+                [
+                    "--endpoint", "http://127.0.0.1:1",
+                    "--task-id", "sparkrun_abc123",
+                    "--node", "n1",
+                    "--interval", "0",
+                    "--dead-grace", "0",
+                    "--log", str(tmp / "watchdog.log"),
+                ]
+            )
+        self.assertEqual(rc, 4, "a malformed id must exit 4, not arm")
+        self.assertFalse(
+            [argv for argv in calls if argv[:2] == ["sparkrun", "stop"]],
+            "the watchdog stopped a task it could not see",
+        )
+        text = (tmp / "watchdog.log").read_text()
+        self.assertIn("refusing to arm", text)
+        self.assertIn("already carries the 'sparkrun_' prefix", text)
+        self.assertIn("WATCHDOG arm:", text, "the resolved container name was not printed")
 
 
 if __name__ == "__main__":

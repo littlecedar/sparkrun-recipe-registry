@@ -44,10 +44,17 @@ to deserve a clock.
 Stdlib only, no deps. Launch detached next to every boot:
 
     nohup python3 tools/boot-watchdog.py --endpoint http://<api-rank>:8000 \\
-        --task-id sparkrun_<hash>_<hash> --node <host> \\
+        --task-id <intent>_<launch> --node <host> \\
         --log ~/benchmarks/<window>/watchdog-<task-id>.log &
 
-Exit codes: 0 endpoint healthy; 3 dead and stopped; 4 watchdog's own error.
+`--task-id` is the **bare** `<intent>_<launch>` id: this tool prepends `sparkrun_` itself, so the
+string `sparkrun status` prints (`sparkrun_<intent>_<launch>`) doubles the prefix and resolves no
+container. `--container` with the name `docker ps` shows is even safer. The tool prints the container
+it resolved (`WATCHDOG arm: …`) and refuses to arm at all when the id is prefixed or the container is
+not running — an armed watchdog that cannot see its container stops healthy loads (measured
+2026-11-10: ERNIE TP=4 killed 120 s in at shard 13/128 with 37.3 GiB free).
+
+Exit codes: 0 endpoint healthy; 3 dead and stopped; 4 watchdog's own error or a refused arm.
 """
 
 import argparse
@@ -345,6 +352,48 @@ def resolve_container(node: str, task_id: str) -> str:
     return pick_container([n.strip() for n in out.splitlines() if n.strip()], task_id)
 
 
+def list_containers(node: str) -> list[str]:
+    """Container names running on the node (ssh); `[]` when the probe itself fails."""
+    try:
+        out = subprocess.run(
+            [
+                "ssh", "-n", "-o", "BatchMode=yes", f"red@{node}",
+                "docker ps --format '{{.Names}}'",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        ).stdout
+    except (subprocess.SubprocessError, OSError):
+        out = ""
+    return [n.strip() for n in out.splitlines() if n.strip()]
+
+
+def container_arm_refusal(task_id: str, container: str, running: list[str]) -> str | None:
+    """Why this watchdog must not arm, or `None` when it may.
+
+    Measured 2026-11-10 (the ERNIE TP=4 arm): the caller passed the id `sparkrun status` prints,
+    which already carries the `sparkrun_` prefix. `resolve_container` prepends the prefix again,
+    resolves nothing, and the tool armed against a container that did not exist; its
+    `--dead-grace` then fired 120 s into a healthy load (shard 13/128, 37.3 GiB free) and stopped
+    a boot that was never dead. A watchdog that cannot name the container it is watching has no
+    evidence to act on, so it must refuse to arm rather than arm blind: no stop path, exit 4.
+    """
+    if task_id.startswith("sparkrun_"):
+        return (
+            f"task id {task_id!r} already carries the 'sparkrun_' prefix this tool adds; pass "
+            "the bare `<intent>_<launch>` id (or --container explicitly)"
+        )
+    if container not in running:
+        shown = ", ".join(running[:5]) if running else "none"
+        return (
+            f"no running container named {container!r} on the node at arm time "
+            f"(running: {shown}); pass --container with the name `docker ps` shows"
+        )
+    return None
+
+
 def capture_serve_log(node: str, container: str, out_dir: Path, log) -> Path | None:
     """Copy the serve log out of the container before the stop makes it unreachable.
 
@@ -497,8 +546,21 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--log", default="")
     args = ap.parse_args(argv)
 
+    running = list_containers(args.node)
     container = args.container or resolve_container(args.node, args.task_id)
     log = open(args.log, "a", encoding="utf-8") if args.log else sys.stdout  # noqa: SIM115 (whole-run handle)
+    # Name the container the tool resolved, so a doubled prefix or a typo is visible in the log
+    # rather than inferred from a stop 120 s later.
+    print(
+        f"WATCHDOG arm: task={args.task_id} container={container} "
+        f"({('explicit' if args.container else 'resolved via docker ps')}) node={args.node}",
+        file=log,
+        flush=True,
+    )
+    refusal = container_arm_refusal(args.task_id, container, running)
+    if refusal:
+        print(f"WATCHDOG: refusing to arm -- {refusal}", file=log, flush=True)
+        return 4
     # A stop tears the container down, so a serve log captured after it does not exist:
     # the evidence file lands beside this watchdog's own log (cwd when --log is unset).
     log_dir = Path(args.log).expanduser().resolve().parent if args.log else Path.cwd()
