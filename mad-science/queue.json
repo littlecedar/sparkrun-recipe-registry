@@ -2353,6 +2353,21 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "pool-target-probe-beegfs-ctl-absent",
+      "title": "Pool storage-target byte accounting is unreachable: beegfs-ctl is absent from .30 though beegfs-utils 20:8.4.1 is installed",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "Measured 2026-11-10 15:05:59Z and again 15:06:29Z on .30: beegfs-ctl exits 127 (command not found) as the red user, and no binary named beegfs-ctl exists under /usr, /opt or /sbin at depth <=5, although dpkg lists beegfs-utils 20:8.4.1 plus beegfs-tools 20:8.4.1 installed. This matters because three consecutive hourly ticks (07:13, 09:10, 10:12) closed the pool's steady growth with 'the next probe is the storage target's own byte accounting', i.e. beegfs-ctl --listtargets --nodetype=storage --space: that probe cannot run on the node that hosts the mgmtd, so the growth stays unexplained by construction, not for lack of trying. Acceptance: locate or install the control binary (dpkg -L beegfs-utils / beegfs-tools to find its real path, or the package that ships it), record two --space reads 30 s apart, and name which storage target grew during a window in which df -B1 /mnt/beegfs also rises. Evidence to beat: today's series used 13 866 263 642 112 B 15:03:36Z -> 13 866 274 127 872 B 15:06:29Z (+10 485 760 B / 173 s, in 524 288 B chunks) with no file under huggingface/hub at depth <=3 newer than 12 min, no pool entry at depth <=2 newer than 6 min, and no hf/hf_transfer/huggingface-cli process on any of the six nodes.",
+      "provenance": "",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []

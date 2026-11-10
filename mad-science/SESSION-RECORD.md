@@ -8731,3 +8731,45 @@ id, so the pin is unresolved rather than proven wrong.
   102-entry hub count, not the cache's byte total, and the cache being a subtree of the pool only makes
   that pool figure an upper bound on it. The published board carries neither claim, so the defect is
   confined to that commit body.
+
+## 2026-11-10 10:14 ET — hourly board tick: production holds .31-.34, and the pool's next probe is registered as blocked
+- **Board published twice, `lint` rc=0 each time.** First pass covered the 09:10 base; the tick then
+  registered one row, so the queue row and the work-queue block were re-derived from the new snapshot
+  (`fd9cab59…`) and published again on a base that was the first pass's own bytes. The second publish
+  is the one that stands: 147 tasks, 106 done, 30 queued, 11 blocked, 41 open, `check` rc=0.
+- **Census.** `docker ps -aq` `1/1/1/1/1/0`, running `0/1/1/1/1/0`, volumes `0` on all six. `.30` still
+  carries the `sm121m` container in `Created` from 2026-11-08 15:32:33Z; `.31`-`.34` carry the production
+  knapcio serve as `Up 5 hours (healthy)` on image id `3f4480818acb`, started 10:12:03Z, and liveness is
+  proved past the endpoint: `pgrep -a -f sglang.launch_server` finds pids 271/310/310/312 inside the four
+  rank containers and `/v1/models` answers 200 at `max_model_len` 1048576.
+- **Root avail fell 1 028 096 B over ~68 s, and this time one node carries it.** `.30` -520 192, `.31`
+  -106 496, `.32` -106 496, `.33` -106 496, `.34` -114 688, `.35` -73 728. Last two ticks the fall was
+  evenly spread and the churn was left unexplained; here `.30` alone is half of it, so the mover is named
+  rather than the node's own churn assumed.
+- **Pool grew 10 485 760 B in 173 s in 512 KiB chunks, with three falsifiers empty.** `df -B1` on the
+  mount read 13 866 263 642 112 B at 15:03:36Z and 13 866 274 127 872 B at 15:06:29Z; the series is
+  bursty, +524 288 B in each short window and one +8 912 896 B across an 83 s gap. Re-run in this window:
+  no `hf`/`hf_transfer`/`huggingface-cli` process on any of the six nodes, no file under
+  `huggingface/hub` at depth <=3 with an mtime inside 12 min, and no pool entry at depth <=2 inside
+  6 min (`huggingface` is the only top-level directory, mtime 09:07). So the file-tree explanation stays
+  closed, not merely unexamined.
+- **The probe three ticks pointed at cannot run, and that is now registered.** `beegfs-ctl` exits 127 on
+  `.30` and no such binary exists under `/usr`, `/opt` or `/sbin` at depth <=5, though `beegfs-utils`
+  20:8.4.1 and `beegfs-tools` 20:8.4.1 are installed. So "the next probe is the storage target's own byte
+  accounting" has been an unreachable instruction since 07:13, not an untried one. Row
+  `pool-target-probe-beegfs-ctl-absent` carries the measurement, the two `--space` reads it wants, and
+  the series a name would have to beat.
+- **Campaign still holds nothing.** User unit `sparkrun-campaign` `active` on `.30`, `MainPID 4140537`,
+  `NRestarts=0`, entered 05:16:53 ET and unchanged across seven ticks; `director status --root
+  ~/benchmarks/h2h-20261107` reads 9 measured, 10 blocked across 19 arms; leases are null on every arm in
+  all nine `state.json` roots (33 arms), and no file under `~/benchmarks` is newer than 12:00Z.
+- **Production claim re-read, unchanged.** `.local/fleet-window.lock` is 901 B, sha256 `5c980895…`,
+  mtime 05:16:53 ET, byte-identical on the head and in this clone.
+- **Two defects in this tick's own compose script, caught before publish.** (1) The publication row I
+  wrote quoted the section heading inside backticks, and `t.index("## Work queue")` matched *that*
+  occurrence, truncating the row mid-cell and dropping the real heading; the fix is the line-anchored
+  `re.search(r"(?m)^## Work queue$")`, which is the same trap the skill already names for
+  `text.split("## Work queue")`. (2) The row table had eight keys but only five substitution entries, so
+  a board carrying the previous cycle's census figures under a new title was one `publish` away; the
+  fresh-marker/absent-marker assert is what caught it, and that assert belongs in every tick's compose
+  rather than in the reader's eye.
