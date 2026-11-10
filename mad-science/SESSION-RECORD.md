@@ -7399,3 +7399,43 @@ this tip, and run the identical 1M cell (`--chars-per-token 6.65`, guard 6.0 GiB
 missing control for arm 3's 56.2 ms/step. Register: 125 rows, `task-queue check` rc=0; fleet idle,
 no window lock, no campaign lease touched by this work. Receipts
 `~/benchmarks/{sm121-b12x,sm121-arm5,ds4-64k}-20261109/`.
+
+## 2026-11-09 20:25 ET — 20:00 tick: idle six, a writerless +140 MiB/hour, and two label defects in the tick's own board
+
+- **Read-only on the fleet.** Six-node census **20:03:14–20:03:18 ET** on this workstation's
+own aliases: `docker ps -aq` **1 / 0 / 0 / 0 / 0 / 0**, `docker ps -q` **0** and
+`docker volume ls -q` **0** on all six, `sparkrun status` idle `No sparkrun containers running`
+everywhere, and `.30`'s lone container still the never-started `Created` `sm121m`
+(`dsv41-sm121-dg:0.2.1`). Root `df -B1` pair to **20:06:14/16 ET** (176–178 s) is net
+**−18 456 576 B**, and its two identical movers — `.32` and `.35`, each −8 691 712 B — are named
+with **no mechanism claimed**; the other four fall 184 320–303 104 B. All six `7.0.0-1025-nvidia`,
+`kho=off`, `CmaTotal`/`CmaFree` 0; `MemAvailable` 115.08 GiB (`.30`) and 116.82–117.34 GiB on the
+rest; `.34` nothing live (no reservation). `.35`'s uptime is the 16:59 reboot that reverted the
+64 KiB trial.
+- **The pool grew 140 MiB in the hour with nothing in the HF namespace to account for it.** Through
+the head's mount at **20:03:44 ET**: total 24 191 229 755 392 B, used **12 427 348 934 656 B**,
+avail 11 763 880 820 736 B, `statfs` agreeing (46 141 109 blocks × 524 288 B); a four-sample 90 s
+series rises **+1 048 576 B** (two 512 KiB chunks), and the used figure is **+146 800 640 B above
+the 19:25 read** while hub dir mtime is still **18:45:48**, entries **101** / `models--*` **96**,
+the newest file **18:45**, no `hf download` process and no queued row staging a body. So the growth
+is outside the hub and is left **unattributed**; the 475.1 GiB fall against 18:03 keeps its two
+facts (that mtime, the 97 → 96 count) and its entry is still **UNVERIFIED by name**.
+- **Nothing holds a node.** Campaign unit `active` (`Result=success`, `NRestarts=0`, MainPID 2078281
+unchanged since 19:26), nine roots **32 arms / 0 live leases**, `director status` 9 measured /
+9 blocked. No `.local/fleet-window.lock` in this clone or on head. Register **committed and clean**
+at `5c9dd3a4…` — 125 tasks, 99 done / 16 queued / 10 blocked, 0 claims, 0 open questions,
+`check` rc=0 — so the last three ticks' "register is an uncommitted worktree copy" caveat is over.
+- **Board `cb45f98`, and the tick's own composition shipped two defects it then fixed.** Folded
+`b9f891b`, `306e655`, `ffa5873` and `2540031` after confirming none was already on the board, plus
+one refresh row. The first publish (20:12) carried a `%.2f` format-spec leak that left a literal
+`f` after each GiB figure, and quoted the pool's **avail** share (48.6 %) where the used share —
+the side earlier boards read — is **51.4 %**. Both were mine, both were caught before commit, and
+the corrected board was republished (20:13) with the cell itself then cleaned of the leaked literal
+(a third write). The **`%%` still in the board is not a leak**: `%%` is mermaid's comment token and
+the graph block must stay verbatim from `task-queue.py graph`.
+- **Remains.** (a) ~140 MiB/hour of pool growth has no identified writer, so a sub-hour drift inside
+the HF namespace would still hide between ticks; hub entry **names**, not just counts, are what would
+attribute the next removal. (b) The 19:42 next action — the arm-3 paired control boot on
+`.31`-`.35` and the identical 1M cell — was **not touched** this hour, so arm 3's 56.2 ms/step still
+has no falsifier. (c) Left untouched: every node's containers and volumes, `mad-science/queue.json`
+(read only, snapshot rendered by the tool), `.idea/modules.xml`, and the campaign.
