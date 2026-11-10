@@ -42,13 +42,14 @@ POLICY_INDEX = REPO_ROOT / "mad-science" / "README.md"
 FAMILY_DIR = "/<home-dir>/.cache/sparkrun/runtime-cache/sglang"
 
 #: ``(model, model_revision, leaf)`` observed on the fleet 2026-10-15, plus the
-#: knapcio arm's 1017 pin (2026-10-18).  The second is the *same model unpinned*
+#: knapcio arm's 1017 pin (2026-10-18, moved to the 2026-11-10 template refresh).
+#: The second is the *same model unpinned*
 #: (an empty revision), the third the revision the serving image bakes and the
 #: lane explicitly does not serve — the three that could not be told apart by
 #: `modlogs/` alone.  The last row is the pre-1017 knapcio pin, now a leftover.
 FLEET_LEAVES = [
-    ("deepseek-ai/DeepSeek-V4.1-Flash-1017", "1bae0e1088993b9b82de08f59de5be5a34e42170",
-     "deepseek-ai__DeepSeek-V4.1-Flash-1017-10a02831"),
+    ("deepseek-ai/DeepSeek-V4.1-Flash-1017", "08c8657f02291e11b6f6b63e0e16014f8e748518",
+     "deepseek-ai__DeepSeek-V4.1-Flash-1017-b03807ac"),
     ("deepseek-ai/DeepSeek-V4.1-Flash", "", "deepseek-ai__DeepSeek-V4.1-Flash-9a74d993"),
     ("deepseek-ai/DeepSeek-V4.1-Flash", "fb2764a5cf321eaa5070ca8f9e892818f477c16d",
      "deepseek-ai__DeepSeek-V4.1-Flash-db95f94c"),
@@ -127,7 +128,7 @@ class RecipeScan(unittest.TestCase):
         self.keys = audit.recipe_keys(REPO_ROOT)
 
     def test_shipped_pin_is_found_and_names_the_recipe(self):
-        hits = self.keys.get("deepseek-ai__DeepSeek-V4.1-Flash-1017-10a02831")
+        hits = self.keys.get("deepseek-ai__DeepSeek-V4.1-Flash-1017-b03807ac")
         self.assertTrue(hits, "the knapcio pin's leaf is not produced by any recipe")
         self.assertIn("shipped:recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml", hits)
 
