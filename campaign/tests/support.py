@@ -143,14 +143,17 @@ def oom_watchdog(
     unread: int = 0,
     artifact: str = "yes",
     evidence_line: str = "-",
+    cgroup_oom: str = "-",
     hosts: dict[str, tuple[str, str]] | None = None,
 ) -> None:
     """The earlyoom reader `run-arm.sh` writes: one header carrying the arm's verdict, then one
     line per host with the journal state and the matching line verbatim (`hosts` maps
-    host -> (journal, line)).
+    host -> (journal, line)). `cgroup_oom` names the container whose cgroup emitted an `oom`
+    event; it is recorded on every header, whatever the verdict.
     """
     lines = [f"# oom_watchdog={state} since=@1762613000 hosts=node-a exit={exit_codes} "
-             f"unread={unread} artifact={artifact} evidence={evidence_line} view=host"]
+             f"unread={unread} artifact={artifact} cgroup_oom={cgroup_oom} "
+             f"evidence={evidence_line} view=host"]
     for host, (journal, line) in (hosts or {}).items():
         lines.append(f"{host} exit={exit_codes} journal={journal} line={line} view=host")
     write(Path(arm_dir) / "oom-watchdog.txt", "\n".join(lines) + "\n")

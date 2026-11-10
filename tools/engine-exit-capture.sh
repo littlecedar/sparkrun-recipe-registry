@@ -13,10 +13,14 @@
 # `create`.
 #
 # On each `create` it attaches `docker logs -f` by container id (docker replays the log from
-# the start, so an attach that begins before `start` still yields every line), and on `die`
-# it records the exit code the event itself carries. Both are plain file writes on the node,
-# so they outlive the container. A capture that cannot run or saw nothing says so in
-# `<dir>/no-capture.txt`; it never leaves an empty file to be read as "no output".
+# the start, so an attach that begins before `start` still yields every line), on `die` it
+# records the exit code the event itself carries, and on `oom` it records that the container's
+# cgroup memory limit killed a process in it. Docker emits `oom` BEFORE `die` (measured
+# 2026-11-10), so it survives `--rm` and is the only evidence of a `--memory` kill: the victim
+# may be a child of `sleep infinity` while the container lives on, in which case the exit code
+# is 0 (`# capture: die exit=0`) and the `oom` line is the whole verdict. All three are plain
+# writes on the node, so they outlive the container. A capture that cannot run or saw nothing
+# says so in `<dir>/no-capture.txt`; it never leaves an empty file to be read as "no output".
 #
 # Exits on: its deadline, an idle window after every created container died, the event
 # stream ending, or SIGTERM (the caller kills it at teardown via <dir>/pid).
@@ -30,7 +34,7 @@ IDLE_EXIT=${CAPTURE_IDLE_EXIT:-120}
 mkdir -p "$CAP" 2>/dev/null || { echo "engine-exit-capture: cannot create $CAP" >&2; exit 1; }
 printf '%s\n' "$$" > "$CAP/pid"
 
-filters=(--filter type=container --filter event=create --filter event=die)
+filters=(--filter type=container --filter event=create --filter event=die --filter event=oom)
 [ -n "$LABEL" ] && filters+=(--filter "label=$LABEL")
 
 # A FIFO, not a pipeline or a coprocess: a pipeline hides docker's pid, and a named coproc
@@ -99,6 +103,13 @@ while [ "$deadline" -eq 0 ]; do
           [ "$code" = "<no value>" ] && code=unknown
           printf '# capture: die exit=%s\n' "$code" >> "$CAP/$name.die"
           died[$name]=1
+          ;;
+        oom)
+          # The container's cgroup memory limit killed a process in it. Names the container,
+          # NOT the victim: a child can die while PID 1 (`sleep infinity`) lives on, which is
+          # the shape sparkrun launches, so the exit code may still be 0. Read this beside
+          # whether the serve died, never instead of it.
+          printf '# capture: oom %s %s\n' "$id" "$name" >> "$CAP/$name.oom"
           ;;
       esac
       continue

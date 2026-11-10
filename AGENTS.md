@@ -21,7 +21,7 @@ still add no row, because an accuracy declaration belongs inside `metadata:` whe
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1559 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
+suite 1567 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -510,6 +510,14 @@ remove what the session created** — a leftover is anything undocumented, unkno
   `MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark#259` (KHO root cause, `kho=off`, two independent
   confirmations). **Applied fleet-wide 2026-10-24** (all six nodes carry `kho=off`; `.30` rebooted
   under the owner's apply instruction); power-cycle remains the fallback for a genuinely wedged HCA.
+- **A container `memory_limit` is not a memory guard on GB10.** `executor_config.memory_limit`
+  (`docker run --memory=`) bounds the container's host-side anon/pinned memory only: CUDA/UVM is
+  charged to the node, not to the container cgroup (probe 2026-11-10 — 16 GiB of
+  `torch.zeros(device="cuda")` inside an 8 GiB container left `memory.current` at 409 MiB and the
+  host pool 17 GiB lighter), so it never replaces earlyoom or the 6.0 GiB `MemAvailable` sampler.
+  Rule, pool ceiling and the `--memory-swap` caveat live in `recipes/MECHANICS.md`
+  §Container and lifecycle; the verdict is register row
+  `container-memory-limit-bounds-host-side-only`.
 - **Never remove containers by list expansion on a shared node.** `docker rm -f $(docker ps -aq)`,
   `… | xargs rm -f` and `docker container prune` delete every container on the node, ours or anyone
   else's, stopped or running — the same class of mistake as a blanket `git checkout` on the head, and
@@ -946,7 +954,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1559 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1567 tests,
   3 skipped on 2026-11-08** in a clean checkout of the tracked tree, 4 in CI and 2 in this clone (it
   carries the untracked `.local/fleet.yaml`). The first three, by name and cause: `test_ifm_recipes`'
   research-doc case (the git-ignored K2-09B docs are absent on any fresh checkout);

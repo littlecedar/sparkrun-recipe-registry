@@ -2261,6 +2261,61 @@ class OomWatchdog(ExecutedBlock):
         self.assertIn("oom_watchdog=unknown", files["oom-watchdog.txt"])
         self.assertNotIn("oom_watchdog=clean", files["oom-watchdog.txt"])
 
+    #: A container `--memory` kill: the cgroup SIGKILLs the serve under PID 1 `sleep infinity`,
+    #: so the container survives and exits 0 — measured on `.35` 2026-11-10 (`oom` before
+    #: `die exit=0`, container `status=running oom=true`), which is why the exit code alone
+    #: cannot name this death.
+    OOM_THEN_DIE = ("# capture: create deadbeef sparkrun_t1_node_0\n"
+                    "boom\n"
+                    "# capture: oom deadbeef sparkrun_t1_node_0\n"
+                    "# capture: die exit=0\n")
+
+    def test_a_capped_container_with_no_artifact_is_named_cgroup_oom(self):
+        rc, out, files, _ = self.run_oom(journal="0\n", exits=self.OOM_THEN_DIE, house=False)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("oom_watchdog=cgroup-oom", files["oom-watchdog.txt"])
+        self.assertIn("cgroup_oom=sparkrun_t1_node_0", files["oom-watchdog.txt"],
+                      "the verdict does not name the capped container")
+        self.assertIn("evidence=oom sparkrun_t1_node_0", files["oom-watchdog.txt"])
+        self.assertNotIn("oom_watchdog=clean", files["oom-watchdog.txt"])
+
+    def test_a_137_without_an_oom_event_is_still_unknown(self):
+        """The false positive this branch must not introduce: 137 alone names no killer."""
+        rc, out, files, _ = self.run_oom(journal="0\n", exits="# capture: die exit=137\n", house=False)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("oom_watchdog=unknown", files["oom-watchdog.txt"])
+        self.assertIn("cgroup_oom=-", files["oom-watchdog.txt"],
+                      "a die-only capture manufactured a cgroup fact")
+
+    def test_an_oom_on_an_arm_that_measured_keeps_the_fact_and_stays_clean(self):
+        """A capped child on a serve that still delivered: the fact survives, the verdict does not."""
+        rc, out, files, _ = self.run_oom(journal="0\n", exits=self.OOM_THEN_DIE, house=True)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("oom_watchdog=clean", files["oom-watchdog.txt"])
+        self.assertIn("cgroup_oom=sparkrun_t1_node_0", files["oom-watchdog.txt"],
+                      "the capped-child fact was dropped with the verdict")
+
+    def test_an_unreadable_journal_never_becomes_a_cgroup_verdict(self):
+        rc, out, files, _ = self.run_oom(journal=None, exits=self.OOM_THEN_DIE, house=False)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("oom_watchdog=unknown", files["oom-watchdog.txt"])
+        self.assertIn("unread=1", files["oom-watchdog.txt"])
+
+    def test_negative_control_dropping_the_oom_read_loses_the_cgroup_verdict(self):
+        mutated = self.block().replace(
+            "sed -n 's/^# capture: oom [^ ]* \\(.*\\)$/\\1/p'", "sed -n 's/^$//'")
+        self.assertNotIn("# capture: oom", mutated, "the oom read survived the mutation")
+        self.assertNotEqual(mutated, self.block(), "the reader moved; this control is vacuous")
+        rc, out, files, _ = self.run_block(
+            mutated, hosts=("head.test",), house=False,
+            files={"head.test.journal": "0\n"},
+            receipt_extra={"docker-rank0.log": self.OOM_THEN_DIE},
+            env_extra={"OOM_SINCE": "1762613000"})
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("oom_watchdog=cgroup-oom", files["oom-watchdog.txt"],
+                         "the mutation kept the verdict; the control is void")
+        self.assertIn("cgroup_oom=-", files["oom-watchdog.txt"])
+
     def test_negative_control_ignoring_the_journal_reads_a_kill_as_clean(self):
         """The defect the field exists for: 143 + an earlyoom line, recorded as a clean death."""
         mutated = self.block().replace('if [ -n "$line" ]; then', "if false; then")

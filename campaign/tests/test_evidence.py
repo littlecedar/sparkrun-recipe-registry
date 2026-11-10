@@ -360,6 +360,37 @@ class OomWatchdogField(unittest.TestCase):
         write(arm_dir / "oom-watchdog.txt", "truncated before the verdict\n")
         self.assertEqual(evidence.oom_watchdog(arm_dir)["state"], "unknown")
 
+    def test_a_cgroup_limit_kill_is_named_not_collapsed_to_unknown(self) -> None:
+        """`--memory` kill: serve SIGKILLed under `sleep infinity`, container exit 0.
+
+        The campaign sees the fourth state and the capped container, instead of the `unknown`
+        that a 137/143-only contract would report for a death with no exit code at all.
+        """
+        arm_dir = receipt(self.root, "arm")
+        oom_watchdog(arm_dir, state="cgroup-oom", exit_codes="-", artifact="no",
+                     cgroup_oom="sparkrun_t1_node_0",
+                     evidence_line="oom sparkrun_t1_node_0", hosts={"node-a": ("ok", "-")})
+        verdict = evidence.oom_watchdog(arm_dir)
+        self.assertEqual(verdict["state"], "cgroup-oom")
+        self.assertIn("cgroup_oom=sparkrun_t1_node_0", verdict["reason"],
+                      "the capped container is not named")
+
+    def test_a_capped_child_on_a_measured_arm_keeps_the_fact_and_stays_clean(self) -> None:
+        arm_dir = receipt(self.root, "arm")
+        oom_watchdog(arm_dir, state="clean", exit_codes="0",
+                     cgroup_oom="sparkrun_t1_node_0", hosts={"node-a": ("ok", "-")})
+        verdict = evidence.oom_watchdog(arm_dir)
+        self.assertEqual(verdict["state"], "clean")
+        self.assertIn("cgroup_oom=sparkrun_t1_node_0", verdict["reason"],
+                      "the capped-child fact was dropped from the receipt")
+
+    def test_an_unknown_verdict_is_not_promoted_by_the_fact_alone(self) -> None:
+        arm_dir = receipt(self.root, "arm")
+        oom_watchdog(arm_dir, state="unknown", exit_codes="137", artifact="no",
+                     cgroup_oom="sparkrun_t1_node_0", hosts={"node-a": ("ok", "-")})
+        self.assertEqual(evidence.oom_watchdog(arm_dir)["state"], "unknown",
+                         "the fact alone is not a verdict; the header decides")
+
     def test_a_sidecar_marker_does_not_swallow_the_artifact(self) -> None:
         arm_dir = sidecar_receipt(self.root, "arm", cells=2)
         oom_watchdog(arm_dir, state="earlyoom-terminated", exit_codes="143",

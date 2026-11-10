@@ -56,6 +56,16 @@ EVENTS = (
     "die deadbeef sparkrun_t1_node_0 137\n"
 )
 
+#: Docker emits `oom` BEFORE `die` (measured on `.35` 2026-11-10), and the container can outlive
+#: the kill: sparkrun starts every serve under PID 1 `sleep infinity`, so a `--memory` breach
+#: SIGKILLs the serve child and the container later exits 0. The `oom` line is then the only
+#: evidence, which is why it is its own fixture rather than a third line of EVENTS.
+OOM_EVENTS = (
+    "create deadbeef sparkrun_t1_node_0 <no value>\n"
+    "oom deadbeef sparkrun_t1_node_0 <no value>\n"
+    "die deadbeef sparkrun_t1_node_0 0\n"
+)
+
 
 class Harness(unittest.TestCase):
     def run_capture(
@@ -114,6 +124,21 @@ class CaptureOnDie(Harness):
         self.assertIn("label=sparkrun.recipe=/r/x.yaml", argv,
                       f"a peer's boot on a shared node would be captured: {argv} / {out}")
         self.assertIn("boom", files.get("sparkrun_t1_node_0.log", ""))
+
+    def test_a_cgroup_oom_is_recorded_even_when_the_container_exits_0(self):
+        """The `--memory` kill this fleet can have: serve SIGKILLed, `sleep infinity` survives.
+
+        Without the `oom` event the receipt only sees `die exit=0`, i.e. no failure at all --
+        which is why the capture subscribes to it rather than inferring from the exit code.
+        """
+        files, argv, out = self.run_capture(events=OOM_EVENTS)
+        self.assertIn("event=oom", argv,
+                      f"the stream does not subscribe to the cgroup's oom event: {argv} / {out}")
+        oom = files.get("sparkrun_t1_node_0.oom", "")
+        self.assertIn("# capture: oom deadbeef sparkrun_t1_node_0", oom,
+                      f"the cgroup kill left no evidence: {files} / {out}")
+        self.assertIn("die exit=0", files.get("sparkrun_t1_node_0.die", ""),
+                      f"the fixture's own exit state is not captured: {files}")
 
 
 class FailClosed(Harness):
@@ -193,6 +218,29 @@ class NegativeControls(Harness):
                       "the mutation broke the attach, not the die watcher")
         self.assertNotIn("sparkrun_t1_node_0.die", files,
                          "the exit state survived the mutation; the control is void")
+
+    def test_a_137_without_an_oom_event_leaves_no_cgroup_evidence(self):
+        """The false positive that matters: 137 alone is docker's kill or a bare SIGKILL.
+
+        Only the `oom` event names the cgroup as the killer, so a die-only stream must produce
+        no `.oom` artifact for the receipt to read.
+        """
+        files, _argv, _out = self.run_capture(events=EVENTS)
+        self.assertIn("die exit=137", files.get("sparkrun_t1_node_0.die", ""))
+        self.assertNotIn("sparkrun_t1_node_0.oom", files,
+                         f"a plain exit 137 manufactured cgroup evidence: {files}")
+
+    def test_removing_the_oom_arm_loses_the_cgroup_evidence(self):
+        mutated = "\n".join(
+            line for line in TOOL.read_text().splitlines()
+            if '>> "$CAP/$name.oom"' not in line
+        )
+        self.assertNotIn('>> "$CAP/$name.oom"', mutated, "the oom write survived the mutation")
+        files, _argv, _out = self.run_capture(events=OOM_EVENTS, script=mutated)
+        self.assertIn("die exit=0", files.get("sparkrun_t1_node_0.die", ""),
+                      "the mutation broke the die watcher, not the oom arm")
+        self.assertNotIn("sparkrun_t1_node_0.oom", files,
+                         "the cgroup evidence survived the mutation; the control is void")
 
 
 if __name__ == "__main__":

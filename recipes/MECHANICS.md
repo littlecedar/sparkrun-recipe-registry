@@ -250,7 +250,25 @@ the runtime's own `known_config_keys()`: flag-map keys plus the keys it reads ou
   native-subprocess executor with no container (`core/recipe.py:1310-1313`). An
   unresolvable selector is an error (`core/validation.py:1705-1734`).
 - **`executor_config`** — mapping, default `{}` of container-engine settings such as
-  `auto_remove` and `restart_policy` (`core/recipe.py:1306-1308`).
+  `auto_remove`, `restart_policy`, `shm_size`, `entrypoint` and `memory_limit`
+  (`core/recipe.py:1306-1308`); resolved through the executor chain
+  `orchestration/executor.py:584-632`. It is an **executor** key, not a runtime one:
+  `defaults: memory_limit` is inert (warned as `unmapped-config-key`, or swept into
+  `runtime_config`, where no runtime reads it).
+- **`executor_config.memory_limit`** — string (e.g. `"72G"`), emitted as `docker run --memory=`
+  (`orchestration/executors/docker.py:457-458`). **It bounds the container's host-side memory
+  only** — anon RSS, pinned staging, page cache. On GB10 unified memory `cudaMalloc`/UVM is
+  charged to the node, not to the container cgroup: 16 GiB of `torch.zeros(device="cuda")` inside
+  an 8 GiB container left `memory.current` at 409 MiB with `oom_kill 0`, while host `used` rose
+  17 GiB (probe on `.35`, 2026-11-10; register row `container-memory-limit-bounds-host-side-only`).
+  It therefore never replaces earlyoom or the 6.0 GiB `MemAvailable` stop rule. The only rule the
+  evidence supports is `2 × the arm's measured peak container cgroup` (receipts already record
+  it), rounded up to the next 8 GiB, floor 16 GiB; the pool ceiling is
+  `121.69 − 6.9 (host baseline) − 2.0 (sampler margin) ≈ 112G`, above which the knob cannot fire.
+  **Until sparkrun emits `--memory-swap` equal to `--memory`, a set limit lets a breach swap up to
+  the limit** (`--memory` alone leaves `memory.swap.max = memory.max`, and the nodes have a swap
+  file), so treat it as documentation-only; the upgrade is the one-liner at
+  `orchestration/executors/docker.py:457-458`.
 - **`scheduler`** — string, default `""`; `""` selects greedy placement, and
   `occupancy-sparse` or `occupancy-dense` opt into occupancy placement with fractional GPU
   sharing (`core/recipe.py:1315-1319`). `--scheduler` overrides it.

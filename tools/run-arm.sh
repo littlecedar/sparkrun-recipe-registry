@@ -474,17 +474,26 @@ stop_capture() {
 # boot reads clean-but-unexplained and the next fit verdict blames the engine. 137 is SIGKILL (a
 # cgroup OOM or docker's own kill). The journal is the only place that names the killer, so this
 # reads it per lease host over the arm's own window and records the matching line verbatim in
-# `oom-watchdog.txt`. `house.yaml` gets one field, `oom_watchdog`, whose three values are the
+# `oom-watchdog.txt`. `house.yaml` gets one field, `oom_watchdog`, whose four values are the
 # contract: `clean` needs a readable journal, an exit outside {137,143} and a result artifact;
-# anything else is `unknown`, and `earlyoom-terminated` needs a journal line, never suspicion.
+# `earlyoom-terminated` needs a journal line, never suspicion; `cgroup-oom` needs the docker
+# `oom` event the capture recorded for this arm's container AND no result artifact -- a
+# `--memory` breach kills the serve whose PID 1 is `sleep infinity`, so the container survives
+# with exit 0 and the event is the only evidence (see tools/engine-exit-capture.sh). Anything
+# else is `unknown`. A cgroup kill is never `clean`, and an `oom` event on an arm that did
+# produce a result is a capped child, not an arm death: the fact goes in `cgroup_oom=` and the
+# state stays what the artifact and journal say.
 oom_watchdog_check() {
   [ -n "${OOM_SINCE:-}" ] || return 0        # never launched: there is no window to read
   [ -z "${OOM_DONE:-}" ] || return 0         # INT then TERM must not append the field twice
   OOM_DONE=1
-  local hn j jrc jbody hit jstate line= unread=0 exit_codes= artifact= state=
+  local hn j jrc jbody hit jstate line= unread=0 exit_codes= artifact= state= cgroup_oom=
   exit_codes=$( { sed -n 's/^# capture: die exit=\([0-9][0-9]*\)$/\1/p' "$L"/docker-*.log 2>/dev/null
                   sed -n 's/.*exit status \([0-9][0-9]*\).*/\1/p' "$L/launch.log" 2>/dev/null
                 } | sort -u | tr '\n' ',' | sed 's/,$//' )
+  # Container names whose cgroup emitted an `oom` event, from the capture merged at harvest.
+  cgroup_oom=$(sed -n 's/^# capture: oom [^ ]* \(.*\)$/\1/p' "$L"/docker-*.log 2>/dev/null \
+               | sort -u | tr '\n' ',' | sed 's/,$//')
   for f in "$L/house.yaml" "$L/ladder.yaml" "$L/ladder.json" "$L/teb-decision.log"; do
     [ -s "$f" ] && { artifact=yes; break; }
   done
@@ -508,6 +517,12 @@ oom_watchdog_check() {
   done
   if [ -n "$line" ]; then
     state=earlyoom-terminated
+  elif [ -n "$cgroup_oom" ] && [ -z "$artifact" ] && [ "$unread" -eq 0 ]; then
+    # The container was capped and the arm produced nothing: the serve died to SIGKILL, which
+    # with PID 1 = `sleep infinity` leaves no exit code at all. Evidence is the container name.
+    # An unreadable journal outranks it: we could not rule out earlyoom naming a victim too.
+    state=cgroup-oom
+    line="oom $cgroup_oom"
   elif [ "$unread" -gt 0 ] || [ -z "$artifact" ] || [ -z "$exit_codes" ]; then
     state=unknown
   else
@@ -516,8 +531,8 @@ oom_watchdog_check() {
       *) state=clean ;;
     esac
   fi
-  printf '# oom_watchdog=%s since=@%s hosts=%s exit=%s unread=%s artifact=%s evidence=%s view=host\n' \
-    "$state" "$OOM_SINCE" "$HOSTS" "${exit_codes:--}" "$unread" "${artifact:-no}" "${line:--}" \
+  printf '# oom_watchdog=%s since=@%s hosts=%s exit=%s unread=%s artifact=%s cgroup_oom=%s evidence=%s view=host\n' \
+    "$state" "$OOM_SINCE" "$HOSTS" "${exit_codes:--}" "$unread" "${artifact:-no}" "${cgroup_oom:--}" "${line:--}" \
     > "$L/oom-watchdog.txt"
   cat "$L/oom-watchdog.txt.hosts" >> "$L/oom-watchdog.txt"
   rm -f "$L/oom-watchdog.txt.hosts"
@@ -1033,10 +1048,10 @@ for hn in $(echo "$HOSTS" | tr ',' ' '); do
       *.log)
         rank=${f%.log}; rank=${rank##*_}
         ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
-          "cat '$CAPTURE_DIR/$f' '$CAPTURE_DIR/${f%.log}.die'" > "$L/docker-$rank.log" 2>/dev/null
+          "cat '$CAPTURE_DIR/$f' '$CAPTURE_DIR/${f%.log}.die' '$CAPTURE_DIR/${f%.log}.oom'" > "$L/docker-$rank.log" 2>/dev/null
         captured=$((captured + 1))
         echo "capture: $f on $hn -> docker-$rank.log" ;;
-      *.die) : ;;                        # merged into its log above
+      *.die|*.oom) : ;;                  # merged into its log above
       *)
         ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
           "cat '$CAPTURE_DIR/$f'" >> "$L/cap-$hn.log" 2>/dev/null ;;

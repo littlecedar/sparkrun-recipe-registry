@@ -50,14 +50,18 @@ _METRICS_LINE = re.compile(r"^(captured|absent|no_probe|wrong_port)\s+(.*)$")
 #: which outranks a capture, which outranks "the engine exposes nothing".
 _METRICS_RANK = {"absent": 0, "captured": 1, "wrong_port": 2, "no_probe": 3}
 #: `run-arm.sh`'s earlyoom reader, written on every exit after the launch: one header line
-#: `# oom_watchdog=<state> since=@… exit=… unread=… artifact=… evidence=…` then one
+#: `# oom_watchdog=<state> since=@… exit=… unread=… artifact=… cgroup_oom=… evidence=…` then one
 #: `<host> exit=… journal=ok|unreadable line=… view=host` per lease host. An earlyoom kill is a
 #: SIGTERM, so the engine exits 143 and prints no traceback; the journal line is the only evidence
 #: of the killer, and `unknown` is a real answer (a 137/143 with no line is never a clean death).
+#: `cgroup-oom` is a `--memory` limit kill, read off the docker `oom` event the exit capture
+#: records: the victim is the serve under `sleep infinity`, so the container exits 0 and no exit
+#: code exists. `cgroup_oom=` names the container even when the state is not `cgroup-oom` (a
+#: capped child on an arm that still measured), so the fact is never dropped.
 #: Read directly, never through the marker: a `sparkrun_benchmark` sidecar drops every flat key.
 OOM_WATCHDOG = "oom-watchdog.txt"
-_OOM_HEADER = re.compile(r"^# oom_watchdog=(earlyoom-terminated|clean|unknown)\b(.*)$")
-_OOM_STATES = frozenset({"earlyoom-terminated", "clean", "unknown"})
+_OOM_HEADER = re.compile(r"^# oom_watchdog=(earlyoom-terminated|cgroup-oom|clean|unknown)\b(.*)$")
+_OOM_STATES = frozenset({"earlyoom-terminated", "cgroup-oom", "clean", "unknown"})
 #: The flat marker's own keys. A house.yaml carrying only `sparkrun_benchmark` is sparkrun's nested
 #: sidecar instead: it has no ladder/accuracy field, and reading one into existence would be a
 #: fabricated verdict.
@@ -431,9 +435,11 @@ def oom_watchdog(arm_dir: str | Path) -> dict[str, str] | None:
 
     A sibling reader to :func:`metrics_status` for the sibling artifact `run-arm.sh` writes on
     every exit after the launch. earlyoom kills with SIGTERM, so the engine exits 143 and prints
-    no traceback; the journal line is the only evidence of the killer, and the three states are
-    the whole contract. ``unknown`` is a real answer, never a fallback to ``clean``: a 137/143
-    with no journal line, an unreadable journal or no result artifact all read ``unknown``.
+    no traceback; the journal line is the only evidence of the killer. A container `--memory`
+    limit kills with SIGKILL and, with PID 1 = `sleep infinity`, leaves no exit code at all --
+    the docker `oom` event the exit capture records is that evidence, and it reads `cgroup-oom`.
+    ``unknown`` is a real answer, never a fallback to ``clean``: a 137/143 with no journal line,
+    an unreadable journal or no result artifact all read ``unknown``.
     """
     path = Path(arm_dir) / OOM_WATCHDOG
     if not path.exists():
@@ -456,6 +462,11 @@ def oom_watchdog(arm_dir: str | Path) -> dict[str, str] | None:
         reason = " ".join(
             f"{key}={facts[key]}" for key in ("exit", "unread", "artifact") if key in facts
         )
+        # A capped child on an arm that still measured keeps its container name in the receipt,
+        # even when the verdict stays `clean`: the fact must not vanish with the state.
+        capped = facts.get("cgroup_oom", "-")
+        if capped not in ("", "-"):
+            reason = f"{reason}; cgroup_oom={capped}" if reason else f"cgroup_oom={capped}"
         evidence = tail.rsplit(" view=host", 1)[0].strip() if tail else "-"
         if state == "earlyoom-terminated" and evidence not in ("", "-"):
             reason = f"{reason}; {evidence}"
