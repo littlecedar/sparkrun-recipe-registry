@@ -7336,14 +7336,17 @@ ranks, pair `.31`/`.32`/`.33`/`.35`.)*
   stop rule fired and `sparkrun stop` ended the boot at 202.9 s — 4/5 `RemoteDisconnected`, needle
   0/5, no `usage.prompt_tokens`. **Zero kernel `oom-kill` and zero earlyoom kill lines**: the serve
   was never in the failure state, and peak rank cgroup was only 12.65 GiB, so the dive is host-side
-  (driver/UVM prefill buffers). The value is load-bearing and must not be lowered: earlyoom's
-  SIGTERM line is 4 % of 121.69 GiB ≈ **4.87 GiB**, so 6.0 GiB sits **1.13 GiB above** it and is the
-  only reason the stop preceded victim selection — earlyoom is what killed `beegfs-storage` on
-  `.31` and eight head processes during the marlin boots. A 4.8 GiB trigger fires *after* earlyoom
-  and is decorative; 5.5 GiB leaves 0.63 GiB of order. The cell runs **0.67–0.79 GiB from
-  earlyoom** at five concurrent streams, so no guard setting makes it safe: fewer concurrent tokens
-  or a smaller context is the fix. Contrast same digest: arm 3's single-stream 1M cell bottomed at
-  **9.28 GiB**, 3.3 GiB under the trigger, so 6.0 GiB cannot pre-empt a single-stream 1M cell.
+  (driver/UVM prefill buffers). The sampler armed at 00:13:14, three minutes into the cell, so
+  its first samples are already low and its series start is not the floor — the two consecutive
+  samples behind the trigger are the evidence. The value is load-bearing and must not be lowered:
+  earlyoom's SIGTERM line is 4 % of 121.69 GiB ≈ **4.87 GiB**, so 6.0 GiB sits **1.13 GiB above**
+  it and is the only reason the stop preceded victim selection — earlyoom is what killed
+  `beegfs-storage` on `.31` and eight head processes during the marlin boots. A 4.8 GiB trigger
+  fires *after* earlyoom and is decorative; 5.5 GiB leaves 0.63 GiB of order. The cell runs
+  **0.67–0.79 GiB from earlyoom** at five concurrent streams, so no guard setting makes it safe:
+  fewer concurrent tokens or a smaller context is the fix. Contrast same digest: arm 3's
+  single-stream 1M cell bottomed at **9.28 GiB**, 3.3 GiB under the trigger, so 6.0 GiB cannot
+  pre-empt a single-stream 1M cell.
 - **The ladder leg is dead on this image, and it is an adapter/image gap.** llama-benchy's first
   warm-up request takes the adapter's `AcceptSampling` top-k branch; `/opt/dsv41/adapter/block_verify.py:106`
   calls `dflash_utils.build_dflash_verify_target_probs`, the pinned engine spells
