@@ -276,19 +276,19 @@ the timeout. The row owner pastes both into `mad-science/queue.json`; the
 address is `$NODE:$PORT`, resolved at eval time, so the tracked row stays
 address-free.
 
-**Precondition, and why this recipe is not wired to it yet.** `--completions`
-is a peer's in-flight change to `run_benchmarks.py` (uncommitted on
-2026-11-10). An `ARM_EXTRA_CLIENT` that names a flag the committed tree does
-not parse is inert, and inert is worse than absent because the row then looks
-like it has an artefact contract. Check before wiring:
+**Precondition (met 2026-11-10).** `--completions` landed on trunk as
+`2435ff4` (`run_benchmarks: --completions measures a serve with no chat
+template`), so the invocation above is coherent. Re-check on the head checkout
+before the boot rather than trusting this line:
 
 ```text
 python3 recipes/ds4/benchmarks/run_benchmarks.py --help | grep -q -- --completions
 ```
 
-Wire the row only once that exits 0 on the head checkout. Until then the only
-honest campaign state for this arm is "no client", not a client that fails or
-silently ignores its flags.
+This recipe stays unmodified on purpose: the hook lives in the queue row, and
+that file belongs to another session. An `ARM_EXTRA_CLIENT` naming a flag the
+committed tree does not parse is inert, and inert is worse than absent because
+the row then looks like it has an artefact contract.
 
 ## Boot discipline
 
