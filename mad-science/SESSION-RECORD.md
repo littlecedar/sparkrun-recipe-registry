@@ -8593,3 +8593,47 @@ and the campaign unit restarted the same second, polling with no runnable rows a
 - **Left open.** The ERNIE arm stays blocked until FlashMLA ships an SM121 sparse-decode kernel, and
 the production proof's `image_pin_recipe` vs `image_id_local` line compares a digest against an image
 id, so the pin is unresolved rather than proven wrong.
+
+## 2026-11-10 07:13 ET — hourly board tick: production holds .31-.34, and the pool grows with nothing behind it
+
+- **Board published as `525c960`** on the 07:01:58-07:03:11 ET read, and the `gate` run for that head
+  completed **success** (read with `gh run list --repo littlecedar/sparkrun-recipe-registry --limit 1`
+  from this workstation). No landed row: the newest commit on `origin/main` was the 06:20 board itself.
+- **Census, three reads.** `docker ps -aq` `1/1/1/1/1/0`, running `0/1/1/1/1/0`, volumes `0` on all six.
+  `.30` carries an `sm121m` container still in `Created` from 2026-11-08 15:32:33Z; `.31`-`.34` carry the
+  production knapcio serve, probed and excluded from research accounting (image `3f4480818acb`,
+  `sglang.launch_server` pid 271 on rank 0, `/v1/models` 200 at `max_model_len` 1048576).
+- **The board's one unverified number is the pool's growth.** `df -B1` used moved 13 865 987 342 336 B
+  (11:07:24Z) to 13 866 042 392 576 B (12:02:16Z) to 13 866 051 305 472 B (12:03:11Z), i.e.
+  +55 050 240 B over the hour and +8 912 896 B in 55 s, against avail 10 325 187 362 816 B of
+  24 191 229 755 392 B. The pool serves: `stat -L` through the mount on the ds4 snapshot's
+  `model-00001-of-00048.safetensors` reads 970 533 624 B, and the hub holds 102 entries.
+- **Every writer falsifier came back empty, including the namespace one.** No file under
+  `/mnt/beegfs/huggingface` newer than 6 min at any depth, no child newer than 6 min in any pool
+  top-level tree, and the create/unlink signature is absent too: `/mnt/beegfs/huggingface` mtime is
+  2026-10-09, `/mnt/beegfs` 2026-10-24, `hub` 2026-11-10 08:49:27Z with its newest child
+  `models--baidu--ERNIE-5.5-Flash-Base` at 09:34:20Z, all hours before the growth window. So a
+  bumped-directory-mtime lead is closed rather than opened: the delta does not appear in the pool's
+  namespace at all, so the next probe belongs at the storage target's own byte accounting, not the
+  file tree.
+- **`.35`'s 8 462 336 B root fall is a separate observation and is not the pool's explanation.** Fleet
+  root avail fell 9 154 560 B over the same 70 s with `.35` carrying 92 % of it, and `.35` was flat
+  again by 12:07:21Z (-12 288 B over 30 s). Nothing over 100 KB newer than 15 min sits under `.35`'s
+  `/tmp` or `/home/red`, and the only process with `write_bytes` growth there is `sparkrun.daemon`
+  (pid 1007784) -- a different filesystem from `/mnt/beegfs`, with no pool path open (its only regular
+  fd is its own `server.lock`), so it is carried as its own row rather than welded to the pool delta.
+  Its churn is write-then-cancel (`write_bytes` 8 054 796 288, `cancelled_write_bytes` 8 054 702 080),
+  i.e. page-cache traffic, not allocated space.
+- **Campaign holds nothing.** Unit active (`MainPID 4140537`, `NRestarts=0`, entered 05:16:53 ET);
+  `director status --root ~/benchmarks/h2h-20261107` reads 9 measured / 10 blocked of 19 arms, and
+  `lease` is null on all 32 arms across the nine `~/benchmarks/*/state.json` roots, 0 `needs_reap`.
+- **Register did not move**: `cd5a86b4` at read, at snapshot and at publish -- 146 tasks, 106 done,
+  29 queued, 11 blocked, 40 open, 0 claims, 0 questions, `check` rc=0 over the same snapshot the
+  work-queue table was rendered from.
+- **Instrument trap the publish door caught.** The first publish was refused because `board_stamp`
+  takes the newest `<YYYY-MM-DD HH:MM[:SS]> ET` match inside the `| census |` row, and that row's own
+  reads are `Z`-suffixed: the only ET-formatted date it could see was an incidental one, so it read the
+  board as measured 2026-11-08 10:32:33 ET and refused as older than the 06:20 board on disk. The fix
+  belongs in the composition, not the tool -- stamp the census row's own read in ET and render any
+  incidental date in `Z` -- and the reason worth remembering is that a prose date in that row silently
+  becomes the board's claimed measurement time.
