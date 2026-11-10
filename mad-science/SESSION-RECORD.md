@@ -7591,3 +7591,42 @@ has no falsifier. (c) Left untouched: every node's containers and volumes, `mad-
   rows — it cannot, because the hold is keyed on recipe path. Also still open: the `beegfs-meta`
   loop, arm 3's falsifier (undecided per the 22:45 close-out), and the register's queue-mode gap for
   rows without a `recipe:`. No boots, no node touch beyond reads.
+
+## 2026-11-10 01:11 ET — 01:00 tick: idle six again, pool reads +91 MB unattributed, and the same one pullable row still refused
+
+- **Census, two markers 63 s apart** (`01:02:19–01:03:22 ET`, direct ssh from the workstation to each node,
+  read-only): `docker ps -aq` reads `.30` 1 and `.31`–`.35` 0, `docker ps -q` 0 × 6, volumes 0 × 6, and
+  `sparkrun status` on the head prints `No sparkrun containers running.` `.30`'s only container is the
+  never-started `Created` `sm121m` (`dsv41-sm121-dg:0.2.1`). Root `df -B1` avail moved
+  −65 536 / −102 400 / −106 496 / −102 400 / −8 482 816 / −102 400 B on `.30`–`.35`, net **−8 962 048 B**
+  (≈142 kB/s); `.34` carries the distinct share, which reads as the pool's chunk-store traffic on its own root
+  **LIKELY** and unattributed otherwise (no inode, no process). Uptimes unchanged, so no node rebooted.
+- **An instrument trap worth recording.** A `pgrep -f sglang.launch_server` count reads **2 on every node**,
+  including nodes that have run no container since boot: the pattern matches the probe's own argv. The
+  discriminating form is `pgrep -af 'sglang[.]launch_server'`, which answers nothing — which is why the census
+  cell carries `docker ps`/`sparkrun status` as the idle evidence and not a `pgrep` count.
+- **Pool: up and serving, but +91 226 112 B used with nothing booted.** Units read 01:02–01:10: `beegfs-mgmtd`
+  `active` on `.30` and `inactive` on `.31`–`.35`; `-meta` `active` `NRestarts=0` on `.30` but `activating` at
+  `NRestarts` 15 846 / 15 827 / 15 807 / 15 784 / 5 642 on `.31`–`.35`, i.e. ≈+513 restarts in the hour, the
+  5 s config-less loop `beegfs-meta-restart-loop-non-meta-hosts` still owns; `-storage` `active` `NRestarts=0`
+  on all six; `-mon` `failed` on all six. Reads are proved rather than inferred: `stat -L` on shard 1 of the
+  shipped pruned75 snapshot answers 2 341 216 112 B / 4 572 688 blocks through the head's mount, and hub lists
+  101 entries of which 96 are `models--*`, none newer than 2026-11-08 09:58. The timed pair
+  (`01:06:56` / `01:07:59`) reads used 12 427 405 033 472 → 12 427 405 557 760 B (+524 288 B in 63 s) and
+  avail 11 763 824 197 632 B at 52 % used; against the 00:25:10 read used has risen 91 226 112 B with no boot
+  and no lease, so the movement stays unattributed rather than being assigned to a staging row.
+- **Campaign and the one row queue mode will not pull.** `sparkrun-campaign.service` reads `active`,
+  `Result=success`, `NRestarts=0`, `ExecMainStartTimestamp` 2026-11-09 09:12:09 EST, MainPID 2078281 unchanged;
+  nine `~/benchmarks/*/state.json` roots carry 32 arms and **0 live leases**, and
+  `director status --root ~/benchmarks/h2h-20261107` reads 9 measured / 9 blocked with no lease line.
+  Re-measured against the register snapshot: of 18 queued rows exactly **one** carries both `recipe:` and `tp` —
+  `arm3-control-cell-canary-line` — and it is still the row `plan.sibling_hold` refuses on
+  `Path(recipe).stem` colliding with `done` row `h2h-second-boot-ds4-1017`. So the fleet is idle by that refusal,
+  not by a missed queue, and no utilisation claim about this hour may come from the director.
+- **Register single-valued on all three copies**: `mad-science/queue.json` sha256 `c3ca156d…` in this clone, on
+  `origin/main` (commit `53bac00`) and on the head. 129 tasks — 100 done, 18 queued, 11 blocked, 0 running,
+  0 claims, 29 open; `check` rc=0 `ok: 129 task(s)`; `questions` 0 open of 0 rows. Graph and table re-rendered
+  from a snapshot of that sha came out byte-identical to the published ones.
+- **Left open, unchanged.** The `beegfs-meta` loop, arm 3's undecided falsifier, the three exits on
+  `queue-mode-done-sibling-holds-canary-row` (all operator calls), and the register rows that carry no `recipe:`.
+  No boots, no node touched beyond reads.
