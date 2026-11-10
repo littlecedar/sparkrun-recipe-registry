@@ -223,13 +223,13 @@ class PlacementClassification(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = self._register(tmp)
             self.assertEqual(tq.main(["--file", str(path), "update", "--id", "arm",
-                                      "--memory-risky", "--exclude-hosts", "10.0.4.30,10.0.4.31"]), 0)
+                                      "--memory-risky", "--exclude-hosts", "node-a,node-b"]), 0)
             printed = io.StringIO()
             with contextlib.redirect_stdout(printed):
                 self.assertEqual(tq.main(["--file", str(path), "queue", "--json"]), 0)
             row = json.loads(printed.getvalue())[0]
             self.assertIs(row["memory_risky"], True)
-            self.assertEqual(row["exclude_hosts"], ["10.0.4.30", "10.0.4.31"])
+            self.assertEqual(row["exclude_hosts"], ["node-a", "node-b"])
 
             self.assertEqual(tq.main(["--file", str(path), "update", "--id", "arm",
                                       "--no-memory-risky"]), 0)
@@ -239,14 +239,14 @@ class PlacementClassification(unittest.TestCase):
             row = json.loads(printed.getvalue())[0]
             self.assertIs(row["memory_risky"], False,
                           "the override DESIGN.md documents: safe despite a quartet node cost")
-            self.assertEqual(row["exclude_hosts"], ["10.0.4.30", "10.0.4.31"],
+            self.assertEqual(row["exclude_hosts"], ["node-a", "node-b"],
                              "an unset flag leaves the list alone")
 
     def test_a_malformed_value_is_refused_by_check(self):
         # Negative control: the round-trip test above must not pass on a schema that accepts
         # anything. Both spellings are what a hand-edit produces.
-        for bad in ({"memory_risky": "yes"}, {"exclude_hosts": "10.0.4.30"},
-                    {"exclude_hosts": ["10.0.4.30", ""]}):
+        for bad in ({"memory_risky": "yes"}, {"exclude_hosts": "node-a"},
+                    {"exclude_hosts": ["node-a", ""]}):
             with self.subTest(bad=bad), tempfile.TemporaryDirectory() as tmp:
                 path = Path(tmp) / "queue.json"
                 payload = data([task("arm", 1.0)], priority_models=["x"])
@@ -263,7 +263,7 @@ class PlacementClassification(unittest.TestCase):
             stderr = io.StringIO()
             with contextlib.redirect_stderr(stderr):
                 self.assertNotEqual(tq.main(["--file", str(path), "update", "--id", "arm",
-                                             "--exclude-hosts", "10.0.4.30,"]), 0)
+                                             "--exclude-hosts", "node-a,"]), 0)
             self.assertIn("--exclude-hosts", stderr.getvalue())
 
 

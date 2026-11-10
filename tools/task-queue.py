@@ -167,7 +167,11 @@ def parse_env(pairs: list[str]) -> dict[str, str]:
 
 
 def parse_hosts(value: str) -> list[str]:
-    """`"10.0.4.30,10.0.4.31"` -> host list. Empty entries are a usage defect, never a silent drop."""
+    """`"node-a,node-b"` -> host list. Empty entries are a usage defect, never a silent drop.
+
+    The entries must be spelled exactly as the director's `--hosts`, so this tool never normalises
+    them: an exclusion that does not match is a silent no-op, which is worse than a refusal.
+    """
     hosts = [host.strip() for host in value.split(",")]
     if not hosts or any(not host for host in hosts):
         raise QueueError(f"--exclude-hosts expects comma-separated hosts, got {value!r}")
