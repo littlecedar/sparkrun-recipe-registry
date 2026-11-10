@@ -8913,6 +8913,49 @@ id, so the pin is unresolved rather than proven wrong.
   `095bec5` (production stop + malloc-pin unblocked), `3d1e9f0` (`--min-answer-tokens` in
   `tools/longctx-cell.py`) and `4602dc5` (the two FlashInfer routes, register 151).
 
+## 2026-11-10 12:28 ET — board tick: the malloc-pin half closed measured, an arm3 control is live at 0.75
+
+- **The window's first arm closed with a receipt, not a guess.** `~/benchmarks/tp4-20261110b/malloc-pin/RECEIPT.md`
+  (12:21) records the treatment boot `sparkrun_b020d2dd178343a5_e71b756f3a6f` serving 16:59:32Z →
+  17:11:40Z: `b12x_next` armed, **0** matches for `multiples of 128` / `divisible by 128` (the b12x
+  method installs, so the stock `Mxfp4FlashinferCutlassMoEMethod` guard never runs), `Ready` at line
+  438, 1M context advertised, fp8 KV, chat 200 and image 200 (184 image tokens of 197), ladder C1/C2 at
+  8192 ctx **PASS** (55.05 / 16.11 tok/s per stream, needles 1/1 and 2/2), the pin read back from
+  `docker inspect` Env *and* an in-container shell (`ARENA=2 THRESH=1048576`), teardown 17:11:40Z with
+  ranks at 0 containers / 0 volumes 14 s later. Its own verdict is **installed, not measured**: the A/B
+  delta waits on `../canary-control/RECEIPT.md`, and that directory does not exist yet, so the board's
+  flight row and landed row both say so rather than selling a treatment-only number as the A/B.
+- **Two arm3-control attempts, one util apart, and only one served.** The 17:14:47Z attempt carried
+  `mem_fraction_static' 0.78` in its launch log and **died with no engine evidence**: watchdog `loading`
+  at t=118 s then `dead` at t=140 s (`serve_pid=gone`), the serve-log capture reads `nothing captured
+  (No such container)`, the launcher closes `RuntimeError: head container is not running` after 211.4 s.
+  `journalctl -k` since 17:10Z reads **0** oom-kill / `Out of memory` lines on `.31`/`.32`/`.33`/`.35`,
+  so this is the registered `engine-exit-capture` class and the mechanism is unproven — not an OOM, and
+  not a verdict on the arm. The retry at 17:20:17Z carries `mem_fraction_static' 0.75`
+  (`--mem-fraction-static 0.75` in the live argv), TTR HTTP-ready **216.595 s**, watchdog `healthy` at
+  t=141 s. util is the only difference any captured file shows between the two boots.
+- **`.34`'s `beegfs-meta` state word is a sampling artefact; the counter is the discriminator.** At
+  17:06:17Z it read `active` / `Result=success` / `NRestarts=23 330` — 17 restarts after this tick's
+  companion read of `23 313` 85 s earlier, so the unit still cycles every ~5 s and one sample caught
+  the up phase. The board's pool row carries the correction; no other cell repeats it.
+- **Census, captured as one file so no digit was retyped**: a 62 s pair `17:13:57Z → 17:15:01Z` across
+  six nodes gave `docker ps -aq` 6/1/1/1/0/1, volumes 0 on all six, and root `df -B1` avail
+  −131 072 / −172 032 / −118 784 / −114 688 / −122 880 / −167 936 B = **−827 392 B net**. The ranks'
+  `MemAvailable` in that file (112.6–115.9 GiB) was read while the 0.78 attempt was loading, so the
+  board says that rather than presenting it as a reserve.
+- **Publish history this tick, so the next one does not re-derive it.** Base was `88391e76` — the 12:17
+  composition, which by publish time was also `origin/main`'s board after three peer commits
+  (`e80505d`, `8f1390b`, `204d2ff`); the first publish passed both CAS guards (disk `88391e76`, remote
+  `88391e76`). A second publish then amended one cell because the register moved again mid-tick:
+  `mem-guard-outlives-its-task` was added, so the live file reads **152 tasks / 43 open** at
+  `9cf26f1a…` while the table under the queue row is the 151-task render. **This commit also carries
+  another tick's rows** — census, pool, `.34`, `.30`, campaign, window and queue cells were composed at
+  12:17 by a concurrent tick and adopted as the base — which is disclosed here because the subject
+  describes the flight-row replacement, not that composition.
+- **Not landed, named**: the six `Created`-never-started containers on `.30` (five from
+  16:44:47–16:45:11Z plus the 11-08 `sm121m`) are left in place, the pool's growth still has no named
+  writer, and `pool-target-probe-beegfs-ctl-absent` is still the standing next probe.
+
 ## 2026-11-10 12:31 ET — the 17:19 quartet is a second boot, `.33`'s root falls bursty, four boards in one hour
 
 - **The 17:19:02Z `StartedAt` is a second boot, not a restarted rank.** Verified 17:29:45Z with
@@ -8943,3 +8986,32 @@ id, so the pin is unresolved rather than proven wrong.
   32 queued, 10 blocked, 0 running, 0 claims, 42 open. The worktree now holds a fifth state, 152 tasks
   (33 queued, 43 open), which is another session's uncommitted authoring: hashed, named, and left
   uncommitted here.
+## 2026-11-10 12:40 ET — correction: the pool's "writer" is the six roots, so the hub probe cannot fire
+
+- **The pool cell's five-tick "growth measured, writer unnamed" is an instrument misreading, and the
+  evidence was already in the tree.** `df /mnt/beegfs` used is the six nodes' root ext4 `statfs`
+  summed through one namespace (`mad-science/BEEGFS-REPORT.md:310-313`), which a same-interval pair
+  measured at ratio **1.00240** — pool 20 447 232 B against the six roots' 20 496 384 B over 153 s
+  (`mad-science/SESSION-RECORD.md:3863-3867`). So a hub-scoped file probe can never find that growth's
+  author: any write on any root — container layers, logs, runtime caches — moves the pool figure, and
+  `hub` is one directory of one of six filesystems. The probes behind the last ticks' cells (no file
+  newer than 70–80 min under `/mnt/beegfs` depth 4 or `huggingface` depth 6, 102 hub entries, no
+  `hf`/`hf_transfer`/`huggingface-cli` process on any node) were sound measurements answering a
+  question that cannot have that answer.
+- **This tick's numbers agree in sign and order, and are not a ratio** because the endpoints are not
+  aligned: roots fell **72 609 792 B** over 970 s (17:04:49 → 17:20:59Z) while the mount rose
+  **42 991 616 B** over 811 s (17:07:18 → 17:21:49Z). A ratio is only quotable from one interval, so
+  none is quoted here.
+- **From now on the cell should read pool delta against summed-root delta over the same interval**, and
+  the hub-file probe should be retired rather than repeated. `pool-target-probe-beegfs-ctl-absent` stays
+  open on its own merits — per-storage-target allocation is a different question from authorship.
+- **Also closing this session's hand-back:** the `.34`/`.35` placement is explained, not contradictory.
+  `~/benchmarks/tp4-20261110b/malloc-pin/RECEIPT.md` records `.34` unused because it carries the image
+  bytes (`3f4480818acb`) under local tags only, with no `RepoDigest`, so the digest reference does not
+  resolve there; and `docker image inspect` on `.31`/`.34`/`.35` today reads
+  `id=sha256:85c1ffc3… repodigests=[] tags=["dsv41-sm121-dg:0.2.1"]` — the tag is local everywhere, so a
+  digest-pinned launch must name only hosts it can resolve. The window's `.31`–`.34` is declared
+  availability, not the rank set.
+- The 12:31 section already supersedes this session's rank-0 reading (a **new** task
+  `1c0dffa45afa6e47_be139521f1b7`, not a restarted rank of the malloc-pin quartet, which closed 17:11:40Z);
+  this entry adds only the two corrections above and does not restate that one.
