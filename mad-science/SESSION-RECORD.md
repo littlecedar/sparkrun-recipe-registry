@@ -7305,3 +7305,67 @@ here rather than left to a later quartet window. Receipt `head:~/benchmarks/ds4-
   because the row added its own date to a stamp that already carried one. The In-flight section is
   regenerated wholesale, so the peer's 19:16 board replaced it and nothing was re-published for the
   defect; the ledger keeps the record instead.
+
+## 2026-11-09 19:30 ET — arm-5 pair: a hardware refusal, and a guard that fired correctly on an infeasible cell shape
+
+*(Window `sm121-arm5-20261109`, all six nodes owner-cleared; UTC stop points 2026-11-10T00:13:18Z
+and 00:19:16Z, i.e. 19:13 / 19:19 ET. Receipt `head:~/benchmarks/sm121-arm5-20261109/RECEIPT.md`;
+image both arms `dsv41-sm121-dg:0.2.1` = `sha256:85c1ffc3…9195dc7`, id verified on all four
+ranks, pair `.31`/`.32`/`.33`/`.35`.)*
+
+- **The treatment does not exist on this hardware, measured.** Arm 5's TRT-LLM boot
+  (`zz-ds4-1017-sm121-arm5-trtllm-mla.yaml`, task `1c0dffa45afa6e47_e3ca507fd4c2`, 00:19:16Z)
+  carried the flag at the arg layer — `server_args` read `dsv4_attn_backend='trtllm'` — armed the
+  production MoE path (`[moe_b12x_next] armed`) and loaded weights in **131.15 s**, then the decode
+  dispatch refused the device: `ValueError: backend='trtllm-gen' requires SM100/SM103, got SM121`
+  at `flashinfer/mla/_core.py:1061` (`_resolve_dsv4_sparse_mla_backend`), via
+  `sglang …/deepseek_v4_trtllm_backend.py:354` (`_forward_trtllm_decode` →
+  `trtllm_batch_decode_sparse_mla_dsv4`). A capability gate inside the installed FlashInfer, not the
+  ÷128 geometry refusal and not a config error: GB10 is SM121 and the backend wants SM100/SM103.
+  Launcher `kill_process_tree`, all four ranks `die exit=137`, `/v1/models` never 200, cell not run.
+  The 0.2.1 tree gate admits capability major 12; the runtime adds a second gate. Do not retry on
+  this image.
+- **The control serves, and three boots say its gates hold.** `zz-ds4-1017-sm121-arm3-control.yaml`
+  on the same digest: `[moe_b12x_next] armed`, no ÷128 `ValueError`, `dsv4_attn_backend='auto'`,
+  `Load weight end` 129.82 / 64.62 / 167.24 s, `/v1/models` 200 at `max_model_len 1048576`,
+  `Ready: API on port 8000`; measurement boot TTR **317 s**. Two of the three boots were harness
+  failures (below), so the pair spent two boots more than the one-each instruction.
+- **The guard stopped the cell, and the guard was right — the cell shape is what is infeasible.**
+  The 128K C5 cell (5 × 131,072 tokens in flight) drove host `MemAvailable` to **5.54 GiB**
+  (`.35`, 00:13:15Z) and **5.66 GiB** (`.33`, 5,932,832 kB, both samples 00:13:17–18Z); the 6.0 GiB
+  stop rule fired and `sparkrun stop` ended the boot at 202.9 s — 4/5 `RemoteDisconnected`, needle
+  0/5, no `usage.prompt_tokens`. **Zero kernel `oom-kill` and zero earlyoom kill lines**: the serve
+  was never in the failure state, and peak rank cgroup was only 12.65 GiB, so the dive is host-side
+  (driver/UVM prefill buffers). The value is load-bearing and must not be lowered: earlyoom's
+  SIGTERM line is 4 % of 121.69 GiB ≈ **4.87 GiB**, so 6.0 GiB sits **1.13 GiB above** it and is the
+  only reason the stop preceded victim selection — earlyoom is what killed `beegfs-storage` on
+  `.31` and eight head processes during the marlin boots. A 4.8 GiB trigger fires *after* earlyoom
+  and is decorative; 5.5 GiB leaves 0.63 GiB of order. The cell runs **0.67–0.79 GiB from
+  earlyoom** at five concurrent streams, so no guard setting makes it safe: fewer concurrent tokens
+  or a smaller context is the fix. Contrast same digest: arm 3's single-stream 1M cell bottomed at
+  **9.28 GiB**, 3.3 GiB under the trigger, so 6.0 GiB cannot pre-empt a single-stream 1M cell.
+- **The ladder leg is dead on this image, and it is an adapter/image gap.** llama-benchy's first
+  warm-up request takes the adapter's `AcceptSampling` top-k branch; `/opt/dsv41/adapter/block_verify.py:106`
+  calls `dflash_utils.build_dflash_verify_target_probs`, the pinned engine spells
+  `build_speculative_verify_target_probs`, and the scheduler dies with
+  `AttributeError: module 'sglang.srt.speculative.dflash_utils' has no attribute
+  'build_dflash_verify_target_probs'` (control boot 1,
+  `zz-ds4-1017-sm121-arm3-control/ladder-crash.txt`). Not an arm result and not throughput
+  evidence; until it is fixed the 128K longctx cell on a ready-gated boot is the measurement path.
+  Register row `sm121-ladder-acceptsampling-dflash` (queued, 2 h).
+- **The gating defect, and the fix.** Control boot 2 started the cell at `/v1/models` 200, which
+  `boot.py` publishes *before* its own smoke request: 5 × 131K prompt tokens queued ahead of the
+  smoke, whose timeout SIGTERMed the serve at 00:01:02Z. Boots 3–4 gate on `boot.py`'s
+  `Ready: API on port 8000` line instead, and that is the rule for the rest of the survey.
+- **Boot order is an uncontrolled variable, named as one.** Control TTR spread **283 / 222 / 317 s**
+  and `Load weight end` spread 129.82 / 64.62 / 167.24 s; control boot 3 followed two warm boots
+  while the treatment boot followed none of its own. The refusal is not a timing artifact (it fires
+  at decode, after a 131.15 s load), but no TTR from this window is a stable figure.
+- **Remains.** (a) Arm 5's speed question is unanswerable on this image — the TRT-LLM sparse-MLA
+  path needs SM100/SM103, so the arm is blocked on hardware, not on configuration or on us.
+  (b) The 128K concurrency baseline needs a re-run with the cell shape reduced (fewer concurrent
+  streams or a shorter context) at the **unchanged 6.0 GiB** guard; moving the guard is not the fix,
+  it is what protects the host. (c) Neither arm produced a C5/C10 cell, so no arm-5-versus-control
+  delta exists and none is claimed. Register rows `w4-survey-arm5-control-boot` (00:13:18Z stop) and
+  `w4-survey-arm5-sm121-boot` (00:19:16Z refusal) blocked with these stop points;
+  `task-queue check` rc=0.

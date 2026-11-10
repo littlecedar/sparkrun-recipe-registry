@@ -1402,15 +1402,15 @@
       "state": "blocked",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "BLOCKED on fit negative, not pending owner retirement. sm121-marlin-oom-diagnosis (done) proved the sm121 line marlin path drives host MemAvailable below the earlyoom 4% limit in 3-4 s while the rank container cgroup holds <=5.87 GB (driver/UMA: NVRM NV_ERR_NO_MEMORY, then earlyoom SIGTERM; journalctl -k oom-kill count 0), on both the fast loader and DSV41_FAST_LOAD=0 with the stock MAX_TOTAL_TOKENS pin. The same 552B checkpoint boots healthy on the shipped knapcio TP4 arm with shared-expert K padding (5120,576)->(5120,640), so the delta is the sm121 line backend/padding, not the model. Arm-5 shares that image and padding path; the TRT-LLM-versus-control comparison needs a fitting plan first. Unblock only with a smaller context/window or a different checkpoint. Receipts head:~/benchmarks/sm121-oom-20261109/.",
+      "notes": "STOP POINT 2026-11-10T00:19:16Z (runtime refusal): treatment boot (task 1c0dffa45afa6e47_e3ca507fd4c2) carried the flag — server_args dsv4_attn_backend='trtllm' — and armed b12x (zero divide-by-128 ValueError, Load weight end 131.15 s), then the decode dispatch refused SM121: ValueError: backend='trtllm-gen' requires SM100/SM103, got SM121 at flashinfer/mla/_core.py:1061 via sglang deepseek_v4_trtllm_backend.py:354 (trtllm_batch_decode_sparse_mla_dsv4). The launcher smoke failed, SIGQUIT -> kill_process_tree, all four ranks exit 137, /v1/models never 200, cell not run. The 0.2.1 tree gate admits capability major 12 but the installed FlashInfer runtime adds a second SM100/SM103 gate; do not retry on this image. Receipt head:~/benchmarks/sm121-arm5-20261109/.",
       "provenance": "queue w4-survey-arm5-trtllm-mla; mad-science/DEEPSEEK.md §10.7; recipes/ds4/zz-ds4-1017-sm121-arm5-trtllm-mla.yaml; owner 2026-11-07 window; owner 2026-11-08 (TP1/TP2 freeze, TP3/TP4 only; a quartet lease also needs the earlyoom proof); queue row `sm121-marlin-oom-diagnosis` (owner answer 2026-11-09: trio not retired, upstream Marlin works, diagnose the OOM before any re-attempt, and any re-attempt on `.31`–`.35`, never `.30`)",
-      "evidence": "receipts/zz-ds4-1017-sm121-arm5-trtllm-mla.json",
+      "evidence": "head:~/benchmarks/sm121-arm5-20261109/",
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/ds4/zz-ds4-1017-sm121-arm5-trtllm-mla.yaml",
       "tp": 4,
       "env": {
-        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/sm121-arm5-20261109",
         "ARM_EXTRA_CLIENT": "sh -c \"cd /home/red/src/sparkrun-recipe-registry && python3 -B tools/longctx-cell.py --base-url http://$NODE:$PORT --model $SERVED --context-length 131072 --concurrency 5,10 --max-tokens 8 --image-id \\\"$ARM_IMAGE_ID\\\" --json $L/longctx-128k.json\"",
         "ARM_EXTRA_TIMEOUT": "3600"
       }
@@ -1492,16 +1492,18 @@
       "state": "blocked",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "BLOCKED on fit negative, not pending owner retirement. sm121-marlin-oom-diagnosis (done) proved the sm121 line marlin path drives host MemAvailable below earlyoom 4% limit in 3-4 s while the rank container cgroup holds <=5.87 GB (driver/UMA: NVRM NV_ERR_NO_MEMORY, then earlyoom SIGTERM; journalctl -k oom-kill count 0), on both the fast loader and DSV41_FAST_LOAD=0 with the stock MAX_TOTAL_TOKENS pin. Same 552B checkpoint boots healthy on the shipped knapcio TP4 arm with shared-expert K padding (5120,576)->(5120,640), so the delta is the sm121 line backend/padding, not the model. This control shares the arm-5 image/padding path; the pair needs a fitting plan first. Unblock only with a smaller context/window or a different checkpoint. Receipts head:~/benchmarks/sm121-oom-20261109/.",
+      "notes": "STOP POINT 2026-11-10T00:13:18Z (fit floor): control boot 3 (task 1c0dffa45afa6e47_4f0e55683772) passed every boot gate — [moe_b12x_next] armed, zero divide-by-128 ValueError, Load weight end 167.24 s, /v1/models 200 at max_model_len 1048576, boot.py Ready 00:09:52Z, TTR 317 s — but the 128K C5 cell is not runnable under the window 6.0 GiB stop rule: 5x131072-token concurrent prefill drove MemAvailable to 5.66 GiB (.33) and 5.54 GiB (.35) at 00:13:15-18Z on two consecutive 1 Hz samples; the guard stopped the literal task id. C5 aborted at 202.9 s with 4/5 RemoteDisconnected, needle 0/5, no usage.prompt_tokens; C10 refused. Zero kernel OOM and zero earlyoom lines; peak rank cgroup only 12.65 GiB, so the dive is host-side (driver/UVM prefill buffers). An earlier run-arm boot (1c0dffa45afa6e47_43836d4714fc) passed the same gates but its llama-benchy ladder warm-up killed the scheduler in the adapter AcceptSampling top-k branch (AttributeError: dflash_utils has no build_dflash_verify_target_probs), so no ladder or cell. No throughput or needle number is taken. Receipt head:~/benchmarks/sm121-arm5-20261109/.",
       "provenance": "queue w4-survey-arm5-trtllm-mla; arm-author-2 commit 6bc48f8; DEEPSEEK.md §10.7; owner 2026-11-08 (TP1/TP2 freeze, TP3/TP4 only; a quartet lease also needs the earlyoom proof); queue row `sm121-marlin-oom-diagnosis` (owner answer 2026-11-09: trio not retired, upstream Marlin works, diagnose the OOM before any re-attempt, and any re-attempt on `.31`–`.35`, never `.30`)",
-      "evidence": "receipts/zz-ds4-1017-sm121-arm3-control.json",
+      "evidence": "head:~/benchmarks/sm121-arm5-20261109/",
       "claimed_by": "",
       "claimed_at": "",
-      "recipe": "recipes/ds4/zz-ds4-1017-sm121-arm3-control-marlin.yaml",
+      "recipe": "recipes/ds4/zz-ds4-1017-sm121-arm3-control.yaml",
       "tp": 4,
       "env": {
-        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
-        "ARM_READY_TIMEOUT": "3000"
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/sm121-arm5-20261109",
+        "ARM_READY_TIMEOUT": "3000",
+        "ARM_EXTRA_CLIENT": "sh -c \"cd /home/red/src/sparkrun-recipe-registry && python3 -B tools/longctx-cell.py --base-url http://$NODE:$PORT --model $SERVED --context-length 131072 --concurrency 5,10 --max-tokens 8 --image-id \\\"$ARM_IMAGE_ID\\\" --json $L/longctx-128k.json\"",
+        "ARM_EXTRA_TIMEOUT": "3600"
       }
     },
     {
@@ -2003,6 +2005,21 @@
       "notes": "One-shot boot of 7.0.0-1019-nvidia-64k (7.0.0-1019.19~24.04.2) plus dgx-spark-memory-saver 0.4.1 DKMS UVM leaf-table packing (ec1b17a8, packing parameter Y, module genuinely shadowing the prebuilt) on .35 at 2026-11-09 16:41 ET. At idle host page tables rose 9,360 -> 23,552 kB (2,451 -> 390 page-table pages, +15,156 kB in bytes), i.e. 0.0083 % -> 0.021 % of the ~107 GiB host dive that kills the marlin quartet boot while the rank cgroup stayed <=5.87 GB, so page tables cannot be the mechanism. The one repeatable lever is MemTotal +2,200,148 kB = +2.10 GiB from the 16x smaller vmemmap, the same order as upstream's measured 1.78-1.86 GiB/node; summed additively with that pack lever the whole configuration reaches 4.8 % of the dive, so the fit negative stands and a green trial would not have explained it. The only right-magnitude residual is 6.22 GiB of meminfo-unaccounted host memory on the 64 KiB boot vs 2.35 GiB on an idle 1025 peer, confounded by a flare agent holding a CUDA/NVML context - measure it directly in a quartet trial rather than infer it.",
       "provenance": "mad-science/SESSION-RECORD.md §2026-11-09 64 KiB trial",
       "evidence": "head:~/benchmarks/ds4-64k-20261109/",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "sm121-ladder-acceptsampling-dflash",
+      "title": "SM121 survey ladder dies in llama-benchy warm-up: dflash_utils.build_dflash_verify_target_probs missing",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "single",
+      "notes": "DENSE: the ladder leg cannot run on dsv41-sm121-dg:0.2.1. llama-benchy's first warm-up request takes the adapter's AcceptSampling top-k branch and /opt/dsv41/adapter/block_verify.py:106 calls dflash_utils.build_dflash_verify_target_probs, which the pinned engine spells build_speculative_verify_target_probs (AttributeError: module sglang.srt.speculative.dflash_utils has no attribute build_dflash_verify_target_probs) and the scheduler dies. Harness/image gap between adapter and pinned engine tree, not an arm result and not throughput evidence. Until it is fixed the longctx cell (tools/longctx-cell.py 128K C5/C10 on the same ready-gated boot) is the measurement path; do not quote a ladder cell from this image. Observed on control boot 1 (zz-ds4-1017-sm121-arm3-control/ladder-crash.txt).",
+      "provenance": "recipes/ds4/README.md §SM121 survey arms",
+      "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
     }

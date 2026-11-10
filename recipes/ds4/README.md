@@ -1098,7 +1098,7 @@ booting, and carry `:0.2.1` only for the arm-5 pair below.
 |:--|:--|:--|
 | 3, indexer scoring (section 10.5) | `zz-ds4-1017-sm121-indexer-scoring.yaml` (`:0.2.1`) | the shipped `canary-roce-aff52fa5` line |
 | 3, arm-5's paired control | `zz-ds4-1017-sm121-arm3-control.yaml` (`:0.2.1`, replay off) | — |
-| 5, TRT-LLM sparse MLA (section 10.7) | `zz-ds4-1017-sm121-arm5-trtllm-mla.yaml` (`:0.2.1`, `EXTRA_SGLANG_ARGS: "--dsv4-attn-backend trtllm"`, replay off) | arm 3 **on the same digest** (`arm3-control`) |
+| 5, TRT-LLM sparse MLA (section 10.7) — **blocked on hardware 2026-11-10** (`trtllm-gen` requires SM100/SM103; GB10 is SM121), not on config | `zz-ds4-1017-sm121-arm5-trtllm-mla.yaml` (`:0.2.1`, `EXTRA_SGLANG_ARGS: "--dsv4-attn-backend trtllm"`, replay off) | arm 3 **on the same digest** (`arm3-control`) — cell shape under review, 6.0 GiB guard unchanged |
 
 All three recipes now pin `:0.2.1`, so the whole survey runs on one digest: `0.2.1` adds the two
 arm-5 gates and leaves this arm's serve line unchanged (it sets neither flag). Arm 3's
@@ -1291,6 +1291,29 @@ does not occur in SGLang's logs; the decode line reports `accept len: 3.12` and 
 `sglang:spec_accept_length` 3.125, i.e. speculative decode active. Teardown 23:03:58Z read 0
 containers / 0 volumes on all four ranks. Receipt
 `head:~/benchmarks/sm121-b12x-20261109/RECEIPT.md`.
+
+**Arm 5 refused by hardware, and the paired control's cell shape is infeasible under the host guard
+(2026-11-10).** `zz-ds4-1017-sm121-arm5-trtllm-mla.yaml` (`:0.2.1`,
+`sha256:85c1ffc3…9195dc7`) armed the production MoE path and loaded in 131.15 s, then the decode
+dispatch refused the device: `ValueError: backend='trtllm-gen' requires SM100/SM103, got SM121` at
+`flashinfer/mla/_core.py:1061` via `sglang …/deepseek_v4_trtllm_backend.py:354` — flag admitted at
+the arg layer (`server_args dsv4_attn_backend='trtllm'`), refused by the installed FlashInfer's
+capability gate, `kill_process_tree` exiting all four ranks before readiness. **The arm's verdict is
+hardware**, not configuration, and it is not retried on this image. The paired control
+(`zz-ds4-1017-sm121-arm3-control.yaml`) passed every boot gate on the same digest —
+`[moe_b12x_next] armed`, no ÷128, `Load weight end 167.24 s`, `/v1/models` 200 at
+`max_model_len 1048576`, `Ready` at TTR 317 s — and its 128K C5 cell was correctly stopped by the
+6.0 GiB host guard at 5.54 GiB (`.35`) / 5.66 GiB (`.33`), with zero kernel `oom-kill` and zero
+earlyoom lines: five concurrent 131K prefills run ~0.7 GiB from earlyoom's 4.87 GiB (4 % of
+121.69 GiB) line, so the **cell shape** must change — not the guard, which is the only reason the
+stop preceded victim selection; arm 3's single-stream 1M cell bottomed at 9.28 GiB. On this image
+the ladder leg is unusable (the adapter's `AcceptSampling` branch calls
+`dflash_utils.build_dflash_verify_target_probs`, the engine spells
+`build_speculative_verify_target_probs`), so cells come from the 128K longctx tool and must gate on
+boot.py's `Ready` line, never `/v1/models`, which precedes the smoke test. Neither arm produced a
+cell and no delta is claimed. Receipt `head:~/benchmarks/sm121-arm5-20261109/RECEIPT.md`; register
+rows `w4-survey-arm5-sm121-boot`, `w4-survey-arm5-control-boot`,
+`sm121-ladder-acceptsampling-dflash`.
 
 **Why marlin could not have been the answer anyway.** Marlin's repack is a copy, and this loader
 materialises the whole model before repacking it: `loader.py:1015` `load_weights_only` (all shards,
