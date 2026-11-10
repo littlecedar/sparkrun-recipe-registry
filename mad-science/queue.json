@@ -2218,6 +2218,21 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "run-arm-executable-mode-guard",
+      "title": "tools/run-arm.sh mode in git is unguarded: the per-arm executor shipped non-executable and nothing failed until a manual chmod",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "MEASURED 2026-11-10: `tools/run-arm.sh` -- the per-arm executor the campaign director restarts -- was committed NON-EXECUTABLE. The regression is commit d6fae84 (2026-11-08, raw diff `:100755 100644 37aa515 c6b4120` on that path), which dropped the mode while editing content; the director then failed to restart with \"no executable per-arm executor\" until the fit session chmod +x the file locally, and commit 69fb98a (2026-11-10T07:06:58Z) restored 100755 on the pushed tip with the SAME blob 0efc9cf4, so today the mode is correct again. NOTHING CAUGHT IT: there is no installed pre-commit hook (`git config core.hooksPath .githooks` is opt-in and parallel sessions do not install it), `bash -n` parses a script without reading its mode, `py_compile` never touches shell files, and the suite tests behaviour of the script, not how git records it. THE LOCAL chmod IS NOT THE FIX and must not be treated as one: it makes the failure invisible on one host while the pushed artifact stays unrunnable for everyone else -- which is exactly how it survived two days. ACCEPTANCE: `git ls-files -s tools/run-arm.sh` prints mode 100755 on the pushed tip AND a test under tests/ fails when the committed mode is not 100755. Build the committed-mode assertion (read `git ls-tree HEAD -- tools/run-arm.sh`, or `git ls-files -s`), skipping cleanly when the working tree is not a git checkout: the stdlib-only alternative `os.access(path, os.X_OK)` on the worktree file is WEAKER and would have passed through the whole incident, because the local chmod sets the bit that check reads. `tools/push-gate.py` is the right home for the run itself -- it already gates shell files changed against origin/main with `bash -n` -- so the test belongs in tests/ and the gate keeps refusing red pushes.",
+      "provenance": "git log --raw -- tools/run-arm.sh (d6fae84 mode 100755->100644, 69fb98a restore on 2026-11-10); git ls-files -s at origin/main; fit session chmod +x report 2026-11-10; AGENTS.md (hooks are opt-in) and tools/push-gate.py",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
