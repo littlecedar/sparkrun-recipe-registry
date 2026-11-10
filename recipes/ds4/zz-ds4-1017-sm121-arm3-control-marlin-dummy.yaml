@@ -1,0 +1,101 @@
+recipe_version: "2"
+model: deepseek-ai/DeepSeek-V4.1-Flash-1017
+# Same launcher contract as the shipped production recipe: SKIP_PREPARE=1 and
+# the snapshot sparkrun renders from {model} decides the weights, so pin -- not
+# the image's baked REVISION. 1017 ships no chat template; the mod stages the
+# patched copy (a template-less checkpoint with no mod template is refused).
+model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
+runtime: sglang
+# Local-only SM121 image, rebuilt 2026-11-07 as the arm-5 unblock (same
+# DeepGEMM v0.2.0 + SM120 paged-sparse MQA-logits port as 0.2.0, plus the arch
+# widen for capability major 12 and BooleanOptionalAction on
+# --enable-decoder-swa-bounded-replay). Built from
+# ~/builds/deepgemm-sm121/ctx/Dockerfile.sm121.
+# Image ID (local, byte-identifies the artifact; nothing pushed):
+#   sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7
+# It exists only on the head; carry it with the command in recipes/ds4/README.md
+# "SM121 survey arms" before a boot. distribution_config disables sparkrun's
+# image distribution, which would try to pull this local tag from a registry.
+container: dsv41-sm121-dg:0.2.1
+distribution_config:
+  containers:
+    enabled: false
+min_nodes: 4
+description: >-
+  Isolator for the marlin boot's host-memory dive (`zz-` trial, 2026-11-10):
+  `zz-ds4-1017-sm121-arm3-control-marlin-serial.yaml` plus `--load-format dummy`,
+  which allocates the full parameter set and reads no weight bytes. The loader
+  extra-config is dropped: the engine refuses the pair outright --
+  `ValueError: Model loader extra config is not supported for load format
+  LoadFormat.DUMMY` (measured 2026-11-10T17:59Z, reaped log of
+  `sparkrun_1c0dffa45afa6e47_0a02b70c5117`) -- and a dummy load reads nothing, so
+  the single-thread knob has no term to act on. The serial
+  loader probe measured the same ~5.3-5.7 GiB trough as the multithread default,
+  so the staging window is falsified as the killer; this boot splits what is left:
+  a floor >= 30 GiB means marlin's padded 80.31 GiB parameter allocation fits and
+  the earlier dive was loader-side, a floor < 10 GiB means the marlin
+  materialisation itself is the consumer.
+  The marlin boots were not expected to die in their repack buffer: marlin's
+  padded parameter set is 80.31 GiB on this checkpoint (43 layers x 1.8676 GiB,
+  `mxfp4_marlin_moe.py:77-100`), while the default multithread safetensors load
+  stages about `(max_workers + 2) x 7.39 GB` concurrently -- 68.8 GiB of CPU
+  staging at the default worker count (`loader.py:605`, `weight_utils.py:1226-1238`).
+  One flag removes that term, so a boot that still dives ~100 GiB before
+  `Load weight end` is the marlin materialisation itself, not the loader.
+  Proof signature: `server_args` echoes the extra-config dict,
+  `Multi-thread loading shards` is absent and `Loading safetensors checkpoint
+  shards` is present.
+metadata:
+  model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: mxfp4
+  model_mtp_dtype: mxfp4
+  kv_dtype: fp8
+  tags: trial
+mods:
+  - "mods/dsv41-sglang-overlay"
+executor_config:
+  entrypoint: ""
+  shm_size: 32gb
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  max_model_len: 65536
+  dspark_block_size: 5
+env:
+  # Served revision; mirrors the top-level `model_revision`
+  # (tests/test_ds4_model_revision_pin.py guards the pair).
+  DSV41_MODEL_REVISION: 1bae0e1088993b9b82de08f59de5be5a34e42170
+  # c3 adapter exclusions (see apply_recipe_env in the overlay launcher).
+  DSV41_C3_EXCLUDES: "1"
+  # The candidate tree floors sglang-kernel at 0.4.9, whose aarch64 wheel is ABI-
+  # incompatible with the base's torch 2.13.0+cu130; this arm holds the shipped
+  # kernel (0.4.7) and skips the gate.
+  SGLANG_SKIP_SGL_KERNEL_VERSION_CHECK: "1"
+  # The control half of section 10.7's replay-off requirement.
+  SWA_BOUNDED_REPLAY: "0"
+  # The marlin variant of this control: `command:` reaches launcher.py, whose
+  # parser ignores unknown argv flags (`:922`), so engine flags ride
+  # EXTRA_SGLANG_ARGS (`:471-502`), which boot.py splits on whitespace.
+  # `--model-loader-extra-config` is a JSON object and must carry no spaces.
+  EXTRA_SGLANG_ARGS: >-
+    --moe-runner-backend marlin
+    --load-format dummy
+    --enable-metrics --enable-cache-report
+command: >
+  python3 /workspace/mods/dsv41-sglang-overlay/launcher.py
+  --boot
+  --model {model}
+  --port {port}
+  --tp {tensor_parallel}
+  --served-model-name {model}
+  --context-length {max_model_len}
+  --dspark-block-size {dspark_block_size}
+  --fp8-gemm-backend flashinfer_cutlass
+readiness:
+  # inference must stay false: /health answers 200 the moment the server binds.
+  inference: false
+  port_timeout_s: 7200
+  health_timeout_s: 3600

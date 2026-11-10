@@ -1,0 +1,145 @@
+recipe_version: "2"
+model: vllm-project/Kimi-K3.1-Pro-pruned75
+model_revision: fc72e5a1dd8819cf722fee249bb166c4cbc8ba38
+runtime: vllm
+# Nightly eugr build, pulled 2026-11-08: vLLM 0.33.0rc1.dev1016+g06129ab02, created 2026-11-07.
+# The engine gate is VERIFIED against this image's own filesystem (pulled arm64, inspected):
+# vllm/model_executor/models/registry.py maps KimiK31ForConditionalGeneration -> vllm.models.kimi_k3,
+# and vllm/models/kimi_k3/ is present. The last release tag, v0.33.0rc3, does NOT carry the class.
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:98a2535b5fa227e529f25ed376751b41d8f707200c81fac82d327a9deee93b15
+min_nodes: 4
+max_nodes: 4
+
+description: >-
+  Parameter-floor isolator (`zz-` trial, 2026-11-10): the shipped Kimi TP=4 arm with
+  `--load-format dummy`, `max_model_len` 8192, one sequence and 512 batched tokens, so
+  the boot allocates the full weight set and reads no bytes. The lane's measured
+  negative says weight-tensor allocation alone drove host MemAvailable to
+  0.79-4.07 GiB with ~11 GiB rank cgroup; this boot measures the allocation trough
+  without any read, staging or KV. Predicted floor 0.8-4.1 GiB if the trough is the
+  parameter allocation; a floor >= 6 GiB on all four ranks falsifies that and puts the
+  gap in staging. Sanity gate: the dive must be ~110.7 GiB or the test is void.
+  Original description follows.
+  Kimi-K3.1-Pro, expert-pruned 75 % (896 -> 224 routed experts per layer, 92 MoE
+  layers, router rows and e_score_correction_bias pruned with them) and otherwise
+  untouched: attention (KDA 3:1 + DSA indexer), shared experts, dense layer, vision
+  tower and the original MXFP4 routed-expert quantisation are the base model's.
+  Four GB10 nodes, TP=4. ATTEMPTED 2026-11-08; no serve. The 07:47 failure was a
+  config-only stub in the pool, not a dependency gap; the same snapshot has since
+  been filled (112 entries, 442.87 GiB by an inode-deduped stat walk, hf cache
+  verify rc=0). The row's block is now FIT, not presence. Envelope, per rank, checkable against the
+  lane README's fit section: shards 442.85 GiB / 4 = 110.71 GiB of weights; the device reports
+  121.69 GiB with 112.33-115.02 GiB free at startup; measured non-KV overhead is 1.48-3.05 GiB
+  (peak activation + CUDAGraph); KV is 24 full layers x ((512+64)x2 + (128+4)) B = 30,816 B/token,
+  plus 0.105 GiB per sequence of KDA state (x4 seqs = 0.42 GiB). At the previously authored
+  util 0.92 the budget is 111.95 GiB, i.e. short by 1.8 GiB before one KV block, and 32k needs
+  115.12 GiB free - more than any measured reading. MEASURED 2026-11-10: the arm does not fit at
+  TP=4 under the 6.0 GiB host guard. With --enforce-eager and 8192 / 2 seqs / 1024 batched tokens
+  the weight-tensor allocation alone drove host MemAvailable to 0.79-4.07 GiB (MemFree
+  0.98-2.16 GiB) with the rank cgroup at ~11 GiB and page tables under 43 MiB, before any KV
+  cache, graph pool or prefill; the guard stopped the boot at its floor. The deciding term is the
+  110.71 GiB of weights plus **2.01-4.33 GiB** of engine host-side allocation measured from
+  `/proc/meminfo` — the rest of the 112-115 GiB drop was the node's pre-existing 4.9-6.9 GiB
+  baseline — not the 3.05 GiB non-KV overhead, so no context/seqs/graph flag moves it. The honest
+  deficit at TP=4 is **~4 GiB on the best node and ~8 GiB on rank 0**, so the route is two more ranks
+  as TP=2 x PP=3 (442.833 GiB / 6 = 73.80 GiB/rank over all six nodes; register
+  `kimi-tp2-pp3-six-node`), ~4-8 GiB more memory, or a smaller pruned body. TP=8 is out of reach on
+  this fleet (six nodes, one GB10 each: max rank count 6, TP=4 the validated one). Receipt
+  head:~/benchmarks/fit-kimi-eager-20261110/.
+  A staged-wheelhouse route for tiktoken is proven and kept only as a
+  template for an image that lacks the backend - tiktoken 0.14.0 + regex 2026.11.7,
+  cp312 manylinux_2_28_aarch64, sha256s in the lane README, installed --no-index
+  as uid 1000 with a 13-token round-trip through the checkpoint's tiktoken.model
+  (note --no-deps: under --no-index the resolver cannot see tiktoken's requests
+  dependency, so stage a requests wheel too). No chat template ships, so a healthy
+  serve would answer only /v1/completions and the chat instruments cannot write a
+  marker (see the lane README's acceptance paragraphs).
+  FIT: 737.6 B params = U8 680,685,207,552 elements (MXFP4-packed, 340.3 GB) + BF16
+  56,915,256,320 (113.8 GB) + F32 11,060,608 (0.04 GB) = 454.2 GB = 423.0 GiB
+  nominal, but the staged shards measure 442.85 GiB, i.e. 110.71 GiB/rank. At
+  util 0.945 the 121.69 GiB device gives 115.00 GiB, leaving 0.82 GiB after the
+  pessimistic 3.05 GiB overhead and the 0.42 GiB of KV state: 28,400 tokens of
+  geometric maximum. That is arithmetic on the nominal total only; the measured boot floor is
+  negative (see above), so no shipped point holds. The card's 1M context is not
+  reachable at TP=4 on this hardware; it needs a smaller body or a larger unified pool (TP=8 is out of
+  reach on this fleet: six nodes, max rank count 6, TP=4 the validated one).
+  The card's own eval is TP=4 (GSM8K 5-shot 43.67 % on four B300s) and it states the
+  regression plainly: "expect a large quality regression relative to the source
+  model". Berthed beside the lane's other arms only as the servable Kimi body — the
+  sibling zz- SuperExpert arm is the artifact probe, this one is what a runtime can
+  actually load.
+metadata:
+  model_url: https://huggingface.co/vllm-project/Kimi-K3.1-Pro-pruned75
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "737B"
+  model_dtype: mxfp4
+  kv_dtype: fp8_ds_mla
+  tags: large_context
+  # Not instrumented: this engine pin is absent from the fleet in the 2026-11-08
+  # metrics rollout, so its flags are unverified for this digest; an unknown flag
+  # is an argparse boot failure. Instrument only after a per-pin --help read.
+  instrumented: false
+  caveats: >
+    License `other` / `kimi-k3.1-pro`, inherited from moonshotai/Kimi-K3.1-Pro with
+    the LICENSE linked from the card — not Apache-2.0. Pruning is calibration-free
+    and expert-level: 224 routed experts per layer remain selected by signed router-row
+    sum, which the card says beat its L1 default on GSM8K (43.7 % vs 14.4 %) but is
+    still a large quality regression against the base. Vision tower is retained and
+    the config declares image-text-to-text, but no multimodal path is exercised here.
+    ENGINE GATE: PASSED against the pinned image itself (2026-11-08, image pulled
+    arm64 and inspected): its
+    /usr/local/lib/python3.12/dist-packages/vllm/model_executor/models/registry.py maps
+    `"KimiK31ForConditionalGeneration"` to `vllm.models.kimi_k3`, and the module tree
+    `vllm/models/kimi_k3/` is present. Upstream context: the newest release tag
+    v0.33.0rc3 does NOT have this class, so this nightly is the earliest known pin.
+    Serving pin must also carry `--trust-remote-code` (config auto_map) and the
+    card's `kimi_k3` tool-call/reasoning parsers. CHAT TEMPLATE (probed 2026-11-08, and
+    the sharpest boot question here): the repo ships **no** `chat_template.jinja` and its
+    `tokenizer_config.json` has no `chat_template` key — chat formatting lives in Python
+    methods (`TikTokenTokenizer.apply_chat_template`, `kimi_k3_processor`), which vLLM's
+    Jinja path does not use. A `/v1/chat/completions` request is therefore expected to
+    fail with "chat template is not defined" until a template file exists; the ladder
+    runs on `/v1/completions`. Test the chat endpoint once as a diagnostic and record
+    which way it settles — do not assume either.
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot path,
+  # so `GET /v1/models` would advertise the cache path (-n does not show this).
+  served_model_name: vllm-project/Kimi-K3.1-Pro-pruned75
+  # Envelope (lane README §fit): 110.71 GiB/rank of shards + 3.05 GiB measured
+  # activation/CUDAGraph overhead + 0.42 GiB of KDA state (4 seqs) = 114.18 GiB.
+  # 0.945 x 121.69 = 115.00 GiB leaves 0.82 GiB -> 28.4k tokens of headroom, so
+  # 16k ships with margin. Needs >=114.65 GiB free at startup; 0.92 could not
+  # even hold the weights (short 2.23 GiB).
+  gpu_memory_utilization: 0.945
+  max_model_len: 8192
+  max_num_seqs: 1
+  max_num_batched_tokens: 512
+  quantization: compressed-tensors
+  # SM121 sparse-MLA backend (FLASHINFER_MLA_SPARSE_SM120) requires the packed
+  # fp8_ds_mla layout (656 B/layer/token); bfloat16 selects no backend (measured 2026-11-10).
+  kv_cache_dtype: fp8_ds_mla
+  tool_call_parser: kimi_k3
+  reasoning_parser: kimi_k3
+  extra_args: "--load-format dummy"
+
+command: >
+  taskset -c 5-9,15-19 vllm serve {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --trust-remote-code
+  --quantization {quantization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --reasoning-parser {reasoning_parser}
+  --tool-call-parser {tool_call_parser}
+  --enable-auto-tool-choice
+  {extra_args}
