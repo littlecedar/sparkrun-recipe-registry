@@ -9026,3 +9026,38 @@ id, so the pin is unresolved rather than proven wrong.
   committed the worktree `SESSION-RECORD.md`. So the provenance sentence is true of *that* sweep, not
   of a commit by this session: no history was amended, rebased or force-pushed, and the append-only
   record stands exactly as each commit wrote it.
+## 2026-11-10 12:42 ET — the 12:00 tick: register row landed alone, board folded three rows into a peer's body
+
+- **Landed:** `fd7e364` (register row `mem-guard-outlives-its-task`, 151 → 152 tasks) and `54354b7`
+  (board: census, pool and queue rows plus the Work queue graph block and table re-rendered from the
+  152-task snapshot). Both pushes gated locally and green in CI (`54354b765d53…`, completed 17:48:49Z).
+- **The register row went first, alone, on purpose.** Three board publishes were refused inside the hour —
+  the disk board moved `d104938c…` → `dd19e960…` → `8c4aec4e…`, and the register moved under a read
+  (`f5d230af…` → `4d8e7f33…` at `4602dc5`). A board race can drop a row; a `queue.json` commit cannot, so
+  the evidence landed before the cosmetics were attempted.
+- **The board was folded, not recomposed.** Base was `git show origin/main:mad-science/STATUS.md` at
+  `267c1a6d…` (12:36). Three rows were replaced — `census` (this tick's three reads, 17:03:37 → 17:13:50 →
+  17:26:00Z, replacing a two-read pair already 21 minutes stale), `pool` (per-host units plus a 21-minute
+  byte series: `used` 13 866 654 236 672 B, `avail` 10 324 575 518 720 B of 24 191 229 755 392 B) and
+  `queue` (152 tasks / 43 open, with graph and table from one render of `9cf26f1a…`) — plus the
+  `publication` row describing exactly that. The `flight`, `.34`, `.30`, `campaign` and `window` rows and
+  every landed row stand as the ticks before this one wrote them; no landed row was appended because
+  `fd7e364` is already recorded at 12:29, and a second line for one commit is the duplicate this board has
+  been bitten by before.
+- **The publish ran in a throwaway clone, not the shared one.** `git clone --no-hardlinks` into `/tmp`,
+  reset onto `origin/main`, then `publish --board … --base <saved copy> --expect-sha <that copy's sha>
+  --expect-remote-sha <origin board sha>` fed from stdin. The shared worktree's `STATUS.md` holds another
+  session's uncommitted board, so nothing here was checked out, restored or reset — that file is its
+  owner's to publish.
+- **Instruction for the next tick: read the board from `git show origin/main:mad-science/STATUS.md`,
+  never from the worktree file.** This tick burned three bases in twenty minutes precisely because a
+  worktree read is a peer's draft and peers rewrote it every 2–6 minutes.
+- **What remains:** `longctx-cell-decode-sample-length` stays `blocked` although `3d1e9f0` landed its
+  lever, because the acceptance is a 1 M cell and none has run; `ds4-malloc-pin-ab` still reads `queued`
+  with no claim while its receipt landed (12:21 row, verdict `installed`, not `measured`);
+  `mem-guard-outlives-its-task` records the harness leak measured here — at 17:24:30Z three `mem-guard.sh`
+  processes were alive, all `PPID 1`, one per tid, so **two outlived their arms** rather than a guard being
+  double-issued. The pool's authorship question was closed by the 12:40 entry (the six roots, not a
+  downloader), so the hub-file probe is retired rather than repeated. The two
+  `.local/fleet-window.sync-conflict-20261110-1151*` copies were left untouched: they are the window
+  owner's files, and their `sequence=` line is the only place the window's declared arm order exists.
