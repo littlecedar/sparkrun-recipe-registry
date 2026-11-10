@@ -8912,3 +8912,34 @@ id, so the pin is unresolved rather than proven wrong.
 - **Four landed rows folded** the 11:24 board could not cover: `b02583a` (register 147 → 149),
   `095bec5` (production stop + malloc-pin unblocked), `3d1e9f0` (`--min-answer-tokens` in
   `tools/longctx-cell.py`) and `4602dc5` (the two FlashInfer routes, register 151).
+
+## 2026-11-10 12:31 ET — the 17:19 quartet is a second boot, `.33`'s root falls bursty, four boards in one hour
+
+- **The 17:19:02Z `StartedAt` is a second boot, not a restarted rank.** Verified 17:29:45Z with
+  `sparkrun status` and `docker ps`: all four rank containers now belong to task
+  `1c0dffa45afa6e47_be139521f1b7` (`recipes/ds4/zz-ds4-1017-sm121-arm3-control.yaml`, tp=4, image
+  `dsv41-sm121-dg:0.2.1`) and **all four** read `StartedAt` 17:19:02Z, so the 12:11 section's reading —
+  rank 0 restarted at 17:19:02Z, pid 282, `/v1/models` 000 at 17:20:59Z — is superseded: the malloc-pin
+  treatment `b020d2dd…e71b756f3a6f` ended, its `malloc-pin/` receipt was written 12:21, and a new quartet
+  took the same ranks. `/v1/models` answered **200** at 17:29:45Z (`max_model_len` 1048576);
+  `sparkrun status` calls `.30` and `.34` idle; the receipt root carries `arm3-control-075-aborted078/`
+  (12:14) beside `arm3-control-075/` (12:29).
+- **`.33`'s root fall is bursty, not the fleet's drift.** Two independent pairs read `.33` at
+  −8 556 544 B (17:03:13→17:04:58Z) and −8 507 392 B (17:08:12→17:09:17Z, that pair's fleet net
+  −9 359 360 B, the other five nodes −98 304 to −348 160 B), yet the 66 s window *inside* the first pair
+  (17:03:43→17:04:49Z) reads only −126 976 B — the bytes go in bursts a single intra-window read misses,
+  the writer sits on `.33`'s root, and nothing here implicates the pool. Unattributed; no process was tied
+  to it.
+- **Four board compositions in one hour, so this tick stopped composing.** `d104938c…` was 11:27;
+  `dd19e960…` 12:11; `a1ae090` 12:17/12:18 absorbed one tick's queue and publication cells verbatim,
+  including its `4602dc5` landed row; this session published `88391e76…` at 12:25 (`204d2ff`, pushed) and a
+  12:28 tick replaced it with a composition already carrying the live arm3 control flight and the closed
+  malloc-pin half. The 12:25 publish's unique cell — `.33`'s burst series — is on trunk in `204d2ff` and is
+  not on the later board; it is recorded above instead of published a fifth time. Nothing of another
+  session's board was force-pushed: an unpushed peer board commit (`7ce2c9e`) was dropped by resetting the
+  branch onto `origin/main` with the worktree untouched, and it is disclosed here because its bytes are
+  superseded, not because the work was wrong.
+- **Register, and the state a board cell should cite.** Trunk is `4d8e7f33…` — 151 tasks, 109 done,
+  32 queued, 10 blocked, 0 running, 0 claims, 42 open. The worktree now holds a fifth state, 152 tasks
+  (33 queued, 43 open), which is another session's uncommitted authoring: hashed, named, and left
+  uncommitted here.
