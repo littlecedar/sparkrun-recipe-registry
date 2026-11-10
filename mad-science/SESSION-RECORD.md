@@ -8789,3 +8789,45 @@ id, so the pin is unresolved rather than proven wrong.
   Republished as the 10:23 board (title, queue row and nothing else moved), `publish` and `lint` rc=0;
   a false elapsed figure on the coordination surface is the defect class AGENTS.md names, so it is
   fixed in the board rather than only recorded here.
+
+## 2026-11-10 11:13 ET — hourly board tick: fleet unchanged, pool growth unnamed a fourth hour, two probe instruments caught lying
+- **Board published once, `lint` rc=0.** CAS guards both held at publish: the base
+  `497d5874…` (10:23 board) matched the worktree, `HEAD` and a fresh `origin/main`, and the register
+  snapshot's `fd9cab59…` still matched the live file. `publish` rc=0, "(disk was 2026-11-10 10:23:00 ET)".
+- **Census 16:04:34–16:05:47Z, read-only.** Research containers: `.30` one `Created` leftover
+  (`sm121m`, 2026-11-08 10:32:33 EST), `.35` none, volumes 0 on all six. Root avail fell 851 968 B over
+  ~71 s, and the four rank nodes took the *identical* 159 744 B step while `.30` took 102 400 B and
+  `.35` 110 592 B — so the fall is four equal movers, not one, and nothing names it this hour either.
+- **Production serve still the quartet, probed and excluded.** Four containers on `.31`–`.34`,
+  `Up 6 hours (healthy)`, image id `3f4480818acb`, `sglang.launch_server` alive inside all four (pids
+  271/310/310/312), `/v1/models` 200 at `max_model_len` 1048576. Lock unchanged: 901 B, sha256
+  `5c980895…`, mtime 05:16:53 ET, same sha on head and in this clone.
+- **Pool: serving, growth +524 288 B over 61 s, no writer named a fourth hour.** Through-mount reads
+  answer (`stat -L` on the served snapshot's `config.json`, 3 311 B; 102 hub entries). Falsifiers re-run
+  clean at 16:08:17–16:08:19Z: 0 `hf`/`huggingface-cli`/`hf_transfer` and 0 `rsync` processes on all
+  six nodes, 0 hub files at depth ≤3 newer than 30 min. `beegfs-ctl` re-probed **absent on all six**,
+  so the storage-target byte accounting four ticks have pointed at still cannot run
+  (`pool-target-probe-beegfs-ctl-absent`). `beegfs-meta`'s 5 s config-less loop advanced +702/+702/
+  +703/+702/+700 across the 61 min, which is the rate the register row claims.
+- **Campaign active, holds nothing.** Unit `active`, `MainPID 4140537`, `NRestarts=0`, 05:16:53 ET
+  across eight ticks; 9 `state.json` roots carry 33 arms (measured 15, blocked 10, failed 3, skipped 5),
+  **0 live leases and 0 `needs_reap`**; h2h reads 9 measured / 10 blocked. **The documented status
+  invocation now fails on the head**: `uv run --project campaign --frozen python -m
+  sparkrun_campaign.director status` dies `ModuleNotFoundError: No module named 'sparkrun_campaign'`
+  from `campaign/.venv`, while `PYTHONPATH=$PWD/campaign ./.venv/bin/python -m
+  sparkrun_campaign.director status` answers (9 measured, 10 blocked). Arm counts on the board come
+  from the state files, not from that command.
+- **Two defects in this tick's own probes, both caught before publish.** (1) `pgrep -cf "[r]sync"` read
+  **2 on every node** and was measuring the probe's own shell: the remote command line contains the
+  label text `rsync=%s`, and the `[r]sync` bracket trick only defeats a *literal* self-match, not a
+  label that spells the word. Re-run without that label: 0 on all six. `[h]f ` was clean for the same
+  reason in reverse (`hf=%s` does not contain `hf `). (2) `find ~/benchmarks -newermt "2026-11-10
+  12:00"` parses a bare timestamp in node-local EST = 17:00Z, an hour *ahead* of the 16:05Z read, so
+  the empty result was guaranteed — the 10:23 board and the close-out above carry that clause
+  unsupported. This tick's board row says `find -mmin -60` (empty at 16:12:19Z) instead, and
+  `-newermt "2026-11-10 12:00Z"` also reads empty, so the fact holds while the old evidence did not.
+- **Register unchanged**, `fd9cab59…` (147 tasks / 41 open / 0 claims / 0 questions), `check` rc=0,
+  table 41 rows; last write was the 10:16 tick's row addition.
+- **Three landed rows folded** the 10:23 board could not cover: `523d06a` (10:16 board + the pool-probe
+  blocker row), `b22c7b0` (10:22 ledger, the missing compare-and-swap with both hashes), `0b2b1ee`
+  (10:23 board, "seven hours" replaced). Nothing else landed on the tree in the hour.
