@@ -7784,3 +7784,50 @@ boots were the plain `pruned75` arm on the pinned nightly
   blocked SM121 rows.
 - **Register untouched** (peer owns `queue.json`): mutations for `sm121-arm3-control-1m-cell` and
   `w4-survey-arm5-control-boot` are in the session report and the receipt, not applied.
+
+## 2026-11-10 02:20 ET hourly tick composed over a peer's published board; the `.35` serve outlived its launcher, and boot 1 died to earlyoom
+- **Two ticks in one hour, and the newer one did not duplicate the older.** A peer published the 02:14
+  board (sha256 `e2cab8a9…`) for this same window before this tick composed, so this tick based on theirs,
+  verified their cells against its own reads, and rewrote nothing that agreed with itself: census
+  07:02:21→07:04:04Z net **-10 657 689 600 B** (104 MB/s) against their 07:02:06→07:05:00Z
+  -19 064 184 832 B (110 MB/s), and pool series 07:04:49→07:10:02Z **+31 270 633 472 B** at 99.9 MB/s
+  (used 12 761 047 760 896 B) against their +19 159 580 672 B at 110.1 MB/s. `177279c` was published with
+  `--expect-sha` and `--expect-remote-sha` both `e2cab8a9…` and pushed as one fast-forward, after the
+  peer's own push had already made `origin/main` serve that board.
+- **Two cells corrected, both text that would have misled a later reader.** The flight row called the
+  `.35` boot "the arm's first end-to-end attempt" and left it at `verdict=loading`. It is attempt **2**:
+  boot 1 ran the recipe's default `load_mode=none` and earlyoom SIGTERM'd `llama-server` four times at
+  VmRSS 45 786-46 001 MiB (`boot1-earlyoom.txt`, pids 1122126 / 1198348 / 1209172 / 1253990, each with
+  `mem 4.00%, swap 100.00%`), `boot1-mem-min.txt` reads **4.61 GiB over 559 samples**, and
+  `arm_opts-boot2.txt` records `-o load_mode=mmap` as boot 2's override. Attempt 2 then **outlived its
+  launcher**: `launch2.log` carries `endpoint did not become ready ... never returned HTTP 200` with
+  `serve.health_ok 900.3 s (failed)` at total 913.6 s, while `boot-watchdog` reached
+  `t=1317s verdict=healthy endpoint=ok serve_pid=alive` (~07:14:33Z) and `/v1/models` answered **200** at
+  07:19:16Z with host `MemAvailable` **49.47 GiB**. So "Up" here is a serve outliving its own launcher
+  (the 21e5ec6 keep-alive class), not liveness a launcher confirmed, and the arm is still a fit probe:
+  its planning block books 177.6 GiB of `iq2_xxs` weights against a 109.5 GiB budget and prints
+  `Fit EXCEEDS`.
+- **Image identity reconciled, and the pin's own defect recorded rather than folded into this boot.**
+  `docker image inspect 50359e0ae2ae` on `.35` answers `Tags=[littlecedar/dgx-spark-llama-cpp:upstream-6023692]`
+  and `Digests=[ghcr.io/littlecedar/dgx-spark-llama-cpp@sha256:f2579b80…]`, so the container's image id
+  and the recipe's digest are one artifact, not two builds, and the head's copy carries the same pair
+  ghcr-qualified. Separately the recipe's `container:` is written **unqualified**
+  (`littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b80…`, no `ghcr.io/`), which resolves
+  against Docker Hub and 404s: that is the mechanism behind the 07:45 register row's
+  `manifest for littlecedar/dgx-spark-llama-cpp@sha256:f2579b80… not found`, not a stale gate. This boot
+  works because the image is already local on `.35`, so no pull is attempted. Owed by the lane: qualify
+  the ref, and register the row. This tick did not write `queue.json` -- a peer holds an unstaged edit
+  there and `_save` has no compare-and-swap (`task-queue-write-clobbers-live-claim`).
+- **Chased the exec-bit claim in git, not in the worktree.** `git ls-files -s`, `git ls-tree HEAD` and
+  `git ls-tree origin/main` all read `100755 0efc9cf4… 0 tools/run-arm.sh`, so `69fb98a`'s mode fix is
+  committed and survives a checkout on the head; the director's restart precondition
+  (`os.access(..., os.X_OK)`) is satisfied by tracked bytes. Nothing tests the mode and `push-gate.py`
+  checks none, so it can regress silently -- noted, not fixed.
+- **Left deliberately untouched.** `mad-science/STATUS.md` was a peer's in-flight 02:24 composition
+  (mtime 02:26:07 with the board lock held) when the image-identity clause would have been published, so
+  that clause lives here instead of racing their publish; the register keeps the booted arm
+  `deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp` at `blocked` with no claim while the arm serves,
+  which is a state contradiction for that session to close, and `h2h-beam-house-and-bfcl-category` still
+  reads `done` under a note that ends "BFCL NOT met" although its `client/bfcl.json` (1 896 782 B) exists.
+  Node hygiene: this tick booted nothing, stopped nothing, wrote no node file, and removed its
+  `.scratch/tick-0202-640781/` capture directory after publish.
