@@ -7372,3 +7372,30 @@ ranks, pair `.31`/`.32`/`.33`/`.35`.)*
   delta exists and none is claimed. Register rows `w4-survey-arm5-control-boot` (00:13:18Z stop) and
   `w4-survey-arm5-sm121-boot` (00:19:16Z refusal) blocked with these stop points;
   `task-queue check` rc=0.
+
+## 2026-11-09 19:42 ET — session paused mid-survey: SM121 unblocked, arm 3 measured, arm 5 a hardware gate
+
+**State, so the next session starts from evidence rather than from a board row.** The ds4/SM121 block
+was a harness defect and is fixed and green: the overlay launcher staged a `sitecustomize.py` on
+`PYTHONPATH`, Python imports exactly one, and the adapter's copy at `/opt/dsv41/adapter/sitecustomize.py`
+was shadowed — so every overlay patch, the b12x MoE method included, silently failed to install, and
+the stock `Mxfp4FlashinferCutlassMoEMethod` raised its multiples-of-128 guard on the checkpoint's own
+576-wide per-rank experts. `5ac799e` chains the shim to the adapter, `6b0434d` derives the shadowed
+file from `sys.path`, and `3c9030e` identifies the adapter by its sibling modules
+(`moe_b12x_next.py`, `engram_backend.py`) because every Debian/Ubuntu interpreter ships
+`/usr/lib/python3.x/sitecustomize.py` — four red pushes ended there, and the run on `3c9030e` is green.
+
+**Arm 3 measured on the same digest** (`[moe_b12x_next] armed … a7d7d29b (W4A8, in-place repack)`):
+load 214.72 s, TTR 470 s, min `MemAvailable` 9.28 GiB, rank cgroup peak 33.95 GB, zero kernel
+`oom-kill` and zero earlyoom lines, 1M single-stream cell 56.2 ms/step over three decode steps with
+the needle passing. **Arm 5's treatment is a hardware gate**, not a configuration one
+(`trtllm-gen` requires SM100/SM103, got SM121) and its control's 128K C5 cell shape sits 0.67–0.79 GiB
+from earlyoom's 4.87 GiB line, so the guard was right and must not be lowered.
+
+**The next action is one boot and is written down in two places**: `.local/RESUME.md` (operational,
+git-ignored, synced) and the arm-3 bullet in `recipes/ds4/README.md`. Boot
+`zz-ds4-1017-sm121-arm3-control.yaml` on `.31/.32/.33/.35`, prove each node's registry clone carries
+this tip, and run the identical 1M cell (`--chars-per-token 6.65`, guard 6.0 GiB at 2 Hz) — the
+missing control for arm 3's 56.2 ms/step. Register: 125 rows, `task-queue check` rc=0; fleet idle,
+no window lock, no campaign lease touched by this work. Receipts
+`~/benchmarks/{sm121-b12x,sm121-arm5,ds4-64k}-20261109/`.
