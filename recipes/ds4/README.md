@@ -1546,7 +1546,7 @@ Two open ds4 items; the first is now measured, the second scoped from the tree:
 - **The pin moved to `08c8657f…` (commit `363e5d4`), and the move's cost is measured.** The two snapshots
   differ by exactly one file — the upstream `chat_template.jinja`: every file present in both has the
   identical size and the 96,085-entry `model.safetensors.index.json` weight map is identical, so the move
-  claims **no weight change**. Validated before moving (receipt
+  is a **template-only delta** and claims **no weight change**. Validated before moving (receipt
   `head:~/benchmarks/fit-ds4-rev08c8657f-validate-20261110/`): house battery **easy 19/19, hard 17/18**
   with the same sole miss as the pin's record (`hard-rev` → `nrukraps`, 37 items, `--max-tokens 4096`,
   thinking at its served default); needles **1/1 at 32K (C1), 2/2 at 32K (C2), 1/1 at 131K**; the served
