@@ -7550,3 +7550,44 @@ has no falsifier. (c) Left untouched: every node's containers and volumes, `mad-
   the mechanism is unverified. The indexer recipe's `description:` regression was reverted to the
   shipped-canary control sentence; the stale `:0.2.0` claim about the indexer arm was the only
   stale clause and remains fixed in the arm3-control description. No boots, no fleet touch.
+
+## 2026-11-10 00:16 ET — 00:00 tick: an idle six, one register on all three copies, and a runnable row the queue director refuses by name
+
+- **Census, two markers 73 s apart** (`00:03:59–00:04:01`, `00:05:11–00:05:12 ET`, workstation's
+  own aliases, read-only): `docker ps -aq` 1/0/0/0/0/0 with `.30`'s only container the
+  never-started `Created` `sm121m` (`dsv41-sm121-dg:0.2.1`), `docker ps -q` 0 everywhere, volumes 0
+  on all six, root `df -B1` falling 753 664 B net (≈10.3 kB/s) spread over all six with no node
+  carrying a distinct share. Uptimes pin the fleet as it was: `.30` since 2026-11-08 15:29:35, `.31`
+  –`.34` since 2026-11-09 02:08–02:13, `.35` since 16:59:17.
+- **Pool proved, not listed** — `beegfs-mgmtd`/`-meta`/`-storage` `active` `NRestarts=0` since
+  2026-11-08 15:29:55 on `.30`, `-storage` `active` `NRestarts=0` on `.31`–`.35`, and a through-mount
+  read on the head at 00:05:44: 24 191 229 755 392 B total / 12 427 582 767 104 B used (52 %), one
+  `stat -L` on a shipped pruned75 shard answering 2 341 216 112 B / 4 572 688 blocks, hub 101 entries
+  96 `models--*`. The `beegfs-meta` restart loop is unchanged in kind and older in count: `activating`
+  on `.31`–`.35` at NRestarts 15 105 / 15 087 / 15 066 / 15 046 / 4 901, still owned by
+  `beegfs-meta-restart-loop-non-meta-hosts`; `beegfs-mon` `failed` on all six.
+- **Campaign holds nothing** — unit `active (running)`, `Result=success`, `NRestarts=0`, MainPID
+  2078281 unchanged, and nine `state.json` roots sum 32 arms with 0 live leases; `director status`
+  reads 9 measured / 9 blocked for the `h2h-20261107` root with no lease line. So both holder rules
+  (no lock in this clone or on the head, no lease) read the fleet free.
+- **One register, three copies** — `fbe1a8d3…` on `origin/main` (`df9d40b`), this clone and the
+  head's copy; 128 tasks / 100 done / 18 queued / 10 blocked / 0 running / 0 claims, 28 open,
+  `check` rc=0, 0 question rows.
+- **The hour's finding: the register now carries a queue-mode row the director will not lease.**
+  `arm3-control-cell-canary-line` (`df9d40b`) is the first queued row in this register with both a
+  `recipe:` and a `tp`, i.e. exactly what `serve --queue` exists to pull, and it is refused instead
+  of planned. The refusal is `sibling_hold`'s: an arm is keyed on `Path(recipe).stem`, so this row
+  and the `done` row `h2h-second-boot-ds4-1017` are the same arm, and a `done` sibling holds a recipe
+  by design — the docstring says a `blocked` or `done` sibling holds it "even when its own row reads
+  `queued`", on the 2026-11-08 survey pair. Re-derived in-process against the queue snapshot rather
+  than quoted from a journal: `queue-skip: arm3-control-cell-canary-line (recipe also named by
+  sibling h2h-second-boot-ds4-1017 is 'done')`. Consequence: the row reads `queued` while all six
+  nodes read idle, and no utilisation claim about this hour may come from the director.
+- **Left open, with owners.** The three exits are (a) close the `done` sibling's row so the recipe
+  has one row, (b) give the canary cell a distinct recipe file so the key differs, or (c) change
+  `sibling_hold`'s ordering so a `done` sibling no longer holds — and (c) is a deliberate design
+  decision from 2026-11-08, so it is an operator call, not a tick's. **Not verified**: which exit is
+  wanted, and whether an `env:`-only difference (this row's cell shape) can ever distinguish two
+  rows — it cannot, because the hold is keyed on recipe path. Also still open: the `beegfs-meta`
+  loop, arm 3's falsifier (undecided per the 22:45 close-out), and the register's queue-mode gap for
+  rows without a `recipe:`. No boots, no node touch beyond reads.
