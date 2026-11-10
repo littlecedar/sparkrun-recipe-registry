@@ -7917,3 +7917,78 @@ boots were the plain `pruned75` arm on the pinned nightly
   are in the receipt and the session report (peer owns the file): `sm121-arm3-control-1m-cell` gets the
   0.75 sample, `w4-survey-arm5-control-boot` stays blocked on its C5 shape, plus two new rows —
   `run-arm-exec-bit-guard` and `ds4-recipe-pin-not-enforced`.
+
+- **The body landed at `07:43Z`, and the row is `queued` again.** `hf download` pid 2684722 exited with 84 of 84
+  files; `snapshots/08c8657f…` holds 57 entries and 48 of 48 shards, `stat -L` totals **510,311,062,017 B** —
+  byte-identical to the Hub tree total — with no `.incomplete` left, and `chat_template.jinja` is present at
+  16,722 B, sha256 `95b7033a…`. The 48 shard entries are symlinks into `blobs/`, but the payload is a **second
+  full copy**: the pinned snapshot stores its shards as plain files (nlink 1), so nothing is shared and the pool
+  moved 52 % → 54 % of 23 TB during the pull. `refs/main` now also names `08c8657f`.
+- **That `refs/main` move cost a quartet boot, which is why it is a row and not a footnote.** The fit session's
+  control boot (`sparkrun_1c0dffa45afa6e47_eb5100b2911f`) died at 143 s on `model-00047-of-00048.safetensors`
+  while its recipe pinned `1bae0e10…`: the ds4 launcher resolves the checkpoint through the cache's `refs/main`,
+  so the recipe's `model_revision` never reaches the engine and the `unpinned-model-revision` finding every ds4
+  arm carries is **not** cosmetic on this line. New row `ds4-model-revision-inert` carries the mechanism, the
+  `-o env.MODEL_PATH=` workaround that proved it, and the acceptance (launcher honours the pin or refuses to boot
+  when `refs/main` disagrees).
+
+## 2026-11-10 02:47 ET — two flights ended inside one tick, and a board written four times under guard
+- **What the tick read, all machine-captured.** Census pair
+`07:15:22Z`→`07:16:37Z` (75 s): `docker ps -aq` `.30` 1, `.31`–`.35` 1 each, `docker ps -q` 1
+on the five rank nodes, volumes 0 × 6; root `df -B1` avail fell on every node, net
+**−8 289 492 992 B** (≈111 MB/s) — one standing regime, not a boot transition, because `.35`'s
+serve was already up in both reads. Third read `07:45:27Z`–`07:45:29Z`: drained, `docker ps -q`
+**0 × 6**, volumes 0 × 6. Pool pair `07:19:51Z`/`07:20:42Z` through the head's mount: used
+12 826 797 146 112 → 12 830 285 758 464 (**+3 488 612 352 B** over 51 s), 101 hub entries, and the
+Engram `stat -L` at **110 595 290 816 B**. The growth attributes to the two
+`hf download deepseek-ai/DeepSeek-V4.1-Flash-1017` runs on `.30` (pid 2684722 pinned `08c8657f…`,
+pid 2967665 unpinned) writing `.incomplete` blobs; the pool's chunk store sits on every node's
+root, so one staging run reads as a fleet-wide fall (**LIKELY**, no inode tie).
+- **Both flights ended inside the tick, and neither carried a claim.** `.35`'s GSQ-RCO solo
+(session `ds4-gsq-rco-20261110`, intent `764ef61b64791742`) reached healthy at watchdog
+`t=1317 s` (07:14:43Z) — chat 200 and image 200 in `smoke.json` (4.99 / 7.65 t/s), engine
+`load_model` **21.56 min**, `/proc` showing the Engram mapped at 110 595 293 184 B,
+`n_ctx 32768` / `n_slots 2` — then tore down `07:41:54Z`. Its cells are its own artefacts:
+`cells-analysis.json` c=1 **4.788 agg t/s**, 192 completion tokens, `mem_min 47.08 GiB`,
+`majflt_per_token 94.77` (the fabric read's signature), and `engram-rowlat-cells.json`
+**median 1.584 ms / p95 2.577 ms** over 48 samples at 07:39:21Z — i.e. the 1-bit build decodes
+at single-digit tok/s because every token crosses the fabric for one row, which is what the
+recipe's own `description:` predicted. The `.31`–`.34` quartet (session `ds4-kimi-fit`) ended the
+other way: attempt 1 `…eb5100b2911f` died at `engram_backend.py:114` `FileNotFoundError` on
+`snapshots/08c8657f…/model-00047-of-00048` while its `model_revision: 1bae0e10` never reached the
+engine, attempt 2 `…38b75ff4e937` booted (TTR 171 s) and its 1M cell died at 130.16 s on the
+6 GiB guard. Both arms' register rows read `blocked` throughout, and `director status` printed no
+lease line — so the register described neither boot.
+- **The register moved under the tick and both derived blocks were re-rendered.** snapshot
+`37dc8e33…` (137 tasks, 24 queued) → `b9d3d226…` (138 tasks, 25 queued, one added row
+`run-arm-executable-mode-guard`, commit `354907a`); graph and table came off the later snapshot,
+and the published board cites it. The graph's own counts line is copied verbatim rather than
+re-derived: 12 blocked, 1 edge, 11 prose-gated, 0 question-gated, 0 question, 35 rows not drawn.
+- **A defect in this tick's own instrument, caught before it landed.** The first publication's
+cell quoted `89c82dac…` as the base it read, and no such board ever existed: the composing script
+hashed `read().rstrip()` — a newline-stripped string — instead of the file's bytes, whose sha was
+`3bebe8eb…`. The publish door's `--expect-sha` already refuses a base that moved; this was the
+same class one level up, in the script that produces the cell. Fixed by hashing raw bytes, and the
+row now names the true read. Worth remembering because the wrong sha looked plausible and the
+publish had already succeeded.
+- **Four writes, all guarded, and the chain is the record.** `3bebe8eb` (peer, 02:27) →
+`fdc2930f` (first composition, corrected before commit) → `bfa8e59a` (committed `1b31efb`) →
+`55b5b4a5` (committed `4851428`) → the drained-state write (committed `2a70d7f`). One write was
+refused by `--expect-sha` when a peer published between read and publish; the board was then
+re-derived over the peer's bytes, not aligned to the disk copy. Two cells were corrected *after*
+publication and before commit: the census "straddles both flights' changes" clause was false
+(only the quartet landed between reads) and the campaign cell named the flights' separation but
+not the next-lease risk — the director's `--hosts` set spans `.35`, whose claim lived only in a
+receipt note (`window-35.txt`), while `.local/fleet-window.lock` names `.31`–`.34` only. The
+covering register row is `campaign-ignores-declared-window`.
+- **Shared-clone mechanics, one of each.** A peer committed its own ledger close-out (`431144c`)
+onto my just-pushed board commit in this clone, and `git push` was refused once with the remote
+ahead; the rebuild took the throwaway `GIT_INDEX_FILE` + `read-tree`/`write-tree`/`commit-tree`
+route because the shared index was holding a peer's staged `recipes/ds4/README.md` (6 insertions,
+34 deletions) that my commit must not carry. No amend, no force, no reset; the worktree board was
+restored from `HEAD` before re-composing so `--expect-sha` proved a real read.
+- **Left open.** The `.35` arm's ladder cells exist but no register close-out — that is the owning
+session's row, not this tick's. The window lock is deleted, 0 leases stand, and the fleet reads
+free as of `07:45:27Z`; the lease-vs-live-serve hazard is the `campaign-ignores-declared-window`
+row's to fix.
+
