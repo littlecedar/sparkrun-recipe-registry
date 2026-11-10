@@ -1,5 +1,6 @@
 # Board — generated 2026-11-10 18:45 ET
 
+## In flight
 | where | owner | what |
 |---|---|---|
 | census | read-only in tick — booted nothing, claimed no window, stopped nothing | **three captures 2026-11-10T23:21:04Z → 23:23:36Z → 23:29:56Z (18:21–18:30 ET), all six answering**: `docker ps -aq` **9 / 1 / 1 / 1 / 0 / 1** then **9 / 1 / 1 / 1 / 0 / 1** then **9 / 1 / 1 / 1 / 1 / 0** — the canary quartet left and a `dsv41-sm121-dg` quartet took `.31`–`.34` (see `flight`) — `docker ps -q` equal to it on every read, volumes **0 × 6** on all three; root avail 1,457,124,143,104 / 1,664,627,355,648 / 1,788,270,907,392 / 1,706,182,635,520 / 1,158,897,831,936 / 1,266,508,496,896 → 1,457,102,323,712 / 1,664,539,840,512 / 1,788,184,846,336 / 1,706,096,545,792 / 1,158,801,051,648 / 1,266,507,272,192 B: the 152 s pair is **−3,817,472 B** net, the 380 s pair **−375,672,832 B** as the new image materialized on four ranks (`.34` −96,456,704, `.31` −87,113,728, `.33` −85,725,184, `.32` −85,692,416, `.30` −21,098,496, `.35` +413,696); `MemAvailable` `.30` 116.5 → 116.4 GiB flat while the ranks load and then sit at 18.5 / 19.9 / 19.8 / 19.8 GiB → 14.4 / 15.6 / 15.2 / 15.7 GiB, `.34` falling 117.4 → 15.7 GiB once its container appeared and `.35` back to 116.8 GiB once its container left. |
