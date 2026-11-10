@@ -1549,7 +1549,8 @@
         "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
         "ARM_EXTRA_CLIENT": "python3 -B tools/h2h-client.py --cell house4096 --base-url http://$NODE:$PORT --outdir $L",
         "ARM_EXTRA_TIMEOUT": "3600"
-      }
+      },
+      "memory_risky": true
     },
     {
       "id": "kimi-pruned75-dspark-tp4-boot",
@@ -1573,7 +1574,8 @@
         "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
         "ARM_EXTRA_CLIENT": "python3 -B tools/h2h-client.py --cell house4096 --base-url http://$NODE:$PORT --outdir $L",
         "ARM_EXTRA_TIMEOUT": "3600"
-      }
+      },
+      "memory_risky": true
     },
     {
       "id": "ds4-gsq-rco-coder-llamacpp-boot",
@@ -2385,7 +2387,8 @@
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/ds4/zz-ds4-1017-malloc-pin-sglang.yaml",
-      "tp": 4
+      "tp": 4,
+      "memory_risky": false
     },
     {
       "id": "ds4-exl3-tp4-tensorfold-boot",
@@ -2538,7 +2541,8 @@
       "provenance": "installed sparkrun `sparkrun/src/sparkrun/runtimes/vllm_distributed.py:62,264` (replica_size = tensor_parallel * pipeline_parallel); `recipes/qwen4/qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml:61-62`; `recipes/MECHANICS.md:653-656`; vLLM `fused_moe/config.py:1398` (TP=6 floor); Kimi config 96 heads / 3584 intermediate / 93 layers",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "memory_risky": true
     },
     {
       "id": "ds4-frac077-papered-pair",
@@ -2720,7 +2724,7 @@
       "state": "queued",
       "model": "python-runtime",
       "node_cost": "",
-      "notes": "THE DIRECTOR PLACES BY ITS DECLARED `--hosts` AND HONOURS NEITHER GUARD: it reads neither `.local/fleet-window.lock` (see `campaign-ignores-declared-window`) nor the `.30` memory-risk exclusion, so ANY queued row whose shape is only satisfiable on `.30` becomes a live risk the moment it is leaseable. Measured 2026-11-10: `kimi-pruned75-tp4-boot` (tp 4, 110.71 GiB/rank) was leased at ~22:57Z onto `.30`/`.31`/`.32` with no watchdog, and `.30` is excluded from memory-risky boots because a global OOM there takes `ssh`, `NetworkManager` and the BeeGFS units. ACCEPTANCE, either shape: (a) the director's host set excludes `.30` for `tp >= 4` shapes, or (b) leaseable rows carry a placement field (e.g. `placement: no-.30`) that the director REFUSES to violate — refusing means the lease fails loudly, not that it retries elsewhere. Until one lands, a row's state alone cannot express placement, which is why the two Kimi rows are blocked on it rather than merely annotated.",
+      "notes": "THE DIRECTOR PLACES BY ITS DECLARED `--hosts` AND HONOURS NEITHER GUARD: it reads neither `.local/fleet-window.lock` (see `campaign-ignores-declared-window`) nor the `.30` memory-risk exclusion, so ANY queued row whose shape is only satisfiable on `.30` becomes a live risk the moment it is leaseable. Measured 2026-11-10: `kimi-pruned75-tp4-boot` (tp 4, 110.71 GiB/rank) was leased at ~22:57Z onto `.30`/`.31`/`.32` with no watchdog, and `.30` is excluded from memory-risky boots because a global OOM there takes `ssh`, `NetworkManager` and the BeeGFS units. ACCEPTANCE, either shape: (a) the director's host set excludes `.30` for `tp >= 4` shapes, or (b) leaseable rows carry a placement field (e.g. `placement: no-.30`) that the director REFUSES to violate — refusing means the lease fails loudly, not that it retries elsewhere. Until one lands, a row's state alone cannot express placement, which is why the two Kimi rows are blocked on it rather than merely annotated. | TOOL CAN NOW WRITE THE PLACEMENT FIELDS 2026-11-10: `tools/task-queue.py` accepts `memory_risky` (tri-state: true/false/absent) and `exclude_hosts` (list of host strings) with `--memory-risky` / `--no-memory-risky` / `--exclude-hosts` on both `add` and `update`, `check` refuses a malformed value (a string `\"yes\"`, a bare host string, an empty list entry) so a bad hand-edit dies at the register rather than at lease time, and `queue --json` passes both through untouched. Until this landed the writer's flip set had no such key, so `campaign/DESIGN.md:86-93`'s `memory_risky: false` override was unreachable and `node_cost: quartet` was the only classification that could ever apply. `plan.memory_risky()` already preferred the explicit field, so that branch is now live: `kimi-tp2-pp3-six-node` and the two Kimi TP=4 rows are classified risky despite not being quartets, and `ds4-malloc-pin-ab` carries the measured override (`false`, it ran rc=0 on `.30`-`.33`). Caveat for `exclude_hosts`: the value must be spelled exactly as the director's `--hosts` entries, so it is deliberately not set on any row from here until that spelling is confirmed.",
       "provenance": "2026-11-10 ~22:57Z kimi-pruned75-tp4-boot leased onto .30/.31/.32 without a watchdog; .30 exclusion rule (global OOM takes ssh, NetworkManager, BeeGFS); room for the rule: .35 is a build host, five nodes cannot host four 110.71 GiB ranks",
       "evidence": "",
       "claimed_by": "",

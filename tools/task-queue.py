@@ -166,6 +166,14 @@ def parse_env(pairs: list[str]) -> dict[str, str]:
     return out
 
 
+def parse_hosts(value: str) -> list[str]:
+    """`"10.0.4.30,10.0.4.31"` -> host list. Empty entries are a usage defect, never a silent drop."""
+    hosts = [host.strip() for host in value.split(",")]
+    if not hosts or any(not host for host in hosts):
+        raise QueueError(f"--exclude-hosts expects comma-separated hosts, got {value!r}")
+    return hosts
+
+
 def tracked_recipes(root: Path) -> set[str]:
     """Every tracked path under `recipes/` in the checkout at `root`."""
     proc = subprocess.run(["git", "-C", str(root), "ls-files", "--", "recipes"],
@@ -242,6 +250,20 @@ def validate(data: dict, path: Path | None = None) -> list[dict]:
             raise QueueError(f"{tid}: 'state' must be one of {STATES}, got {task.get('state')!r}")
         if task.get("node_cost") not in NODE_COSTS:
             raise QueueError(f"{tid}: 'node_cost' must be one of {NODE_COSTS}, got {task.get('node_cost')!r}")
+        # Optional placement classification, read by the scheduler (campaign/plan.memory_risky):
+        # tri-state on purpose -- absent is not `false`, so a row that never declared it keeps the
+        # derivation from `node_cost` instead of silently claiming to be safe. The writer that
+        # builds this register had no way to set it until 2026-11-10, which made the documented
+        # `memory_risky: false` override unreachable; a bad hand-edit now fails here, not at lease.
+        risky = task.get("memory_risky")
+        if risky is not None and not isinstance(risky, bool):
+            raise QueueError(f"{tid}: 'memory_risky' must be true or false when present, got {risky!r}")
+        excluded = task.get("exclude_hosts")
+        if excluded is not None and (not isinstance(excluded, list) or not all(
+            isinstance(host, str) and host.strip() for host in excluded
+        )):
+            raise QueueError(f"{tid}: 'exclude_hosts' must be a list of host strings when present, "
+                             f"got {excluded!r}")
         evidence = task.get("evidence")
         if evidence is not None and not isinstance(evidence, str):
             raise QueueError(f"{tid}: 'evidence' must be a receipt path (string) when present")
@@ -416,6 +438,10 @@ def cmd_add(args, path: Path) -> None:
         task["tp"] = args.tp
     if getattr(args, "env", None):
         task["env"] = parse_env(args.env)
+    if getattr(args, "memory_risky", None) is not None:
+        task["memory_risky"] = bool(args.memory_risky)
+    if getattr(args, "exclude_hosts", None) is not None:
+        task["exclude_hosts"] = parse_hosts(args.exclude_hosts)
     for b in (args.blocked_by.split(",") if args.blocked_by else []):
         _find(tasks, b)["blocks"].append(args.id)
     tasks.append(task)
@@ -464,6 +490,12 @@ def cmd_update(args, path: Path) -> None:
             task[field] = value
     if getattr(args, "env", None):
         task["env"] = {**task.get("env", {}), **parse_env(args.env)}
+    # None means "leave it": the flags are tri-state (`--memory-risky` / `--no-memory-risky`), and
+    # an exclusion list is replaced wholesale because merging host lists has no obvious order.
+    if getattr(args, "memory_risky", None) is not None:
+        task["memory_risky"] = bool(args.memory_risky)
+    if getattr(args, "exclude_hosts", None) is not None:
+        task["exclude_hosts"] = parse_hosts(args.exclude_hosts)
     if args.estimate_h is not None:
         task["estimate_h"] = args.estimate_h
     if args.blocks is not None:
@@ -1217,6 +1249,12 @@ def main(argv: list[str] | None = None) -> int:
     p_add.add_argument("--blocked-by", default="", help="comma-separated ids that block this task")
     p_add.add_argument("--recipe", help="bootable row: tracked `recipes/<lane>/<arm>.yaml` path")
     p_add.add_argument("--tp", type=int, help="bootable row: nodes the arm takes (1/2/4), must match --node-cost")
+    p_add.add_argument("--memory-risky", dest="memory_risky", action="store_true", default=None,
+                       help="placement: this shape is memory-risky (default: derived from --node-cost)")
+    p_add.add_argument("--no-memory-risky", dest="memory_risky", action="store_false",
+                       help="placement: this shape is safe even on a risky node")
+    p_add.add_argument("--exclude-hosts", metavar="HOST[,HOST]",
+                       help="placement: nodes a lease must not use")
     p_add.add_argument("--env", action="append", metavar="KEY=VALUE",
                        help="bootable row: environment override for the launch (repeatable)")
     p_add.set_defaults(fn=cmd_add)
@@ -1235,6 +1273,12 @@ def main(argv: list[str] | None = None) -> int:
     p_upd.add_argument("--tp", type=int)
     p_upd.add_argument("--env", action="append", metavar="KEY=VALUE",
                        help="bootable row: merge KEY=VALUE pairs into `env` (repeatable)")
+    p_upd.add_argument("--memory-risky", dest="memory_risky", action="store_true", default=None,
+                       help="placement: mark the shape memory-risky (tri-state; unset leaves it)")
+    p_upd.add_argument("--no-memory-risky", dest="memory_risky", action="store_false",
+                       help="placement: mark the shape safe on a risky node")
+    p_upd.add_argument("--exclude-hosts", metavar="HOST[,HOST]",
+                       help="placement: replace the row's excluded-host list")
     p_upd.add_argument("--state", choices=STATES)
     p_upd.set_defaults(fn=cmd_update)
     for name, state in (("done", "done"), ("block", "blocked"), ("unblock", "queued")):

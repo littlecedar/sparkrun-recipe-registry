@@ -204,6 +204,69 @@ class FailClosed(unittest.TestCase):
         self.assertEqual(stderr.getvalue(), "")
 
 
+class PlacementClassification(unittest.TestCase):
+    """`memory_risky` / `exclude_hosts` must be WRITABLE, and a malformed value must be refused.
+
+    Measured 2026-11-10: `campaign/DESIGN.md:86-93` and `plan.memory_risky()` promised a row could
+    declare `memory_risky: true`, `exclude_hosts: [...]`, or override to `false`, but the writer's
+    flip set had no such key — so the safe-quartet override was unreachable and `node_cost:
+    quartet` was the only classification that could ever apply. A promise the tree cannot keep is
+    the defect these tests pin.
+    """
+
+    def _register(self, tmp):
+        path = Path(tmp) / "queue.json"
+        path.write_text(json.dumps(data([task("arm", 1.0)], priority_models=["x"])))
+        return path
+
+    def test_update_writes_and_queue_reads_back(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._register(tmp)
+            self.assertEqual(tq.main(["--file", str(path), "update", "--id", "arm",
+                                      "--memory-risky", "--exclude-hosts", "10.0.4.30,10.0.4.31"]), 0)
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                self.assertEqual(tq.main(["--file", str(path), "queue", "--json"]), 0)
+            row = json.loads(printed.getvalue())[0]
+            self.assertIs(row["memory_risky"], True)
+            self.assertEqual(row["exclude_hosts"], ["10.0.4.30", "10.0.4.31"])
+
+            self.assertEqual(tq.main(["--file", str(path), "update", "--id", "arm",
+                                      "--no-memory-risky"]), 0)
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                tq.main(["--file", str(path), "queue", "--json"])
+            row = json.loads(printed.getvalue())[0]
+            self.assertIs(row["memory_risky"], False,
+                          "the override DESIGN.md documents: safe despite a quartet node cost")
+            self.assertEqual(row["exclude_hosts"], ["10.0.4.30", "10.0.4.31"],
+                             "an unset flag leaves the list alone")
+
+    def test_a_malformed_value_is_refused_by_check(self):
+        # Negative control: the round-trip test above must not pass on a schema that accepts
+        # anything. Both spellings are what a hand-edit produces.
+        for bad in ({"memory_risky": "yes"}, {"exclude_hosts": "10.0.4.30"},
+                    {"exclude_hosts": ["10.0.4.30", ""]}):
+            with self.subTest(bad=bad), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "queue.json"
+                payload = data([task("arm", 1.0)], priority_models=["x"])
+                payload["tasks"][0].update(bad)
+                path.write_text(json.dumps(payload))
+                stderr = io.StringIO()
+                with contextlib.redirect_stderr(stderr):
+                    self.assertEqual(tq.main(["--file", str(path), "check"]), 1)
+                self.assertIn(next(iter(bad)), stderr.getvalue())
+
+    def test_an_empty_exclusion_list_is_a_usage_defect(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._register(tmp)
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                self.assertNotEqual(tq.main(["--file", str(path), "update", "--id", "arm",
+                                             "--exclude-hosts", "10.0.4.30,"]), 0)
+            self.assertIn("--exclude-hosts", stderr.getvalue())
+
+
 class UpdateRepairsDrift(unittest.TestCase):
     def test_update_relinks_before_validating(self):
         """`check` tells the reader to rerun `update`; that must be able to succeed.
