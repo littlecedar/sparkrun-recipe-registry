@@ -1485,6 +1485,34 @@ Two open ds4 items; the first is now measured, the second scoped from the tree:
   container was touched only because of the deployment-name filter). Kill superseded guards, or give
   each run its own trigger directory; **the fix is one line, so it is launch hygiene, not a register
   row.**
+- **Arm 3 (replay on) at 0.75 closes the matrix and refutes the replay-speed story (2026-11-10,
+  receipt `head:~/benchmarks/fit-ds4-arm3-frac75-20261110/`).** The recipe's own line boots normally
+  (`MEM_FRACTION_STATIC=0.75`, pinned `MODEL_PATH`, TTR 175 s) but its pool comes out
+  **`full_token` 702,208** against replay-off's 1,239,040 at the same fraction — replay costs **43 %
+  of the KV pool** (≈0.9 GB). So the identical 1M cell **cannot run on this line**: the serve log says
+  `Input length (1035623 tokens) exceeds the maximum allowed length (702202 tokens)`, and sglang
+  answers that with **HTTP 200 and a one-token completion**, not a 4xx — a naive probe reads 2.7 s as
+  a fast reply. Shorter cells on the same serve: **4,053 tok/s prefill @131K** (42.9 ms/step) and
+  **3,834 @512K** (72.2 ms/step), i.e. −32 % and −26 % against the shipped TP4 rows, with the floor at
+  **11.71-15.94 GiB** because the pool is small. **The 1M A/B between the flag sets is structurally
+  impossible on 121.69 GiB nodes:** replay-off needs 0.75 to clear the prefill floor (6.14 GiB) and
+  replay-on needs 0.78 to hold the prompt (702K < 1.04M at 0.75), and no fraction does both. So
+  1,831-vs-4,090 was a **fraction/pool** effect (the 0.75 pool is 84 % filled by the 1M prompt), not a
+  replay effect, and the replay line is a **line-level** −26…−32 % at equal lengths, not a decode
+  claim.
+- **Template A/B: the upstream 08c8657f template serves, accepts `reasoning_effort`, and does not
+  regress vision (2026-11-10, receipt `head:~/benchmarks/fit-ds4-template-ab-20261110/`).** With
+  `refs/main` naming `08c8657f` the launcher resolved it (no `MODEL_PATH` override needed) and
+  `ensure_template_overlay` returned early: no `/cache/runtime/model-overlay` in the container, and the
+  served `chat_template.jinja` is the snapshot's own **`95b7033a…`, 16,722 B** — not the mod copy
+  `297be886…`, 15,691 B. Behaviour follows the file: `reasoning_effort: "minimal"` → **200** with
+  `reasoning_tokens: 8` (the mod copy rejects it with `Invalid reasoning effort: minimal`), and a
+  `data:`-URI image → **200**, answer "Red", `image_tokens: 184` in usage — the engine's
+  inline-placeholder vision path is accepted upstream, so there is **no vision regression** to report.
+  Side observation: the 08c8657f body **ships no Engram shards** (`Engram shards missing rank 0/4
+  (layers [1, 14]); packing in background`), so this arm booted on the checkpoint fallback path, a
+  real difference from the pin that loads Engram; its pool came out 3,440,896 tokens. TTR 427 s
+  (Engram packing in background), no throughput measured — the point was template identity.
 - **The ladder's missing symbol is a one-line shim, and it is register-worthy.** The adapter's
   `block_verify.py:106` calls `dflash_utils.build_dflash_verify_target_probs`, which the pinned
   engine spells `build_speculative_verify_target_probs`. Cheapest honest fix, with no vendored

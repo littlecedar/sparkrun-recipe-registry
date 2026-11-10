@@ -8083,3 +8083,44 @@ row's to fix.
   cause before that half can be compared to the replay-off cell's 565.4 s TTFT; and the meta
   restart loop's NRestarts keeps climbing because the row that owns it is queued, not done.
 
+## 2026-11-10 03:22 ET — arm 3 @0.75 closes the replay matrix (by refutation); the template A/B answers all three artefacts
+
+- **Arm 3 (replay on) at 0.75 cannot hold the 1M prompt, and its pool number is the answer.** Task
+  `sparkrun_1c0dffa45afa6e47_b4aadcb8fd3e`, pinned `MODEL_PATH`, TTR 175 s, floor 11.71-15.94 GiB,
+  guard never fired; `full_token=702,208` versus replay-off's 1,239,040 at the same fraction — replay
+  costs 43 % of the KV pool. The identical 1M cell is rejected: serve log `Input length (1035623
+  tokens) exceeds the maximum allowed length (702202 tokens)` — and sglang answered **HTTP 200 with a
+  one-token completion**, not a 4xx (a naive probe would read 2.7 s as a fast reply). Shorter cells:
+  **4,053 tok/s @131K** and **3,834 @512K** (−32 %/−26 % vs shipped TP4 rows). **The 1M A/B is
+  structurally impossible on 121.69 GiB nodes**: replay-off needs 0.75 for the floor, replay-on needs
+  0.78 for the prompt. So 1,831-vs-4,090 is a fraction/pool effect (84 % pool fill), not replay; the
+  replay line's equal-length 26-32 % gap is a line-level arm, not a decode claim. Receipt
+  `head:~/benchmarks/fit-ds4-arm3-frac75-20261110/`.
+- **Template A/B: upstream template serves, accepts `reasoning_effort`, vision intact.**
+  `sparkrun_b020d2dd178343a5_36a7ab92551a`, TTR 427 s, pool 3,440,896. Served
+  `chat_template.jinja` = **95b7033a…, 16,722 B** from the snapshot (no `/cache/runtime/model-overlay`:
+  `ensure_template_overlay` returned early), not the mod copy 297be886…; `reasoning_effort: "minimal"`
+  → **200** with `reasoning_tokens: 8`; a `data:`-URI image → **200**, "Red", `image_tokens: 184` — no
+  vision regression to report. Side note: the 08c8657f body ships **no Engram shards** (`Engram shards
+  missing rank 0/4 (layers [1, 14]); packing in background`), so the arm booted on the checkpoint
+  fallback path. Receipt `head:~/benchmarks/fit-ds4-template-ab-20261110/`.
+- **The pin defect now has a discriminator, and the earlier wording was wrong.** Sparkrun's
+  `bind_runtime_models` (`models/runtime.py:21-28`) no-ops when no prepared model exists on the hosts
+  (`if not any(bindings): return`), which is the case for `SKIP_PREPARE=1` + `--transfer-mode local`;
+  the launcher then gets the **repo id** and resolves it itself — `launcher.py:913-932` branch 3,
+  `refs/main` first, completeness tested only by `config.json` + `model.safetensors.index.json`. The
+  failed boot's own log proves it (`launcher: resolved checkpoint … -> …/snapshots/08c8657f…`, and
+  `server_args['model_path']` equal to it). The publishable claim is therefore: a quartet boot served
+  the incomplete 08c8657f despite the pin, because the launcher's resolver follows `refs/main` and its
+  completeness test accepts a partial snapshot; **not** "the recipe pin is inert" and **not** "sparkrun
+  resolved refs/main".
+- **Window and director:** suspended 07:48:49Z for both boots (arm 3 and the A/B), no leases in 49
+  `state.json` roots at every check, `ctns=0 vols=0` verified after each stop, lock deleted 08:22:04Z,
+  director restarted **08:22:07Z** (`active`). The superseded-guard class was measured again and is
+  launch hygiene (one-line fix), not a row.
+- **Register mutations for the peer:** `sm121-arm3-control-1m-cell` → done (matrix above);
+  `ds4-1017-template-refresh-ab` → done (three artefacts above, no regression); NEW
+  `ds4-overpool-prompt-silent-200` (sglang answers an over-pool prompt with 200 + 1 token; probes must
+  assert `usage.prompt_tokens`); `ds4-recipe-pin-not-enforced` unchanged in state but its acceptance and
+  cause now read as the discriminator section of the control receipt.
+
