@@ -167,6 +167,13 @@ result; paste the line into the receipt and stop. The `device:` line is
 informational: the patch gates on `major == 12`, and a non-GB10 board changes
 the record, not the route.
 
+The other half of rung (i) is the boot's own parameter block: the serve prints
+seven usage lines, and the receipt quotes all seven verbatim. Four facts must
+appear in them, or the boot is not this route however it answers: the ERNIE
+backend (`ernie55`), `page_size=256` for the main pool, `kv_cache_dtype=fp8_e4m3`,
+and `window_128`. Quote the lines rather than restating the facts: a value
+transcribed from a recipe is not evidence that the engine used it.
+
 ### Rung (iii): GSM8K, exactly
 
 The lane instrument is chat-only (`run_benchmarks.py:108` posts
@@ -197,37 +204,45 @@ unchanged (`tools/eval-suite.py --checks hard --hard-bench gsm8k --hard-limit
 changes the prompt bytes relative to upstream's gate, so a Route B number is
 not comparable to 0.93 without saying so.
 
-### Rung (iv): the window falsifier, two requests
+**The number and its date.** There is none yet: the first clean run was torn
+down before the cell on 2026-11-10. The receipt fills this in as
+`accuracy: <pct> (n=<limit>, seed=1234, mode=completions, <date>)`, beside the
+`finish_reasons` histogram and the `empty_replies` count. Under 0.93 is a stop
+and a backend finding; it is never re-seeded, re-limited, or re-scored into a
+pass.
 
-One prompt pair, `/v1/completions`, `temperature: 0`, `max_tokens: 32`,
-`"model": "baidu/ERNIE-5.5-Flash-Base"`. Fixed needle text
-`The vault code is QK-4173.` and a fixed question cue
-`\nQuestion: What is the vault code? Reply with the code only.\nFinal answer:`
-with only numbered filler lines between them, so the two prompts differ in one
-thing: where the needle sits.
+### Rung (iv): the window falsifier, three requests
 
-- **W (window).** Filler to about 4096 prompt tokens, then
-  `[filler][needle][question cue]`. The needle lands roughly 25 tokens from
-  the end, inside `window` (128), so the indexer cannot select it: its
-  candidate range is `prompt_tokens - 128`. Answering the code here is only
-  possible through the window append.
-- **P (prefix control).** Filler such that the whole prompt is **at most 2048
-  tokens**, with `[filler A][needle][filler B ~300 tokens][question cue]`.
-  At that length the candidate count is `prompt_tokens - 128 < 2048`, so the
-  indexer selects every candidate and the needle is guaranteed inside the
-  top-k set (a structural control, not a lucky retrieval).
-- Check both lengths against the server's own `usage.prompt_tokens`, not a
-  local tokenizer estimate: W must report more than 2048 prompt tokens, P at
-  most 2048.
-- Pass: both replies contain `QK-4173`. The failure signature this falsifier
-  exists for is W answering without the code while P answers it, which is a
-  window that never reached the kernel. A different answer on both is a
-  quality finding, not a window finding.
-- Receipt: both prompt token counts and both replies verbatim.
+`/v1/completions`, `temperature: 0`, `max_tokens: 32`,
+`"model": "baidu/ERNIE-5.5-Flash-Base"`. One fixed needle
+`The vault code is QK-4173.` and one fixed question cue
+`\nQuestion: What is the vault code? Reply with the code only.\nFinal answer:`,
+with numbered filler lines between them. Every prompt records
+`usage.prompt_tokens`, because "the needle is inside the last 128" must be
+arithmetic on the server's own count, not an assumption about a tokenizer.
 
-Any divergence between the two falsifier answers is a backend verdict, not a
-sampling artifact: same needle, same question, greedy decoding (at
-`temperature: 0` the seed is inert).
+- **C -- clean control (must answer).** The needle sits in the top-k candidate
+  range, plainly formatted, in a prompt of at most 2048 tokens. At that length
+  the candidate count is `prompt_tokens - 128 < 2048`, so the indexer selects
+  every candidate and the needle is guaranteed inside the top-k set by
+  structure. C proves the model reads a code that is present.
+- **T -- tail-only (answers only through the window).** The same needle and cue,
+  in a prompt above 2048 tokens, with the needle inside the final 128 tokens:
+  `prompt_tokens - <position>` below 128 by the server's count. The indexer's
+  candidate range stops at `prompt_tokens - 128`, so T is answerable only
+  through the window append. A port that drops the window answers T without
+  the code, or not at all.
+- **N -- negative control (must fail).** T's exact bytes with the code removed
+  from the tail. No port may produce a code here; if N answers one, the
+  instrument is parroting and T's answer is worthless.
+
+Owner's phrasing on 2026-11-10 was "a clean control answer plus a tail-only
+prompt that must fail". Read as the negative above: the *no-code* tail prompt
+is the one that must fail. What this redesign fixes is the earlier run's
+evidence: one answered code beside a garbled control proves nothing, because a
+model that answers everything, or one that reads the code out of a malformed
+prefix, passes it. The trio is the smallest shape that discriminates: C pass,
+T pass, N fail. Receipt: all three `prompt_tokens`, all three replies verbatim.
 
 ## What this shim cannot prove
 
@@ -243,6 +258,37 @@ sampling artifact: same needle, same question, greedy decoding (at
   steps behind the median and take it from a long-answer request: a 3-step
   median is dominated by first-step overhead (the ds4 lane measured arm 3 at
   56.2 ms/step over 3 steps and 31.8 over 37).
+
+## Campaign wiring (`ARM_EXTRA_CLIENT`)
+
+A campaign boot has no artefact contract for this arm unless the row carries a
+client. The one client is the lane's own instrument,
+`recipes/ds4/benchmarks/run_benchmarks.py`, over the `--completions` flag it is
+gaining:
+
+```text
+ARM_EXTRA_CLIENT="python3 recipes/ds4/benchmarks/run_benchmarks.py --base-url http://$NODE:$PORT --model $SERVED --bench gsm8k --limit 200 --seed 1234 --completions --outdir $L/gsm8k"
+ARM_EXTRA_TIMEOUT=7200
+```
+
+200 sequential 2048-token requests do not fit the hook's 1800 s default, hence
+the timeout. The row owner pastes both into `mad-science/queue.json`; the
+address is `$NODE:$PORT`, resolved at eval time, so the tracked row stays
+address-free.
+
+**Precondition, and why this recipe is not wired to it yet.** `--completions`
+is a peer's in-flight change to `run_benchmarks.py` (uncommitted on
+2026-11-10). An `ARM_EXTRA_CLIENT` that names a flag the committed tree does
+not parse is inert, and inert is worse than absent because the row then looks
+like it has an artefact contract. Check before wiring:
+
+```text
+python3 recipes/ds4/benchmarks/run_benchmarks.py --help | grep -q -- --completions
+```
+
+Wire the row only once that exits 0 on the head checkout. Until then the only
+honest campaign state for this arm is "no client", not a client that fails or
+silently ignores its flags.
 
 ## Boot discipline
 
