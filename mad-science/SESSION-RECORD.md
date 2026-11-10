@@ -8070,8 +8070,11 @@ row's to fix.
 - **Three instrument defects, each caught before it landed.** (1) The first unit sweep ran all six
   `systemctl` calls **on the head** and labelled them `.31`–`.35`, which reads exactly like a fixed
   pool — discarded and re-run with an `ssh` hop per host; the trap is the same one the census
-  section warns about, in a loop that never had a hop. (2) A prose cell quoting `## Work queue`
-  produced a third section heading in the heading scan, fixed before publish. (3) `publish` refused
+  section warns about, in a loop that never had a hop. (2) A prose cell quoted `## Work queue`, so
+  the bare `split('## Work queue')` inspector used to slice the section cut at the cell instead of
+  the heading — the `(?m)^##` scan never saw a fourth heading, and the cell was reworded anyway;
+  the lesson is the skill's own, that section surgery must not split on bare prose. (3) `publish`
+  refused
   the board on a raw cluster address taken from the lock body, which is the guard working: the
   cell now says ranks `.31`–`.34`.
 - **Shared clone mechanics.** The index held an obsolete 02:40 board blob (a peer's staged
