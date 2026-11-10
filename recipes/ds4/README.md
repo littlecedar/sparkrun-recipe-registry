@@ -1571,7 +1571,23 @@ Two open ds4 items; the first is now measured, the second scoped from the tree:
   *smaller* pool, and the small-pool 0.75 line is 2× faster still but sits 2.8 GiB closer to earlyoom;
   no single lever is isolated by this set. An earlier canary cell that reported 91.4 ms/step was
   discarded: the launch wrapper's own post-Ready cell overlapped it and the identical prompts shared a
-  prefix cache (`head:~/benchmarks/fit-ds4-canary-1m-20261110/` carries the correction).
+  prefix cache (`head:~/benchmarks/fit-ds4-canary-1m-20261110/` carries the correction; **91.4 ms/step
+  must not be quoted from any file**).
+
+  **The day's four-boot matrix** (all `tools/longctx-cell.py`, one stream, 1,039,999-token prompt, 128 max
+  tokens, same image id, `.31`-`.34`; decode is comparable, the pools are not):
+
+  | line | pin | `full_token` | decode ms/step | prefill tok/s | floor (`MemAvailable` min) | 1M cell |
+  |:--|:--|--:|--:|--:|--:|:--|
+  | replay-off @0.75 | 1bae0e10 | 1,239,040 | **44.7** | 1,831 | 6.14 GiB | PASS |
+  | replay-on @0.75 | 1bae0e10 | 702,208 | — | — | 11.71 GiB | rejected (prompt > pool) |
+  | replay-on @0.78 (arm 3's line) | 1bae0e10 | 2,006,309 | **56.2** (54.8/55.4) | — | not sampled | PASS |
+  | replay-off @0.78 (control) | 1bae0e10 | 2,809,088 | — | — | 5.63 GiB | stopped at 130 s |
+  | **shipped canary @0.78** | **08c8657f** | **2,729,984** | **61.1** | **4,242** | 8.98 GiB | PASS |
+
+  Read across the rows: the prefill spread (1,831 → 4,242 tok/s) tracks the pool filling, not the replay
+  flag, and decode moves inversely with the pool — the smallest pool is fastest per step and closest to
+  earlyoom. No row isolates one lever; that is the state of the lane, stated rather than implied.
 - **The ladder's missing symbol is a one-line shim, and it is register-worthy.** The adapter's
   `block_verify.py:106` calls `dflash_utils.build_dflash_verify_target_probs`, which the pinned
   engine spells `build_speculative_verify_target_probs`. Cheapest honest fix, with no vendored
