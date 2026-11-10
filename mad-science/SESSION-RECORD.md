@@ -7486,3 +7486,33 @@ has no falsifier. (c) Left untouched: every node's containers and volumes, `mad-
   guard's stop (harvest ordering), so its gate lines were captured live before the cell;
   boot 2's four serve logs are in the receipt. Teardown verified 0 containers / 0 volumes on
   all four ranks after both boots, lock deleted, two boots only, no third.
+
+## 2026-11-09 23:11 ET — 23:00 tick: an idle six after the arm-3 window closed, and one register on all three copies
+
+- **Census, two markers 51 s apart** (`23:02:15–23:02:16`, `23:03:06–23:03:08 ET`, workstation
+  aliases): containers `1 / 0 / 0 / 0 / 0 / 0` (`.30`'s never-started `Created` `sm121m` only),
+  running `0`, volumes `0`, and root `df -B1` falling **524 288 B** spread over all six — no node
+  carries a distinct share, so no staging is claimed. Uptimes unchanged from the 02:08–02:14 roll
+  plus `.35`'s 16:59:17, `.30` still 2026-11-08 15:29:35.
+- **Pool proved by a read, not a unit state.** Head `df -B1` 24 191 229 755 392 total /
+  12 427 700 731 904 used / 11 763 529 023 488 avail (52 %), `stat -L` on the shipped Kimi
+  pruned75 shard 1 answers **2 341 216 112 B / 4 572 688 blocks**, hub holds 102 entries of which
+  96 are `models--*` with the dir's mtime still 18:45:48 and no `.incomplete` blob — so the
+  +351 797 248 B of used growth since 20:03 has no staged body behind it, and no mechanism is named.
+- **Holder rules both read free.** No `.local/fleet-window.lock` in this clone or on the head, and
+  nine campaign roots sum 32 arms / **0 leases** under a unit `active` since 09:12:09 (MainPID
+  2078281). The `sm121-arm3-control` window (`.31`/`.32`/`.33`/`.35`, 03:20Z–04:50Z) is closed on
+  its own receipt: `ctns=0 vols=0` after each boot, lock deleted, and this tick's zero-running
+  census agrees. Its measurement landed at 22:44 and is folded on the board.
+- **One register on all three copies** — `3ce6fa8e…` on `origin/main` (`04f6028`), this clone and
+  the head's `~/src/sparkrun-recipe-registry` — **127 tasks / 100 done / 17 queued / 10 blocked /
+  0 running / 0 claims / 27 open**, `check` rc=0, `questions` 0 open. An earlier head read of
+  `1096c3ca…` was a mid-write and is not carried. **Queue mode is idle on the register, not only
+  on the fleet**: no queued row carries both `recipe:` and `tp:`, so the director has nothing to
+  pull, and the two rows that landed this hour (`sm121-ladder-acceptsampling-dflash`,
+  `longctx-cell-decode-sample-length`) are single and quartet-without-recipe respectively.
+- **Left open, with owners**: the `beegfs-meta` restart loop on `.31`–`.35` (`activating`,
+  NRestarts 14 452 / 14 433 / 14 413 / 14 395 and 4 248) still owned by
+  `beegfs-meta-restart-loop-non-meta-hosts`; arm 3's falsifier stays undecided per the 22:45
+  close-out; and the register's queue-mode gap — a queued quartet row with no `recipe:` — is the
+  reason a live director alternates between "no runnable rows" and an empty fleet.
