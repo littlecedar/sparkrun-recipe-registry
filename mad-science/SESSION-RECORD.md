@@ -7785,6 +7785,46 @@ boots were the plain `pruned75` arm on the pinned nightly
 - **Register untouched** (peer owns `queue.json`): mutations for `sm121-arm3-control-1m-cell` and
   `w4-survey-arm5-control-boot` are in the session report and the receipt, not applied.
 
+## 2026-11-10 02:24 ET — hourly tick: board folded onto two peer publishes and a register move
+
+- **Reads this tick took, all read-only** — booted nothing, claimed no node, stopped nothing. Census
+  pair **02:04:09 → 02:06:55 ET (166 s)**: `docker ps -aq` `.30` 1 (the never-started `Created`
+  `sm121m`) / `.31`–`.34` 0 / `.35` 1 running; volumes 0 × 6; root `df -B1` deltas `.30`
+  −3 957 260 288, `.31` −3 011 321 856, `.32` −2 520 567 808, `.33` −1 236 279 296, `.34`
+  −3 200 462 848, `.35` −4 206 030 848, net **−18 131 922 944 B**. Pool through the head's mount, a
+  62 s pair 07:07:24Z → 07:08:26Z: used **+8 811 708 416 B** to 12 753 110 040 576 B, avail
+  11 438 119 714 816 B, 101 hub entries; the writer is named at the process (`hf download
+  deepseek-ai/DeepSeek-V4.1-Flash-1017 --revision 08c8657f…`, pid 2684722, snapshot 46 of 48 shards
+  with 2 `.incomplete`). Nine campaign roots **33 arms, 0 leases**; register byte-identical on
+  origin, this clone and the head.
+- **The board moved under this tick three times, and each move was caught by a different gate.** A
+  peer published at 02:14 (commit `9a4cbd2`) before the compose finished, again at 02:20 without a
+  commit, and then committed that 02:20 board as `177279c`. The 02:20 publish was caught only by
+  `publish`'s **title-regression check against disk** (`refusing publish: … newer than this read's`),
+  which is the right instrument: `--expect-remote-sha` reads `origin/main` and is blind to a peer who
+  published to disk only. A third refusal was **this tick's own error** — a placeholder full sha typed
+  instead of the base copy's — and the same gate refused it. The published composition is over
+  `2fdff5ca…`, with `--expect-sha` and `--expect-remote-sha` both that sha.
+- **A register commit landed between compose and publish, so the queue cell and both Work queue
+  blocks were re-derived rather than carried.** `354907a` added `run-arm-executable-mode-guard` (137 →
+  138 tasks, 36 → 37 open) at 02:18; the peer's 02:20 board still cited `37dc8e33…` / 137 tasks and
+  its table was one row short. Re-snapshotted to `b9d3d226…` and re-rendered `render --board` and
+  `graph --file` from that one copy, so the graph's counts line now reads `12 blocked, 1 edges, 11
+  prose-gated, 0 question-gated, 0 question, 35 rows not drawn (--all)`.
+- **What the tick actually changed:** the queue cell, the Work queue graph and table, the publication
+  cell, the title, and **one landed row** (`354907a`). Peer cells for census, pool, flight, campaign
+  and window were kept verbatim where fresher — their census pair (07:02:06→07:05:00Z) and their
+  flight read (healthy at 07:14:33Z, `/v1/models` 200 at 07:19:16Z) both postdate this tick's read of
+  the same boot at `503`.
+- **Instrument trap worth keeping:** the first census pass used `set -- $p` inside a `for … & done`
+  loop and produced **six identical `.35` rows** — every line reported the last node with the same
+  byte value, and nothing errored. It was caught only because the numbers repeated. The fix is
+  explicit per-node arguments in the worker script; a census whose six lines cannot differ is not a
+  census.
+- **Not touched on purpose:** `mad-science/queue.json` (a peer's live edit; this tick is read-only on
+  the register), `tools/run-arm.sh` and the three recipes carrying peers' uncommitted hunks, and the
+  live `.35` boot.
+
 ## 2026-11-10 02:20 ET hourly tick composed over a peer's published board; the `.35` serve outlived its launcher, and boot 1 died to earlyoom
 - **Two ticks in one hour, and the newer one did not duplicate the older.** A peer published the 02:14
   board (sha256 `e2cab8a9…`) for this same window before this tick composed, so this tick based on theirs,
