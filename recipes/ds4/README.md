@@ -1319,8 +1319,10 @@ the flashinfer path never fires. The verification sequence is (1) the launcher r
 (`server_args={… 'moe_runner_backend': 'marlin', 'speculative_moe_runner_backend': 'marlin' …}`),
 (3) `Load weight begin` with its memory number — and a flag is in effect at step 2, never at step 1.
 
-**CONFIRMED on a second boot — marlin is selectable, reaches weight load, and does not fit at TP=4
-on GB10.** `@8` printed `Init parallel ends. elapsed=35.90 s` and `Load weight begin. avail
+**CONFIRMED on a second boot — marlin is selectable, reaches weight load, and the real (non-dummy)
+loader does not fit at TP=4 on GB10.** *(The fit conclusion is narrowed 2026-11-10 below: with
+`load_format: dummy` the destination fits with 25.87 GiB headroom, so the barrier is the loader's
+double copy, not the model.)* `@8` printed `Init parallel ends. elapsed=35.90 s` and `Load weight begin. avail
 mem=111.71 GB` with the flag in effect at the engine (`'moe_runner_backend': 'marlin'` twice in
 `server_args`, plus `'speculative_moe_runner_backend': 'marlin'`, beside the launcher receipt's
 `EXTRA_SGLANG_ARGS='… --moe-runner-backend marlin'`), and then the host went, not the engine: the
@@ -1430,7 +1432,10 @@ steps**, **31.8 ms/step**, **51.04 tok/s**, needle 1/1 (prefix check), zero erro
 **10.87 / 12.31 / 11.52 / 11.36 GiB**, guard 6.0 GiB silent. **This replaces 56.2 as arm 3's decode
 figure**: 56.2 / 54.8 / 55.4 were 3-step medians, where the first step carries the cost of the
 prefill hand-off, and `--max-tokens 512` could not lengthen the sample because the engine stopped at
-6 tokens. The lever, not the flag set, is what moved it.
+6 tokens. The lever, not the flag set, is what moved it. Cell artifacts: the steady sample is
+`longctx-1m.out` in `head:~/benchmarks/tp4-20261110b/e4b-indexer-077-steady/`, the 0.75 C5 cell is
+`c5-128k.json` + `RECEIPT.md` in `head:~/benchmarks/tp4-20261110b/arm3-control-075/`, and both 0.77
+arms are in `head:~/benchmarks/tp4-20261110b/e4-pair/`.
 
 **The 0.77 pair is a measured configuration.** Same fraction, image, checkpoint and context; the
 replay flag is the only difference:
@@ -1531,7 +1536,9 @@ cell and no delta is claimed. Receipt `head:~/benchmarks/sm121-arm5-20261109/REC
 rows `w4-survey-arm5-sm121-boot`, `w4-survey-arm5-control-boot`,
 `sm121-ladder-acceptsampling-dflash`.
 
-**Why marlin could not have been the answer anyway.** Marlin's repack is a copy, and this loader
+**Why marlin could not have been the answer anyway.** *(Superseded 2026-11-10 by the dummy boot two
+paragraphs below: the destination arithmetic holds, but the dive it was written to explain is the
+fractional loader's transient, not the model's footprint.)* Marlin's repack is a copy, and this loader
 materialises the whole model before repacking it: `loader.py:1015` `load_weights_only` (all shards,
 all layers) then `:1016` `postprocess_weights` → per-module `process_weights_after_loading`. Marlin's
 own layout at TP=4 is 1.868 GiB/layer × 43 layers = **80.31 GiB** (`mxfp4_marlin_moe.py:78` rounds
@@ -1541,6 +1548,29 @@ own layout at TP=4 is 1.868 GiB/layer × 43 layers = **80.31 GiB** (`mxfp4_marli
 rank cgroup. b12x_next is *in-place* by construction (`moe_b12x_next.py` printer: "W4A8, in-place
 repack"), which is the property marlin lacks. Page size was tested and refuted separately: page tables
 are 0.008–0.021 % of that dive (`head:~/benchmarks/ds4-64k-20261109/`).
+
+**Measured 2026-11-10, and it splits the two things this lane was conflating: the destination fits,
+the loader is what dives.** A `load_format: dummy` boot of `zz-ds4-1017-sm121-arm3-control-marlin-dummy.yaml`
+at `MEM_FRACTION_STATIC=0.78` on `.31`-`.34` allocated the real weight footprint with no shard reads —
+`Load weight begin. avail mem=111.17 GB` → `Load weight end … avail mem=28.94 GB, mem usage=82.24 GB`,
+then the DSpark draft `avail mem=26.45 GB, mem usage=2.28 GB` — and the **host trough over 256
+one-Hz samples per rank was 25.87 / 27.63 / 26.86 / 27.67 GiB** `MemAvailable`. So at TP=4 the body
+plus draft sit in 84.52 GB with **25.87 GiB of host headroom**: the destination is not the problem, and
+the 5.31–5.70 GiB troughs that killed the serial-loader runs belong to the **fractional loader's
+transient inflation**, not to the model. The 0.78 dummy then refused *after* the weights, at pool
+sizing, with its own arithmetic: `The DSV4 SWA pool cap (100864 tokens, 2.25 GB) leaves no room for
+the full KV pool within the available 1.69 GB` (`kv_cache_configurator.py:2390` → `pool_configurator.py:1545`).
+That is a **pool-split** wall, not a host-memory wall: the static fraction buys KV budget and the
+2.25 GB SWA cap consumes the margin it buys. Consequence for the marlin question: if a destination
+config exists at TP=4, the only remaining barrier is the loader holding two copies (≈155 GiB above),
+which narrows marlin's rejection to a **streaming loader** requirement — a code task with a named
+target, not an arch verdict. Receipt `head:~/benchmarks/tp4-20261110b/marlin-dummy-078/`.
+The refusal was caught **unattended**: on that same boot `tools/boot-watchdog.py` reached
+`verdict=dead cause='RuntimeError'` at `t=71 s` (two observations, `dead_candidate` at `t=59 s`),
+harvested the engine log as `serve-reaped-sparkrun_1c0dffa45afa6e47_072f0842ecda_node_0.log` before
+stopping task `1c0dffa45afa6e47_072f0842ecda` by literal id, and left `ctns=0` on the ranks — the
+`21e5ec6` class (a container kept "Up" after its serve child died) closing in production rather than
+in a repro. Witness: `watchdog-1c0dffa45afa6e47_072f0842ecda.log` in the same receipt directory.
 
 **Correcting the record on the 2026-10-26 `triton` retry.** That retry did clear the ÷128 geometry
 check and died 16 s into `Load weight begin` with NVRM `NV_ERR_NO_MEMORY` at 108.83 GB available —
@@ -1586,7 +1616,7 @@ Two open ds4 items; the first is now measured, the second scoped from the tree:
   set (`.34` here, `.35` in the 0.78 control) — cross-node and cross-pool, so "0.75 buys 3.65 GiB"
   is not claimed; (ii) prefill ran **1,831 tok/s** against the shipped line's 4,090 tok/s 1M mean
   (245 s), 2.2× slower, with the 6 GiB floor and 94.6 % Engram hit rate as candidates — a same-node
-  0.78 control separates them. Decode 44.7 ms/step vs arm 3's 56.2 is likewise open.
+  0.78 control separates them. Decode 44.7 ms/step (3-step median, like arm 3's 56.2) is likewise open.
 - **Same-node 0.78 control, later the same hour (receipt `head:~/benchmarks/fit-ds4-frac78-control-20261110/`).**
   The recipe default boots (`full_token=2,809,088`, TTR 171 s) but the identical cell is stopped at
   130 s by the guard: floor **5.63 GiB** (`.34`; `.33` 6.05, `.32` 7.08, `.31` 6.66) against 0.75's
@@ -1676,9 +1706,11 @@ Two open ds4 items; the first is now measured, the second scoped from the tree:
   `deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` exactly as it ships, no override: TTR **145 s**, pool
   `full_token=2,729,984`, floor **8.98-9.91 GiB**, `[moe_b12x_next]` armed, no ÷128 `ValueError`, served
   snapshot `08c8657f…`/template `95b7033a…`; the identical single-stream 1M cell gives **61.1 ms/step**
-  and **prefill 4,242 tok/s**, needle 1/1. Three-way with pools and floors: replay-off @0.75 = 44.7
-  ms/step (1.24M pool, 6.14 GiB floor), replay-on @0.75 = not runnable (702K pool), replay-on @0.78 (arm
-  3's own line) = 56.2/54.8/55.4 (2.01M pool), **shipped canary = 61.1 (2.73M pool, 8.98 GiB floor)**.
+  (**3-step median**, 6 answer tokens — the same 3-step sample as 56.2/54.8/55.4, not arm 3's 37-step
+  31.8) and **prefill 4,242 tok/s**, needle 1/1. Three-way with pools and floors: replay-off @0.75 = 44.7
+  ms/step (3-step median; 1.24M pool, 6.14 GiB floor), replay-on @0.75 = not runnable (702K pool),
+  replay-on @0.78 (arm 3's own line) = 56.2/54.8/55.4 (3-step medians; 2.01M pool),
+  **shipped canary = 61.1 (3-step median; 2.73M pool, 8.98 GiB floor)**.
   instrument and the cell are the same across all four, so decode compares; the **pool/Engram/pin
   differences are the confounds**, and the pool itself moves ±0.2M between boots (2.52M / 2.61M / 2.73M
   on tonight's three shipped-line boots). **The 8 % step gap is not a licensed claim:** arm 3's
@@ -1700,9 +1732,9 @@ Two open ds4 items; the first is now measured, the second scoped from the tree:
   |:--|:--|:--|--:|--:|--:|--:|:--|
   | replay-off @0.75 | 1bae0e10 | 11-10 | 1,239,040 | **44.7** | 1,831 | 6.14 GiB | PASS |
   | replay-on @0.75 | 1bae0e10 | 11-10 | 702,208 | — | — | 11.71 GiB | rejected (prompt > pool) |
-  | replay-on @0.78 (arm 3's line) | 1bae0e10 | **11-09** | 2,006,309 | **56.2** (54.8/55.4) | — | not sampled | PASS |
+  | replay-on @0.78 (arm 3's line) | 1bae0e10 | **11-09** | 2,006,309 | **56.2** (3-step; 54.8/55.4) | — | not sampled | PASS |
   | replay-off @0.78 (control) | 1bae0e10 | 11-10 | 2,809,088 | — | — | 5.63 GiB | stopped at 130 s |
-  | **shipped canary @0.78** | **08c8657f** | 11-10 | **2,729,984** | **61.1** | **4,242** | 8.98 GiB | PASS |
+  | **shipped canary @0.78** | **08c8657f** | 11-10 | **2,729,984** | **61.1** (3-step) | **4,242** | 8.98 GiB | PASS |
 
   Read across the rows: the prefill spread (1,831 → 4,242 tok/s) tracks the pool filling, not the replay
   flag, and decode moves inversely with the pool — the smallest pool is fastest per step and closest to
