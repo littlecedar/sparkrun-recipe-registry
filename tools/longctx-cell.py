@@ -34,6 +34,15 @@ asks for the code followed by a long continuation instead of "code only", so a
 server that ignores the lever still generates. A long sample costs wall time at
 1M context; the lever is off by default and the default request body is unchanged.
 
+A serve whose checkpoint ships no chat template answers `/v1/chat/completions` with
+HTTP 400 `Cannot use chat template functions because tokenizer.chat_template is not
+set`, so it cannot be measured at all. `--completions` (default off) posts the plain
+prompt to `/v1/completions` instead of a `messages` array and calibrates against
+that prompt, so the template never enters the path. The JSON report carries
+`mode: completions` and the `endpoint` that answered, so a chat receipt and a
+completions receipt cannot be confused; every other flag keeps its meaning, and with
+the flag absent the request body is byte-identical to before.
+
 Stdlib only, like the rest of tools/: it runs on the head with no venv.
 
 Usage
@@ -44,6 +53,9 @@ Usage
         --context-length 131072 --concurrency 5,10 --max-tokens 8
     python3 -B tools/longctx-cell.py --base-url http://NODE:8000 \
         --context-length 1039999 --max-tokens 192 --min-answer-tokens 192
+    python3 -B tools/longctx-cell.py --base-url http://NODE:8000 --completions \
+        --context-length 1039999 --chars-per-token 6.65 \
+        --max-tokens 64 --min-answer-tokens 64 --model baidu/ERNIE-5.5-Flash-Base
 
 Exit codes: 0 every cell measured and retrieved the code; 1 transport failure or
 unreachable endpoint; 2 bad flags; 3 a cell measured but failed its own checks
@@ -61,7 +73,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSION = "1.1"
+VERSION = "1.2"
 DEFAULT_CPT = 3.5  # chars per token, only a starting guess; calibrated in run
 CALIBRATION_TOKENS = 8192
 REACHED_FRACTION = 0.97
@@ -91,10 +103,9 @@ def _headers(api_key: str | None) -> dict[str, str]:
 
 def _url(base: str, path: str) -> str:
     base = base.rstrip("/")
-    if base.endswith("/chat/completions"):
-        base = base[: -len("/chat/completions")]
-    if base.endswith("/v1"):
-        base = base[: -len("/v1")]
+    for suffix in ("/chat/completions", "/completions", "/v1"):
+        if base.endswith(suffix):
+            base = base[: -len(suffix)]
     return base + path
 
 
@@ -129,41 +140,57 @@ def build_prompt(target_tokens: int, seed: int, cpt: float,
     return prompt, code
 
 
-def request_body(model, prompt, max_tokens, min_answer_tokens=0):
-    """The one body both streaming_chat and the lever preflight send.
+def request_target(completions=False):
+    """``(mode, endpoint)`` -- the one knob ``--completions`` turns, and the pair
+    the report records so a chat receipt and a completions receipt cannot be
+    confused."""
+    if completions:
+        return "completions", "/v1/completions"
+    return "chat", "/v1/chat/completions"
 
+
+def request_body(model, prompt, max_tokens, min_answer_tokens=0, completions=False):
+    """The one body both the streaming request and the lever preflight send.
+
+    ``completions`` sends the plain prompt to ``/v1/completions``, the only route
+    a serve whose checkpoint ships no chat template answers at all.
     ``min_answer_tokens > 0`` is the opt-in decode-sample lever: both fields are
     standard OpenAI-compatible sampling fields (vllm: protocol.py; sglang maps
     ``min_tokens`` to ``min_new_tokens`` and rejects it above ``max_tokens``).
     """
-    body = {"model": model, "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0, "max_tokens": max_tokens, "stream": True,
-            "stream_options": {"include_usage": True}}
+    if completions:
+        body = {"model": model, "prompt": prompt, "temperature": 0,
+                "max_tokens": max_tokens, "stream": True,
+                "stream_options": {"include_usage": True}}
+    else:
+        body = {"model": model, "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0, "max_tokens": max_tokens, "stream": True,
+                "stream_options": {"include_usage": True}}
     if min_answer_tokens > 0:
         body["ignore_eos"] = True
         body["min_tokens"] = min_answer_tokens
     return body
 
 
-def streaming_chat(base, model, prompt, max_tokens, timeout, api_key,
-                   min_answer_tokens=0):
-    body = request_body(model, prompt, max_tokens, min_answer_tokens)
-    req = urllib.request.Request(_url(base, "/v1/chat/completions"),
+def streaming_request(base, model, prompt, max_tokens, timeout, api_key,
+                      min_answer_tokens=0, completions=False):
+    body = request_body(model, prompt, max_tokens, min_answer_tokens, completions)
+    req = urllib.request.Request(_url(base, request_target(completions)[1]),
                                  data=json.dumps(body).encode(),
                                  headers=_headers(api_key))
     return urllib.request.urlopen(req, timeout=timeout)
 
 
 def run_request(base, model, prompt, code, max_tokens, timeout, api_key,
-                min_answer_tokens=0, prefix=False):
+                min_answer_tokens=0, prefix=False, completions=False):
     rec = {"code": code, "error": None, "ttft_s": None, "steps": 0,
            "completion_tokens": None, "prompt_tokens": None,
            "needle": False, "reply": "", "stamps": [],
            "min_answer_tokens": min_answer_tokens, "needle_prefix": prefix}
     started = time.perf_counter()
     try:
-        resp = streaming_chat(base, model, prompt, max_tokens, timeout, api_key,
-                              min_answer_tokens)
+        resp = streaming_request(base, model, prompt, max_tokens, timeout, api_key,
+                                 min_answer_tokens, completions)
     except urllib.error.HTTPError as exc:
         rec["error"] = "HTTP %s: %s" % (exc.code, exc.read()[:200].decode(errors="replace"))
         rec["wall_s"] = time.perf_counter() - started
@@ -210,22 +237,25 @@ def _consume(resp, rec):
                 rec["completion_tokens"] = usage["completion_tokens"]
             for choice in chunk.get("choices") or []:
                 delta = choice.get("delta") or {}
-                piece = delta.get("content") or delta.get("reasoning_content") or ""
+                piece = (delta.get("content") or delta.get("reasoning_content")
+                         or choice.get("text") or "")
                 if piece:
                     rec["reply"] += piece
                     rec["stamps"].append(time.perf_counter())
                     rec["steps"] += 1
 
 
-def calibrate(base, model, cpt, timeout, api_key):
+def calibrate(base, model, cpt, timeout, api_key, completions=False):
     prompt, _code = build_prompt(CALIBRATION_TOKENS, 99, cpt)
-    rec = run_request(base, model, prompt, "", 8, timeout, api_key)
+    rec = run_request(base, model, prompt, "", 8, timeout, api_key,
+                      completions=completions)
     if rec["error"] or not rec["prompt_tokens"]:
         return cpt, rec
     return len(prompt) / rec["prompt_tokens"], rec
 
 
-def probe_lever(base, model, min_answer_tokens, task, timeout, api_key):
+def probe_lever(base, model, min_answer_tokens, task, timeout, api_key,
+                completions=False):
     """One short request proving the fields land; returns ``(task, fields, note)``.
 
     A 4xx means the server refuses the fields, and a short reply means it read
@@ -234,7 +264,8 @@ def probe_lever(base, model, min_answer_tokens, task, timeout, api_key):
     """
     prompt, code = build_prompt(256, 4242, DEFAULT_CPT, task)
     rec = run_request(base, model, prompt, code, min_answer_tokens,
-                      timeout, api_key, min_answer_tokens, prefix=True)
+                      timeout, api_key, min_answer_tokens, prefix=True,
+                      completions=completions)
     if rec["error"]:
         return ("long-generation", (),
                 "lever rejected (%s); falling back to a long-generation prompt" % rec["error"])
@@ -254,7 +285,8 @@ def cell(args, base, model, cpt, concurrency, sent_min=0):
         prompt, code = prompts[i]
         recs[i] = run_request(base, model, prompt, code, args.max_tokens,
                               args.timeout, args.api_key, sent_min,
-                              prefix=args.min_answer_tokens > 0)
+                              prefix=args.min_answer_tokens > 0,
+                              completions=args.completions)
 
     t0 = time.perf_counter()
     threads = [threading.Thread(target=one, args=(i,)) for i in range(concurrency)]
@@ -339,6 +371,10 @@ def parse(argv):
     ap.add_argument("--task", choices=sorted(QUESTIONS), default="retrieval",
                     help="retrieval = 'code only' (stops early); long-generation = "
                          "code then a long continuation")
+    ap.add_argument("--completions", action="store_true",
+                    help="post the plain prompt to /v1/completions instead of a "
+                         "messages array to /v1/chat/completions: the only route a "
+                         "serve whose checkpoint ships no chat template answers")
     ap.add_argument("--timeout", type=float, default=3600.0, help="per-request seconds")
     ap.add_argument("--api-key", default=None, help="bearer token; never printed")
     ap.add_argument("--seed", type=int, default=1017)
@@ -380,7 +416,8 @@ def main(argv=None):
     try:
         model = resolve_model(args.base_url, args.model, args.api_key, args.timeout)
         if cpt is None:
-            cpt, probe = calibrate(args.base_url, model, DEFAULT_CPT, args.timeout, args.api_key)
+            cpt, probe = calibrate(args.base_url, model, DEFAULT_CPT, args.timeout,
+                                   args.api_key, args.completions)
             if probe["error"]:
                 print("calibration failed: " + probe["error"], file=sys.stderr)
                 return 1
@@ -391,7 +428,8 @@ def main(argv=None):
     if args.min_answer_tokens:
         args.task, fields, note = probe_lever(args.base_url, model,
                                               args.min_answer_tokens, args.task,
-                                              args.timeout, args.api_key)
+                                              args.timeout, args.api_key,
+                                              args.completions)
         sent_min = args.min_answer_tokens if fields else 0
         if note:
             print("lever: " + note, file=sys.stderr, flush=True)
@@ -412,6 +450,8 @@ def main(argv=None):
     problems = verdict(cells, args.context_length)
     report = {
         "tool_version": VERSION, "base_url": args.base_url, "model": model,
+        "mode": request_target(args.completions)[0],
+        "endpoint": request_target(args.completions)[1],
         "context_length": args.context_length, "max_tokens": args.max_tokens,
         "chars_per_token": round(cpt, 4), "image_id": args.image_id,
         "task": args.task, "min_answer_tokens": args.min_answer_tokens,
@@ -438,6 +478,12 @@ def selftest():
     lever = request_body("m", "p", 192, 192)
     assert lever["ignore_eos"] is True and lever["min_tokens"] == 192, lever
     assert lever["max_tokens"] == 192, lever
+    assert request_target() == ("chat", "/v1/chat/completions")
+    assert request_target(True) == ("completions", "/v1/completions")
+    comp = request_body("m", "p", 64, 64, completions=True)
+    assert comp["prompt"] == "p" and "messages" not in comp, comp
+    assert comp["model"] == "m" and comp["max_tokens"] == 64, comp
+    assert comp["ignore_eos"] is True and comp["min_tokens"] == 64, comp
     long_prompt, long_code = build_prompt(2000, 7, 3.5, "long-generation")
     assert long_prompt.count("ZX81-") == 1 and long_code in long_prompt
     assert "continuation" in long_prompt
