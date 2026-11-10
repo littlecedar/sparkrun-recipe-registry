@@ -1386,9 +1386,12 @@ peak rank container cgroup **33.95 GB**, page tables ≤0.1 GiB, **zero** kernel
 earlyoom kill lines, the 6.0 GiB stop rule never firing — against the marlin boots' ~107 GiB host
 dive with rank cgroups ≤5.87 GB. Cell (retry JSON `longctx-1m.json`): prompt **1,035,623 tokens**,
 TTFT **277.2 s**, needle **1/1 PASS** (`ZX81-1208`), **56.2 ms/step** median over **3 decode steps**
-(6 tokens, 0.112 s, 53.57 tok/s) — a **3-step median**, first-step-dominated, **not** steady-state decode: the steady-state cell on this line reads **31.8 ms/step** over 37 steps (see the correction below the matrix). The exact lane command overshot first — 1,039,999 predicted,
+(6 tokens, 0.112 s, 53.57 tok/s). The exact lane command overshot first — 1,039,999 predicted,
 1,072,210 counted, HTTP 400 — so it was retried with the tool's own `--chars-per-token 6.65`
-(observed 6.6778); both JSONs are kept.
+(observed 6.6778); both JSONs are kept. **56.2 ms/step is a 3-step median (6 answer tokens), not a
+steady-state figure** — the same applies to the 54.8 / 55.4 repeats below and to the canary's 61.1.
+The steady-state cell (64 answer tokens over 37 decode steps) measures **31.8 ms/step**: see
+§"Measured 2026-11-10 — arm 3 steady state and the 0.77 pair" below.
 **The arm's falsifier stays OPEN, and `arm3-control` is not arm 3's control.** The survey table
 above names arm 3's control as the shipped `canary-roce-aff52fa5` line
 (`deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`); that boot has never been run for this cell.
@@ -1406,6 +1409,61 @@ that boot (the guard's stop destroyed the container), so the **mechanism is unve
 is in effect at step 2, never at step 1. Arm 3 needs its documented canary-line control run
 (`arm3-control-cell-canary-line`), and a steady-state figure needs the tool lever
 (`longctx-cell-decode-sample-length`). Receipt `head:~/benchmarks/sm121-arm3-control-20261109/`.
+
+### Measured 2026-11-10 — arm 3 steady state and the 0.77 pair
+
+Two boots on `dsv41-sm121-dg:0.2.1` (`sha256:85c1ffc3…9195dc7`), `.31`–`.34`, both pinning the
+checkpoint with `DSV41_MODEL_REVISION=08c8657f…` (the launcher's repo-id branch resolves only that
+key and checks every shard; it never reads `refs/main`). Receipt
+`head:~/benchmarks/tp4-20261110b/e4-pair/`.
+
+**Arm 3 (`zz-ds4-1017-sm121-indexer-scoring.yaml`), replay on, `MEM_FRACTION_STATIC=0.77`** —
+`full_token` **1,997,824**, `bytes_per_full_token` 1,670.75, `available_bytes` 5.36 GB. The
+steady-state cell (`--min-answer-tokens 64 --task long-generation --chars-per-token 6.65`):
+
+```
+C1 wall=412.9s prompt=[1035624] ms/step=31.8 ans=64 steps=37 tok/s=51.04 needle=1/1 err=0  PASS
+```
+
+prompt **1,035,624 tokens** (server-counted), TTFT **411.6 s**, **64 answer tokens over 37 decode
+steps**, **31.8 ms/step**, **51.04 tok/s**, needle 1/1 (prefix check), zero errors, host floor
+**10.87 / 12.31 / 11.52 / 11.36 GiB**, guard 6.0 GiB silent. **This replaces 56.2 as arm 3's decode
+figure**: 56.2 / 54.8 / 55.4 were 3-step medians, where the first step carries the cost of the
+prefill hand-off, and `--max-tokens 512` could not lengthen the sample because the engine stopped at
+6 tokens. The lever, not the flag set, is what moved it.
+
+**The 0.77 pair is a measured configuration.** Same fraction, image, checkpoint and context; the
+replay flag is the only difference:
+
+| arm | `full_token` | host floor (min rank) | 1M prompt (1,035,623) |
+|:--|--:|--:|:--|
+| replay off (`arm3-control`) | **2,135,552** | **7.64 GiB** | fits (106 % margin) |
+| replay on (`indexer-scoring`) | **1,997,824** | **10.87 GiB** | fits (93 % margin) |
+
+So the lane's "replay-on and 1M cannot coexist" is replaced by "they coexist at 0.77"; the earlier
+trade (`replay-off` needs 0.75 for the prefill floor, replay-on needs 0.78 for the pool) was an
+artefact of sampling only 0.75 and 0.78. `available_bytes` is steep near 0.75 because a 2.25 GB
+fixed SWA term is subtracted before the pool is divided: 0.75 gave 2.94 GB/438,528 tokens and 0.77
+gives 5.58 GB/2,135,552 (replay off).
+
+**Five streams at 128K ran at 0.75** (`arm3-control`, cold seed, C5): wall **282.8 s**, needles
+**5/5**, zero errors, floor **10.67 GiB** against the 6.0 GiB rule. `w4-survey-arm5-control-boot`'s
+shape reduction is therefore unnecessary — the fraction, not the stream count, cleared the 0.78
+dive (5.66/5.54 GiB). At 0.77 the same cell ran 370.7 s with 5/5 needles and floor 7.64 GiB: a
+larger pool holds all five prompts instead of evicting between them, so it is slower, not faster.
+
+**C≥2 medians are prefill-queueing, not decode.** 14,364 ms/step (C2, 0.75), 22,906 (C5, 0.75) and
+82,652 (C5, 0.77) are the wait a stream's 6-token sample pays behind the other streams' prefills;
+only the single-stream `--min-answer-tokens` cell reports a decode step. C3's 40.3 ms/step at 0.75
+is additionally distorted — two of its three prefixes hit the radix cache from C2 (ttft 0.72 s and
+1.13 s), so it is not a cold C3.
+
+**The window itself was not exclusive.** `sparkrun-campaign.service` was restarted at 18:34:16Z and
+leased two rows while the quartet lock was held: `arm3-control-marlin` (rc=4, 18:38:23Z) and
+`malloc-pin-sglang` on `.30`–`.33` (rc=0 → **measured**, 18:45:41Z). The second lease is a second
+measurement of `ds4-malloc-pin-ab` and the first put `GPU has an existing allocation` in front of
+this session's 18:42Z launch. Register row: `campaign-ignores-declared-window`.
+
 The boot checklist's `Mean acceptance length 1` wording
 does not occur in SGLang's logs; the decode line reports `accept len: 3.12` and the metric
 `sglang:spec_accept_length` 3.125, i.e. speculative decode active. Teardown 23:03:58Z read 0
@@ -1435,6 +1493,24 @@ tonight: every image carrying the knapcio adapter (`:0.2.1`, `canary-roce-aff52f
 `canary-roce-20261022`, `c3-reconciled`, `pin-fabbe8615bb9`) is FlashInfer 0.6.18, and the only image
 with 0.7.3 (`lmsysorg/sglang:nightly-dev-cu13-20261110-4a5c6b8f`) has no `/opt/dsv41`. The lane's
 indexer-gate restore (`sglang#49182`, 2026-11-08) is the same stale-gate family, already fixed there.
+**`fi073` image built the same day — both halves on one digest, still short of a decode.**
+`dsv41-sm121-dg:0.2.1-fi073` (`sha256:7752ccd687be0cf618942f617f2aeafd0d69d56211160431131fe929da098571`,
+35.1 GB, built on `.35` from `recipes/ds4/Dockerfile.dsv41-fi073`) layers flashinfer_python 0.7.3, the
+jit-cache shim and the `sm121a` provider (all sha256-pinned by URL) over `:0.2.1`, then applies the
+three deltas above with `recipes/ds4/patch_dsv41_fi073.py` (every anchor asserted once, so a tree move
+fails the build). GPU-less rungs measured inside the built image: `flashinfer.__version__` `0.7.3`,
+`supported_sparse_mla_sm120_configs()['dsv3_2'].supports_decode(num_heads=16, topk=2048,
+page_block_size=64)` `True`, provider `sm121a` 589 modules including `sparse_mla_sm120` (`.so` where
+the provider manifest says), and the patched backend module imports. **It is not a bootable arm yet:**
+the 0.7.3 route `_trtllm_batch_decode_sparse_mla_dsv4_sm120` (`_core.py:1262`) also requires a BF16
+query (`:1304-1306`) and a packed `uint8` KV cache at 528/584-byte rows, or a dense BF16 cache
+(`:1384-1400`); this image still hands it FP8 queries and the fork's 512 B/token footerless uniform
+pool, so the first attention call raises `ValueError`. Probe recipe
+`zz-ds4-1017-sm121-arm5-fi073.yaml` (arm 5's contract and env pin, control still `arm3-control` on
+`:0.2.1`) exists for that measurement: `/health` 200 is not port success, and the two remaining
+deltas (BF16 Q prep, 528-byte inline-scale KV) are written up in
+`mad-science/SM121-SPARSE-MLA-PORT.md` §"Stop verdict". Carry the image to each booting rank with the
+`docker save | ssh 'docker load'` command above and check its id there before arming it.
 The paired control
 (`zz-ds4-1017-sm121-arm3-control.yaml`) passed every boot gate on the same digest —
 `[moe_b12x_next] armed`, no ÷128, `Load weight end 167.24 s`, `/v1/models` 200 at
@@ -1595,10 +1671,10 @@ Two open ds4 items; the first is now measured, the second scoped from the tree:
   receipt `head:~/benchmarks/fit-ds4-canary-1m-clean-20261110/`). The shipped recipe
   `deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` exactly as it ships, no override: TTR **145 s**, pool
   `full_token=2,729,984`, floor **8.98-9.91 GiB**, `[moe_b12x_next]` armed, no ÷128 `ValueError`, served
-  snapshot `08c8657f…`/template `95b7033a…`; the identical single-stream 1M cell gives **61.1 ms/step** (a **3-step median**, same first-step caveat)
+  snapshot `08c8657f…`/template `95b7033a…`; the identical single-stream 1M cell gives **61.1 ms/step**
   and **prefill 4,242 tok/s**, needle 1/1. Three-way with pools and floors: replay-off @0.75 = 44.7
-  ms/step (3-step median; 1.24M pool, 6.14 GiB floor), replay-on @0.75 = not runnable (702K pool), replay-on @0.78 (arm
-  3's own line) = 56.2/54.8/55.4 (**all 3-step medians**; 2.01M pool), **shipped canary = 61.1 (3-step median; 2.73M pool, 8.98 GiB floor)**.
+  ms/step (1.24M pool, 6.14 GiB floor), replay-on @0.75 = not runnable (702K pool), replay-on @0.78 (arm
+  3's own line) = 56.2/54.8/55.4 (2.01M pool), **shipped canary = 61.1 (2.73M pool, 8.98 GiB floor)**.
   instrument and the cell are the same across all four, so decode compares; the **pool/Engram/pin
   differences are the confounds**, and the pool itself moves ±0.2M between boots (2.52M / 2.61M / 2.73M
   on tonight's three shipped-line boots). **The 8 % step gap is not a licensed claim:** arm 3's
@@ -1616,35 +1692,18 @@ Two open ds4 items; the first is now measured, the second scoped from the tree:
   measurement — the pools, the Engram path and the window do not match, so it is a table of readings, not
   a licensed delta):
 
-  | line | pin | window | `full_token` | decode ms/step (3-step median unless marked) | prefill tok/s | floor (`MemAvailable` min) | 1M cell |
+  | line | pin | window | `full_token` | decode ms/step | prefill tok/s | floor (`MemAvailable` min) | 1M cell |
   |:--|:--|:--|--:|--:|--:|--:|:--|
   | replay-off @0.75 | 1bae0e10 | 11-10 | 1,239,040 | **44.7** | 1,831 | 6.14 GiB | PASS |
   | replay-on @0.75 | 1bae0e10 | 11-10 | 702,208 | — | — | 11.71 GiB | rejected (prompt > pool) |
   | replay-on @0.78 (arm 3's line) | 1bae0e10 | **11-09** | 2,006,309 | **56.2** (54.8/55.4) | — | not sampled | PASS |
   | replay-off @0.78 (control) | 1bae0e10 | 11-10 | 2,809,088 | — | — | 5.63 GiB | stopped at 130 s |
   | **shipped canary @0.78** | **08c8657f** | 11-10 | **2,729,984** | **61.1** | **4,242** | 8.98 GiB | PASS |
-  | replay-off @0.77 (papered pair) | 1bae0e10 | 11-10 | **2,135,552** | — | — | 7.64 GiB | C5 370.7 s, 5/5 needles |
-  | **replay-on @0.77, steady state** | 1bae0e10 | 11-10 | **1,997,824** | **31.8** (37 steps, 64 tok) | — | 10.87–12.31 GiB | PASS |
 
   Read across the rows: the prefill spread (1,831 → 4,242 tok/s) tracks the pool filling, not the replay
   flag, and decode moves inversely with the pool — the smallest pool is fastest per step and closest to
   earlyoom. No row isolates one lever, and the one row from a different window (arm 3's, 11-09) cannot
   license a delta against tonight's rows; that is the state of the lane, stated rather than implied.
-
-  **Correction, 2026-11-10 — every number in that column but one is a 3-step median.** The steady-state
-  1M cell (replay-on at `MEM_FRACTION_STATIC=0.77`, `--min-answer-tokens 64 --task long-generation`)
-  returned **64 answer tokens over 37 decode steps at 31.8 ms/step (51.04 tok/s)**, pool 1,997,824,
-  prompt 1,035,624, TTFT 411.6 s, needle 1/1, floor 10.87–12.31 GiB, guard silent. So **arm 3's real
-  decode is 31.8, not 56.2**: the 44.7 / 56.2 / 54.8 / 55.4 / 61.1 readings are first-step-dominated
-  medians and must carry that label wherever they are quoted — the canary's 61.1 included, and a canary
-  steady-state cell is still unmeasured. Sample length must travel with the number: quote
-  `answer_tokens` / `decode_steps` beside every ms/step. **And every C>=2 median recorded tonight
-  (14,364 / 22,906 / 82,652 ms/step) is prefill queueing, not decode:** with several streams in flight a
-  step waits on the batch's prefill, so only the single-stream min-answer-tokens cell reports a decode
-  ms/step. The 0.75->0.77 pair is measured on the same instrument: replay-off `full_token` 2,135,552 /
-  floor 7.64 GiB / C5 370.7 s / 5-of-5 needles / 0 errors, replay-on 1,997,824 / floor 10.87 GiB / 1M cell
-  PASS — both arms hold the 1,035,623-token prompt, and the 0.75->0.77 cost is 438,528 -> 2,135,552
-  tokens, C5 282.8 -> 370.7 s, floor 10.67 -> 7.64 GiB.
 
 - **Serving now (from 2026-11-10T10:15:20Z): production knapcio on `.31`-`.34`, shipped line, pin
   `08c8657f`.** Task `sparkrun_b020d2dd178343a5_8ca88141f99d`, no override; proved from the boot: served

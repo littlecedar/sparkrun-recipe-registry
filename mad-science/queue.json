@@ -2573,6 +2573,21 @@
       "claimed_at": "",
       "recipe": "recipes/ds4/zz-ds4-1017-sm121-indexer-scoring.yaml",
       "tp": 4
+    },
+    {
+      "id": "served-name-guard-derives-from-overlay-mount",
+      "title": "Served-name test must derive its exception from the recipe’s normalising overlay, not a hand-maintained ALLOWED set (third red-main class tonight)",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "THIRD RED-MAIN INCIDENT TONIGHT of one class: a new recipe lands and the test that guards it does not know about it. `recipes/ds4/zz-ds4-1017-sm121-arm5-fi073.yaml` renders `--served-model-name {model}`, which is CORRECT for its lane because `mods/dsv41-sglang-overlay/launcher.py` normalises the rendered snapshot path back to the repo id, but `tests/test_recipe_placeholder_resolution.py::ServedModelNameNotRebound.ALLOWED` is a hand-maintained set — so the file landed at `ccffee7`, the census at `099933a` counted it, and two tests stayed red until `17553ae` added the entry (main red for ~20 min across three commits). FIX: derive the exception instead of listing it — a recipe is exempt when it mounts a launcher that normalises `{model}` (`mods/dsv41-sglang-overlay`, `mods/tensorfold-dsv41-launcher`), which is already a fact the recipe states; keep the allowlist only for arms that carry no such mount. FALSIFIER that must keep passing: a recipe rendering `--served-model-name {model}` WITHOUT a normalising overlay still fails both tests, and the negative controls still fire. Same shape applies to any other hand-maintained recipe allowlist in the suite (grep `ALLOWED =` under tests/) — if one exists, fold it into the same derivation.",
+      "provenance": "tests/test_recipe_placeholder_resolution.py:453-469 (ALLOWED), :475-510 (both tests); recipes/ds4/zz-ds4-1017-sm121-arm5-fi073.yaml (ccffee7); red main 099933a -> b447d20 -> 9bc0e18, green at 17553ae",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
