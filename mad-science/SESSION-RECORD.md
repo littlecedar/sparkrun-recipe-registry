@@ -8637,3 +8637,46 @@ id, so the pin is unresolved rather than proven wrong.
   belongs in the composition, not the tool -- stamp the census row's own read in ET and render any
   incidental date in `Z` -- and the reason worth remembering is that a prose date in that row silently
   becomes the board's claimed measurement time.
+
+## 2026-11-10 08:08 ET — hourly board tick: idle fleet but the production serve, and the pool delta left unnamed on purpose
+
+- **Board published as `e4e389f`** on the 08:03:16-08:04:40 ET read, with `lint` rc=0 and
+  `tools/push-gate.py` rc=0 before the push. The title had to be corrected first: the composition
+  stamped 08:10 from `date` at write time while the clock still read 08:08, and `lint` refused it as
+  `future-stamp`. Stamp the clock at the moment the file is written, never the minute the reads began.
+- **Census, two passes.** `docker ps -aq` `1/1/1/1/1/0`, running `0/1/1/1/1/0`, volumes `0` on all six.
+  `.30` carries the `sm121m` container still in `Created` from 2026-11-08 15:32:33Z; `.31`-`.34` carry
+  the production knapcio serve, probed and excluded from research accounting: image `3f4480818acb` in
+  both `Image` and `Config.Image`, created 10:12:02Z / started 10:12:03Z, rank-0 argv carrying `--tp 4`,
+  `--context-length 1048576`, `--attention-backend dsv4`, `--moe-runner-backend flashinfer_mxfp4`,
+  `--mem-fraction-static 0.78`, `--max-running-requests 16` and the `08c8657f…` snapshot, and
+  `/v1/models` 200 at `max_model_len` 1048576.
+- **The fleet's root-avail fall is spread, not concentrated.** Over ~42 s (`.35`'s first read sits 84 s
+  earlier): `.30` -102 400 B, `.31` -90 112, `.32` -77 824, `.33` -77 824, `.34` -81 920, `.35`
+  -77 824 -- -507 904 B total with no node outside a 25 KB band. That is the opposite shape to the
+  previous hour's `.35`-dominated fall, so this cycle carries no per-node explanation at all.
+- **Pool measured, writer deliberately unnamed.** Units re-read per host: mgmtd `active` only on `.30`;
+  meta `active` on `.30` (`Result=success`, `NRestarts=0`) and `activating` with `Result=exit-code` on
+  the other five, `NRestarts` 20 621 / 20 597 / 20 576 / 20 550 / 10 400 (the long-lived 5 s loop the
+  register row `beegfs-meta-restart-loop-non-meta-hosts` owns); storage `active` x 6; mon `failed` x 6.
+  `df -B1` used 13 866 134 142 976 B (13:04:10Z) to 13 866 142 007 296 B (13:05:49Z), +7 864 320 B in
+  99 s; avail 10 325 095 612 416 to 10 325 087 748 096 B of 24 191 229 755 392 B; 102 hub entries; and
+  `stat -L` through the mount on the ds4 snapshot's `model-00001-of-00048.safetensors` reads
+  970 533 624 B. The writer is **not** named again: the 07:13 falsifier set (no file newer than 6 min
+  at any depth, no pool-namespace touch) already closes the file-tree probe, so a repeat of the same
+  `find` would only re-answer a settled question -- the next attempt belongs at the storage target's
+  own byte accounting.
+- **Campaign holds nothing, and nothing landed.** Unit active (`MainPID 4140537`, `NRestarts=0`,
+  entered 05:16:53 ET, unchanged across five ticks); `director status --root ~/benchmarks/h2h-20261107`
+  reads 9 measured / 10 blocked of 19. Across all nine `~/benchmarks/*/state.json` roots the arms now
+  total **33** (15 measured, 10 blocked, 3 failed, 5 skipped) against the previous board's 32, and the
+  delta is a count correction rather than a landing: the per-root census attributes it to the six
+  single-arm roots plus `campaign-acceptance`'s seven, the h2h root is unchanged at 19, its
+  `state.json` mtime is 07:00:37Z, and no receipt under `~/benchmarks` is newer than 12:00Z. `lease` is
+  null on every arm and `needs_reap` is empty.
+- **Register did not move**: `cd5a86b4` at read, at snapshot and at publish -- 146 tasks, 106 done,
+  29 queued, 11 blocked, 40 open, 0 claims, 0 questions, `check` rc=0 over the same snapshot that
+  rendered both the graph and the table.
+- **The production window lock is byte-identical on the head and in this clone** (901 B, sha256
+  `5c980895…`, mtime 05:16:53 ET), so the claim the board reports is the one both copies carry.
+- **Landed row folded**: `8a3b927`, the 07:20 ledger close, which the 07:13 board could not cover.
