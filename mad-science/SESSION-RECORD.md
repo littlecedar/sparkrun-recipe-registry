@@ -8557,3 +8557,11 @@ row's to fix.
   post-Ready 1M cell, so a hand-started cell races it — measured twice tonight; fix = gate it or wait for
   `cell done`); `ds4-quartet-served-incomplete-pool-snapshot` gains the discriminator and the same-fleet
   counter-example; NEW (operator) `ernie-tp4-flashmla-sm121` → blocked with the mechanism above.
+
+- **Correction, 05:21 ET.** Commit `6cf4eeb` published this tick's board under a subject that said the
+  ERNIE boot was loading, and it swept a peer's 05:11 board and their 05:10 close-out section into the
+  same commit: `git commit -- <paths>` takes the worktree copy, and both files had moved under the tick.
+  The bytes are correct and the peer's own commits (`182afdc`, `7ec2c4c`) followed, so nothing is lost —
+  the subject is what misdescribes it. The board was re-folded onto the peer's 05:19 board at 05:21 ET,
+  which already carried the death and the production claim; this tick added only its own census pair
+  (10:15:34Z → 10:16:22Z) and the `/v1/models` 200 at 10:16:26Z.
