@@ -133,15 +133,101 @@ Each rung is a stop. Rungs (i) and (ii) are passed by a wrong-logits port; only
 3. **Quality cell** -- greedy GSM8K, the checkpoint's own upstream gate
    (`test/registered/e2e/models/test_ernie55_flash.py`: four B200s,
    `accuracy >= 0.93`). A wrong-logits port passes (i) and (ii) and fails here.
-4. **Window falsifier** -- at context length above `index_topk`, place a
-   needle **only** in the final `window` tokens and ask for it verbatim; then
-   the same question with the needle just before that boundary. The first is
-   impossible for the indexer to select (see site 5), so a port that drops the
-   window answers the null and only the control; a correct port answers both.
-   One request per shape, greedy, before the GSM8K cell.
+   Exact invocation below.
+4. **Window falsifier** -- a needle only in the final `window` tokens must be
+   answered, and the control with the needle in the indexer's candidate range
+   must also be answered. Run it before the GSM8K cell: two requests.
+   Exact shapes below.
+
+### What rung (i) prints, verbatim
+
+The mod runs `verify-ernie55-flashinfer-sparse.py` at every launch and appends
+to `/cache/runtime/modlogs/ernie55-flashinfer-sparse-sglang.log`. A passing
+rung (i) ends with these lines, in this order (the capability line varies):
+
+```text
+patch markers ok: sglang.srt.layers.attention.ernie55_backend
+patch markers ok: sglang.srt.layers.attention.dsa_backend
+patch markers ok: sglang.kernels.ops.attention.flash_mla_sm120
+patched behaviour ok: override bound, sink plumbed, workspace admitted
+flashinfer 0.7.3
+envelope ok: glm_nsa d_qk 576, 656 B/token, decode <= 64 tokens, topk 2176, page 64 (8hok, 16hok, 32hok, 64hok)
+device: sm_121 NVIDIA GB10
+rung (i) ok: import + envelope
+```
+
+Before those lines the same log carries the patch script's
+`target: <module> -> <path>` and `patched: <path>` lines, or
+`nothing to write: every site already carries its marker`; quote them, because
+they name the installed files the patch actually touched on that image.
+
+Anything else ends the launch. `envelope ok` with a `NO` entry, or a
+`flashinfer` line below the floor, is a kernel-envelope refusal, not a model
+result; paste the line into the receipt and stop. The `device:` line is
+informational: the patch gates on `major == 12`, and a non-GB10 board changes
+the record, not the route.
+
+### Rung (iii): GSM8K, exactly
+
+The lane instrument is chat-only (`run_benchmarks.py:108` posts
+`/v1/chat/completions`, `temperature: 0`, `max_tokens` 2048), and this
+checkpoint ships no chat template, so that instrument errors before it
+measures. Two honest routes; the receipt names which one ran.
+
+**Route A -- `/v1/completions` (comparable to the upstream gate).** Same data,
+same sample, same scorer as the lane instrument, transported over completions:
+
+- data `recipes/ds4/benchmarks/data/gsm8k_test.jsonl` (official test split),
+  200 rows via `sample(rows, 200, 1234)` from `run_benchmarks.py`;
+- prompt exactly `question + "\n\nShow your reasoning, then end with '#### <final number>'."`;
+- POST `/v1/completions` with
+  `{"model": "baidu/ERNIE-5.5-Flash-Base", "prompt": <prompt>, "temperature": 0, "max_tokens": 2048}`
+  and read `choices[0].text`;
+- score with `run_benchmarks.score_gsm8k(reply, gold)` (last number after the
+  last `####`, compared numerically);
+- sequential: one request at a time, 200 requests, 2048 tokens each, no
+  parallel chunking. Record the `finish_reason` histogram and the
+  `empty_replies` count, because "answered wrong" and "spent the budget before
+  the last number" are different findings;
+- gate: accuracy **>= 0.93**. Below it is a stop, not a tuning target.
+
+**Route B -- stage a chat template first**, then run the lane command
+unchanged (`tools/eval-suite.py --checks hard --hard-bench gsm8k --hard-limit
+200 --hard-seed 1234`, which drives `run_benchmarks.py --bench gsm8k`). This
+changes the prompt bytes relative to upstream's gate, so a Route B number is
+not comparable to 0.93 without saying so.
+
+### Rung (iv): the window falsifier, two requests
+
+One prompt pair, `/v1/completions`, `temperature: 0`, `max_tokens: 32`,
+`"model": "baidu/ERNIE-5.5-Flash-Base"`. Fixed needle text
+`The vault code is QK-4173.` and a fixed question cue
+`\nQuestion: What is the vault code? Reply with the code only.\nFinal answer:`
+with only numbered filler lines between them, so the two prompts differ in one
+thing: where the needle sits.
+
+- **W (window).** Filler to about 4096 prompt tokens, then
+  `[filler][needle][question cue]`. The needle lands roughly 25 tokens from
+  the end, inside `window` (128), so the indexer cannot select it: its
+  candidate range is `prompt_tokens - 128`. Answering the code here is only
+  possible through the window append.
+- **P (prefix control).** Filler such that the whole prompt is **at most 2048
+  tokens**, with `[filler A][needle][filler B ~300 tokens][question cue]`.
+  At that length the candidate count is `prompt_tokens - 128 < 2048`, so the
+  indexer selects every candidate and the needle is guaranteed inside the
+  top-k set (a structural control, not a lucky retrieval).
+- Check both lengths against the server's own `usage.prompt_tokens`, not a
+  local tokenizer estimate: W must report more than 2048 prompt tokens, P at
+  most 2048.
+- Pass: both replies contain `QK-4173`. The failure signature this falsifier
+  exists for is W answering without the code while P answers it, which is a
+  window that never reached the kernel. A different answer on both is a
+  quality finding, not a window finding.
+- Receipt: both prompt token counts and both replies verbatim.
 
 Any divergence between the two falsifier answers is a backend verdict, not a
-sampling artifact: same prompt, same seed (0), temperature 0.
+sampling artifact: same needle, same question, greedy decoding (at
+`temperature: 0` the seed is inert).
 
 ## What this shim cannot prove
 
@@ -153,7 +239,10 @@ sampling artifact: same prompt, same seed (0), temperature 0.
   by construction; it does not say the kernel interprets them as the reference
   did.
 - Throughput. This arm is not a performance claim until the quality gate
-  passes.
+  passes. If the boot quotes any decode rate anyway, state the number of decode
+  steps behind the median and take it from a long-answer request: a 3-step
+  median is dominated by first-step overhead (the ds4 lane measured arm 3 at
+  56.2 ms/step over 3 steps and 31.8 over 37).
 
 ## Boot discipline
 
