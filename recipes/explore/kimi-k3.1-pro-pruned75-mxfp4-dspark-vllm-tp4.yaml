@@ -31,8 +31,11 @@ description: >-
   its own TP=1, so rank 0 carries 4.19 GiB more -> 114.90 GiB of weights before any
   overhead against 112.33-115.02 GiB free measured on this fleet. A no-KV boot needs
   118.37 GiB (util >=0.973), 3.35 GiB above the best reading, so it cannot boot here
-  at any context. Feasible shapes: a smaller pruned target or a larger unified pool; TP=8 is out of
-  reach on this fleet (six nodes, one GB10 each: max rank count 6, TP=4 the validated one). The open
+  at any context. The measured host-side overhead is 2.01-4.33 GiB (not the 8-10 GiB an earlier
+  reading assumed), so the drafter's 4.19 GiB is the margin, not a floor: feasible shapes are two more
+  ranks as TP=2 x PP=3 over all six nodes (73.80 GiB/rank, register `kimi-tp2-pp3-six-node`), a smaller
+  pruned target, or a larger unified pool. TP=8 is out of reach on this fleet (six nodes, one GB10 each:
+  max rank count 6, TP=4 the validated one). The open
   question stays cross-checkpoint acceptance: the draft was trained against the
   unpruned base, so the card's 3.448 mean acceptance at width 8 is not transferable
   to this 75 %-pruned body and only a real serve measures it. A healthy serve would

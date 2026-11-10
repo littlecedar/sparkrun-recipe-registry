@@ -1468,8 +1468,12 @@ allocation alone** took host `MemAvailable` from 117.4 GiB to **0.79 / 1.79 / 2.
 (`.31/.32/.33/.34`, MemFree 0.98–2.16) within one 0.5 s sample, with the rank cgroup at ~11 GiB
 and page tables ≤43 MiB — no KV cache, no graph pool, no prefill. The 6.0 GiB guard stopped the
 task at its floor; zero kernel `oom-kill` and zero earlyoom lines. So the deciding term is
-110.71 GiB of weights + ~8–10 GiB of engine host-side init, not the 3.05 GiB non-KV term: no
-context/seqs/graph flag moves it, and the arm needs a smaller pruned body or a larger unified pool; TP=8
+110.71 GiB of weights + a measured **2.01–4.33 GiB** of engine host-side init from `/proc/meminfo`
+(the rest of the 112–115 GiB drop was the node's pre-existing 4.9–6.9 GiB baseline), not the 3.05 GiB
+non-KV term: no context/seqs/graph flag moves it, and the honest deficit at TP=4 is **~4 GiB on the best
+node and ~8 GiB on rank 0** — so the route is two more ranks as TP=2 x PP=3 over all six nodes
+(442.833 GiB / 6 = 73.80 GiB/rank; register `kimi-tp2-pp3-six-node`), ~4–8 GiB more memory, or a
+smaller pruned body; TP=8
 is out of reach on this fleet (six nodes, max rank count 6, TP=4 the validated shape). `fp8_ds_mla`'s
 packed row is 656 B/layer/token (512 fp8 + 16 B scale + 128 B bf16
 RoPE tail), so the shipped-dtype KV is 24 × (656 + 132) = **18,912 B/token**, not 30,816; the
