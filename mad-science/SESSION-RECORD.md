@@ -8446,3 +8446,71 @@ row's to fix.
   although its cell has been measured twice — the close belongs to the session that ran it;
   `ds4-1017-template-refresh-ab` is `done` on the A/B verdict (`749cb27`); and the ERNIE TP=4 row
   the download is staging was not resolved by this read-only tick.
+
+## 2026-11-10 05:08 ET — hourly board tick, the ERNIE boot is loading
+
+- **The window's boot is live and loading, not staging.** At 10:02:46Z `.31`–`.34` each carry one
+  running rank container of task `sparkrun_e59088ba4d0f3858_3780b01ec8c1`, started 09:48:10Z, on
+  the nightly `lmsysorg/sglang:nightly-dev-20261110-4a5c6b8f` (build commit `4a5c6b8f`) distributed
+  as `oci-relay/pinned:7fd8d966…` (image id `97de25b16e73`). The rank process is `sglang serve
+  --model-path baidu/ERNIE-5.5-Flash-Base --revision 028544b2… --context-length 131072 --tp-size 4
+  --mem-fraction-static 0.78 --max-running-requests 64 --enable-metrics --nnodes 4`, and
+  `launch2.log` read `Multi-thread loading shards: 95% Completed | 122/128` at 10:05Z with
+  `/v1/models` answering 000 — endpoint-down with the serve child alive is loading.
+- **`pgrep -f sglang.launch_server` is the wrong probe for this image.** It matched only its own
+  shell; the nightly's entrypoint is `sglang serve`, so a census that greps the old module name
+  would call a loading boot dead. `docker top` is the discriminator.
+- **The ERNIE body finished staging and the pool writer stopped.** Receipt
+  `ernie-tp4-20261110/RECEIPT.md` records VERDICT COMPLETE — 139 files / 288 464 891 869 B verified
+  by name+size against the Hub tree — repo dir mtime 04:34 ET, no `hf` process alive at 10:02Z, and
+  the pool pair 10:02:46Z→10:05:41Z moves only +2 097 152 B. Against the 09:12:13Z read the used
+  figure is +219 625 816 064 B. `du` on the symlinked cache still under-reports (816 MB for the
+  repo); `stat -L` on `model-00001-of-00128.safetensors` reads 2 253 848 024 B.
+- **Fleet is otherwise quiet.** `.30`'s `sm121m` `Created` leftover is the only other container,
+  `.35` reads 0/0, volumes 0 × 6, and the root `df -B1` pair falls 2 101 248 B over 175 s net
+  (≈12 KB/s) — churn, not a writer. Campaign unit inactive, 33 arms across nine state roots, 0 live
+  leases. Register unchanged at `1762e3e9…` (145 tasks / 42 open / 0 claims), `check` rc=0.
+- **Published as a fold.** Base `9c2db764…` (board `2544a88`) matched disk and `origin/main` at
+  read; `publish` passed `--base`, `--expect-sha` and `--expect-remote-sha`, and the `## Work queue`
+  block was re-rendered from the tick's own register snapshot rather than hand-edited.
+- **Left open.** The ERNIE boot has no verdict yet — it is mid-load, and the window runs to 11:33Z;
+  `arm3-control-cell-canary-line` still reads `queued` on the register render although its cell is
+  measured, and that close belongs to the session that ran it.
+
+## 2026-11-10 05:10 ET — ERNIE-5.5-Flash-Base TP=4: staged, image-proven, blocked on an SM121 kernel
+
+- **Body staged and verified by identity, not by branch.** `baidu/ERNIE-5.5-Flash-Base` at
+  `028544b2ffceea189b2d8768ed2b9d09b06f2343` on the pool: 139/139 files, 288,464,891,869 B, matched
+  name+size against the Hub's own `/tree/<sha>` listing (missing=0, mismatch=0). A SHA-keyed fetch
+  writes no `refs/` entry, so the pin is the identity — the day's cache-wide sweep moved `refs/main`
+  on other repos.
+- **The image was a pull, not a build.** No release carries `srt/models/ernie55.py` (absent v0.5.22,
+  v0.5.23, `dev-cu13`, local `sglang-main-arm64:6563312`); the 2026-11-10 nightly
+  (`nightly-dev-cu13-20261110-4a5c6b8f`, main `4a5c6b8f`, arm64 manifest `sha256:59197db6…`) imports
+  it inside the container and carries both metrics flags. Public Docker Hub, so every rank pulls.
+- **Fleet fact: HF caps one connection at ~1.5 MB/s from the head.** 8 workers = 12 MB/s (~6 h for
+  this body); `--max-workers 32` = 150.4 MB/s. A concurrent 37 GB docker pull stalled on its last
+  layers for ~60 min and finished 130 s after a kill+restart with the fetch paused — pause the stage
+  to unblock a pull, not the reverse.
+- **Recipe** `recipes/explore/zz-ernie-5.5-flash-base-tp4-sglang.yaml`: validate and `--strict` clean,
+  renders `--context-length 131072 --tp-size 4 --mem-fraction-static 0.78 --max-running-requests 64`
+  plus the metrics pair. KV arithmetic from the pinned tree: ~7.2 KiB/token → 27.76 GiB budget →
+  ~4.06M tokens; 131072 costs 0.90 GiB. 1M unproven by fit.
+- **Boot blocked at decode-graph capture, engine-side.** Task `sparkrun_e59088ba4d0f3858_3780b01ec8c1`
+  loaded all 128 shards from the pinned snapshot (`Found local HF snapshot … snapshots/028544b2…;
+  skipping download` — the resolved path, not `refs/main`), then died:
+  `Capture cuda graph failed: sparse_attn_decode_interface, /flashmla/csrc_legacy/api/sparse_decode.cpp:386,
+  Unsupported architecture for sparse decode fwd`. The model's MLA layers run `flashmla_sparse` only,
+  and that kernel has no SM121 build — the ds4 lane's DeepGEMM arch-gate class. No flag retry is
+  warranted. Per-rank `MemAvailable` minima 14.79 / 14.98 / 14.98 / 15.04 GiB against the untouched
+  6.0 GiB floor. Teardown `ctns=0 vols=0` on all four, lock deleted, director restarted 10:10:19Z.
+- **Our own watchdog killed the first attempt.** `boot-watchdog.py` builds
+  `sparkrun_<task-id>_node_0`; passing the id as `sparkrun status` prints it produced
+  `sparkrun_sparkrun_…_node_0`, which never exists, and the tool armed anyway — `dead_candidate` from
+  t=0, `--dead-grace` fired `sparkrun stop` at 09:43:44Z while the sampler's minimum was 37.3 GiB and
+  shard load sat at 13/128. A watchdog log ending in `nothing captured` + `sparkrun stop` is a failed
+  instrument, not a dead boot.
+- **Left open.** The license class (ERNIE 5.5 Flash Base Model License v1.0: free non-commercial,
+  commercial only to US$50 M revenue with attribution and a one-time notice) needs an owner ruling
+  before any shipping decision; the checkpoint ships no chat template, so `/v1/completions` is the
+  endpoint; and the arm stays blocked until FlashMLA ships an SM121 sparse-decode kernel.
