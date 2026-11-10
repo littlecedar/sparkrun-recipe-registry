@@ -1573,6 +1573,21 @@ That is a **pool-split** wall, not a host-memory wall: the static fraction buys 
 config exists at TP=4, the only remaining barrier is the loader holding two copies (≈155 GiB above),
 which narrows marlin's rejection to a **streaming loader** requirement — a code task with a named
 target, not an arch verdict. Receipt `head:~/benchmarks/tp4-20261110b/marlin-dummy-078/`.
+
+**A destination config exists at TP=4 — measured the same night** (`marlin-dummy-085`,
+`MEM_FRACTION_STATIC=0.85` with `--swa-prefix-tails 64` in `EXTRA_SGLANG_ARGS`, both confirmed in the
+engine's own `server_args`: `mem_fraction_static: 0.85, swa_prefix_tails: 64`). The pool sizing that
+refused at 0.78 now passes: weights 82.19 GB + draft 2.28 GB, `available_bytes=9.80 GB`,
+`swa_fixed=1.70 GB` (was 2.25 at the shipped 128 tails) and **`full_token=5,201,664`**. The server then
+**came up and served** — `/health` 200 and `POST /v1/chat/completions` 200 with `cuda graph: True` —
+and the only thing that failed was the dummy's own quality smoke: `boot.py:227` asserts the reply is
+`'42'`, and random dummy weights answer gibberish, so it raised `AssertionError` and the serve exited
+(the watchdog stopped it by id, `verdict=dead cause='AssertionError'`; host trough 10.14–11.41 GiB,
+above the 6.0 GiB rule). So the barrier named above is now the *only* barrier: **marlin at TP=4 needs a
+loader that does not hold the checkpoint layout and the repacked layout at once** — the destination
+fits, the pool builds, the server serves. Receipts `marlin-dummy-078/` and `marlin-dummy-085/`.
+Two knobs had to move together: raising the fraction alone does not clear it, because the 2.25 GB SWA
+term is subtracted before the pool is divided — 0.85 with tails 128 would have refused the same way.
 The refusal was caught **unattended**: on that same boot `tools/boot-watchdog.py` reached
 `verdict=dead cause='RuntimeError'` at `t=71 s` (two observations, `dead_candidate` at `t=59 s`),
 harvested the engine log as `serve-reaped-sparkrun_1c0dffa45afa6e47_072f0842ecda_node_0.log` before
