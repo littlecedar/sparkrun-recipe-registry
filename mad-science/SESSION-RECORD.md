@@ -8791,9 +8791,10 @@ id, so the pin is unresolved rather than proven wrong.
   fixed in the board rather than only recorded here.
 
 ## 2026-11-10 11:13 ET — hourly board tick: fleet unchanged, pool growth unnamed a fourth hour, two probe instruments caught lying
-- **Board published once, `lint` rc=0.** CAS guards both held at publish: the base
+- **Board published twice, `lint` rc=0 each time.** The first publish's CAS guards both held: the base
   `497d5874…` (10:23 board) matched the worktree, `HEAD` and a fresh `origin/main`, and the register
   snapshot's `fd9cab59…` still matched the live file. `publish` rc=0, "(disk was 2026-11-10 10:23:00 ET)".
+  The second publish corrects this tick's own campaign row (see below) on base `33c6de49…`.
 - **Census 16:04:34–16:05:47Z, read-only.** Research containers: `.30` one `Created` leftover
   (`sm121m`, 2026-11-08 10:32:33 EST), `.35` none, volumes 0 on all six. Root avail fell 851 968 B over
   ~71 s, and the four rank nodes took the *identical* 159 744 B step while `.30` took 102 400 B and
@@ -8811,12 +8812,23 @@ id, so the pin is unresolved rather than proven wrong.
   +703/+702/+700 across the 61 min, which is the rate the register row claims.
 - **Campaign active, holds nothing.** Unit `active`, `MainPID 4140537`, `NRestarts=0`, 05:16:53 ET
   across eight ticks; 9 `state.json` roots carry 33 arms (measured 15, blocked 10, failed 3, skipped 5),
-  **0 live leases and 0 `needs_reap`**; h2h reads 9 measured / 10 blocked. **The documented status
-  invocation now fails on the head**: `uv run --project campaign --frozen python -m
-  sparkrun_campaign.director status` dies `ModuleNotFoundError: No module named 'sparkrun_campaign'`
-  from `campaign/.venv`, while `PYTHONPATH=$PWD/campaign ./.venv/bin/python -m
-  sparkrun_campaign.director status` answers (9 measured, 10 blocked). Arm counts on the board come
-  from the state files, not from that command.
+  **0 live leases and 0 `needs_reap`**; h2h reads 9 measured / 10 blocked. **Correction: this
+  bullet's first version blamed the instrument, wrongly.** It said "the documented status invocation
+  now fails on the head". It does not. `campaign/pyproject.toml:13-19` sets `package = false`, so
+  nothing is installed in that venv and `python -m sparkrun_campaign.director` needs `campaign/` on
+  `sys.path`; the documented form (`cd campaign && uv run --frozen python -m
+  sparkrun_campaign.director status --root ~/benchmarks/h2h-20261107`, DESIGN.md:530-531) answers
+  **rc=0, 9 measured / 10 blocked**, and the unit gets the same path from `WorkingDirectory`
+  (`campaign/systemd/sparkrun-campaign.service:29`). The probe ran from the repo root with
+  `--project campaign` — wrong cwd, not a broken supervisor. Board row replaced in a second publish
+  (base `33c6de49…`, `publish` rc=0) rather than left as a false instrument claim on the
+  coordination surface.
+- **And the pool row's hub falsifier had the same unverified-empty hole.** `find
+  /mnt/beegfs/huggingface/hub … 2>/dev/null | wc -l` returns 0 both for "nothing new" and for "a
+  subtree was unreadable", and root-owned cache dirs are the normal case here. Re-ran at 16:22:23Z
+  (`.30`) and 16:22:31Z (`.35`) counting stderr separately: **0 matches against 0 `Permission denied`
+  lines**, so that empty is emptiness. The `~/benchmarks` freshness check got the same treatment
+  (0 matches, 0 stderr lines).
 - **Two defects in this tick's own probes, both caught before publish.** (1) `pgrep -cf "[r]sync"` read
   **2 on every node** and was measuring the probe's own shell: the remote command line contains the
   label text `rsync=%s`, and the `[r]sync` bracket trick only defeats a *literal* self-match, not a
