@@ -31,8 +31,11 @@ description: >-
   (`zz-ds4-1017-sm121-indexer-scoring.yaml`, same digest) leaves the replay
   knob at its default. Measured cost of the knob: the 1M cold prefill's host
   `MemAvailable` floor is 5.68–7.02 GiB here against 9.94–10.71 GiB on the
-  default line, so this line cannot run that single-stream cell under the
-  6.0 GiB host guard.
+  default line. At the recipe's `MEM_FRACTION_STATIC=0.78` that floor sits below
+  the 6.0 GiB host guard and the cell is stopped; at `0.75` the identical cell
+  runs (TTFT 565.4 s, needle 1/1, 44.7 ms/step, floor 6.14 GiB, guard silent)
+  because the fast-loader pool shrinks 2.81M -> 1.24M tokens. The fraction is a
+  trade between the prefill floor and the KV pool, not a free headroom knob.
 metadata:
   model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>

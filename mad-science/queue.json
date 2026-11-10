@@ -497,13 +497,14 @@
         "h2h-beam-house-and-bfcl-category",
         "h2h-second-boot-ladder"
       ],
-      "state": "queued",
+      "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "After each h2h-* row lands: update mad-science/TP4-HEAD-TO-HEAD-1025.md's open-cells note and the corresponding table row with the landed cell and its receipt pointer, so the open-cells note cannot silently go stale. Small edit per landing; commit with the row's own close-out.",
+      "notes": "DONE 2026-11-10: mad-science/TP4-HEAD-TO-HEAD-1025.md refreshed against the register — the open-cells note now records the Beam house/BFCL cells as landed (house 37/37, BFCL 1112/1240 = 89.68 % with the per-category split, `h2h-beam-house-and-bfcl-category`), the GLM-753B ladder/house/tools cells as landed (`h2h-second-boot-glm-753b`, `h2h-glm-tools-leg`, `h2h-glm-needle-3rungs`), and the survey arms' cells as open with a named blocker (the adapter's `AcceptSampling` branch calls `dflash_utils.build_dflash_verify_target_probs` while the pinned engine spells `build_speculative_verify_target_probs`, register `sm121-ladder-acceptsampling-dflash`) instead of merely unlanded. The Beam rows in both tables now carry the measured numbers and the client-cell receipt paths, and the boot's standard-suite 0/\"Poor\" artefact is labelled a harness artefact rather than a verdict. The 983k-rung and single-second-boot caveats are unchanged because they are still true.",
       "provenance": "owner 2026-10-26 directive (executable-h2h-rows review)",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "evidence": "mad-science/TP4-HEAD-TO-HEAD-1025.md (open-cells note + Beam rows refreshed; closed by the commit that carries this edit)"
     },
     {
       "id": "gguf-convert-qwen38-spark2_5-q4km",
@@ -2032,9 +2033,9 @@
       "state": "done",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "STOP POINT 2026-11-10T03:26:12Z (host guard): control boot 1c0dffa45afa6e47_893bded0d5ba on dsv41-sm121-dg:0.2.1 (sha256:85c1ffc3...95dc7) passed every gate - [moe_b12x_next] armed a7d7d29b, zero divide-by-128 ValueError, Load weight end 110.41 s, Ready: API on port 8000 (TTR 278 s), /v1/models 200 at max_model_len 1048576, EXTRA_SGLANG_ARGS carrying --no-enable-decoder-swa-bounded-replay - then its identical 1M cell was stopped at 190.3 s (RemoteDisconnected, no usage.prompt_tokens): .35 fell to 5.68 GiB MemAvailable during cold prefill (.33 6.46, .31 7.02, .32 9.72 GiB), eight consecutive 2 Hz samples under the 6.0 GiB floor wrote the trigger; zero kernel OOM and zero earlyoom SIGTERM lines. NO CONTROL SAMPLE EXISTS and arm 3 falsifier stays undecided because the replay-off line cannot run this cell shape under the mandatory guard. Second boot on the arm own recipe (1c0dffa45afa6e47_41b2d1c0cb36, TTR 228 s) had cold-prefill floor 9.94-10.71 GiB and repeated the arm cell at identical length (3 steps / 6 tokens, needle pass): 54.8 and 55.4 ms/step vs 56.2 (-2.5 % / -1.4 %, inside a 5 % band); --max-tokens 512 still answered 6 tokens, so max-tokens is not the lever to steady state. Teardown 0/0 on all four ranks; two boots only. Control recipe description: still stale (says 0.2.0 / canary-roce-aff52fa5), file pins 0.2.1.",
+      "notes": "STOP POINT 2026-11-10T03:26:12Z (host guard): control boot 1c0dffa45afa6e47_893bded0d5ba on dsv41-sm121-dg:0.2.1 (sha256:85c1ffc3...95dc7) passed every gate - [moe_b12x_next] armed a7d7d29b, zero divide-by-128 ValueError, Load weight end 110.41 s, Ready: API on port 8000 (TTR 278 s), /v1/models 200 at max_model_len 1048576, EXTRA_SGLANG_ARGS carrying --no-enable-decoder-swa-bounded-replay - then its identical 1M cell was stopped at 190.3 s (RemoteDisconnected, no usage.prompt_tokens): .35 fell to 5.68 GiB MemAvailable during cold prefill (.33 6.46, .31 7.02, .32 9.72 GiB), eight consecutive 2 Hz samples under the 6.0 GiB floor wrote the trigger; zero kernel OOM and zero earlyoom SIGTERM lines. NO CONTROL SAMPLE EXISTS and arm 3 falsifier stays undecided because the replay-off line cannot run this cell shape under the mandatory guard. Second boot on the arm own recipe (1c0dffa45afa6e47_41b2d1c0cb36, TTR 228 s) had cold-prefill floor 9.94-10.71 GiB and repeated the arm cell at identical length (3 steps / 6 tokens, needle pass): 54.8 and 55.4 ms/step vs 56.2 (-2.5 % / -1.4 %, inside a 5 % band); --max-tokens 512 still answered 6 tokens, so max-tokens is not the lever to steady state. Teardown 0/0 on all four ranks; two boots only. Control recipe description: still stale (says 0.2.0 / canary-roce-aff52fa5), file pins 0.2.1. | EVIDENCE CORRECTED 2026-11-10: the sample this row exists for is the `MEM_FRACTION_STATIC=0.75` boot (task sparkrun_1c0dffa45afa6e47_e8cf69f365b1: TTFT 565.4 s, needle 1/1, 44.7 ms/step, floor 6.14 GiB, guard silent), receipt head:~/benchmarks/fit-ds4-frac75-20261110/. The earlier pointer to the 2026-11-09 receipt is superseded: that boot's own notes say no control sample exists, so a reader following it finds no cell.",
       "provenance": "recipes/ds4/README.md §SM121 survey arms (arm 3 measured 56.2 ms/step over 3 steps, falsifier undecided); .local/RESUME.md next action 1; register row w4-survey-arm5-control-boot is the same recipe blocked on the infeasible 128K C5 shape, not on this 1M single-stream cell",
-      "evidence": "head:~/benchmarks/sm121-arm3-control-20261109/",
+      "evidence": "head:~/benchmarks/fit-ds4-frac75-20261110/",
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/ds4/zz-ds4-1017-sm121-arm3-control.yaml",
@@ -2368,6 +2369,40 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "ds4-malloc-pin-ab",
+      "title": "ds4 malloc-pin A/B: shipped canary line plus MALLOC_ARENA_MAX=2 and a 1 MiB mmap threshold, never booted",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "blocked",
+      "model": "",
+      "node_cost": "quartet",
+      "notes": "AUTHORED 2026-11-09, NEVER BOOTED, no receipt and no register row until 2026-11-10. The recipe's own description states the claim: the shipped `deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` canary serve line, byte-identical image pin, checkpoint revision, mods and command, with only `MALLOC_ARENA_MAX=2` and `MALLOC_MMAP_THRESHOLD_=1048576` added as container env, to bound glibc's per-thread arena growth on the shared 128 GB unified pool; the A/B control is the shipped canary's own receipts, so any delta is the malloc pin. BOOT GATES ARE UNKNOWN: nothing has ever run this arm, so the first boot must establish them — the `Ready: API on port 8000` line, the `[moe_b12x_next]` arming, the divide-128 check and the pool line are all ASSUMED from the canary line, not proven for this recipe. BLOCKED while production serves on .31-.34 as task sparkrun_b020d2dd178343a5_8ca88141f99d: the campaign (queue mode) does not read .local/fleet-window.lock, so a quartet-cost row is leaseable against a live serve. Unblock only after the production serve is stood down in the `#51` sense: stopped by its task id, zero containers on every rank, clients repointed.",
+      "provenance": "recipes/ds4/zz-ds4-1017-malloc-pin-sglang.yaml:11-18,40-44; no receipt under ~/benchmarks (checked 2026-11-10)",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/ds4/zz-ds4-1017-malloc-pin-sglang.yaml",
+      "tp": 4
+    },
+    {
+      "id": "ds4-exl3-tp4-tensorfold-boot",
+      "title": "DeepSeek-V4.1-Flash EXL3 2.9bpw TensorFold TP=4 topology arm: the engine refuses --tp 4 for the dsv41 family",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "done",
+      "model": "",
+      "node_cost": "quartet",
+      "notes": "CLOSED AS A MEASURED NEGATIVE, no boot needed tonight. The TP=4 topology arm WAS booted on 2026-10-24 (boot7, task `0e1ba22adca89044_62e26734c214`, `.31`-`.34`) and `tensorfold serve` refused the topology at argument validation, before any weight load: `--tp 4: DeepSeek-V4.1-Flash runs on one or two GPUs on CUDA`. Diagnosed in-image (`d6e4c10d`): the gate is `tensorfold/cli.py:253` in `_serve_cuda` — the dsv41 family package does not declare `CUDA_TP4` (the GLM family's `glm-dsa-tp4` fork does) and there is no CLI override. So a controlled TP=2-vs-TP=4 topology number cannot exist on the TensorFold dsv41 stack in any window without engine work (the dsv41 branch implementing TP=4 sharding and declaring `CUDA_TP4`), and the recipe stays a `zz-` draft. The cheap falsifier the row was opened for is therefore already answered; the production-window clause is moot because nothing here needs a boot. Provenance: mad-science/TODO.md §#3 (answered 2026-10-24), mad-science/DSV4PRO-FEASIBILITY.md:78,195.",
+      "provenance": "mad-science/TODO.md §#3 (answered 2026-10-24, boot7 task 0e1ba22adca89044_62e26734c214); mad-science/DSV4PRO-FEASIBILITY.md:78,195",
+      "evidence": "mad-science/TODO.md §#3 (boot7 task 0e1ba22adca89044_62e26734c214, 2026-10-24 refusal); mad-science/DSV4PRO-FEASIBILITY.md:78,195",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/ds4/zz-deepseek-v4.1-flash-exl3-tp4-1m-tensorfold-sglang.yaml",
+      "tp": 4
     }
   ],
   "questions": []
