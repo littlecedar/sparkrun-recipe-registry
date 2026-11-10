@@ -450,35 +450,24 @@ class ServedModelNameNotRebound(unittest.TestCase):
     `recipes/ds4/mods/dsv41-sglang-overlay/launcher.py:391-395`), guarded by tests/test_ds4_recipes.py.
     """
 
-    ALLOWED = {
-        "ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml",
-        "ds4/deepseek-v4.1-flash-tensorfold-tp2-1m-sglang.yaml",
-        "ds4/zz-deepseek-v4.1-flash-exl3-tp4-1m-tensorfold-sglang.yaml",
-        # The SM121 survey arms share the same overlay: mods/dsv41-sglang-overlay/launcher.py
-        # (_clean_served_name) normalizes the rendered snapshot path back to the repo id before
-        # the engine starts, which is the exception the shipped shim arms already carry.
-        "ds4/zz-ds4-1017-sm121-indexer-scoring.yaml",
-        "ds4/zz-ds4-1017-sm121-arm5-trtllm-mla.yaml",
-        "ds4/zz-ds4-1017-sm121-arm3-control.yaml",
-        "ds4/zz-ds4-1017-sm121-arm3-control-marlin.yaml",
-        "ds4/zz-ds4-1017-malloc-pin-sglang.yaml",
-        # The arm-5 fi073 probe mounts the same overlay and renders the same line, so the
-        # launcher normalizes it identically.
-        "ds4/zz-ds4-1017-sm121-arm5-fi073.yaml",
-        # The two marlin loader probes are that control with one extra engine flag
-        # (serial loader / dummy load), so they carry the same line and the same
-        # overlay launcher that normalizes it back to the repo id.
-        "ds4/zz-ds4-1017-sm121-arm3-control-marlin-serial.yaml",
-        "ds4/zz-ds4-1017-sm121-arm3-control-marlin-dummy.yaml",
-        # The 1017 template A/B is the knapcio arm byte for byte except the pin, so it inherits
-        # the same `--served-model-name {model}` line and the same overlay launcher that
-        # normalizes it back to the repo id.
-        "ds4/zz-ds4-1017-08c8657f-template-ab.yaml",
-    }
+    # A recipe that mounts either of these launchers rewrites a rendered
+    # `--served-model-name` path back to the repo id before the engine starts
+    # (`mods/dsv41-sglang-overlay/launcher.py::_clean_served_name`,
+    # `mods/tensorfold-dsv41-launcher/launcher.py::served_model_name`), so the
+    # `{model}` spelling is correct there. Derived, not listed: a hand-maintained
+    # allowlist goes stale the moment a new arm lands (three red mains on
+    # 2026-11-10, the last two from the marlin serial/dummy probes).
+    NORMALISING_MODS = ("dsv41-sglang-overlay", "tensorfold-dsv41-launcher")
+
+    def _normalises_served_name(self, text: str) -> bool:
+        body = strip_comment_lines(text)
+        return any(mod in body for mod in self.NORMALISING_MODS)
+
     REBOUND = re.compile(r"--served-model-name\s+\{model\}")
 
     def _rebound(self, text: str) -> bool:
         return bool(self.REBOUND.search(strip_comment_lines(text)))
+
 
     def test_no_recipe_renders_the_flag_from_model(self):
         offenders = []
@@ -486,9 +475,10 @@ class ServedModelNameNotRebound(unittest.TestCase):
         for path in sorted(RECIPES_DIR.glob("*/*.yaml")):
             rel = path.relative_to(RECIPES_DIR).as_posix()
             checked += 1
-            if rel in self.ALLOWED:
+            text = path.read_text(encoding="utf-8")
+            if self._normalises_served_name(text):
                 continue
-            if self._rebound(path.read_text(encoding="utf-8")):
+            if self._rebound(text):
                 offenders.append(rel)
         self.assertEqual(
             offenders, [],
@@ -501,9 +491,10 @@ class ServedModelNameNotRebound(unittest.TestCase):
         missing = []
         for path in sorted(RECIPES_DIR.glob("*/*.yaml")):
             rel = path.relative_to(RECIPES_DIR).as_posix()
-            if rel in self.ALLOWED:
+            raw = path.read_text(encoding="utf-8")
+            if self._normalises_served_name(raw):
                 continue
-            text = strip_comment_lines(path.read_text(encoding="utf-8"))
+            text = strip_comment_lines(raw)
             is_sglang = bool(re.search(r"^runtime: sglang", text, re.M)) or (
                 not re.search(r"^runtime:", text, re.M) and "sglang serve" in text
             )
@@ -523,6 +514,15 @@ class ServedModelNameNotRebound(unittest.TestCase):
         self.assertFalse(self._rebound("  --served-model-name {served_model_name}\n"))
         # prose quoting the old spelling in a comment must stay inert.
         self.assertFalse(self._rebound("  # was: --served-model-name {model}\n"))
+        # the exemption is the mount, not the flag spelling.
+        self.assertFalse(self._normalises_served_name("  --served-model-name {model}\n"))
+        self.assertTrue(
+            self._normalises_served_name('mods:\n- "mods/dsv41-sglang-overlay"\n')
+        )
+        self.assertFalse(
+            self._normalises_served_name("# mods/dsv41-sglang-overlay\n"
+                                         "  --served-model-name {model}\n")
+        )
 
 
 if __name__ == "__main__":
