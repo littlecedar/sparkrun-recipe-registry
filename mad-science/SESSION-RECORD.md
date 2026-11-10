@@ -9433,3 +9433,17 @@ by this session.
 `zz-kimi-…-load-format-dummy-vllm-tp4`) and the served-name guard exception for the two marlin arms —
 CI green on `d13f8dd` (run 42888010746). Untried when the window closed: marlin dummy at 0.78, the
 Kimi parameter floor, the malloc-pin control, and Kimi TP=2 x PP=3 on six nodes.
+
+**The 14:00 tick's board, and the window gap it caught.** Published on the 14:25 tick's composition
+(`d587efd`), with the queue half re-rendered from trunk's register (`d4e9dc63`, 160 tasks / 48 open)
+because a peer's register commit landed mid-tick. What the tick measured that no earlier composition
+had: between the 19:11:36Z quartet launch and 14:51:09 ET `fleet-window.lock` was absent in both
+clones while four ranks ran - the lock was re-declared at 14:51:09 (223 B, `claim=tp4-runner`,
+`campaign=stopped by this session before launch; restored at window end`), so a campaign restart in
+that gap would have leased the ranks under live work; the campaign itself was restarted 14:34:02 and
+assigned the Kimi dummy arm to the same four nodes before being stopped again. Landed alongside: the
+stale census that reddened `main` (118 vs 121 tracked recipes, carrier of a peer's `AGENTS.md`
+re-take, disclosed in that commit) and one landed row for `64fe2e5`. Dropped rather than pushed: an
+allowlist commit for the two marlin probes, superseded by `d13f8dd` and then `3ace8e9`'s derived
+exemption. Register row `campaign-leases-tp4-onto-30` opened from the journal's two `assign` lines,
+per the owner's 2026-11-08 `#67` ruling.

@@ -2588,6 +2588,21 @@
       "evidence": "3ace8e97021bf0e51135f210d1ac5e4ffee8ebf9",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "campaign-leases-tp4-onto-30",
+      "title": "The campaign leases memory-heavy TP4 quartets onto .30, which the owner ruling excludes",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "MEASURED 2026-11-10, read-only from the head's journal: the queue-mode director leased two memory-heavy TP4 quartets onto `.30`-`.33` - its `assign` lines name four hosts starting at `.30` (18:34:17Z `zz-ds4-1017-sm121-arm3-control-marlin`, 18:38:23Z `zz-ds4-1017-malloc-pin-sglang`) - and `h2h-20261107/state.json` carries `hosts` starting at the same node with `order` unchanged, so the next runnable arm re-leases the same four. AGENTS.md's owner ruling of 2026-11-08 (`#67`) puts a memory-overrunning TP4 quartet on `.31`-`.35`, never `.30`, because a global OOM there takes `ssh`, NetworkManager and the BeeGFS units; the same window's guard log shows the shape is memory-overrunning (`mem-guard.log` TRIGGER at 5.77 GiB on `.32`, the 0.77 arm's `min_MemAvailable` 5.25 GiB on `.31`). `.30` is a normal worker for every other shape - this row is the placement rule for the TP4 quartet only, not a role claim. Acceptance: the director's host selection excludes `.30` for a quartet whose recipe is memory-heavy (or the plan declares the exclusion), and a test covers the refusal.",
+      "provenance": "journalctl --user -u sparkrun-campaign --since 2026-11-10T18:30Z (the two assign lines); ~/benchmarks/h2h-20261107/state.json hosts/order; AGENTS.md node-hygiene section, owner ruling 2026-11-08 #67; ~/benchmarks/tp4-20261110b/mem-guard.log",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
