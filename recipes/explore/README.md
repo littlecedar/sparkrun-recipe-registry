@@ -1151,7 +1151,7 @@ rows and `e_score_correction_bias` pruned with them), everything else the base
   overhead and the 0.42 GiB of KDA state are included. The envelope, its inputs and the one bootable
   point are worked out in
   [Fit arithmetic inside one GB10](#fit-arithmetic-inside-one-gb10-2026-11-08-tp4-accepts-16k-rejects-32k-and-the-drafter);
-  the recipe now ships that point. The 423.0 GiB figure in
+  the recipe shipped that point until the 2026-11-10 boot (below). The 423.0 GiB figure in
   [Size / fit](#kimik31-pro-pruned75-mxfp4-vllm-tp4) is nominal parameter arithmetic and stale for
   fit. An OOM on this arm is therefore a **sizing answer**, not an engine or checkpoint verdict —
   and 2026-11-10 supplied it: see the fit section's measured paragraph (the floor is the weights,
@@ -1284,6 +1284,10 @@ settle the binding gate above. That is where the drafter's verdict is read — n
 the plain `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4`); it is not an engine failure.
 
 ### Fit arithmetic inside one GB10 (2026-11-08): TP=4 accepts 16k, rejects 32k and the drafter
+
+**Superseded by measurement 2026-11-10: the arm is rejected at weight-tensor allocation, before
+any term this envelope can move — read the measured paragraph at the end of this section. The
+envelope below stays as the 2026-11-08 arithmetic record.**
 
 Every input below is checkable from the tree or the fleet.
 
