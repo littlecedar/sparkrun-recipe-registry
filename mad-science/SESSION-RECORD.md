@@ -9270,3 +9270,24 @@ id, so the pin is unresolved rather than proven wrong.
   older than HEAD while the worktree matched HEAD) were cleared with a path-limited `git reset --` —
   index only, no worktree bytes touched. `beegfs-ctl` is still absent on `.30`, so the pool's growth
   (+218 103 808 B in 56 min this read) still has no storage-target accounting behind it.
+
+## 2026-11-10 13:38 ET — follow-up to the 13:26 entry: the rule claim is scoped to window B, and the negative is measured rather than vacuous
+
+- **Correction (a), scope.** The 13:26 entry and the board's 13:19 row both wrote that the
+  `Invalid windows` / `pool-window-invalid-cells` rule "as worded rests on an unreproduced
+  attribution". That over-reaches: the rule's own text leads with **window A** 11:27:56–12:07:30
+  (the head's units killed 11:27:57, restarted 12:06:46 and 12:07:21), which none of this tick's
+  reads touch, so window A's leg stands **unexamined here**. What is unreproduced is the *second*
+  window's 12:59:14 attribution only, and the board now carries a correction row saying exactly that.
+- **Correction (b), the negative is not vacuous.** "No oom-kill line on `.30` since 12:50" is
+  evidence only if that journal is populated — an empty kernel journal prints the same zero. Measured
+  18:37:41Z on `.30`: `journalctl -k --since 12:50` returns **397** lines and `--since 11:20`
+  **1920**, `--list-boots` puts the live boot at 11-08 15:29:40 → 13:37:41 so the window sits inside
+  one boot with no rotation gap, and counting `oom-kill` / `Out of memory` / `invoked oom-killer`
+  lines in that window reads **0 on all six nodes**, with `.31`–`.35` carrying 77–108 kernel lines
+  each. The zero therefore sits in a populated log on every host, and the finding stands as measured:
+  no node's kernel log carries an OOM kill today since 11:20, and the 13:12 row names no host for the
+  dump it quotes.
+- **Unchanged, deliberately:** window A and the 11:27:57 kill stand on their own receipts; the peers'
+  12:59 rows are not retracted, only marked unreproduced with a named discriminator; and the register
+  keeps `pool-window-invalid-cells` and `pool-target-probe-beegfs-ctl-absent` exactly as it has them.
