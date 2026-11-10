@@ -7281,3 +7281,27 @@ here rather than left to a later quartet window. Receipt `head:~/benchmarks/ds4-
 - **Left untouched:** `mad-science/queue.json` (uncommitted peer edit; the board cites snapshot
   `0c9bc711…` and its sha was re-checked immediately before publishing), `.idea/modules.xml`, every
   node's containers and volumes, and the campaign (no lease taken or released, no arm leased or closed).
+
+### 19:20 ET addendum — the register moved two minutes after the board, and the pool's shipped bodies are intact
+
+- **The board's queue row is a snapshot, and it went stale at 19:14:32Z.** The published board renders
+  `0c9bc711…` (124 tasks: 99 done, 15 queued, 9 blocked, 1 running, 25 open). Re-tallied at 19:20 ET, the
+  live file is `b6ca3ff2…` at the same 124 tasks and the same 25 open rows, but **2 running and 8
+  blocked**: `w4-survey-arm5-sm121-boot` was claimed by `Sm121Arm5` at **2026-11-10T00:14:32Z**, so the
+  treatment boot the board describes as staged has started. That claim also dissolves the contradiction
+  the window cell reports — the register no longer reads the treatment row `blocked`; the owning session
+  moved it by claiming, not by editing the note, which is the right order. Nothing needs republishing for
+  this: the next tick renders the live file, and a board whose queue row cites its snapshot sha reads as
+  a snapshot by construction.
+- **The deletion risk is bounded, not cleared.** A 475.1 GiB fall with a repo directory leaving the hub
+  at 18:45 could have taken a shipped arm's body, so the two bodies this pool actually serves were
+  `stat -L`ed: `models--deepseek-ai--DeepSeek-V4.1-Flash-1017` (snapshot `1bae0e10…`, shard
+  `model-00001-of-00048.safetensors` 970 533 624 B, mtime 2026-10-18) and
+  `models--vllm-project--Kimi-K3.1-Pro-pruned75` (snapshot `fc72e5a1…`, 96-shard set, shard 1
+  2 341 216 112 B, mtime 2026-11-08) both resolve with their files in place, and arm 5 loaded the former
+  at 18:52 ET, after the removal. So no *checked* shipped arm lost its body — which is two bodies, not
+  the whole roster; the removed repo stays UNVERIFIED until a tick captures entry names.
+- **Nit, mine, now gone:** the 19:13 publication row read "published 2026-11-09 2026-11-09 19:13 ET"
+  because the row added its own date to a stamp that already carried one. The In-flight section is
+  regenerated wholesale, so the peer's 19:16 board replaced it and nothing was re-published for the
+  defect; the ledger keeps the record instead.
