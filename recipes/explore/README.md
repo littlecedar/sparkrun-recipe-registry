@@ -41,6 +41,7 @@ the pyannote diarizer. Explore keeps the language and agentic/RAG arms.
 - [ternary-bonsai-2-9b-q2_0-llamacpp](#ternary-bonsai-2-9b-q2_0-llamacpp)
 - [zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm](#zz-beam-10-501b-a23b-nvfp4-tp4-vllm)
 - [zz-ernie-5.5-flash-base-tp4-sglang](#zz-ernie-55-flash-base-tp4-sglang)
+- [zz-ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang](#zz-ernie-55-flash-base-tp4-flashinfer-sparse-sglang)
 - [zz-sage-a1.5-35b-a3b-fp8-sglang](#zz-sage-a15-35b-a3b-fp8-sglang)
 - [zz-sage-a1.5-35b-a3b-q4km-llamacpp](#zz-sage-a15-35b-a3b-q4km-llamacpp)
 - [zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm](#zz-kimi-k31-pro-superexpert-24b-q4p-ref-vllm)
@@ -1080,6 +1081,39 @@ tool armed anyway, sat in `dead_candidate` from t=0 and its 120 s `--dead-grace`
 at 09:43:44Z while the sampler's minimum was 37.3 GiB and shard load sat at 13/128. **A watchdog log
 whose last lines are `nothing captured` + `sparkrun stop` is a failed instrument, not a dead boot** —
 check the sampler and the kernel log before recording a verdict.
+
+## [zz-ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang](zz-ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang.yaml)
+
+SGLang 2026-11-10 nightly · **4 nodes (TP=4)** · **DRAFT route arm — authored 2026-11-10, never booted**.
+
+The route arm for the FlashMLA-blocked control above: byte-identical image pin, revision, command
+and readiness, plus the lane mod
+[`mods/ernie55-flashinfer-sparse-sglang`](mods/ernie55-flashinfer-sparse-sglang/README.md), which
+patches five engine sites so the six MLA layers run FlashInfer's SM120/121 sparse-MLA kernel with
+the `top-k + last window` page set, its per-row length, and the per-head learnable sink. No flag can
+do this: `Ernie5_5MlaAttnBackend.__init__` assigns `flashmla_sparse` after `super().__init__()`, and
+the model override refuses every other `--dsa-*` value.
+
+**Site 5 is the safety site.** The indexer's candidate range is `seq_len - window`, so the trailing
+`window` (128) tokens are unreachable except through `append_window_to_topk`; a port that only
+switches the impl drops them and produces wrong logits with no error. The mod keeps the engine's own
+append call and passes its per-row length as the sparse route's `seq_lens`.
+
+**Established without a boot** (desk audit 2026-11-10, VERIFIED): ERNIE's per-rank shape is inside
+the kernel envelope — 16 q-heads at TP=4, topk 2176 (2048 + 128, aligned), 656 B/token, page 64,
+decode at most 64 tokens, `supports_decode` true for 8/16/32/64 heads; the pool writes arbitrary
+`amax/448` fp32 tile scales (`kv_scale_ue8m0` is false outside Kimi), which is the
+`kv_scale_format="arbitrary_fp32"` route GLM DSA already runs on this board; the sink is the same
+float32 `(num_heads,)` tensor whose contract both kernels document as
+`lse' = log(exp(lse) + exp(sink))`. The mod's launch-time verify fails closed on all of it.
+
+**What only the quartet can settle:** the boot (CUDA-graph capture, then `Ready`), then the quality
+cell — greedy GSM8K `>= 0.93`, upstream's own gate — and the window falsifier: a needle that appears
+only in the final 128 tokens must be answered, and the same question with the needle inside the
+top-k prefix must also be answered. A wrong-logits port passes boot and fails only there. The
+receipt records the `/v1/completions` endpoint (the checkpoint ships no chat template) and the
+resolved snapshot path from the engine's own load line. Ladder, mechanism and the boot window's
+rules: the mod README.
 
 ## [zz-sage-a1.5-35b-a3b-fp8-sglang](zz-sage-a1.5-35b-a3b-fp8-sglang.yaml)
 

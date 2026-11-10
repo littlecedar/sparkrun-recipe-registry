@@ -15,13 +15,13 @@ executed) and fails naming the stale line, so the number cannot rot — `tools/d
 and rewrites both statements from that same discovery; only its skip count needs a run,
 which is why that half carries a date. What only a run can know stays a *dated snapshot*: **2026-11-10
 — every tracked recipe passes plain `validate`, and `--strict` prints exactly the roster below over
-the whole tracked tree (re-measured 2026-11-10, the date on this line: 116 tracked recipes scanned,
+the whole tracked tree (re-measured 2026-11-10, the date on this line: 117 tracked recipes scanned,
 66 of them printing a finding, 31 with a warning and the rest suggestions only; the LiquidAI arms
 still add no row, because an accuracy declaration belongs inside `metadata:` where
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1552 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
+suite 1559 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -70,7 +70,7 @@ The guards that hold these are [Testing & QA](#testing--qa).
 
 ## Project Overview
 
-- **Recipes** (`recipes/`, 116 tracked recipe files in 12 family dirs) — v2 recipe definitions consumed by
+- **Recipes** (`recipes/`, 117 tracked recipe files in 12 family dirs) — v2 recipe definitions consumed by
   `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
 - **Mods** (`mods/`, 5 shared + `mod-template`; single-lane mods live in `recipes/<lane>/mods/`) —
   pre-launch container hooks that patch or stage files inside the serving image before the engine
@@ -105,7 +105,7 @@ Load-bearing contracts:
   (`sparkrun/core/recipe.py:1264-1270`), where only a by-name consumer reads it, and draws
   `misplaced-config-key` or `unknown-top-level-key` (`sparkrun/core/validation.py:1176-1272`). The full
   41-key rule set is in [`recipes/MECHANICS.md`](recipes/MECHANICS.md).
-- **`command:` is YAML folded `>`** (all 116 tracked recipe files). JSON-shaped defaults must keep their shell
+- **`command:` is YAML folded `>`** (all 117 tracked recipe files). JSON-shaped defaults must keep their shell
   quotes inside the fold — `limit_mm_per_prompt: >-` with `'{"image": 4, "video": 1}'` — or
   word-splitting hands the engine four arguments.
 - **`mods:` is an ordered dependency chain, not a set.** Recipe comments
@@ -146,7 +146,7 @@ Load-bearing contracts:
 | `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs), their EXL3 patch/cache mods, and the 2026-10-26-retired vLLM b12x parity arm `zz-ds4-1017-b12x-vllm-parity.yaml` (metrics in `attic/ds4/AGENTS.md`) in `attic/ds4/`, 30 arms, the closed input-scale mod, 9 archived benchmark profiles, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus three retired IFM 7B arms (plain and NGRAM `k2-horizon-7b-fp8-*`, and the UNO tree probe `zz-k2-horizon-7b-uno-tree-sglang.yaml`) in `attic/ifm/arms/` — 7 recipe files in that directory, counted 2026-10-21, the retired qwen3 no-spec control recipe, its spec-metrics guard mod, and 3 archived benchmark profiles in `attic/qwen3/` (metrics in `attic/qwen3/AGENTS.md` §6), `attic/ornith/`, `attic/explore/` (14 archived Explore arms + `ARMS-MANIFEST.md`), `attic/glm/` (1 archived arm + `ARMS-MANIFEST.md`). Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`; unresolved owner questions live in `mad-science/QUESTIONS.md`, settled ones in `mad-science/TODO.md` §"Settled questions" (numbering stable across both). Not served by the registry |
 | `mods/` | Shared mods only (used by ≥2 lanes): 5 + `mod-template/`, the authoritative harness. A mod relevant to a single lane lives at `recipes/<lane>/mods/<mod>/` |
-| `tests/` | 64 test modules, plus one tracked `*.sync-conflict-*.py` fixture that the conflict-copy guard expects |
+| `tests/` | 65 test modules, plus one tracked `*.sync-conflict-*.py` fixture that the conflict-copy guard expects |
 | `tools/` | stdlib scripts (CLIs, fixture generators and guards; `tools/README.md` is the index): bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, decision-ensemble, decision-ladder, cache-audit, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png, eval-suite, agentic-horizon-probe, horizon-analyze, refresh-sweep, boot-watchdog, diarize-fixture, diarize-score, enable-io-uring, forecast-bench, forecast-fixtures, humanizer-analyze, humanizer-measure, task-queue, doc-census, longctx-cell, h2h-client |
 | `plugins/` | One module, `pooling_bench_framework.py`, plus its `plugin.toml` compatibility sidecar: the out-of-tree sparkrun `BenchmarkingPlugin` that drives `tools/pooling-bench.py` for a `framework: pooling-bench` profile (the pooling lanes' only profile-shaped measurement path). Not a registry asset and not stdlib-only — it imports `sparkrun` by definition and is loaded only *inside* a sparkrun process via `plugins.paths` (`tools/README.md` §plugins/; the sidecar's `a0` floor and the unreadable Python range are explained there). |
 | `campaign/` | The campaign director: `sparkrun_campaign/` (protocol, evidence readers, persisted state, director, worker), its acceptance tests, `DESIGN.md` and `systemd/sparkrun-campaign.service`. A **second uv project** with its own `pyproject.toml`/`uv.lock` and third-party deps allowed (it takes none), deliberately not stdlib-only like `tools/`: `tools/run-arm.sh` stays the per-arm executor and `tools/next-arms.py`'s evidence readers are mirrored rather than imported. Live-zone obligations apply — `DESIGN.md` is the current description, and the gate runs its suite with `uv run --project campaign --frozen python -B -m unittest discover -s campaign/tests -t campaign` |
@@ -256,7 +256,7 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
 
 - **Plain `validate` is the gate, not `--strict`**: every tracked recipe passes plain `validate`, and
   `--strict` prints exactly the findings in the roster below — it adds none of its own and only exits
-  non-zero on the rows whose findings include a `warning`. Re-measured 2026-11-10 over the current 116
+  non-zero on the rows whose findings include a `warning`. Re-measured 2026-11-10 over the current 117
   tracked recipes, so the snapshot was re-taken rather than
   adjusted: thirty rows carry `unpinned-model-revision` — the pin never reaches the engine as
   `--revision` — one carries `deprecated-topology` instead, and every other row carries suggestions
@@ -945,7 +945,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1552 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1559 tests,
   3 skipped on 2026-11-08** in a clean checkout of the tracked tree, 4 in CI and 2 in this clone (it
   carries the untracked `.local/fleet.yaml`). The first three, by name and cause: `test_ifm_recipes`'
   research-doc case (the git-ignored K2-09B docs are absent on any fresh checkout);
