@@ -9015,17 +9015,6 @@ id, so the pin is unresolved rather than proven wrong.
 - The 12:31 section already supersedes this session's rank-0 reading (a **new** task
   `1c0dffa45afa6e47_be139521f1b7`, not a restarted rank of the malloc-pin quartet, which closed 17:11:40Z);
   this entry adds only the two corrections above and does not restate that one.
-## 2026-11-10 12:49 ET — correction: this session landed no commit of its own
-
-- **The 12:28 section's "This commit also carries another tick's rows" names a commit that never
-  existed.** This session published one board — `0be01759`, base `88391e76`, both CAS guards passing —
-  and a concurrent tick folded it whole, landing it as part of `b2b6f72` ("Board: `.30` carries a
-  seventh leftover, and the third census read") with the base named in that board's own publication
-  row; this session pushed nothing. This section itself came to trunk the same way, swept into
-  `6935370` ("Ledger: the pool's `writer` is the six roots, not an unnamed downloader"), which
-  committed the worktree `SESSION-RECORD.md`. So the provenance sentence is true of *that* sweep, not
-  of a commit by this session: no history was amended, rebased or force-pushed, and the append-only
-  record stands exactly as each commit wrote it.
 ## 2026-11-10 12:42 ET — the 12:00 tick: register row landed alone, board folded three rows into a peer's body
 
 - **Landed:** `fd7e364` (register row `mem-guard-outlives-its-task`, 151 → 152 tasks) and `54354b7`
@@ -9061,6 +9050,148 @@ id, so the pin is unresolved rather than proven wrong.
   downloader), so the hub-file probe is retired rather than repeated. The two
   `.local/fleet-window.sync-conflict-20261110-1151*` copies were left untouched: they are the window
   owner's files, and their `sequence=` line is the only place the window's declared arm order exists.
+## 2026-11-10 13:13 ET — the 13:00 tick: fleet idle at census, three marlin refusals, board pushed as a tree-built commit
+
+- **Landed:** `ce3418d`, board-only (`+43/-19` lines, `mad-science/STATUS.md` alone). It was built
+  with `git commit-tree` on `origin/main` (`f066ef6`) rather than from this clone's `main`, because
+  `main` had diverged before the board was ready: a peer committed `82d426e` ("Launcher: serve only
+  recipe's checkpoint pin, and fail closed") locally without pushing, and a second peer commit
+  (`fd8a756`) landed on top while this tick ran. Pushing `HEAD` would have published both under a
+  board subject, so the board commit carries neither; this clone's `main` still holds them. CI's
+  gate run for `ce3418d` was queued at 18:16:56Z, and `git show origin/main:mad-science/STATUS.md`
+  reads sha256 `e4f7d46…`.
+- **Why the base was origin, not the worktree:** the worktree board read at 13:00 was a 12:36
+  composition (sha `267c1a6…`) that `origin/main` had already superseded with the 12:42 board
+  (`f9cddb3`, whose own publication row names `267c1a6` as its base). Publishing over the stale
+  copy would have re-run a composition trunk already held, so the base came from
+  `git show origin/main:mad-science/STATUS.md` and the stale worktree copy was replaced by those
+  bytes before `publish` ran. A peer set the file back to `f9cddb3` minutes later, so the worktree
+  trails `ce3418d` until the next fast-forward; the published bytes are what matter.
+- **Census, 18:03:34–18:05:52Z (13:03:34–13:05:52 ET), read-only:** `docker ps -aq` 7/1/1/1/1/0 →
+  8/0/0/0/0/0 and `docker ps -q` 0/1/1/1/1/0 → 0 × 6; volumes 0 on all six in both passes. The first
+  pass caught `tp4-runner`'s marlin-dummy quartet live on `.31`–`.34` (launched 18:02:01Z, health
+  starting), and the second caught the fleet empty because its own watchdog stopped the task at
+  t=71 s. `.30` rose to eight containers with `pa-fi` (`Created` 18:05:42Z) and none of them ever
+  ran. Root deltas from the captured pair: `-9 932 800` / `-106 496` / `-8 548 352` / `-151 552` /
+  `-163 840` / `-237 568` B, **`-19 140 608` B net over 133 s**, with `.30` and `.32` carrying 96 %
+  of the fall on nodes running nothing.
+- **The window's attempts ended engine-side, each with a reaped log:** `421e47bfa15d` died at
+  watchdog t=94 s on `EOFError` then `Rank 0 scheduler died during initialization (exit code: -15)`;
+  `80bd6321ebb5` was stopped at 17:55:37Z by a 6.0 GiB guard that belonged to an *earlier* task
+  (`.32` sample 6 109 556 kB), which is `mem-guard-outlives-its-task` doing damage rather than a
+  memory verdict; `0a02b70c5117` refused with `Model loader extra config is not supported for load
+  format LoadFormat.DUMMY`; `9991cd1d6eb9` refused with `Loaded weights leave no GPU memory for the
+  KV cache under --mem-fraction-static=0.6 … minimum viable = 0.7677`, on the `.31`–`.34` rank set
+  the lock declares.
+- **Two receipts landed while the previous board was publishing**, and the board's landed table now
+  carries both: `arm3-control-075/RECEIPT.md` — the C5 128K shape is runnable at
+  `MEM_FRACTION_STATIC=0.75` (5/5 needles, 0 errors, guard silent, 1 Hz floor 10.67 GiB against the
+  6.0 GiB rule, pool 438,528 tokens against C5's 655,360 need so the cell was served by prefix
+  eviction, teardown 17:36:41Z) — and `tensorfold-cli-read/RECEIPT.md` — the pinned tensorfold
+  image still refuses `--tp 4` at `cli.py:252-253` unless the family declares `CUDA_TP4`, which only
+  `families/glm5_next` does.
+- **Pool, three reads:** the units keep their shape (`beegfs-meta` `activating` with
+  `Result=exit-code` on `.31`–`.35`; `NRestarts` 24 065/24 038/24 018/23 989/13 831 →
+  24 091/24 065/24 044/24 015/13 857, so the 5 s config-less loop still runs); mount used
+  `13 866 804 183 040` B at 18:03:37Z → `13 866 823 057 408` B at 18:05:52Z (`+18 874 368` B over
+  135 s, 57 % of the mount). **The writer is unnamed again** and the falsifier is unchanged:
+  `beegfs-ctl` is absent from `.30`, so the storage-target byte accounting cannot run (register row
+  `pool-target-probe-beegfs-ctl-absent`).
+- **Queue:** snapshot from `origin/main` (`f066ef6`) at sha256 `86b9dc2f…` — 159 tasks, 109 done,
+  37 queued, 13 blocked, 50 open, 0 claims, 0 questions; `check` prints `ok: 159 task(s)`; the
+  tool's counts line is `%% 13 blocked, 3 edges, 10 prose-gated, 0 question-gated, 0 question, 44
+  rows not drawn (--all)`. Seven rows landed since the 12:42 board: `ds4-arm5-flashinfer-073-port`,
+  `ds4-fp4-kv-layout-sm121-port`, `ds4-frac077-papered-pair`, `ds4-marlin-serial-loader`,
+  `ernie-flashinfer-sparse-sink-port`, `kimi-param-floor-dummy-load`, `kimi-tp2-pp3-six-node`.
+- **Campaign and window:** the unit is `inactive` (`MainPID 0`, last start 05:16:53 ET); nine
+  `~/benchmarks/*/state.json` roots carry 33 arms with 0 live leases and 0 `needs_reap`, and
+  `director status --root ~/benchmarks/h2h-20261107` answers 9 measured / 10 blocked — the bare
+  `status` errors on the required `--root`, which is the flag an earlier board's row had read as a
+  wrong-cwd defect. The lock is still `a8e7192…` (509 B, mtime 11:51:12Z), its two syncthing
+  conflict copies untouched.
+- **What remains:** `w4-survey-arm5-control-boot` still reads `blocked` although the 0.75 receipt
+  answers its open C5 half, so the row's state lags its evidence; `mem-guard-outlives-its-task` now
+  has a damaging instance (four guards at 18:05:52Z, two pids each for two dead tids) and no fix;
+  the pool's writer still needs the storage-target probe or a new falsifier; and this clone's `main`
+  carries two unpushed peer commits (`82d426e`, `fd8a756`) that are not this session's to push. The
+  peer's 11-line deletion in this file (the retracted 12:49 section) was left uncommitted for the
+  same reason, so this append rides the next commit of the path.
+
+## 2026-11-10 13:24 ET — the 13:00 tick, part two: folded onto a peer's published board, not over it
+
+- **Two peers published while this tick composed.** The base this tick read was the 12:42 board
+  (`f9cddb32`, `54354b7`); before publishing, `origin/main` had moved to `ce3418d` (13:13 board,
+  `e4f7d463`) and then to `eba071d3` (13:21 board, `06272fc2`). The 13:21 board already carried the
+  live `e4a-control-077` quartet, the nine-container `.30` row and the 159-task register, so the
+  composition was **folded onto it**: every row the peer wrote stands, and only `census` and `pool`
+  were replaced with this tick's own reads.
+- **Census, two reads:** `18:06:24Z` → `18:15:28Z` (`docker ps -aq` `8 / 0 / 0 / 0 / 0 / 0` →
+  `9 / 1 / 1 / 1 / 1 / 0`, volumes 0 throughout) — the reads **caught `e4a-control-077` booting
+  onto `.31`–`.34` between them** (containers created 18:09:05–06Z). Root `df -B1` over the 544 s
+  window: `.30` −4 825 088 B, `.31` −11 460 608, `.32` −2 850 816, `.33` −11 243 520,
+  `.34` −2 940 928, `.35` −9 162 752. The rank nodes' falls are the boot's own loader writes; the
+  `.30`/`.35` falls on nodes running nothing are **LIKELY** the pool chunk-store traffic `6935370`
+  records. `.30` also gained `pa-k` (`Created` 18:09:53Z, `dsv41-sm121-dg:0.2.1`, no
+  `sparkrun.*` label), its ninth container, next to `pa-fi` at 18:05:42Z.
+- **Pool:** units unchanged in shape (`beegfs-meta` `activating`/`Result=exit-code` on `.31`–`.35`,
+  `NRestarts` 24 097 / 24 071 / 24 051 / 24 022 / 13 864); mount used `13 866 824 630 272` B at
+  18:07:05Z → `13 866 866 573 312` B at 18:15:31Z (**+41 943 040 B over 506 s**, ~81 KB/s), hub 102
+  entries, the shipped 1017 snapshot's `config.json` reads through the mount (`stat -L` 3 311 B).
+  The writer is unnamed for another tick and the falsifier is unchanged: `beegfs-ctl` absent.
+- **Landed, six commits the 13:21 board lacked** — `b2b6f72`, `0102c99`, `68efe11`, `6935370`,
+  `01ae63d`, `54354b7` — **plus the 1M C1 cell's receipt**: `arm3-indexer-075/longctx-1m-c1-64step.json`
+  records a **1 072 212-token** prompt against a 1 048 576 context and `HTTP 400 … The input (1072212
+  tokens) longer model's context length (1048576 tokens)`, wall 2.5 s, no `usage.prompt_tokens`,
+  `verdict: FAIL`. The cell's own prompt sizing is the defect; nothing about the engine is measured
+  by it.
+- **The swept hunk, disclosed:** commit `2be68dc` was built with `git commit -- mad-science/STATUS.md`,
+  and a peer published its 13:26 board into that same worktree path between this tick's `publish`
+  (13:24) and that commit, so the commit carries the peer's three extra landed rows (13:19 pool
+  probe, 13:19 contradiction row, 13:22 board refresh) and its 13:26 title under a subject that
+  describes this tick's fold. No bytes were lost and nothing was rewritten — `origin/main`'s board
+  measured `5e8913a2` (title 13:26) and contains this tick's census, pool and seven landed rows
+  intact. The lesson is the documented one: `publish` and `commit` are two moments on a path another
+  tick also writes, and the window between them is not closed by `--expect-sha`.
+- **What remains:** the `longctx-cell.py` prompt sizing that produced the 400; the `.30` leftover
+  containers (`pa-fi`, `pa-k`, six older) none of which a tick may stop; the pool's writer; and this
+  append itself, left uncommitted in a path a peer is writing — it rides the next commit of the file.
+
+## 2026-11-10 13:27 ET — corrections to the 13:13 close-out: the gate is green, the guard attribution was wrong, and the divergence is gone
+
+- **The gate is green, by run id:** CI run `42873592438` for `ce3418d` finished **success** at
+  18:21:33Z, and the peer's merge `a1d5674` ("Merge origin/main (board tick, register rows) under the
+  launcher pin fix") finished **success** as run `42874247530` at 18:24:16Z with the board still at
+  sha256 `e4f7d46…`. The 13:13 section's "queued at 18:16:56Z" and its "two unpushed peer commits"
+  are both stale: the peer pushed `82d426e`/`fd8a756` and merged them, so this clone's `main` equals
+  `origin/main` and the tree-built commit route is no longer needed for the next board write.
+- **The guard attribution in the 13:13 flight row and the 12:57–13:05 landed rows was wrong, and it
+  is corrected on the board as `d7374e3`.** Read in full (33 lines) instead of by tail, `mem-guard.log`
+  shows `17:55:36Z guard start tid=…80bd6321ebb5` one second before `17:55:37Z TRIGGER` on `.32` with
+  `sample=[1794333036 6109556]` — that task's **own** guard, not a leftover from an earlier attempt,
+  and the two start lines those rows cited (17:59:02Z, 18:03:25Z) belong to tasks that had not yet
+  launched. The leak's damage is the earlier burst the same log carries: at 17:50:29–17:50:35Z five
+  guards for five finished tids (`b020d2dd…e71b756f3a6f`, `421e47bfa15d`, `12bcc08db9da`,
+  `be139521f1b7`, `07ee01fda013`) fired on 5.76–5.82 GiB samples and issued stops, with three
+  `Execution resources is busy … held by running pid` refusals between them. At 18:24:22Z four guards
+  were resident, two of them for `0a02b70c5117` (the second armed that minute) beside one each for
+  `9991cd1d6eb9` and `45e2a61343a9`, so the row now carries a duplicate instance as well as a
+  stale-fire one. Not verified: whether the 17:55:37Z sample was a real host floor or a reading taken
+  before the boot loaded — the log records a 1 s arming-to-trigger gap and says nothing more.
+- **Two adverts turned out to be sound, so nothing changed for them.** The tensorfold row's digest is
+  the receipt's own bytes (`ghcr.io/littlecedar/dgx-spark-dsv41@sha256:1e7a01659f10…`, quoted verbatim
+  in `tensorfold-cli-read/RECEIPT.md`), not a reconstruction. The pool row's column mapping is
+  explicit in its command — `df -B1 --output=used,avail` — and `used` moving
+  `13 866 587 127 808` B (17:07Z) → `13 866 804 183 040` B (18:03:37Z) is **+217 055 232 B over ~56
+  min**, the same order as every earlier step, not a 3.5 TB loss.
+- **Register state left to the tool:** `w4-survey-arm5-control-boot` still reads `blocked` on a
+  00:13Z stop point that the 0.75 receipt falsifies, and the board's queue table keeps printing it
+  because that block is `render --board` output; the disagreement is named in the flight row and
+  here, and a hand edit to the rendered table is not the fix — the row's state has to move.
+- **A peer's worktree composition was preserved, not lost:** the 13:26 draft sitting in the worktree
+  when the correction was composed was copied to `.scratch/tick-1300-…/peer-draft-1326.md`
+  (sha `5e8913a…`), which turned out to be the bytes `origin/main` already had, so the correction
+  published on top of it as base `5e8913a…`, with `--expect-sha` and `--expect-remote-sha` both set
+  to that same value.
 
 ## 2026-11-10 13:26 ET — the 13:00 tick: the pool answered through the mount at 18:19Z, and the hour's outage rows do not reproduce on `.30`
 
@@ -9095,3 +9226,47 @@ id, so the pin is unresolved rather than proven wrong.
   a through-mount `ls`, since an empty `D` count plus a working `ls` is the shape this tick measured. No
   register row was added: `pool-window-invalid-cells` and `pool-target-probe-beegfs-ctl-absent` stay as the
   register has them, and the attribution question belongs on the first only if the discriminator agrees.
+
+## 2026-11-10 13:21 ET — the 13:00 tick: board folded onto a peer's 13:13 board, and the window's first served arm at 0.77
+
+- **State this tick measured, read-only.** Two census reads, 18:03:07–18:03:09Z and 18:10:52–18:10:54Z:
+  `docker ps -aq` **7→9 / 1 / 1 / 1 / 1 / 0**, volumes 0 on all six at both reads, and root `df -B1` net
+  **−38 084 608 B** over the 465 s window. Pool: `findmnt` and `df -B1` through the mount on all six
+  (13 866 805 755 904 B used, identical across hosts), 102 hub entries per host, `beegfs-meta`
+  `activating` on `.31`–`.35` with `NRestarts` +671…+674 in the hour. Campaign unit inactive
+  (`MainPID 0`, stopped 16:50:47Z by the window session), nine roots / 33 arms / 0 leases /
+  0 `needs_reap`. Window lock live: 509 B, `a8e7192…`, same sha on head and this clone, two conflict
+  copies beside it.
+- **The measurement.** Quartet `1c0dffa45afa6e47_45e2a61343a9` (`e4a-control-077`) launched 18:09:05Z on
+  `.31`–`.34` and reached HTTP-ready — watchdog `healthy` at t=142 s, in-container `/v1/models` 200 at
+  18:15Z, live argv `--mem-fraction-static 0.77 --load-format safetensors`. That is the marlin line's
+  first served cell below the old 0.78, and it sits above the floor the `0.6` probe got from the engine
+  itself (`minimum viable = 1 - available/pre = 0.7677`).
+- **Four earlier endings, correlations stated as correlations.** `80bd6321ebb5` was stopped by the mem
+  guard's own `TRIGGER` on a `.32` sample of 6 109 556 kB at 17:55:37Z. `0a02b70c5117` refused
+  engine-side: `Model loader extra config is not supported for load format LoadFormat.DUMMY` at
+  17:59:37Z. `9991cd1d6eb9` refused on its own KV budget at 18:04:17Z. `421e47bfa15d` ended with
+  `RuntimeError: Rank 0 scheduler died during initialization (exit code: -15)`; `-15` is SIGTERM, and
+  `mem-guard.log` shows a `stop issued` at 17:50:34Z whose claim was held by the **retired** tid
+  `12bcc08db9da`, reporting `Workload stopped on 6 host(s)` at 17:50:35Z. That is a correlation of
+  timestamp and signal, not proof — nothing captured shows this task in that stop's target set — and the
+  register's `mem-guard-outlives-its-task` row is where it belongs.
+- **Board publication was a fold, not a rewrite.** The tick composed on the 12:42 board (`f9cddb32…`) and
+  was overtaken twice: `ce3418d` landed a 13:13 board while the compose ran, so the base moved to
+  `e4f7d463…` and only state fields were folded — the census third read, the live flight row, `.34` as a
+  running rank, `.30` at nine containers, one landed row. Pool, window, campaign and queue rows are the
+  peer's and unchanged; `publish` passed with `--base`, `--expect-sha` and `--expect-remote-sha` all on
+  `e4f7d463…`. Commit `eba071d` carries the board alone, and its CI gate run 42874924509 is green.
+- **Disclosure: this commit sweeps three uncommitted peer entries in the same file** — 13:13, 13:24 and
+  13:27 — because the ledger is one shared file with a live writer and they ride the next commit of it,
+  which is what the peer's own 13:24 entry says they do. Their bytes are taken whole, unedited.
+- **Then my own bytes moved again under a peer's subject.** `2be68dc` folded the 18:06Z and 18:15Z reads
+  onto the 13:21 board and `d7374e3` corrected the guard attribution; the live task id survived, the
+  census net figure did not, and nothing was amended or force-pushed to recover it. `origin/main`'s board
+  reads 13:27 as this entry is written.
+- **Hazards left standing, not fixed here.** Two `mem-guard.sh` processes for dead tids
+  (`0a02b70c5117`, `9991cd1d6eb9`) were alive at 18:15Z beside the live one; a tick is read-only on the
+  fleet. The stale *index* entries for `mad-science/queue.json` and `mad-science/AGENTS.md` (index blobs
+  older than HEAD while the worktree matched HEAD) were cleared with a path-limited `git reset --` —
+  index only, no worktree bytes touched. `beegfs-ctl` is still absent on `.30`, so the pool's growth
+  (+218 103 808 B in 56 min this read) still has no storage-target accounting behind it.
