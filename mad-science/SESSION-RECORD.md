@@ -9015,3 +9015,14 @@ id, so the pin is unresolved rather than proven wrong.
 - The 12:31 section already supersedes this session's rank-0 reading (a **new** task
   `1c0dffa45afa6e47_be139521f1b7`, not a restarted rank of the malloc-pin quartet, which closed 17:11:40Z);
   this entry adds only the two corrections above and does not restate that one.
+## 2026-11-10 12:49 ET — correction: this session landed no commit of its own
+
+- **The 12:28 section's "This commit also carries another tick's rows" names a commit that never
+  existed.** This session published one board — `0be01759`, base `88391e76`, both CAS guards passing —
+  and a concurrent tick folded it whole, landing it as part of `b2b6f72` ("Board: `.30` carries a
+  seventh leftover, and the third census read") with the base named in that board's own publication
+  row; this session pushed nothing. This section itself came to trunk the same way, swept into
+  `6935370` ("Ledger: the pool's `writer` is the six roots, not an unnamed downloader"), which
+  committed the worktree `SESSION-RECORD.md`. So the provenance sentence is true of *that* sweep, not
+  of a commit by this session: no history was amended, rebased or force-pushed, and the append-only
+  record stands exactly as each commit wrote it.
