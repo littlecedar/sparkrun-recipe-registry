@@ -1,0 +1,61 @@
+# FlashInfer 0.7.3 + the sm121a AOT provider over the SM121 knapcio image,
+# with the adapter's three 0.7.x deltas (recipes/ds4/patch_dsv41_fi073.py).
+# Port A probe for the ds4 arm-5 sparse-MLA route; see
+# mad-science/SM121-SPARSE-MLA-PORT.md section Port A and its stop verdict.
+#
+# Base is the byte-identical image the arm-3 control boots
+# (sha256:85c1ffc3e3a08742615307a94679af4f2c0a795dfd9bf4065c3a1c0009195dc7);
+# this build adds layers only, so :0.2.1 and its recipe pins are untouched.
+#
+# Build (context carries this file and patch_dsv41_fi073.py):
+#   docker build -f Dockerfile.dsv41-fi073 -t dsv41-sm121-dg:0.2.1-fi073 .
+# The three wheels are pinned by sha256 and the rungs below are build gates.
+ARG BASE_IMAGE=dsv41-sm121-dg:0.2.1
+FROM ${BASE_IMAGE}
+
+# flashinfer_python 0.7.3 (79.8 MB) + the jit-cache shim (4.4 kB) + the sm121a
+# provider (234 MB, ships jit_cache/sparse_mla_sm120/sparse_mla_sm120.so).
+# --no-deps: the base's torch 2.13/cuda-python satisfy 0.7.3's imports; a
+# resolver run would be free to move torch under the sglang tree.
+ARG FI_PY_URL=https://files.pythonhosted.org/packages/b9/38/3069de273d72ecd81157a968ecf717a6081643982673a2feee8b50d5c0e2/flashinfer_python-0.7.3-py3-none-any.whl
+ARG FI_PY_SHA=548a3ea1f9057025ace0a21b298824f8de049eb4b6c5c458f763309509e2ae40
+ARG FI_SHIM_URL=https://github.com/flashinfer-ai/flashinfer/releases/download/v0.7.3/flashinfer_jit_cache-0.7.3+cu130-cp39-abi3-manylinux_2_28_aarch64.whl
+ARG FI_SHIM_SHA=7efad92ca3b9305cbf2815b32e76d0ca902ad7bd8255b128f13c3d633d0633f9
+ARG FI_SM121A_URL=https://github.com/flashinfer-ai/flashinfer/releases/download/v0.7.3/flashinfer_jit_cache_sm121a-0.7.3+cu130-cp39-abi3-manylinux_2_28_aarch64.whl
+ARG FI_SM121A_SHA=e505912489b30fdae67c1dd693f140581a17927faa3fa9f500d66407d81b01ed
+
+RUN set -eux; \
+    mkdir -p /opt/fi073/wheels; cd /opt/fi073/wheels; \
+    curl -fsSL -o flashinfer_python-0.7.3-py3-none-any.whl "${FI_PY_URL}"; \
+    curl -fsSL -o flashinfer_jit_cache-0.7.3+cu130-cp39-abi3-manylinux_2_28_aarch64.whl "${FI_SHIM_URL}"; \
+    curl -fsSL -o flashinfer_jit_cache_sm121a-0.7.3+cu130-cp39-abi3-manylinux_2_28_aarch64.whl "${FI_SM121A_URL}"; \
+    printf '%s  %s\n' \
+        "${FI_PY_SHA}" flashinfer_python-0.7.3-py3-none-any.whl \
+        "${FI_SHIM_SHA}" flashinfer_jit_cache-0.7.3+cu130-cp39-abi3-manylinux_2_28_aarch64.whl \
+        "${FI_SM121A_SHA}" flashinfer_jit_cache_sm121a-0.7.3+cu130-cp39-abi3-manylinux_2_28_aarch64.whl \
+        | sha256sum -c -; \
+    python3 -m pip uninstall -y flashinfer-python flashinfer-cubin flashinfer-jit-cache; \
+    python3 -m pip install --no-deps --no-cache-dir -- ./*.whl
+
+# Rung 1 (version), the sm121a provider's sparse_mla_sm120 module, and rung 2
+# (the arg/envelope layer admits a decode shape). All GPU-less.
+RUN python3 -c "\
+import flashinfer; \
+assert flashinfer.__version__ == '0.7.3', flashinfer.__version__; \
+from flashinfer.mla import supported_sparse_mla_sm120_configs; \
+cfg = supported_sparse_mla_sm120_configs()['dsv3_2']; \
+assert cfg.supports_decode(num_heads=16, topk=2048, page_block_size=64), cfg; \
+assert supported_sparse_mla_sm120_configs()['dsv4_1'].bytes_per_token == 528; \
+import flashinfer_jit_cache as jc; \
+prov = {p.provider_id: p for p in jc.get_jit_cache_providers()}['sm121a']; \
+assert 'sparse_mla_sm120' in prov.modules, 'provider lacks sparse_mla_sm120'; \
+print('rung1-2 ok:', flashinfer.__version__, prov.version, len(prov.modules), 'modules')"
+
+COPY patch_dsv41_fi073.py /opt/fi073/patch_dsv41_fi073.py
+RUN set -eux; \
+    python3 /opt/fi073/patch_dsv41_fi073.py; \
+    python3 -m py_compile \
+        /sgl-workspace/sglang/python/sglang/srt/layers/attention/deepseek_v4_trtllm_backend.py; \
+    python3 -c "import sglang.srt.layers.attention.deepseek_v4_trtllm_backend as m; print('import ok:', m.__file__)"
+
+WORKDIR /opt/dsv41
