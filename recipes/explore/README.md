@@ -1450,8 +1450,9 @@ allocation alone** took host `MemAvailable` from 117.4 GiB to **0.79 / 1.79 / 2.
 and page tables ≤43 MiB — no KV cache, no graph pool, no prefill. The 6.0 GiB guard stopped the
 task at its floor; zero kernel `oom-kill` and zero earlyoom lines. So the deciding term is
 110.71 GiB of weights + ~8–10 GiB of engine host-side init, not the 3.05 GiB non-KV term: no
-context/seqs/graph flag moves it, and the arm needs TP=8, a smaller pruned body or a larger
-unified pool. `fp8_ds_mla`'s packed row is 656 B/layer/token (512 fp8 + 16 B scale + 128 B bf16
+context/seqs/graph flag moves it, and the arm needs a smaller pruned body or a larger unified pool; TP=8
+is out of reach on this fleet (six nodes, max rank count 6, TP=4 the validated shape). `fp8_ds_mla`'s
+packed row is 656 B/layer/token (512 fp8 + 16 B scale + 128 B bf16
 RoPE tail), so the shipped-dtype KV is 24 × (656 + 132) = **18,912 B/token**, not 30,816; the
 table above is kept as the 2026-11-08 bf16 envelope.
 
@@ -1466,8 +1467,8 @@ risk, not a routine drain.
 its **4.19 GiB** on top of the target's 110.71 GiB: 114.90 GiB of weights before any overhead, and
 `114.90 + 3.05 + 0.42 = 118.37 GiB` for a no-KV boot at util 0.973 — **3.35 GiB above the best
 measured free memory**, so it is impossible here regardless of context. What would make it
-feasible: TP=8 (55.4 GiB/rank of target plus 4.19 GiB of draft on rank 0), a smaller pruned
-checkpoint, or a host with a larger unified pool.
+feasible: a smaller pruned checkpoint or a host with a larger unified pool — TP=8 is out of reach on this
+fleet (six nodes, max rank count 6, TP=4 the validated shape).
 
 ## Kimi-K3.1-Pro spinoffs: REAPs, drafters and the EXL3 2-bit
 

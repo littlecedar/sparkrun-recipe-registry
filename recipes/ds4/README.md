@@ -1540,7 +1540,10 @@ Two open ds4 items; the first is now measured, the second scoped from the tree:
   `ensure_template_overlay` returned early: no `/cache/runtime/model-overlay` in the container, and the
   served `chat_template.jinja` is the snapshot's own **`95b7033a…`, 16,722 B** — not the mod copy
   `297be886…`, 15,691 B. Behaviour follows the file: `reasoning_effort: "minimal"` → **200** with
-  `reasoning_tokens: 8` (the mod copy rejects it with `Invalid reasoning effort: minimal`), and a
+  `reasoning_tokens: 8` — measured on this boot, and the mod copy's rejection with
+  `Invalid reasoning effort: minimal` is a **source read** of that template's `raise_exception`, not a
+  measured control (nobody has booted the pin with `-o env.MODEL_PATH=<1bae0e10 snapshot>` to watch it
+  return 400; that boot is what would make the pair measured on both sides). A
   `data:`-URI image → **200**, answer "Red", `image_tokens: 184` in usage — the engine's
   inline-placeholder vision path is accepted upstream, so there is **no vision regression** to report.
   Side observation: the 08c8657f body **ships no Engram shards** (`Engram shards missing rank 0/4
@@ -1571,27 +1574,33 @@ Two open ds4 items; the first is now measured, the second scoped from the tree:
   3's own line) = 56.2/54.8/55.4 (2.01M pool), **shipped canary = 61.1 (2.73M pool, 8.98 GiB floor)**.
   instrument and the cell are the same across all four, so decode compares; the **pool/Engram/pin
   differences are the confounds**, and the pool itself moves ±0.2M between boots (2.52M / 2.61M / 2.73M
-  on tonight's three shipped-line boots). Read: arm 3 is ~8 % faster per step than the shipped line at a
-  *smaller* pool, and the small-pool 0.75 line is 2× faster still but sits 2.8 GiB closer to earlyoom;
-  no single lever is isolated by this set. An earlier canary cell that reported 91.4 ms/step was
-  discarded: the launch wrapper's own post-Ready cell overlapped it and the identical prompts shared a
-  prefix cache (`head:~/benchmarks/fit-ds4-canary-1m-20261110/` carries the correction; **91.4 ms/step
-  must not be quoted from any file**).
+  on tonight's three shipped-line boots). **The 8 % step gap is not a licensed claim:** arm 3's
+  56.2/54.8/55.4 are **2026-11-09** readings and the canary's 61.1 is 2026-11-10, on different pins
+  (`1bae0e10` vs `08c8657f`), so the pair is **cross-window** and does not meet the lane's own same-window
+  rule (`#36`). The numbers, pools and floors above stay as measured; a same-window re-run of arm 3's
+  line beside a canary repeat is what would license a ≥2 %/≥5 % statement, and nothing smaller is
+  claimed here. An earlier canary cell that reported 91.4 ms/step was discarded: the launch wrapper's own
+  post-Ready cell overlapped it and the identical prompts shared a prefix cache
+  (`head:~/benchmarks/fit-ds4-canary-1m-20261110/` carries the correction; **91.4 ms/step must not be
+  quoted from any file**).
 
   **The day's four-boot matrix** (all `tools/longctx-cell.py`, one stream, 1,039,999-token prompt, 128 max
-  tokens, same image id, `.31`-`.34`; decode is comparable, the pools are not):
+  tokens, same image id, `.31`-`.34`; the instrument and the cell match, so the decode column reads as a
+  measurement — the pools, the Engram path and the window do not match, so it is a table of readings, not
+  a licensed delta):
 
-  | line | pin | `full_token` | decode ms/step | prefill tok/s | floor (`MemAvailable` min) | 1M cell |
-  |:--|:--|--:|--:|--:|--:|:--|
-  | replay-off @0.75 | 1bae0e10 | 1,239,040 | **44.7** | 1,831 | 6.14 GiB | PASS |
-  | replay-on @0.75 | 1bae0e10 | 702,208 | — | — | 11.71 GiB | rejected (prompt > pool) |
-  | replay-on @0.78 (arm 3's line) | 1bae0e10 | 2,006,309 | **56.2** (54.8/55.4) | — | not sampled | PASS |
-  | replay-off @0.78 (control) | 1bae0e10 | 2,809,088 | — | — | 5.63 GiB | stopped at 130 s |
-  | **shipped canary @0.78** | **08c8657f** | **2,729,984** | **61.1** | **4,242** | 8.98 GiB | PASS |
+  | line | pin | window | `full_token` | decode ms/step | prefill tok/s | floor (`MemAvailable` min) | 1M cell |
+  |:--|:--|:--|--:|--:|--:|--:|:--|
+  | replay-off @0.75 | 1bae0e10 | 11-10 | 1,239,040 | **44.7** | 1,831 | 6.14 GiB | PASS |
+  | replay-on @0.75 | 1bae0e10 | 11-10 | 702,208 | — | — | 11.71 GiB | rejected (prompt > pool) |
+  | replay-on @0.78 (arm 3's line) | 1bae0e10 | **11-09** | 2,006,309 | **56.2** (54.8/55.4) | — | not sampled | PASS |
+  | replay-off @0.78 (control) | 1bae0e10 | 11-10 | 2,809,088 | — | — | 5.63 GiB | stopped at 130 s |
+  | **shipped canary @0.78** | **08c8657f** | 11-10 | **2,729,984** | **61.1** | **4,242** | 8.98 GiB | PASS |
 
   Read across the rows: the prefill spread (1,831 → 4,242 tok/s) tracks the pool filling, not the replay
   flag, and decode moves inversely with the pool — the smallest pool is fastest per step and closest to
-  earlyoom. No row isolates one lever; that is the state of the lane, stated rather than implied.
+  earlyoom. No row isolates one lever, and the one row from a different window (arm 3's, 11-09) cannot
+  license a delta against tonight's rows; that is the state of the lane, stated rather than implied.
 
 - **Serving now (from 2026-11-10T10:15:20Z): production knapcio on `.31`-`.34`, shipped line, pin
   `08c8657f`.** Task `sparkrun_b020d2dd178343a5_8ca88141f99d`, no override; proved from the boot: served

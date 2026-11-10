@@ -21,7 +21,7 @@ still add no row, because an accuracy declaration belongs inside `metadata:` whe
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1530 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
+suite 1534 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -377,7 +377,15 @@ timeout must not kill it. `--dead-grace` (120 s) covers only a child that was ne
 `--stall` covers a live-but-frozen child: 600 s of zero io AND zero log growth, which is 4x the 150 s
 worst silence measured across the 46 boots that reached healthy (2026-11-03). **There is no `--grace`
 any more** — a 1800 s loading window was gating verdicts that only fire on evidence, and it cost an
-int8 arm 28 minutes after its serve died at t=98 s. `run-arm.sh`'s readiness loop polls the watchdog's pid as well as `/v1/models`, so a dead boot
+int8 arm 28 minutes after its serve died at t=98 s. **Pass the bare `<intent>_<launch>` id, not the
+string `sparkrun status` prints** — that one already carries the `sparkrun_` prefix the tool prepends,
+and a doubled prefix resolves no container; better still, pass `--container` with the name `docker ps`
+shows. Since 2026-11-10 the tool prints the container it resolved (`WATCHDOG arm: task=… container=…`)
+and **refuses to arm** (exit 4, no stop path) on a prefixed id or a container the node is not running,
+because an armed watchdog that cannot see its container stops healthy loads: measured when an ERNIE TP=4
+boot was killed by its own watchdog 120 s in at shard 13/128 with 37.3 GiB free. A watchdog log ending in
+`nothing captured` followed by `sparkrun stop` is a **failed instrument, not a dead boot** — check the
+sampler and the kernel log before recording a verdict. `run-arm.sh`'s readiness loop polls the watchdog's pid as well as `/v1/models`, so a dead boot
 ends the arm in one probe instead of waiting out the readiness ceiling (`ARM_READY_TIMEOUT`, 2250 s default; the ceiling is a knob because GLM-753B's own TTR is 2538.9 s, and its rc=4 line names the effective value).
 
 ```bash
@@ -937,7 +945,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1530 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1534 tests,
   3 skipped on 2026-11-08** in a clean checkout of the tracked tree, 4 in CI and 2 in this clone (it
   carries the untracked `.local/fleet.yaml`). The first three, by name and cause: `test_ifm_recipes`'
   research-doc case (the git-ignored K2-09B docs are absent on any fresh checkout);
