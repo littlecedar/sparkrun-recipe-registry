@@ -1507,9 +1507,10 @@ BF16 query (`:1304-1306`) and a packed `uint8` KV cache at 528/584-byte rows, or
 (`:1384-1400`); the built tree hands it FP8 queries and the fork's 512 B/token footerless uniform
 pool, so its first attention call raises `ValueError`. Deltas 4 (BF16 query) and 5 (528-byte
 `fp8_dsv41_inline` KV) are now implemented in the patch script and dry-run against the extracted
-`:0.2.1` tree (all five patched files `py_compile`), so the tag must be **rebuilt** before it can
-boot; the write-up and the evidence classes are in `mad-science/SM121-SPARSE-MLA-PORT.md`
-§"Implementation status". Probe recipe `zz-ds4-1017-sm121-arm5-fi073.yaml` (arm 5's contract and env
+`:0.2.1` tree (all five patched files `py_compile`), and the tag was **rebuilt** on 2026-11-10
+(`sha256:1d47404119c18e20549ba5f3ad81fbf01d80e63e5f152361adf9f3f4811e5ae6`, 35,143,615,166 B; every
+GPU-less gate passed in the build, nothing booted); the write-up and the evidence classes are in
+`mad-science/SM121-SPARSE-MLA-PORT.md` §"Implementation status". Probe recipe `zz-ds4-1017-sm121-arm5-fi073.yaml` (arm 5's contract and env
 pin, control still `arm3-control` on `:0.2.1`) is the measurement: `/health` 200 is not port
 success, and only the canary answer comparison catches a wrong-logits port. Carry the image to each
 booting rank with the `docker save | ssh 'docker load'` command above and check its id there before

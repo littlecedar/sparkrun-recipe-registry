@@ -15,8 +15,10 @@ runtime: sglang
 # SWA/compressed sparse table call, the removed 0.7 counter-buffer WAR, the
 # BF16 query (SM12x rejects FP8 Q), and the 528-byte fp8_dsv41_inline KV pool.
 # Built by recipes/ds4/Dockerfile.dsv41-fi073.
-# Image ID (local, byte-identifies the artifact; nothing pushed):
-#   sha256:7752ccd687be0cf618942f617f2aeafd0d69d56211160431131fe929da098571
+# Image ID (local, byte-identifies the artifact; nothing pushed), five-delta
+# rebuild 2026-11-10 on .35 (35,143,615,166 B). The three-delta id
+# 7752ccd68…da098571 no longer exists on the host.
+#   sha256:1d47404119c18e20549ba5f3ad81fbf01d80e63e5f152361adf9f3f4811e5ae6
 # It exists only on the build host; carry it with the command in
 # recipes/ds4/README.md "SM121 survey arms" before a boot. distribution_config
 # disables sparkrun's image distribution, which would try to pull this local
@@ -33,12 +35,12 @@ description: >-
   `zz-ds4-1017-sm121-arm3-control.yaml`): this image's only delta is FlashInfer
   plus the five adapter deltas, so a booted cell would compare against that
   digest, not against `:0.2.0`.
-  STATUS (2026-11-10): all five deltas are in the patch script, so this tag
-  must be REBUILT before it can boot; the digest in the header describes the
-  three-delta build, which raises `ValueError` on its first attention call by
-  construction. The rebuilt image feeds a BF16 query and a 528-byte
-  `fp8_dsv41_inline` KV pool. `/health` answering 200 is still NOT evidence the
-  port works: the contract is met by reading the wheel, the numerics are
+  STATUS (2026-11-10): rebuilt with all five deltas (id in the header); the
+  three-delta build it replaced raised `ValueError` on its first attention
+  call by construction. The rebuilt image feeds a BF16 query and a 528-byte
+  `fp8_dsv41_inline` KV pool, and every GPU-less build gate passed (patch
+  anchors, `py_compile` of all five files, backend import). NOT booted:
+  `/health` answering 200 is not evidence the port works, the numerics are
   unmeasured, so only the canary answer comparison in
   mad-science/SM121-SPARSE-MLA-PORT.md section "Acceptance ladder" counts.
 metadata:

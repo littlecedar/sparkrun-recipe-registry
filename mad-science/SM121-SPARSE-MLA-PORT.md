@@ -204,9 +204,11 @@ Evidence status of the two new deltas' *contract* (read from the 0.7.3 wheel, no
   store switch change the rounding path, so this arm is not bit-identical to arm-3-control even at
   greedy settings. It must be judged by the canary answer cell, as the falsifier section says.
 
-Not done: no image was rebuilt (`.35` is held by the quartet session until released), so the tag
-`dsv41-sm121-dg:0.2.1-fi073` still describes the three-delta build. Report reads "deltas in, waiting
-for the build host".
+Built 2026-11-10 on `.35` once the quartet released it: `dsv41-sm121-dg:0.2.1-fi073` is now
+`sha256:1d47404119c18e20549ba5f3ad81fbf01d80e63e5f152361adf9f3f4811e5ae6` (35,143,615,166 B),
+superseding the three-delta `7752ccd68…`. The build's own gates passed (patch applied to all five
+files, `py_compile`, backend import). NOT booted and the canary not run, so no delta above the
+VERIFIED row is upgraded: `0x7F` stays LIKELY.
 
 ## Port B — `ernie-flashinfer-sparse-sink-port`
 
