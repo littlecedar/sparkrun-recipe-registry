@@ -7936,6 +7936,45 @@ boots were the plain `pruned75` arm on the pinned nightly
   refusal on an incomplete snapshot or a pin that is honoured). The operational half — `refs/main` naming a
   half-present snapshot while the pull ran — belongs to the A/B row and disappeared when the body completed at 07:43Z.
 
+## 2026-11-10 02:52 ET — GSQ-RCO llama.cpp arm boots on `.35` after two recipe defects, and its reads turn out to be local
+
+- **One real boot, real cells.** Arm `recipes/ds4/deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp.yaml`
+  on `.35` (task `764ef61b64791742_94bc7db00a50`, watchdog `verdict=healthy`, TTR **21m56s**). Receipt
+  `head:~/benchmarks/ds4-gsq-rco-20261110/RECEIPT.md`; register row untouched (a peer owns `queue.json`).
+- **Boot 1 refused on fit, mechanism measured.** The recipe default `load_mode: none` disables mmap, so the
+  engine tried to materialise the whole 110.60 GB Engram in driver memory: dmesg
+  `Cannot map memory … size of 0x19bffe4 pages` (= 110,595,293,184 B, the Engram's own size),
+  `MemAvailable` floor **4.61 GiB**, earlyoom `sending SIGTERM … "llama-server": VmRSS 45786 MiB`.
+  Reproduced in an independent container (exit 143) — it is not an arch rejection.
+- **Two recipe fixes, both from artifacts:** `container:` needs the `ghcr.io/` host (the bare ref is Docker
+  Hub `no such manifest`, re-measured) and `load_mode: mmap` (DSV4.1's `TENSOR_READ_LAZY` Engram needs mmap).
+  Boot 2 ran the pinned digest; resolved image id `sha256:50359e0a…` is recorded beside it.
+- **Gates:** the engine line names `…/IQ2_XXS/…-00001-of-00006.gguf`; the shard-6 link was created pre-exec
+  (`linked … (110595290816 B)`); the Engram mmap is proven by inode — `/proc/<pid>/maps` maps
+  110,595,293,184 B of blob inode `11437956068074881765`; chat `ready`, image `Red` through `--mmproj`;
+  `/props` n_ctx 32768, n_slots 2, chat_template_len 18400.
+- **Cells** (64 tokens, temp 0, `/v1/chat/completions`; raw `/v1/completions` EOSes after 1 token — 3/3 c1,
+  4/4 c2): c1 **4.79** / c2 **7.27** / c5 **8.53** / c10 **11.70** t/s; c5/c10 are deliberately slot-limited
+  by `parallel: 2`. The fleet `concurrency-ladder.yaml` was attempted and aborted after 8 min: pp 2048 runs
+  at the engine's own 7.21–7.39 tok/s prefill → ≈3.5 h, and no `ladder.yaml` was written.
+- **The fabric premise is falsified on this placement.** `.35`'s RDMA NIC moved ≈125 KB over the whole boot
+  and all cells (0 bytes/token): the pool's local storage target and the BeeGFS client cache served the Engram
+  reads, so **no fabric read cost is measured**, and the lane's "every decode step crosses the fabric" sentence
+  now says so. What is measured is the row-read path: 94.8/50.8/54.2/34.0 major faults per token at
+  c1/c2/c5/c10, with the fault rate flat at ≈370–460/s while throughput rises with concurrency `[INFERENCE]`.
+  A single-block O_DIRECT probe of the Engram read 0.193 ms median during boot, 1.584 ms after the cells
+  (cache/local, not fabric).
+- **Co-tenant:** `.30` held two `hf download` processes on the same pool throughout (free space −45.4 GB in
+  the 8 minutes around the cells); session `ds4-kimi-fit` held `.31`–`.34` (window 06:43–09:30Z, lock never
+  touched here) but tore its quartet down before the cells. The cells carry the pool-writer label, unadjusted.
+- **Teardown:** `sparkrun stop` on the literal id → `Workload stopped on 1 host(s)`; `.35` `ctns=0 vols=0`;
+  all `/tmp/w35*` scratch removed after harvest; watchdog rc 0. Memory: cell-time floor 47.0 GiB (the 6.0 GiB
+  guard never fired), zero earlyoom kills in boot 2, zero kernel `oom-kill`; four `NVRM … NV_ERR_NO_MEMORY`
+  lines during populate are recorded.
+- **Remains:** no same-protocol ladder for the lane index (pp 2048 impractical; a pp≤512 or `parallel: 10`
+  variant is the next instrument), no fabric-read number (needs a node whose chunks are remote), and the
+  register row's state change needs the owner sign-off its 2026-11-09 TP1/TP2 gate asks for.
+
 ## 2026-11-10 02:47 ET — two flights ended inside one tick, and a board written four times under guard
 - **What the tick read, all machine-captured.** Census pair
 `07:15:22Z`→`07:16:37Z` (75 s): `docker ps -aq` `.30` 1, `.31`–`.35` 1 each, `docker ps -q` 1

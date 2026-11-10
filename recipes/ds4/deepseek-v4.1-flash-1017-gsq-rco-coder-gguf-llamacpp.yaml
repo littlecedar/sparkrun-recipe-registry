@@ -5,7 +5,10 @@ runtime: llama-cpp
 # upstream-6023692 (2026-11-05) is the first llama.cpp image the lane has that is
 # past the card's b11870 floor (74bca395, 2026-10-25, "model: DSV4.1 flash"): its
 # commit is eleven days later. The lane's pinned upstream-a37cc46 build predates it.
-container: littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
+# The `ghcr.io/` host is load-bearing: the bare `littlecedar/...` ref resolves to Docker Hub,
+# which answers `no such manifest` (measured 2026-11-08 and again 2026-11-10), so a launch
+# without the host either fails the pull or silently runs a bare-tagged local copy.
+container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
 min_nodes: 1
 max_nodes: 1
 
@@ -61,7 +64,11 @@ defaults:
   temperature: 1.0
   top_p: 0.95
   top_k: 20
-  load_mode: none
+  # `none` (no mmap) reads the whole 110.60 GB Engram into driver memory, which cannot fit a
+  # 121 GiB node: boot 1 on 2026-11-10 died there (earlyoom SIGTERM at 4.61 GiB MemAvailable,
+  # dmesg "Cannot map memory ... 0x19bffe4 pages"). `mmap` keeps it lazily mapped, which is
+  # what DSV4.1's TENSOR_READ_LAZY rows need.
+  load_mode: mmap
   # Bound to the prepared projector path; the command passes it, so the runtime's
   # append-if-absent rule does not double it.
   mmproj: mmproj-DeepSeek-V4.1-Flash-1017-BF16.gguf

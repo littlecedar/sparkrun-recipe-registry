@@ -978,13 +978,13 @@ inference code (see the fork's `tools/dsv41/ATTRIBUTION.md`). Checkpoint: the
 |:--|:--|
 | Recipe | `recipes/ds4/deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp.yaml` |
 | Model | [`ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF`](https://huggingface.co/ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF) pinned `54229d38` — card MIT (the base model's licence) |
-| Engine | llama.cpp `llama-server`; image `littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b80…` — the **digest is the pin**, the tag is only a readable label (the `-cu130` form has never existed in GHCR — `manifest unknown`; a first draft of this arm invented that suffix. Use the bare `upstream-6023692` tag). Re-resolve by digest, and boot receipts must record both the digest and the resolved image id |
+| Engine | llama.cpp `llama-server`; image `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b80…` — the **digest is the pin**, the tag is only a readable label (the `-cu130` form has never existed in GHCR — `manifest unknown`; a first draft of this arm invented that suffix. Use the bare `upstream-6023692` tag). The `ghcr.io/` host is load-bearing: the bare `littlecedar/…` ref resolves to Docker Hub, which answers `no such manifest` (re-measured 2026-11-10), so the `container:` line carries it. Re-resolve by digest, and boot receipts must record both the digest and the resolved image id |
 | Weights | 763.2 B params overall, 551.9 B in the transformer. 192 of 384 routed experts per layer removed by RCO; the surviving 192 keep the IQ2_XXS build's per-tensor types — 72.12 GB on disk, **1.05 bpw** against the original transformer (card's arithmetic; retained parameters average 2.06 bpw) |
 | Engram | 110.60 GB, `DeepSeek-V4.1-Flash-Engram-IQ4_NL.gguf` — the Coder's shard 6, byte-identical to the unpruned release's. Two IQ4_NL lookup tables, read one row per token, memory-mapped, **not resident** |
 | Vision | `mmproj-DeepSeek-V4.1-Flash-1017-BF16.gguf`, 0.97 GB, also the unpruned release's file |
 | Topology | TP=1 — one GB10 node. Resident is the 72 GB transformer plus KV; the 110.60 GB Engram stays on disk |
 | Card accuracy (reasoning effort 50) | SWE-bench Verified 77.00 vs base 81.20 (94.8 % retained); LiveCodeBench v6 88.57 vs 89.71 (98.7 %) |
-| Status | **Authored-not-booted, 2026-11-08.** The fleet window was held by session `campaign-queue`; no receipt, no measured cell |
+| Status | **Booted and measured, 2026-11-10** on `.35` (task `764ef61b64791742_94bc7db00a50`): TTR 21m56s, chat `ready` + image `Red` through the arm's `mmproj`, cells c1 **4.79** / c2 **7.27** / c5 **8.53** / c10 **11.70** t/s on `/v1/chat/completions` (c5/c10 slot-limited by `parallel: 2`). Receipt `head:~/benchmarks/ds4-gsq-rco-20261110/` |
 
 ### What fits, and what is read through the fabric
 
@@ -993,7 +993,11 @@ the **72.12 GB transformer** plus KV on one GB10, which is why it is `tp: 1`. Th
 file is `mmap`ed and read one row per token. On this fleet `/cache` is the shared BeeGFS pool, so
 those reads cross the fabric, not a local NVMe. That makes the per-token Engram row read the first
 thing a low decode number should be checked against — `read_bytes` per token and the pool's row-read
-latency — before it is attributed to llama.cpp or to the 1-bit weights.
+latency — before it is attributed to llama.cpp or to the 1-bit weights. **Measured 2026-11-10 on
+`.35`: those reads did *not* cross the NIC** (≈125 KB of `rx_bytes` for the whole boot and all
+cells, 0 bytes/token — the pool's local storage target plus the BeeGFS client cache served them),
+so this arm still has **no measured fabric read cost**; see
+[Measured](#measured-boot-gates-and-cells-2026-11-10).
 
 ### The shard-6 link (why a mod, not a step)
 
@@ -1035,7 +1039,8 @@ walks (shard 1 and the Engram); exit codes are unchanged, and the offline harnes
 shape (symlinked shard 1 and Engram) as well as the old regular-file one — seven cases, results
 `2 / 3 / 4 / 0 / 0 / 0 / 2`, in the mod README's §Offline self-check. What the fix does *not* prove
 is the real pool: the snapshot still has five `IQ2_XXS/` entries and no `00006` until a boot's
-pre-exec creates it, so the arm remains authored-not-booted for measurements, not for tooling.
+pre-exec creates it, so the arm stayed authored-not-booted for measurements until the 2026-11-10
+boot created the link and served (see [Measured](#measured-boot-gates-and-cells-2026-11-10)).
 
 ### Prerequisites (both verified before the arm may claim bootability)
 
@@ -1049,18 +1054,77 @@ pre-exec creates it, so the arm remains authored-not-booted for measurements, no
    defect is fixed (`stat -Lc`, `find -L`) and the pool-shaped harness passes; the link itself is
    still created only at boot, so the snapshot shows five `IQ2_XXS/` entries until one runs.
 
-Either missing makes the arm authored-not-booted with that exact blocker. What is *not* yet verified
-is the model side: no boot has proved the image's `deepseek4`/DSV4.1 loader agrees with this GGUF's
-per-tensor mix, nor what a decode step costs when one Engram row per token comes off BeeGFS.
+Both prerequisites are now boot-proven (2026-11-10): the mod created shard 6 pre-exec
+(`linked … (110595290816 B)`) and the pinned loader opened the shard and served. Neither is a
+blocker any more; the remaining open question is fit on a *contended* node, not arch support.
+
+### Measured: boot, gates and cells (2026-11-10)
+
+One boot on `.35`, `--cluster WOPR --transfer-mode local`, image digest `sha256:f2579b80…` resolving
+to container image id `sha256:50359e0ae2aeaea1445663cf530395255707fa26d1a7136f107558f35e7754ef`
+(task `764ef61b64791742_94bc7db00a50`; watchdog on it, `verdict=healthy`). Receipt
+`head:~/benchmarks/ds4-gsq-rco-20261110/RECEIPT.md`.
+
+**Two recipe fixes were needed, both measured and now committed.** (i) `load_mode: none` tries to
+materialise the whole 110.60 GB Engram in driver memory: the first boot died at
+`MemAvailable` **4.61 GiB** with earlyoom's `sending SIGTERM … "llama-server"` and dmesg
+`Cannot map memory … size of 0x19bffe4 pages` (110,595,293,184 B = the Engram file); DSV4.1's
+`TENSOR_READ_LAZY` Engram needs mmap, so the default is `mmap`. (ii) The `container:` ref needs the
+`ghcr.io/` host (see the Engine row). TTR with `mmap` is **21m56s**, almost all of it page-fault
+populate of 182.72 GB through the pool client.
+
+| gate | measured |
+|---|---|
+| engine model line | `load_model: loading model '/cache/…/IQ2_XXS/…-00001-of-00006.gguf'` |
+| Engram path + mmap | `/mnt/beegfs/huggingface/hub/…/snapshots/54229d38…/DeepSeek-V4.1-Flash-Engram-IQ4_NL.gguf`, blob inode `11437956068074881765`, `/proc/<pid>/maps` maps **110,595,293,184 B** of it (`r--s`), `VmLck: 0`, ready-time `VmRSS` 328 MB (lazy, not resident) |
+| chat | HTTP 200, `ready` (14 tokens, 9.0 s) |
+| image (`--mmproj`) | HTTP 200, `Red` for a solid-red PNG (25 tokens, 6.5 s); `/v1/models` reports `completion`+`multimodal` |
+| `/props` | `n_ctx 32768`, `n_slots 2`, `chat_template_len 18400` |
+
+Cells, 64 new tokens, temp 0, `/v1/chat/completions` — the endpoint that decodes: raw
+`/v1/completions` answers `finish: stop` after **1 token** on this checkpoint (3/3 c1 and 4/4 c2
+requests), so a completions ladder measures EOS, not decode.
+
+| cell | wall | completion tokens | t/s | mean latency | note |
+|---|---:|---:|---:|---:|---|
+| c1 | 40.1 s | 192 | **4.79** | 13.4 s | |
+| c2 | 35.2 s | 256 | **7.27** | 17.6 s | |
+| c5 | 75.0 s | 640 | **8.53** | 23.9 s | **slot-limited** (`parallel: 2`) |
+| c10 | 109.5 s | 1,280 | **11.70** | 33.1 s | **slot-limited** (`parallel: 2`) |
+
+**Fabric attribution — the premise did not hold on this placement.** `.35`'s RDMA NIC moved
+≈125 KB for the whole boot and all cells (`rx_bytes` 1,215,626 → 1,341,087), i.e. **0 bytes/token**:
+the pool's storage target on `.35` (and/or the BeeGFS client's buffered cache) served the Engram
+reads, so **no fabric read cost was measured**, and the "every decode step crosses the fabric"
+expectation above is unverified on a node whose chunks are remote. What the cells do show is the
+row-read path on the local target: **94.8 / 50.8 / 54.2 / 34.0 major faults per token** at
+c1/c2/c5/c10, with the major-fault service rate flat at ≈370–460/s while aggregate throughput rises
+with concurrency — a fault-service plateau, not a GPU-compute ceiling `[INFERENCE]` (no per-fault
+latency instrument exists on BeeGFS). A single-block O_DIRECT probe of the Engram file read median
+**0.193 ms** during boot and **1.584 ms** immediately after the cells — cache/local reads, not a
+fabric number. Co-tenant: `.30` held two `hf download` processes on the same pool throughout and
+pool free space fell 45.4 GB during the 8 minutes around the cells; session `ds4-kimi-fit` held
+`.31`–`.34` but tore its quartet down before the cells. Cells are labelled pool-writer-contended,
+not adjusted.
+
+**The fleet ladder profile was attempted and is impractical for this arm.** `llama-benchy 0.4.0`,
+`benchmarking/concurrency-ladder.yaml` (pp 2048, tg 128, 5 runs, 90 requests) runs at the engine's
+measured prefill of **7.21–7.39 tok/s** (1,359 tokens in 188.39 s; 1,871 in 253.11 s), projecting
+≈3.5 h; it was aborted after 8 minutes with no `ladder.yaml`. Guardrail: `ARM_ALLOW_FEW_SLOTS=1`
+is the correct shape for these cells (c5/c10 are deliberately slot-limited), and a future
+same-protocol ladder needs a smaller pp or a `parallel: 10` variant.
 
 **What a successful serve can produce — a marker, unlike the Kimi arms.** `llama-server` answers
 `/v1/completions` and `/v1/chat/completions` (it reads a chat template from the GGUF metadata; the
 repo's `chat_template.jinja` is not auto-loaded — llama.cpp wants `--chat-template`/`--chat-template-file`),
 and it answers llama-benchy's `/props` probe. So this arm **can** write `ladder.json` plus the flat
-`house.yaml` marker, and `ladder: ok` is the state that closes it. If no marker appears, read the
-serve log before naming a cause: engine load / arch rejection (the b11870 floor), readiness on the
-Engram link, or a templateless serve answering chat with 400 are three different failures; only the
-last one is the instrument gap the Kimi arms have.
+`house.yaml` marker, and `ladder: ok` is the state that closes it. The 2026-11-10 boot wrote neither:
+the fleet profile was impractical at pp 2048 (above), and the measured cells live in the receipt's
+own `ladder-chat.json` with a different protocol — no marker means "no fleet-protocol suite ran",
+not "the arm failed". If no marker appears, read the serve log before naming a cause: engine load /
+arch rejection (the b11870 floor), readiness on the Engram link, or a templateless serve answering
+chat with 400 are three different failures; only the last one is the instrument gap the Kimi arms
+have.
 
 
 
@@ -1395,17 +1459,32 @@ Two open ds4 items; the first is now measured, the second scoped from the tree:
   and hands most of the headroom back. `MEM_FRACTION_STATIC` is a **trade, not a free knob** — the
   pool cut is what makes the cell runnable. The 0.78 cell produced no speed sample, so the prefill
   rate and decode deltas above stay open; arm 3's falsifier still needs arm 3's own line at 0.75.
-- **The recipe pin is inert, and `refs/main` moved under it (2026-11-10).** The first control boot
-  died at `engram_backend.py:114` `FileNotFoundError … snapshots/08c8657f…/model-00047-of-00048
-  .safetensors`: the launcher resolves the HF cache's `refs/main`, which the 1017 template-refresh
-  pull had moved to that **incomplete** snapshot (46/48 shards, 2 `.incomplete` blobs), while
-  `model_revision: 1bae0e10…` never reaches the engine (the validator's `unpinned-model-revision`
-  finding is not cosmetic here). The pinned snapshot is complete; the boot was made with
-  `-o env.MODEL_PATH=/cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash-1017/snapshots/
-  1bae0e10…`, which `resolve_checkpoint()` takes first and which showed up as the container's
-  `MODEL_PATH`. Until the pin is enforced in the serve line (or `refs/main` is held at a complete
-  snapshot), **every ds4 quartet boot follows a moving ref**; treat the pool's `refs/main` as a boot
-  input and check it before launching.
+- **The pin never reaches the engine, and the launcher accepted an incomplete snapshot (2026-11-10).**
+  Sparkrun's `bind_runtime_models` (`models/runtime.py:21-28`) rewrites `{model}` to the prepared
+  snapshot path only when a prepared model exists on the hosts (`bindings = [prepared_model(…)]`;
+  `if not any(bindings): return`); with `SKIP_PREPARE=1` and a local transfer **no prepare runs and the
+  binding is a no-op**, so the launcher receives the **repo id** and takes its branch 3
+  (`launcher.py:913-932`, `_resolved_models_dir`), whose first candidate is the cache's `refs/main`
+  and whose completeness test is only `config.json` + `model.safetensors.index.json` — both present
+  in a snapshot whose shards are still `.incomplete`. The 1017 template-refresh pull had moved
+  `refs/main` to such a snapshot (`08c8657f`, 46/48 shards); the launcher printed `resolved checkpoint
+  deepseek-ai/DeepSeek-V4.1-Flash-1017 -> …/snapshots/08c8657f…` and the engine got exactly that path
+  (`server_args['model_path']`), so the boot died at 143 s at `engram_backend.py:114` on
+  `model-00047-of-00048.safetensors`. The recipe's `model_revision: 1bae0e10…` cannot save this: on
+  this path the engine never sees a revision at all (validator `unpinned-model-revision`). That boot
+  was made serveable with `-o env.MODEL_PATH=…/snapshots/1bae0e10…`, which `resolve_checkpoint` takes
+  first (branch 1) and serves through the overlay farm. **Until the binding is forced or
+  `_resolved_models_dir` checks every shard, a pool pull can silently change the served snapshot and
+  kill a quartet boot** — check that the pool's `refs/main` names a complete snapshot before
+  launching, and pass `MODEL_PATH` when it does not.
+- **Launch hygiene: a superseded guard stops the wrong task (2026-11-10).** A `mem-guard.sh` left
+  running from an earlier receipt re-reads the *new* trigger file when the same trigger path is
+  reused, sees the 6.0 GiB trip, and issues `sparkrun stop` for the task id it was started with — which
+  is no longer the running one. Measured: the 0.78 control's run-1 guard fired at 07:31:09Z and
+  reported `Workload stopped on 6 host(s)` for a task that had already failed to boot (no foreign
+  container was touched only because of the deployment-name filter). Kill superseded guards, or give
+  each run its own trigger directory; **the fix is one line, so it is launch hygiene, not a register
+  row.**
 - **The ladder's missing symbol is a one-line shim, and it is register-worthy.** The adapter's
   `block_verify.py:106` calls `dflash_utils.build_dflash_verify_target_probs`, which the pinned
   engine spells `build_speculative_verify_target_probs`. Cheapest honest fix, with no vendored
