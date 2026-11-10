@@ -1592,6 +1592,16 @@ Two open ds4 items; the first is now measured, the second scoped from the tree:
   Read across the rows: the prefill spread (1,831 → 4,242 tok/s) tracks the pool filling, not the replay
   flag, and decode moves inversely with the pool — the smallest pool is fastest per step and closest to
   earlyoom. No row isolates one lever; that is the state of the lane, stated rather than implied.
+
+- **Serving now (from 2026-11-10T10:15:20Z): production knapcio on `.31`-`.34`, shipped line, pin
+  `08c8657f`.** Task `sparkrun_b020d2dd178343a5_8ca88141f99d`, no override; proved from the boot: served
+  snapshot `…/snapshots/08c8657f…` (launcher resolve line **and** `server_args['model_path']`), served
+  template `95b7033a…`, image `ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb394…` resolving to container
+  image `sha256:3f448081…`, `[moe_b12x_next]` armed, zero divide-128 `ValueError`, the `Ready: API on port
+  8000` line, `/v1/models` 200 with `max_model_len 1048576`, `max_total_num_tokens=2,572,800`, chat 200
+  "OK" and image 200 "Red" (`image_tokens 184`), floor 10.69-16.01 GiB. Stop it with
+  `sparkrun stop sparkrun_b020d2dd178343a5_8ca88141f99d`, then verify `ctns=0` on the four ranks (the
+  window lock carries the same claim). Receipt `head:~/benchmarks/production-knapcio-20261110/`.
 - **The ladder's missing symbol is a one-line shim, and it is register-worthy.** The adapter's
   `block_verify.py:106` calls `dflash_utils.build_dflash_verify_target_probs`, which the pinned
   engine spells `build_speculative_verify_target_probs`. Cheapest honest fix, with no vendored

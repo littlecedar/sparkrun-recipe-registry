@@ -8514,3 +8514,46 @@ row's to fix.
   commercial only to US$50 M revenue with attribution and a one-time notice) needs an owner ruling
   before any shipping decision; the checkpoint ships no chat template, so `/v1/completions` is the
   endpoint; and the arm stays blocked until FlashMLA ships an SM121 sparse-decode kernel.
+## 2026-11-10 06:20 ET — production knapcio restored on .31–.34; the TP=4 day ends with a serving fleet
+
+- **Production is up on the shipped line, pin `08c8657f`.** Task `sparkrun_b020d2dd178343a5_8ca88141f99d`,
+  `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` exactly as it ships (no `-o`), launch
+  10:11:49Z → `Ready` **10:15:20Z** (211 s). Proved from the boot, not assumed: served snapshot
+  `…/snapshots/08c8657f02291e11b6f6b63e0e16014f8e748518` from the launcher's resolve line **and**
+  `server_args['model_path']`; served template `95b7033a…` (16,722 B, snapshot's own, no overlay dir);
+  recipe image `ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb394…` resolves to container image
+  `sha256:3f448081…` with `RepoDigests` carrying that digest; `[moe_b12x_next]` armed (8), zero divide-128
+  `ValueError`, `Ready: API on port 8000` present, `/v1/models` 200 with `max_model_len 1048576`,
+  `max_total_num_tokens=2,572,800`; chat 200 `"OK"` and 64×64 PNG data-URI 200 `"Red"` (`image_tokens 184`);
+  floor 10.69 / 12.03 / 11.70 / 16.01 GiB, guard never fired, zero OOM. Receipt
+  `head:~/benchmarks/production-knapcio-20261110/`.
+- **One proof bug caught by reading its own output:** the first proof line compared the recipe's manifest
+  digest against the local `.Id` and printed `match=NO`; `.Id` is a config digest, so that comparison is
+  invalid. The script now compares the container's `.Image` with the `.Id` that the digest ref resolves to
+  and prints the ref's `RepoDigests` beside it (`match=YES`). A false alarm in a proof script is worse than
+  no line — it teaches the operator to ignore the output.
+- **Window is a production claim, not a research lock.** `.local/fleet-window.lock` names the task,
+  containers, pin, served snapshot, template sha, start time and the stop command; today's research
+  windows (this session's seven boots, the ERNIE TP=4 attempt) are over. Director unit
+  `sparkrun-campaign.service` is **active** again (started 10:16:53Z) and must not lease `.31`-`.34` while
+  the claim stands. Stop with `sparkrun stop sparkrun_b020d2dd178343a5_8ca88141f99d`, then verify
+  `ctns=0` on the four ranks and rewrite the lock.
+- **The TP=4 day in one line:** eight quartet boots — 0.78 control (cell dies at the floor), 0.75
+  replay-off (cell passes), arm 3 @0.75 (prompt no longer fits the pool), template A/B (upstream template
+  serves, `reasoning_effort` accepted, no vision regression), revision validation (house 36/37, needles,
+  pin moved to `08c8657f` on a template-only delta with the Engram re-pack cost measured), canary ×2 (the
+  shipped line at 61.1 ms/step, 4,242 tok/s prefill, floor 8.98 GiB) and production itself — with the
+  four-boot decode matrix now in `recipes/ds4/README.md` and the launcher's `refs/main` hazard answered by
+  the same-fleet counter-example (ERNIE's stock serve opens its pinned snapshot directory).
+- **ERNIE TP=4 outcome recorded:** `failed-blocked` — the model's MLA layers run `flashmla_sparse` and
+  FlashMLA's sparse decode kernel has no SM121 build (`Capture cuda graph failed: sparse_attn_decode_interface
+  … Unsupported architecture sparse decode fwd`); that is an architecture gate, not a flag, so no retry is
+  warranted until FlashMLA ships an SM121 kernel. Its window was released clean (`ctns=0 vols=0`, lock
+  deleted 10:10:47Z).
+- **Register mutations for the revision-sweep session:** `arm3-control-cell-canary-line` → done (61.1
+  ms/step, 4,242 tok/s, floor 8.98 GiB, pool 2,729,984; receipt
+  `head:~/benchmarks/fit-ds4-canary-1m-clean-20261110/`); NEW `ds4-revision-08c8657f-validated` (done, pin
+  landed `363e5d4`); NEW `boot-wrapper-auto-cell` (queued: the inherited launch wrapper runs its own
+  post-Ready 1M cell, so a hand-started cell races it — measured twice tonight; fix = gate it or wait for
+  `cell done`); `ds4-quartet-served-incomplete-pool-snapshot` gains the discriminator and the same-fleet
+  counter-example; NEW (operator) `ernie-tp4-flashmla-sm121` → blocked with the mechanism above.
