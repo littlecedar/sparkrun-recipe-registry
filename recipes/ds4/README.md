@@ -1506,7 +1506,11 @@ Two open ds4 items; the first is now measured, the second scoped from the tree:
   first (branch 1) and serves through the overlay farm. **Until the binding is forced or
   `_resolved_models_dir` checks every shard, a pool pull can silently change the served snapshot and
   kill a quartet boot** — check that the pool's `refs/main` names a complete snapshot before
-  launching, and pass `MODEL_PATH` when it does not.
+  launching, and pass `MODEL_PATH` when it does not. **Same-fleet counter-example (2026-11-10):** the ERNIE
+  TP=4 arm's stock serve line renders `--model-path <prepared> --revision 028544b2…` and the engine
+  printed `Found local HF snapshot … snapshots/028544b2…; skipping download` — it opened the **pinned
+  snapshot directory** directly. Our overlay path does not: the launcher receives the repo id and follows
+  the cache ref. The fix direction is therefore the rendered argv, not the engine.
 - **Launch hygiene: a superseded guard stops the wrong task (2026-11-10).** A `mem-guard.sh` left
   running from an earlier receipt re-reads the *new* trigger file when the same trigger path is
   reused, sees the 6.0 GiB trip, and issues `sparkrun stop` for the task id it was started with — which
