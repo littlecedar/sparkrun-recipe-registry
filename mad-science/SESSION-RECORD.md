@@ -7630,3 +7630,49 @@ has no falsifier. (c) Left untouched: every node's containers and volumes, `mad-
 - **Left open, unchanged.** The `beegfs-meta` loop, arm 3's undecided falsifier, the three exits on
   `queue-mode-done-sibling-holds-canary-row` (all operator calls), and the register rows that carry no `recipe:`.
   No boots, no node touched beyond reads.
+
+## 2026-11-10 01:23 ET — six candidate arms reconnoitered, the 1017 template refresh staged, no boot
+
+- **`deepseek-ai/DeepSeek-V4.1-Flash-1017` moved, and it is one file.** Hub `sha` is
+  `08c8657f02291e11b6f6b63e0e16014f8e748518`, one new commit `Add chat template (#11)`
+  (2026-11-10T02:22:56Z). `/tree/{rev}` compared entry by entry against the pinned
+  `1bae0e1088993b9b82de08f59de5be5a34e42170`: `chat_template.jinja` is the only path present at head and
+  absent at the pin, 16,722 B, git oid `35b5c611…`; `config.json`, `tokenizer.json`,
+  `tokenizer_config.json`, `model.safetensors.index.json` and all 48 shards are identical by oid+size.
+  Repo totals 510,311,062,017 B (475.26 GiB) at head against 510,311,045,295 B at the pin — the
+  difference is exactly the template's 16,722 B.
+- **The lane does not automatically serve it.** `launcher.ensure_template_overlay`
+  (`recipes/ds4/mods/dsv41-sglang-overlay/launcher.py:680-681`) returns early when the checkpoint
+  carries `chat_template.jinja`, so at the new revision SGLang reads the upstream template
+  (sha256 `95b7033a…`) instead of the mod copy (sha256 `297be886…`, 15,691 B) — the mod copy neuters
+  two image-placeholder guards and predates upstream's `thinking` alias, OpenAI `reasoning_effort`
+  mapping and tool-argument dict check. So the A/B artefact is the served bytes plus one request:
+  `reasoning_effort="minimal"` is 200 upstream and 400 on the mod copy.
+- **Pool pull started on `.30`, detached, and is still running at report time.** Revision passed as a
+  SHA so `refs/main` still names the pin (both snapshots must stay side by side). pid **2684722**,
+  log `head:~/benchmarks/ds4-1017-template-refresh-20261110/hf-pull-08c8657f.log`, reading 36 of 84
+  files fetched and ~16.9 GB in five `.incomplete` blobs at 02:57 elapsed; the new snapshot dir is
+  created. It does **not** share blobs with the pin: the old snapshot holds its 48 shards as plain
+  files and `blobs/` carried only `config.json`, so the refresh is a full 475.26 GiB re-download into
+  the shared pool (11 TB free at start, nothing deleted).
+- **Five candidates reconnoitered** (Hub `/api/models` + `/tree/main` + card/config read 2026-11-10):
+  `baidu/ERNIE-5.5-Flash-Base` is the only TP≥4 shape — 268.65 GiB of files, 67.16 GiB/rank at TP=4
+  against 121.69 GiB/node and 134.3 GiB/rank at TP=2, so TP=4 is required; the engine is SGLang
+  (`ernie55.py` exists on sglang main only — absent at v0.5.22 and v0.5.23, so the image pin is the
+  open work) and vLLM has no `ernie5_5_moe` entry. `unsloth/Qwen3.8-Flash-Next-GGUF` answers the GGUF
+  question the other way: the pinned llama.cpp `6023692b1e13` already carries `qwen4exp`, and at TP=1
+  the KV arithmetic (24 KiB/token, 6.00 GiB at 262k) against the §fit budget rejects UD-Q4_K_XL
+  (103.69 GiB body → 112.74 GiB with overhead and KV) while the Q3 class fits (UD-Q3_K_XL 83.32 →
+  92.37 GiB). `webAI-Official/TwIL-8B` (8.79 B params, 17.58 GB, non-commercial license),
+  `Viggle/Viggle-Remake` (MiniMax-H3 ComfyUI pipeline, components 13.35–20.72 GiB) and
+  `Edge0/Audio8-TTS-Realistic-Air` (0.6B DualAR TTS, Apache-2.0, `trust_remote_code` required) are all
+  **TP<4 — surveyed only, no recipe**.
+- **Register: six rows added, and no boot row for any TP<4 survey.** `ds4-1017-template-refresh-ab`
+  (quartet, TP4, precondition = pull complete + revision `08c8657f…` + window release),
+  `qwen38-flash-next-gguf-viability`, and `lane-survey-{webai-official-twil-8b,
+  baidu-ernie-5.5-flash-base,viggle-viggle-remake,edge0-audio8-tts}`; all `queued`, `node_cost` empty
+  except the A/B quartet, `provenance` naming the exact API endpoint and in-tree file read.
+  Register 129 → **135 tasks** (`check` rc=0 `ok: 135 task(s)`, `orphans` 0 of 0 allowed). Nothing was
+  added to `mad-science/TODO.md`: it is the frozen archive and every item above is a register row.
+- **No boot, no rank touched.** `.30` reads plus the pool pull only; `.31`–`.34` were left to the fit
+  session's quartet window.
