@@ -48,6 +48,7 @@ Long-form evidence behind the one-line rules in [`../AGENTS.md`](../AGENTS.md): 
 - A `recipe validate` suggestion can be pre-existing: compare against a sibling before "fixing" it (`restated-managed-path` fires identically on shipped recipes).
 - `recipe vram`'s "Model weights" line can be an invented number: when the HF metadata fetch exceeds its 30 s budget it falls back to `param_count × dtype_bytes` with no marking. The tell is identical sizes for different models, and for a 4-bit checkpoint the fallback is ~1.9 GB optimistic, so "fit: YES" is computed from a made-up number. Take the real size from `model.safetensors.index.json` `metadata.total_size`.
 - A recipe must not pin an HF `snapshots/<hash>` path — it is ephemeral and vanishes when a shared cache re-resolves `<repo>/refs/main`. Pass the repo id and resolve at runtime.
+- The ds4 overlay launcher is fail-closed on its pin (`fd8a756`): `mods/dsv41-sglang-overlay` reads **only** `env DSV41_MODEL_REVISION`, never `refs/main`, so a ds4 arm without the env exits 2 with a pin message and cannot boot. That means "add the env", not "the launcher is broken"; every `recipes/ds4/*.yaml` mounting the overlay that carries `model_revision:` must carry the matching env, and the pinned snapshot must hold `config.json`, the index and every shard the map names, non-zero.
 
 #### Pooling (embedding / reranker) recipes break chat-server assumptions
 

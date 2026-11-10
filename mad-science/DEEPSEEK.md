@@ -269,12 +269,18 @@ next boot. 2 × 23.6 GiB per rank in 57–73 s (340–440 MiB/s, node-local snap
 blow sparkrun's ~150 s head rendezvous, and correctness is unaffected: `adapter/engram_backend.py`
 treats the packed shard as optional acceleration and `row_store.cpp` fails closed on a range mismatch.
 
-**Checkpoint resolution.** On a real launch sparkrun renders `{model}` to the prepared on-disk snapshot
-path; a dry run still shows the repo id. `launcher.py:resolve_checkpoint()` accepts that path, or a
-repo id resolved in `/cache/huggingface/hub/models--<org>--<name>` (preferring `refs/main`, else the
-newest snapshot carrying `config.json` and `model.safetensors.index.json`), and leaves a container-bind
-`MODEL_PATH` alone. No snapshot path is ever spelled in the recipe; a cache that re-resolves cannot
-break the boot; a `--served-model-name` that arrives as a path is reported back as the repo id.
+**Checkpoint resolution — the launcher is fail-closed on the pin (`fd8a756`, merge
+`a1d56748`).** Branch 3 reads **only** `env DSV41_MODEL_REVISION`; `refs/main` is never read and
+`_resolved_models_dir` with its glob fallback is deleted. No pin ⇒ the boot exits 2 naming both
+fixes (`DSV41_MODEL_REVISION=<sha>`, or `--model`/`MODEL_PATH`); a pin ⇒ `snapshots/<pin>` must hold
+`config.json`, `model.safetensors.index.json` and **every shard the weight map names, present and
+non-zero** (an unreadable index counts itself missing), else exit 2 naming the missing file. Silence
+was the defect: a repo id that resolved to a half-present snapshot served a broken model for hours,
+so the trade is that an arm without the env cannot boot at all — read "exits 2 with a pin message" as
+"add the env". A container-bind `MODEL_PATH` is still left alone, and a `--served-model-name` that
+arrives as a path is still reported back as the repo id. `tests/test_ds4_model_revision_pin.py`
+(14 tests) guards both the launcher and every `recipes/ds4/*.yaml` that mounts the overlay and pins
+`model_revision:`.
 
 ### 6.1 The b12x backend is declared, not inherited — and the guard keeps the last word
 
