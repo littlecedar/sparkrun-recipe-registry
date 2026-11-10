@@ -136,8 +136,13 @@ Each rung is a stop. Rungs (i) and (ii) are passed by a wrong-logits port; only
    Exact invocation below.
 4. **Window falsifier** -- a needle only in the final `window` tokens must be
    answered, and the control with the needle in the indexer's candidate range
-   must also be answered. Run it before the GSM8K cell: two requests.
-   Exact shapes below.
+   must also be answered. Run it before the GSM8K cell: three requests.
+   Exact shapes and the measured run below.
+
+Measured 2026-11-10 on the quartet (Boot B): all four rungs passed. The
+numbers, the prompt shapes and the miss list are below; the prompts, replies,
+serve log and per-record JSON are the receipt's
+(`head:~/benchmarks/tp4-20261110b/ernie-gate2/`).
 
 ### What rung (i) prints, verbatim
 
@@ -174,6 +179,13 @@ backend (`ernie55`), `page_size=256` for the main pool, `kv_cache_dtype=fp8_e4m3
 and `window_128`. Quote the lines rather than restating the facts: a value
 transcribed from a recipe is not evidence that the engine used it.
 
+Measured (Boot B): `Ready` about 1,230 s after launch, `/v1/models` answering
+200 with `max_model_len` 131,072, the engine's own line
+`Use ernie55 attention backend … page_size=256, kv_cache_dtype=fp8_e4m3`, the
+pinned revision `028544b2`, and the seven `window_128` usage lines quoted in
+the receipt. That is the configuration this port assumes, printed by the engine
+rather than by the recipe.
+
 ### Rung (iii): GSM8K, exactly
 
 The lane instrument is chat-only (`run_benchmarks.py:108` posts
@@ -204,45 +216,55 @@ unchanged (`tools/eval-suite.py --checks hard --hard-bench gsm8k --hard-limit
 changes the prompt bytes relative to upstream's gate, so a Route B number is
 not comparable to 0.93 without saying so.
 
-**The number and its date.** There is none yet: the first clean run was torn
-down before the cell on 2026-11-10. The receipt fills this in as
-`accuracy: <pct> (n=<limit>, seed=1234, mode=completions, <date>)`, beside the
-`finish_reasons` histogram and the `empty_replies` count. Under 0.93 is a stop
-and a backend finding; it is never re-seeded, re-limited, or re-scored into a
-pass.
+**Measured 2026-11-10 (Boot B): 190/200 = 95.0 %**, 0-shot, seed 1234, mode
+`completions`, `finish_reasons` `{'stop': 200}`, one empty reply. The eight
+misses are one formatting difference (`120,000` against gold `120000`), six
+genuine arithmetic or logic errors, and the empty reply. The card's 93.0 is
+**8-shot**, so 95.0 at 0-shot is not a claim to beat it: the gate was `>= 0.93`
+at 0-shot, and it passed.
 
-### Rung (iv): the window falsifier, three requests
+Under 0.93 the cell is a stop and a backend finding; it is never re-seeded,
+re-limited, or re-scored into a pass.
 
+### Rung (iv): the window falsifier, measured
+
+The structural fact the falsifier rests on is unchanged: the indexer's
+candidate range stops `window` (128) positions before the end, so an answer
+that sits in the final 128 is reachable only through `append_window_to_topk`.
 `/v1/completions`, `temperature: 0`, `max_tokens: 32`,
-`"model": "baidu/ERNIE-5.5-Flash-Base"`. One fixed needle
-`The vault code is QK-4173.` and one fixed question cue
-`\nQuestion: What is the vault code? Reply with the code only.\nFinal answer:`,
-with numbered filler lines between them. Every prompt records
-`usage.prompt_tokens`, because "the needle is inside the last 128" must be
-arithmetic on the server's own count, not an assumption about a tokenizer.
+`"model": "baidu/ERNIE-5.5-Flash-Base"`; every probe records
+`usage.prompt_tokens`, so "inside the last 128" is arithmetic on the engine's
+own count.
 
-- **C -- clean control (must answer).** The needle sits in the top-k candidate
-  range, plainly formatted, in a prompt of at most 2048 tokens. At that length
-  the candidate count is `prompt_tokens - 128 < 2048`, so the indexer selects
-  every candidate and the needle is guaranteed inside the top-k set by
-  structure. C proves the model reads a code that is present.
-- **T -- tail-only (answers only through the window).** The same needle and cue,
-  in a prompt above 2048 tokens, with the needle inside the final 128 tokens:
-  `prompt_tokens - <position>` below 128 by the server's count. The indexer's
-  candidate range stops at `prompt_tokens - 128`, so T is answerable only
-  through the window append. A port that drops the window answers T without
-  the code, or not at all.
-- **N -- negative control (must fail).** T's exact bytes with the code removed
-  from the tail. No port may produce a code here; if N answers one, the
-  instrument is parroting and T's answer is worthless.
+Measured 2026-11-10 (Boot B), QA-form prompts (`Question: … Reply with the code
+only.`), code `ZX81-4321`:
 
-Owner's phrasing on 2026-11-10 was "a clean control answer plus a tail-only
-prompt that must fail". Read as the negative above: the *no-code* tail prompt
-is the one that must fail. What this redesign fixes is the earlier run's
-evidence: one answered code beside a garbled control proves nothing, because a
-model that answers everything, or one that reads the code out of a malformed
-prefix, passes it. The trio is the smallest shape that discriminates: C pass,
-T pass, N fail. Receipt: all three `prompt_tokens`, all three replies verbatim.
+| probe | prompt tokens | code distance from the end | reply |
+|:--|--:|--:|:--|
+| **T** tail-only | 7,827 | ~25 (inside the window) | `ZX81-4321` — correct |
+| **N** negative (T's bytes, code removed) | 7,816 | — | no code |
+| **C** control, candidate range | 4,005 | 400 | correct |
+| **C** control, long context | 26,547 | 3,000 | correct |
+
+T answering with N silent is what proves the window append reaches attention: a
+port that dropped it could not have read a code 25 tokens from the end of a
+7.8 k-token prompt. C answering at two distances shows the code is readable
+when it is inside the candidate range, which is what makes T's answer about the
+window rather than about whether the model can read a code at all.
+
+**The earlier "PASS" was not this.** Boot A answered one code from the tail but
+its control came back garbled (`4321-ZX81` for `ZX81-4321`) and there was no
+negative control, so nothing distinguished reading from echoing.
+
+**Prompt style decides this falsifier, not needle distance.** The same trio in
+imperative form (`Reply only with the code.`) failed the control at 4,264 and
+17,940 tokens — the reply echoed the instruction — while the QA form answered
+at both distances. An imperative-form falsifier measures compliance with a
+format request, not what the window delivered, so its result is not a window
+verdict. The receipt must name the prompt form; Boot B used the QA form.
+
+Receipt: all four probes' `prompt_tokens` and replies verbatim, plus the prompt
+texts, in `head:~/benchmarks/tp4-20261110b/ernie-gate2/`.
 
 ## What this shim cannot prove
 
@@ -253,11 +275,13 @@ T pass, N fail. Receipt: all three `prompt_tokens`, all three replies verbatim.
   settles it (rung ii/iii). The structural argument above says the inputs match
   by construction; it does not say the kernel interprets them as the reference
   did.
-- Throughput. This arm is not a performance claim until the quality gate
-  passes. If the boot quotes any decode rate anyway, state the number of decode
-  steps behind the median and take it from a long-answer request: a 3-step
-  median is dominated by first-step overhead (the ds4 lane measured arm 3 at
-  56.2 ms/step over 3 steps and 31.8 over 37).
+- Throughput. This arm has one decode sample and it is not a number to quote:
+  128 decode steps in 7.62 s = **16.80 tok/s**, `finish=length`, 31 prompt
+  tokens, taken **while the accuracy cell was running on the same serve**. It
+  says the route decodes; it says nothing about the window alone. Any rate
+  quoted later must name its step count (a 3-step median is first-step
+  dominated: the ds4 lane measured 56.2 ms/step over 3 steps and 31.8 over 37)
+  and come from a long answer on an otherwise idle serve.
 
 ## Campaign wiring (`ARM_EXTRA_CLIENT`)
 
@@ -289,6 +313,13 @@ This recipe stays unmodified on purpose: the hook lives in the queue row, and
 that file belongs to another session. An `ARM_EXTRA_CLIENT` naming a flag the
 committed tree does not parse is inert, and inert is worse than absent because
 the row then looks like it has an artefact contract.
+
+**A campaign lease cannot measure this arm until the row carries the client.**
+Without `ARM_EXTRA_CLIENT`, `tools/run-arm.sh` finishes the boot with a
+ladder-only receipt and records `rc=4 never ready — no marker and no
+machine-readable artefact`, which the campaign treats as a retry and re-boots.
+The client above is what turns a boot into evidence; wiring it is the register
+owner's edit, not the recipe's.
 
 ## Boot discipline
 

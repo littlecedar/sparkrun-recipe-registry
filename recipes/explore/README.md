@@ -1084,7 +1084,8 @@ check the sampler and the kernel log before recording a verdict.
 
 ## [zz-ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang](zz-ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang.yaml)
 
-SGLang 2026-11-10 nightly · **4 nodes (TP=4)** · **DRAFT route arm — authored 2026-11-10, never booted**.
+SGLang 2026-11-10 nightly · **4 nodes (TP=4)** · **PROBE — booted and measured 2026-11-10 through the
+campaign runner's own quartet window: 0-shot GSM8K 95.0 %, window falsifier T-pass / N-silent / C-pass**.
 
 The route arm for the FlashMLA-blocked control above: byte-identical image pin, revision, command
 and readiness, plus the lane mod
@@ -1099,7 +1100,8 @@ the model override refuses every other `--dsa-*` value.
 switches the impl drops them and produces wrong logits with no error. The mod keeps the engine's own
 append call and passes its per-row length as the sparse route's `seq_lens`.
 
-**Established without a boot** (desk audit 2026-11-10, VERIFIED): ERNIE's per-rank shape is inside
+**Established before the boot** (desk audit 2026-11-10, VERIFIED; Boot B's own parameter lines
+confirmed it): ERNIE's per-rank shape is inside
 the kernel envelope — 16 q-heads at TP=4, topk 2176 (2048 + 128, aligned), 656 B/token, page 64,
 decode at most 64 tokens, `supports_decode` true for 8/16/32/64 heads; the pool writes arbitrary
 `amax/448` fp32 tile scales (`kv_scale_ue8m0` is false outside Kimi), which is the
@@ -1107,13 +1109,17 @@ decode at most 64 tokens, `supports_decode` true for 8/16/32/64 heads; the pool 
 float32 `(num_heads,)` tensor whose contract both kernels document as
 `lse' = log(exp(lse) + exp(sink))`. The mod's launch-time verify fails closed on all of it.
 
-**What only the quartet can settle:** the boot (CUDA-graph capture, then `Ready`), then the quality
-cell — greedy GSM8K `>= 0.93`, upstream's own gate — and the window falsifier: a needle that appears
-only in the final 128 tokens must be answered, and the same question with the needle inside the
-top-k prefix must also be answered. A wrong-logits port passes boot and fails only there. The
-receipt records the `/v1/completions` endpoint (the checkpoint ships no chat template) and the
-resolved snapshot path from the engine's own load line. Ladder, mechanism and the boot window's
-rules: the mod README.
+**Measured 2026-11-10 (Boot B; receipt `head:~/benchmarks/tp4-20261110b/ernie-gate2/`).** `Ready`
+about 1,230 s, `/v1/models` 200 at 131,072, the engine printing `Use ernie55 attention backend …
+page_size=256, kv_cache_dtype=fp8_e4m3`, revision `028544b2`. Quality: **0-shot GSM8K 190/200 =
+95.0 %** (200 rows, seed 1234, `--completions`, `finish_reasons {'stop': 200}`, one empty reply) —
+the card's 93.0 is 8-shot, so this does not claim to beat it; the 0-shot gate passed. Window
+falsifier: **T** answered the code from 25 tokens before the end of a 7,827-token prompt, **N**
+(the same bytes without the code) stayed silent, and **C** answered with the code 400 and 3,000
+tokens from the end. One caveat the ledger must carry: the same trio in imperative form failed its
+control at two distances, so prompt style decides that falsifier — Boot B's QA form is the one these
+numbers belong to. The single decode sample (16.80 tok/s over 128 steps) ran beside the accuracy
+cell and is **not** a clean-window number. Ladder, mechanism and the arithmetic: the mod README.
 
 ## [zz-sage-a1.5-35b-a3b-fp8-sglang](zz-sage-a1.5-35b-a3b-fp8-sglang.yaml)
 
