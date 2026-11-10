@@ -527,9 +527,16 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
 - **The checkpoint revision is pinned in the recipe, not the image.** The image
   bakes `fb2764a5…` but the launcher sets `SKIP_PREPARE=1` and serves the
   sparkrun-distributed snapshot, so `model_revision:` alone decides what is served.
-  `launch.json` records the baked revision and is **not** evidence; the launcher's
-  `serving …/snapshots/<sha>` line is. Moving the pin invalidates every receipt in
-  the lane docs.
+  The pin travels in two copies — the top-level `model_revision:` and
+  `env: DSV41_MODEL_REVISION`, which is what the launcher resolves the HF cache
+  at (the fleet's pool-era config makes `bind_runtime_models` a no-op, so a repo
+  id arrives, not a prepared path) — and
+  `tests/test_ds4_model_revision_pin.py` fails if they disagree. The launcher
+  never follows the cache's `refs/main`, and refuses (exit 2) when the pinned
+  snapshot is absent, is missing any shard its weight index names, or no pin was
+  supplied at all. `launch.json` records the baked revision and is **not**
+  evidence; the launcher's `resolved checkpoint … at pinned revision <sha>` line
+  is. Moving the pin invalidates every receipt in the lane docs.
 - **Long-context prefill is flat-cost per chunk, not compute-bound.** Measured on the 2026-10-22
   live boot: 1M prefill runs **~1.7× the per-token cost** of short-context prefill (mean **1738** t/s
   over five ~999k-token requests vs a cold 2048-token pp of **2897** t/s at C1, and **1.97×** against
@@ -576,8 +583,11 @@ packed shards). The server is up when these appear in the serve log, in order:
 
 1. `[dsv41-sglang-overlay] overlay gate OK`, and a launcher line naming
    `NNODES=4 NODE_RANK=<r>` — **the rank must differ per node**.
-2. `launcher: MODEL_ID is an on-disk checkpoint dir; serving …/snapshots/<sha>` —
-   `<sha>` must be the recipe's `model_revision`. `launch.json` is **not** evidence.
+2. The launcher's checkpoint line — `launcher: resolved checkpoint … at pinned
+   revision <sha> -> …/snapshots/<sha>` on the repo-id path, or `launcher: MODEL_ID
+   is an on-disk checkpoint dir; serving …/snapshots/<sha>` on the prepared path.
+   `<sha>` must be the recipe's `model_revision` (the launcher refuses anything
+   else). `launch.json` is **not** evidence.
 3. `Exact nvme Engram layer=… rows=[a,b)` — the row range must **differ per rank**;
    identical ranges mean the staging is wrong.
 4. `[moe_b12x_next] armed` — the routed MoE is on the b12x_next kernel.
@@ -1505,24 +1515,25 @@ Two open ds4 items; the first is now measured, the second scoped from the tree:
   and hands most of the headroom back. `MEM_FRACTION_STATIC` is a **trade, not a free knob** — the
   pool cut is what makes the cell runnable. The 0.78 cell produced no speed sample, so the prefill
   rate and decode deltas above stay open; arm 3's falsifier still needs arm 3's own line at 0.75.
-- **The pin never reaches the engine, and the launcher accepted an incomplete snapshot (2026-11-10).**
+- **The pin never reached the engine, and the launcher accepted an incomplete snapshot (2026-11-10). FIXED 2026-11-10.**
   Sparkrun's `bind_runtime_models` (`models/runtime.py:21-28`) rewrites `{model}` to the prepared
   snapshot path only when a prepared model exists on the hosts (`bindings = [prepared_model(…)]`;
   `if not any(bindings): return`); with `SKIP_PREPARE=1` and a local transfer **no prepare runs and the
-  binding is a no-op**, so the launcher receives the **repo id** and takes its branch 3
-  (`launcher.py:913-932`, `_resolved_models_dir`), whose first candidate is the cache's `refs/main`
-  and whose completeness test is only `config.json` + `model.safetensors.index.json` — both present
-  in a snapshot whose shards are still `.incomplete`. The 1017 template-refresh pull had moved
-  `refs/main` to such a snapshot (`08c8657f`, 46/48 shards); the launcher printed `resolved checkpoint
-  deepseek-ai/DeepSeek-V4.1-Flash-1017 -> …/snapshots/08c8657f…` and the engine got exactly that path
-  (`server_args['model_path']`), so the boot died at 143 s at `engram_backend.py:114` on
-  `model-00047-of-00048.safetensors`. The recipe's `model_revision: 1bae0e10…` cannot save this: on
-  this path the engine never sees a revision at all (validator `unpinned-model-revision`). That boot
-  was made serveable with `-o env.MODEL_PATH=…/snapshots/1bae0e10…`, which `resolve_checkpoint` takes
-  first (branch 1) and serves through the overlay farm. **Until the binding is forced or
-  `_resolved_models_dir` checks every shard, a pool pull can silently change the served snapshot and
-  kill a quartet boot** — check that the pool's `refs/main` names a complete snapshot before
-  launching, and pass `MODEL_PATH` when it does not. **Same-fleet counter-example (2026-11-10):** the ERNIE
+  binding is a no-op**, so the launcher receives the **repo id** and took its branch 3
+  (then `launcher.py:913-932`, `_resolved_models_dir`), whose first candidate was the cache's
+  `refs/main` and whose completeness test was only `config.json` + `model.safetensors.index.json` —
+  both present in a snapshot whose shards are still `.incomplete`. The 1017 template-refresh pull had
+  moved `refs/main` to such a snapshot (`08c8657f`, 46/48 shards); the launcher printed `resolved
+  checkpoint deepseek-ai/DeepSeek-V4.1-Flash-1017 -> …/snapshots/08c8657f…` and the engine got exactly
+  that path (`server_args['model_path']`), so the boot died at 143 s at `engram_backend.py:114` on
+  `model-00047-of-00048.safetensors`. The recipe's `model_revision: 1bae0e10…` could not save this: on
+  that path the engine never saw a revision at all (validator `unpinned-model-revision`). The boot was
+  made serveable with `-o env.MODEL_PATH=…/snapshots/1bae0e10…`, which `resolve_checkpoint` takes
+  first (branch 1) and serves through the overlay farm. **Now:** each overlay recipe mirrors its pin
+  into `env: DSV41_MODEL_REVISION`, branch 3 resolves **only** `<cache>/snapshots/<pin>` and verifies
+  every shard the weight index names before serving, and both an unpinned repo id and an incomplete
+  snapshot are refusals (`exit 2`, missing file named) — `refs/main` is never read. Guard:
+  `tests/test_ds4_model_revision_pin.py`. **Same-fleet counter-example (2026-11-10):** the ERNIE
   TP=4 arm's stock serve line renders `--model-path <prepared> --revision 028544b2…` and the engine
   printed `Found local HF snapshot … snapshots/028544b2…; skipping download` — it opened the **pinned
   snapshot directory** directly. Our overlay path does not: the launcher receives the repo id and follows

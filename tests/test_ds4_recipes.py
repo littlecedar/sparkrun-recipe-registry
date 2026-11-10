@@ -1012,17 +1012,22 @@ class SglangLaneContract(unittest.TestCase):
         self.assertEqual(self.r.model, "deepseek-ai/DeepSeek-V4.1-Flash-1017")
         self.assertEqual(self.r.min_nodes, 4)
 
-    def test_recipe_env_carries_only_the_metrics_flag(self):
-        # The recipe's env: carries ONE key since the 2026-11-08 metrics rollout:
-        # EXTRA_SGLANG_ARGS=--enable-metrics. Everything else -- the production
-        # config AND the checkpoint location -- lives in
+    def test_recipe_env_carries_the_metrics_flag_and_the_pin(self):
+        # The recipe's env: carries two keys: DSV41_MODEL_REVISION (the checkpoint
+        # pin the launcher resolves the HF cache at -- it no longer guesses from
+        # refs/main) and EXTRA_SGLANG_ARGS (2026-11-08 metrics rollout).
+        # Everything else -- the production config, and the checkpoint dir derived
+        # from the pin -- lives in
         # recipes/ds4/mods/dsv41-sglang-overlay/launcher.py, and the serve
         # parameters (model, tp, context, port) ride in the command template from
         # defaults. In particular SERVER_PORT is NOT set here: the serve port
         # (8000, the recipes' default base port) rides in via the command template
         # and the rebuilt image HEALTHCHECK discovers it at runtime, so no other
         # container-level env is needed at all.
-        self.assertEqual(self.r.env, {"EXTRA_SGLANG_ARGS": "--enable-metrics"})
+        self.assertEqual(self.r.env, {
+            "DSV41_MODEL_REVISION": self.r.model_revision,
+            "EXTRA_SGLANG_ARGS": "--enable-metrics",
+        })
         for key in ("MODEL_PATH", "DSV41_SOURCE", "TP_SIZE", "CONTEXT_LENGTH", "SERVER_PORT"):
             self.assertNotIn(key, self.r.env)
 
@@ -1036,9 +1041,12 @@ class SglangLaneContract(unittest.TestCase):
         # 4e5002ab…) makes `boot.py health` DISCOVER the served port at runtime
         # (env override -> persisted port file -> the engine's own --port -> a
         # LISTEN port from /proc/net/tcp). Guard the recipe-side half: no env
-        # beyond the metrics rollout's flag, and the launcher persists the port
-        # for the probe.
-        self.assertEqual(self.r.env, {"EXTRA_SGLANG_ARGS": "--enable-metrics"})
+        # beyond the metrics rollout's flag and the checkpoint pin the launcher
+        # resolves at, and the launcher persists the port for the probe.
+        self.assertEqual(self.r.env, {
+            "EXTRA_SGLANG_ARGS": "--enable-metrics",
+            "DSV41_MODEL_REVISION": "08c8657f02291e11b6f6b63e0e16014f8e748518",
+        })
         launcher = (SGLANG_MOD_DIR / "launcher.py").read_text()
         self.assertIn("HEALTH_PORT_FILE", launcher)
         self.assertIn("/tmp/sparkrun_health_port", launcher)
@@ -1144,13 +1152,18 @@ class SglangLaneContract(unittest.TestCase):
         self.assertIn('add_argument("--tp"', launcher)
         self.assertIn('env["TP_SIZE"] = args.tp', launcher)
 
-    def test_launcher_resolves_checkpoint(self):
-        # The recipe must pass the repo id and the launcher must derive
-        # MODEL_PATH/DSV41_SOURCE from the fixed HF hub cache (refs/main, else any
-        # complete snapshot), so a moved checkpoint cannot break the recipe.
+    def test_launcher_resolves_checkpoint_at_the_recipe_pin(self):
+        # The recipe passes the repo id and the launcher resolves it in the fixed
+        # HF hub cache at DSV41_MODEL_REVISION (the pin mirrored into env:) -- and
+        # only there: the cache's refs/main is a moving pointer that served a
+        # different revision than the recipe pinned, then a half-present snapshot
+        # that killed a boot (2026-11-10). Completeness is checked against the
+        # weight index before anything is served.
         self.assertIn("--model {model}", self.r.command_template)
         launcher = (SGLANG_MOD_DIR / "launcher.py").read_text()
-        for needle in ("resolve_checkpoint", "HF_HUB", "refs", "model.safetensors.index.json"):
+        for needle in ("resolve_checkpoint", "HF_HUB",
+                       'MODEL_REVISION_ENV = "DSV41_MODEL_REVISION"',
+                       "_missing_checkpoint_files"):
             self.assertIn(needle, launcher)
 
     def test_checkpoint_revision_pinned_in_recipe(self):
@@ -1359,25 +1372,34 @@ class SglangLaneContract(unittest.TestCase):
             captured["env"] = env
             raise SystemExit(0)
 
-        with tempfile.NamedTemporaryFile("w", suffix=".py") as boot:
-            boot.write("# stub\n")
-            boot.flush()
-            orig_boot, orig_execve = mod.BOOT, _os.execve
-            mod.BOOT = boot.name
-            _os.execve = fake_execve
-            try:
-                with self.assertRaises(SystemExit):
-                    mod.main([
-                        "--boot", "--model", "deepseek-ai/DeepSeek-V4.1-Flash",
-                        "--port", "8000", "--tp", "4",
-                        "--served-model-name", "deepseek-ai/DeepSeek-V4.1-Flash",
-                        "--context-length", "524288",
-                        "--nnodes", "4", "--node-rank", "0",
-                        "--dist-init-addr", ".32:25000",
-                    ])
-            finally:
-                _os.execve = orig_execve
-                mod.BOOT = orig_boot
+        with tempfile.TemporaryDirectory() as tmp:
+            # A container-bind checkpoint (branch 1): the repo id alone would hit
+            # branch 3, which now refuses without DSV41_MODEL_REVISION.
+            ckpt = _os.path.join(tmp, "ckpt")
+            _os.makedirs(ckpt)
+            for name in ("config.json", "chat_template.jinja"):
+                with open(_os.path.join(ckpt, name), "w") as fh:
+                    fh.write("{}\n")
+            with tempfile.NamedTemporaryFile("w", suffix=".py") as boot:
+                boot.write("# stub\n")
+                boot.flush()
+                orig_boot, orig_execve = mod.BOOT, _os.execve
+                mod.BOOT = boot.name
+                _os.execve = fake_execve
+                try:
+                    with self.assertRaises(SystemExit):
+                        mod.main([
+                            "--boot", "--model", "deepseek-ai/DeepSeek-V4.1-Flash",
+                            "--model-path", ckpt,
+                            "--port", "8000", "--tp", "4",
+                            "--served-model-name", "deepseek-ai/DeepSeek-V4.1-Flash",
+                            "--context-length", "524288",
+                            "--nnodes", "4", "--node-rank", "0",
+                            "--dist-init-addr", ".32:25000",
+                        ])
+                finally:
+                    _os.execve = orig_execve
+                    mod.BOOT = orig_boot
 
         env = captured["env"]
         self.assertEqual(env["CONTEXT_LENGTH"], "524288",
@@ -1578,12 +1600,17 @@ class SglangLaneContract(unittest.TestCase):
             finally:
                 mod._CACHE, mod.OVERLAY_DIR = orig_cache, orig_overlay
 
-            # Negative control (in memory): with the path branch disabled the
-            # same input must leave MODEL_PATH unset -- the exact shipped failure.
+            # Negative control (in memory): with the path branch disabled the same
+            # input is a refusal -- MODEL_PATH stays unset, which is the shipped
+            # 2026-10-09 failure turned into a fail-closed exit.
             orig = mod._is_checkpoint_dir
             mod._is_checkpoint_dir = lambda p: False
             try:
-                self.assertFalse(run(argv_for(path)).get("MODEL_PATH"))
+                env = {"MODEL_ID": path}
+                with self.assertRaises(SystemExit) as caught:
+                    mod.resolve_checkpoint(env)
+                self.assertEqual(caught.exception.code, 2)
+                self.assertNotIn("MODEL_PATH", env)
             finally:
                 mod._is_checkpoint_dir = orig
 
@@ -1596,8 +1623,9 @@ class SglangLaneNegativeControls(unittest.TestCase):
         assert old in text, "anchor %r not in recipe" % old
         return Recipe(text.replace(old, new, 1), SGLANG_RECIPE.name)
 
-    # Anchor for controls that inject an env: key. The recipe now carries NO env:
-    # block, so a control prepends one rather than splicing into an existing map.
+    # Anchor for controls that inject an env: key. The control prepends a second
+    # `env:` block, which the parser merges with the recipe's own (later key
+    # wins), so the shipped pin survives the mutation.
     _ENV_ANCHOR = "defaults:"
 
     def _inject_env(self, old, line):

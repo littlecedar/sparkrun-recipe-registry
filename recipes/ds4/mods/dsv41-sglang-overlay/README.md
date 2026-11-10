@@ -123,18 +123,23 @@ The two pieces that make this work:
     unaffected (`adapter/engram_backend.py` treats the packed shard as optional
     acceleration; `row_store.cpp` fails closed on a range mismatch).
 
-It also **locates the checkpoint**. On a real launch sparkrun renders `{model}`
-to the **prepared on-disk snapshot path** — it rewrites the placeholder whenever
-the recipe carries a `command:` template
-(`sparkrun/models/runtime.py:bind_runtime_models`), and a dry run still shows the
-repo id — so `launcher.py:resolve_checkpoint()` accepts that path directly,
-accepts a repo id resolved in the fixed in-container HF cache
-(`/cache/huggingface/hub/models--<org>--<name>`, preferring `refs/main`, else the
-newest snapshot carrying `config.json` and `model.safetensors.index.json`), and
-leaves a container-bind `MODEL_PATH` alone. It sets `MODEL_PATH`/`DSV41_SOURCE`
-in the first two cases. So the recipe spells **no snapshot path** (a hardcoded
-`snapshots/<hash>` is not portable and reads as a path a user must maintain), a
-cache that re-resolves to a new hash cannot break the boot, and a
+It also **locates the checkpoint**. On a launch where a prepared model exists on
+the hosts, sparkrun renders `{model}` to the **prepared on-disk snapshot path**
+(`sparkrun/models/runtime.py:bind_runtime_models`), and `resolve_checkpoint()`
+accepts that path directly. With the fleet's pool-era config
+(`distribution.model.enabled: false`, `skip_fan_out: true`) that binding is a
+no-op and the **repo id** arrives instead — so the repo-id branch resolves
+`<cache>/models--<org>--<name>/snapshots/$DSV41_MODEL_REVISION` and nothing else:
+the recipe's top-level `model_revision:` is mirrored into `env:
+DSV41_MODEL_REVISION` (`tests/test_ds4_model_revision_pin.py` holds the two
+equal). The cache's `refs/main` is **never** followed — on 2026-11-10 it served
+a different revision than the recipe pinned, and earlier a half-present one
+(engine died on shard 47). Completeness is checked before serving: `config.json`,
+`model.safetensors.index.json` and every shard the index names must exist and be
+non-empty, or the boot exits 2 naming the missing file. A repo id with no pin is
+refused with both fixes named (`DSV41_MODEL_REVISION=<sha>` or `MODEL_PATH=<dir>`).
+A container-bind `MODEL_PATH` is left alone. So the recipe spells **no snapshot
+path** (a hardcoded `snapshots/<hash>` is not portable), and a
 `--served-model-name` that arrives as a path is reported back as the repo id
 (each node's cache is independent — there is no shared mount).
 

@@ -38,6 +38,9 @@ defaults:
   # the knob exists so a sweep can reach it (-o dspark_block_size=3).
   dspark_block_size: 5
 env:
+  # Served revision; mirrors the top-level `model_revision`
+  # (tests/test_ds4_model_revision_pin.py guards the pair).
+  DSV41_MODEL_REVISION: 1bae0e1088993b9b82de08f59de5be5a34e42170
   # glibc malloc pin: 2 arenas + 1 MiB mmap threshold bound arena growth on the
   # shared 128 GB pool; A/B control is the shipped canary's receipts.
   MALLOC_ARENA_MAX: "2"

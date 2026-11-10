@@ -53,6 +53,7 @@ correctness is unaffected because the checkpoint fallback is exact (see
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -64,6 +65,11 @@ ENGRAM_LAYERS = (1, 14)
 # orchestration/primitives.py), so the launcher can resolve the checkpoint here
 # instead of the recipe spelling a snapshot hash in env:.
 HF_HUB = "/cache/huggingface/hub"
+# The recipe's checkpoint pin, mirrored from its top-level `model_revision:`
+# into `env:` (tests/test_ds4_model_revision_pin.py keeps the two equal). The
+# launcher never falls back to the cache's refs/main: see _pinned_models_dir.
+MODEL_REVISION_ENV = "DSV41_MODEL_REVISION"
+WEIGHT_INDEX_NAME = "model.safetensors.index.json"
 
 # ---------------------------------------------------------------------------
 # Recipe-owned environment.
@@ -589,41 +595,49 @@ def _repo_cache_dir(model: str) -> str:
     return os.path.join(HF_HUB, "models--" + model.replace("/", "--"))
 
 
-def _resolved_models_dir(model: str) -> str | None:
-    """The local:local dir to serve *model* from, or ``None`` if not resolvable.
-
-    The recipe names the model (``{model}``) and the launcher locates it in the
-    fixed in-container HF cache, so no snapshot hash is spelled in `env:` (where
-    it would read as a path the user must maintain). Robust to the cache
-    re-resolving: prefer `refs/main`, else any snapshot carrying both `config.json`
-    and `model.safetensors.index.json`. ``None`` means "not found", and the caller
-    leaves MODEL_PATH unset so the engine's own error is the one seen.
-    """
-    import glob
-
-    repo = _repo_cache_dir(model)
-    if not os.path.isdir(repo):
-        return None
-
-    candidates: list[str] = []
+def _nonempty_file(path: str) -> bool:
     try:
-        with open(os.path.join(repo, "refs", "main")) as handle:
-            revision = handle.read().strip()
-        if revision:
-            candidates.append(os.path.join(repo, "snapshots", revision))
+        return os.path.getsize(path) > 0
     except OSError:
-        pass
-    candidates += sorted(glob.glob(os.path.join(repo, "snapshots", "*")), reverse=True)
+        return False
 
-    seen: set[str] = set()
-    for candidate in candidates:
-        if candidate in seen:
-            continue
-        seen.add(candidate)
-        if os.path.isfile(os.path.join(candidate, "config.json")) and \
-           os.path.isfile(os.path.join(candidate, "model.safetensors.index.json")):
-            return candidate
-    return None
+
+def _missing_checkpoint_files(snapshot: str) -> list[str]:
+    """Files the snapshot needs that are absent or empty; empty list = complete.
+
+    The weight index is the only manifest the checkpoint carries, so an
+    unreadable index is itself reported missing: completeness cannot be shown.
+    """
+    index = os.path.join(snapshot, WEIGHT_INDEX_NAME)
+    try:
+        with open(index) as handle:
+            weight_map = json.load(handle)["weight_map"]
+    except (OSError, ValueError, KeyError, TypeError):
+        weight_map = {}
+    names = {"config.json", WEIGHT_INDEX_NAME, *weight_map.values()}
+    return sorted(name for name in names
+                  if not _nonempty_file(os.path.join(snapshot, name)))
+
+
+def _pinned_models_dir(model: str, revision: str) -> str:
+    """The pinned snapshot to serve *model* from; dies rather than serve another.
+
+    ``refs/main`` is a moving pointer a background cache pull rewrites, and on
+    2026-11-10 following it served a snapshot whose shard 47 was still missing
+    (engine died 143 s in) on a cache whose ref named a different revision than
+    the recipe's pin. The pin is the only revision this serves.
+    """
+    snapshot = os.path.join(_repo_cache_dir(model), "snapshots", revision)
+    if not os.path.isdir(snapshot):
+        print(f"launcher: pinned snapshot {snapshot} is absent; refusing to serve",
+              flush=True)
+        raise SystemExit(2)
+    missing = _missing_checkpoint_files(snapshot)
+    if missing:
+        print(f"launcher: pinned snapshot {snapshot} is incomplete, missing "
+              f"{', '.join(missing)}; refusing to serve", flush=True)
+        raise SystemExit(2)
+    return snapshot
 
 
 def _is_checkpoint_dir(path: str) -> bool:
@@ -902,13 +916,18 @@ def resolve_checkpoint(env: dict[str, str]) -> None:
     2. ``MODEL_ID`` itself already a checkpoint dir. This is the prepared-model
        path sparkrun renders for ``{model}`` whenever the recipe carries a
        ``command:`` template (``models/runtime.py:bind_runtime_models`` sets
-       ``overrides["model"] = <snapshot path>``), so on a *launch* -- unlike a
-       dry run -- the repo id never arrives; the on-disk path does. Without
-       this branch MODEL_PATH stays unset and boot.py dies on
+       ``overrides["model"] = <snapshot path>``), but only when a prepared model
+       exists on the hosts: with ``distribution.model.enabled: false`` (the
+       fleet's pool-era config) that binding is a no-op and the repo id arrives
+       instead. Without this branch MODEL_PATH stays unset and boot.py dies on
        ``missing /models/<name>/config.json`` (the 2026-10-09 field failure).
-    3. ``MODEL_ID`` a repo id, located in the fixed in-container HF cache
-       (``refs/main``, else the newest complete snapshot). Keeps the dry-run /
-       manual-invocation form working and the recipe free of a snapshot hash.
+    3. ``MODEL_ID`` a repo id. Resolved ONLY at ``DSV41_MODEL_REVISION`` (the
+       recipe's pin mirrored into `env:`), after verifying every file the
+       snapshot's weight index names exists and is non-empty. No pin, or an
+       incomplete snapshot, is a refusal: following the cache's ``refs/main``
+       served a half-present snapshot on 2026-11-10 and made the recipe's pin a
+       comment. A manual invocation passes ``DSV41_MODEL_REVISION=<sha>`` (or
+       ``MODEL_PATH=<snapshot dir>``, branch 1) for the same reason.
 
     Whichever shape resolved, a checkpoint that ships no ``chat_template.jinja``
     is served through the overlay farm (``ensure_template_overlay``: a symlink
@@ -924,14 +943,19 @@ def resolve_checkpoint(env: dict[str, str]) -> None:
         env["MODEL_PATH"] = model
         env["DSV41_SOURCE"] = model
     elif model:
-        resolved = _resolved_models_dir(model)
-        if resolved:
-            print(f"launcher: resolved checkpoint {model} -> {resolved}", flush=True)
-            env["MODEL_PATH"] = resolved
-            env["DSV41_SOURCE"] = resolved
-        else:
-            print(f"launcher: checkpoint for {model} not found under {HF_HUB}; "
-                  "leaving MODEL_PATH unset", flush=True)
+        revision = env.get(MODEL_REVISION_ENV, "").strip()
+        if not revision:
+            print(f"launcher: MODEL_ID is a repo id ({model}) and "
+                  f"{MODEL_REVISION_ENV} is unset; refusing to follow the cache's "
+                  f"refs/main. Set {MODEL_REVISION_ENV}=<sha> (the recipe's "
+                  "model_revision) or pass the prepared snapshot path as "
+                  "--model / MODEL_PATH", flush=True)
+            raise SystemExit(2)
+        resolved = _pinned_models_dir(model, revision)
+        print(f"launcher: resolved checkpoint {model} at pinned revision "
+              f"{revision} -> {resolved}", flush=True)
+        env["MODEL_PATH"] = resolved
+        env["DSV41_SOURCE"] = resolved
     if _is_checkpoint_dir(env.get("MODEL_PATH", "")):
         ensure_template_overlay(env, env["MODEL_PATH"])
 

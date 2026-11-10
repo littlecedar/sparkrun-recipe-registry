@@ -50,6 +50,9 @@ defaults:
   max_model_len: 1048576
   dspark_block_size: 5
 env:
+  # Served revision; mirrors the top-level `model_revision`
+  # (tests/test_ds4_model_revision_pin.py guards the pair).
+  DSV41_MODEL_REVISION: 1bae0e1088993b9b82de08f59de5be5a34e42170
   # c3 adapter exclusions (see apply_recipe_env in the overlay launcher).
   DSV41_C3_EXCLUDES: "1"
   # The candidate tree floors sglang-kernel at 0.4.9, whose aarch64 wheel is ABI-

@@ -44,6 +44,9 @@ executor_config:
   shm_size: 32gb
 
 env:
+  # Served revision; mirrors the top-level `model_revision`
+  # (tests/test_ds4_model_revision_pin.py guards the pair).
+  DSV41_MODEL_REVISION: 08c8657f02291e11b6f6b63e0e16014f8e748518
   # Metrics rollout 2026-11-08: /metrics on the API port, engine flags ride
   # EXTRA_SGLANG_ARGS because the launcher owns argv (launcher.py:471-502).
   EXTRA_SGLANG_ARGS: "--enable-metrics"
