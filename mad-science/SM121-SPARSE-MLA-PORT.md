@@ -67,7 +67,7 @@ exists locally (VERIFIED by dist-info in every candidate):
 | `pin-fabbe8615bb9` (`788c3654…`) | 0.6.18 | no |
 | `lmsysorg/sglang:nightly-dev-cu13-20261110-4a5c6b8f` (`97de25b1…`) | 0.7.3 + `sm121a` | no |
 
-Rebuild `.0.2.1`'s Dockerfile with the FlashInfer line moved to 0.7.3 + the `sm121a` provider
+Rebuild `:0.2.1`'s Dockerfile with the FlashInfer line moved to 0.7.3 + the `sm121a` provider
 wheel (the base is `~/builds/deepgemm-sm121/ctx/Dockerfile.sm121` per the lane README). **`.35` is
 free for builds** (2026-11-10). The pip-overlay alternative exists but is not preferred: the two
 public wheels are `flashinfer_python-0.7.3-py3-none-any.whl` (79.8 MB, sha256 `548a3ea1…ae40`)
