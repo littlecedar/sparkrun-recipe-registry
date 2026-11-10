@@ -50,7 +50,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
 | Recipe | `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` |
 | Engine | SGLang (`sglang.launch_server`), driven through the mod shim `recipes/ds4/mods/dsv41-sglang-overlay` |
 | Model | [`deepseek-ai/DeepSeek-V4.1-Flash-1017`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017) (native MXFP4/F8, official weights, 2026-10-17 refresh) |
-| Pin | `model_revision: 1bae0e10…` (the refresh's repo head, 2026-10-17) — all 48 shards are new objects vs the pre-refresh checkpoint, so the pin is what selects the refresh; the image's baked `fb2764a5…` is the superseded base and is never served |
+| Pin | `model_revision: 08c8657f…` (the 2026-11-10 template refresh, validated end to end on `.31`-`.34`) — its only delta over the 2026-10-17 refresh (`1bae0e10…`) is the upstream `chat_template.jinja` (16,722 B; all 48 shards byte-identical); the image's baked `fb2764a5…` is the superseded base and is never served |
 | Size / fit | 510 GB, `mem_fraction_static` 0.78, `chunked_prefill_size` 16384 (2026-10-24 cell; upstream production runs 8192 — see the deviations table below) |
 | Topology | TP=4, EP=1 — four GB10 nodes, one rank per node |
 | Context | 1,048,576 tokens served |
@@ -1136,9 +1136,11 @@ node, so mapped pages are reclaimed and re-faulted at ~2 ms each; no fabric byte
 dependence, and boot 3's c10 (0.72 majors/token) is the GPU-compute ceiling on this node.
 
 **Production log level pinned.** `-lv 3` (INFO) now sits in `command:` before `{extra_args}`: boot
-logs carry per-request `prompt eval time` / `eval time` / `total time` and slot/prompt-cache events,
-and no per-tensor or per-batch lines. Measured cost of `-lv 5`, which an evidence boot passes as a
-transient override: one 64-token request added **1,194 lines / 83,306 B** (including the prompt text
+logs carry per-request `prompt eval time` / `eval time` / `total time`, slot and prompt-cache events,
+and every warning/error, and no per-tensor or per-batch lines. Raise it only for an evidence boot
+(`-o extra_args='-lv 5'`), never as the recipe default. Measured cost of `-lv 5`, which an evidence
+boot passes as a transient override: one 64-token request added **1,194 lines / 83,306 B** (including
+the prompt text
 via `add_text`) against **~8 lines / ~1 KB** at the default, and the whole boot wrote 41,055 lines
 vs 1,230 (`create_tensor` 3,046 vs 0, `D` lines 38,408 vs 0).
 

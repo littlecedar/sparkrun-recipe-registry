@@ -1159,11 +1159,14 @@ class SglangLaneContract(unittest.TestCase):
         # boot.py the sparkrun-distributed prepared path, so the RECIPE owns the
         # served checkpoint. Without the pin a launch re-distributes whatever
         # `main` is at distribution time and the lane drifts off the snapshot its
-        # receipts were measured on (AGENTS.md §5). Pinned to the 2026-10-17
-        # refresh: all 48 of its shards are new objects, so this pin is also what
-        # selects the refresh over the base V4.1 revision the image bakes.
+        # receipts were measured on (AGENTS.md §5). Pinned to the 2026-11-10
+        # template refresh (08c8657f): its only delta over the 2026-10-17 refresh
+        # is the upstream chat_template.jinja (16,722 B; all 48 shards are
+        # byte-identical), and it was validated end to end on .31-.34 before the
+        # pin moved. Either way this pin is what selects a revision over the base
+        # V4.1 revision the image bakes.
         self.assertEqual(
-            self.r.model_revision, "1bae0e1088993b9b82de08f59de5be5a34e42170"
+            self.r.model_revision, "08c8657f02291e11b6f6b63e0e16014f8e748518"
         )
 
     def test_ep_size_is_one(self):
