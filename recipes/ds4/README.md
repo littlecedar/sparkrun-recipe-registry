@@ -1112,7 +1112,35 @@ not adjusted.
 measured prefill of **7.21–7.39 tok/s** (1,359 tokens in 188.39 s; 1,871 in 253.11 s), projecting
 ≈3.5 h; it was aborted after 8 minutes with no `ladder.yaml`. Guardrail: `ARM_ALLOW_FEW_SLOTS=1`
 is the correct shape for these cells (c5/c10 are deliberately slot-limited), and a future
-same-protocol ladder needs a smaller pp or a `parallel: 10` variant.
+same-protocol ladder needs a smaller pp or a `parallel: 10` variant. **The arm has no `benchmarking:`
+block and writes no fleet marker; its measurement path is the hand-rolled chat-cells ladder above**
+(c1/c2/c5/c10, 64 new tokens, temp 0, `/v1/chat/completions`) with the raw-`/v1/completions` EOS
+caveat — do not invent a profile that cannot finish.
+
+**GPU, not CPU — and the deciding term is the Engram page path.** A third boot with the same recipe
+plus a transient `-o extra_args='-lv 5'` (so llama.cpp's loader lines reach the serve log) quotes:
+`common_param: device_info: - CUDA0 : NVIDIA GB10 (124608 MiB, 120003 MiB free)`,
+`system_info: … CUDA : ARCHS = 1210 | USE_GRAPHS = 1 …`,
+`llama_prepare_model_devices: using device CUDA0 (NVIDIA GB10)`,
+`load_tensors: loading model tensors … (load_mode = mmap)` (the earlier `(load_mode = none)` block is
+`common_params_fit`'s dry run), `load_tensors: offloading 39 repeating layers to GPU` +
+`offloaded 41/41 layers to GPU`, layer 0…40 all `assigned to device CUDA0`,
+`CPU_Mapped model buffer size = 105471.89 MiB` (the Engram) beside
+`CUDA0 model buffer size = 68342.87 MiB` (the transformer), KV buffers 60/120/80 MiB.
+So the cells are GPU inference; the 4.79–31.5 t/s spread across the two boots tracks the Engram
+page-in rate, not CPU compute: majors/token fell **94.8/50.8/54.2/34.0 → 44.5/20.6/10.1/0.7** between
+boot 2 (cold mapping) and boot 3 (warmer cache) while cells rose **4.79/7.27/8.53/11.70 →
+6.42/12.10/17.77/31.54 t/s**. The 105.47 GiB mapping plus 68.34 GiB in CUDA0 exceeds the 121.7 GiB
+node, so mapped pages are reclaimed and re-faulted at ~2 ms each; no fabric bytes were involved
+(both boots' NIC rx ≈ 0 per token). Neither boot is a clean arm number — the pair is the state
+dependence, and boot 3's c10 (0.72 majors/token) is the GPU-compute ceiling on this node.
+
+**Production log level pinned.** `-lv 3` (INFO) now sits in `command:` before `{extra_args}`: boot
+logs carry per-request `prompt eval time` / `eval time` / `total time` and slot/prompt-cache events,
+and no per-tensor or per-batch lines. Measured cost of `-lv 5`, which an evidence boot passes as a
+transient override: one 64-token request added **1,194 lines / 83,306 B** (including the prompt text
+via `add_text`) against **~8 lines / ~1 KB** at the default, and the whole boot wrote 41,055 lines
+vs 1,230 (`create_tensor` 3,046 vs 0, `D` lines 38,408 vs 0).
 
 **What a successful serve can produce — a marker, unlike the Kimi arms.** `llama-server` answers
 `/v1/completions` and `/v1/chat/completions` (it reads a chat template from the GGUF metadata; the

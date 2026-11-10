@@ -74,6 +74,11 @@ defaults:
   mmproj: mmproj-DeepSeek-V4.1-Flash-1017-BF16.gguf
   extra_args: ""
 
+# `-lv 3` (INFO) is pinned below so the log level is the recipe's, not the image default: boot logs
+# carry per-request prompt/eval/total timings plus slot and prompt-cache events, and no per-tensor or
+# per-batch debug. An evidence boot may pass a transient `-o extra_args='-lv 5'`; measured cost of
+# that level on this arm: one 64-token request added 1,194 lines / 83,306 B against ~8 lines / 1 KB
+# here. The flag sits before `{extra_args}` so an override can still raise it.
 command: >
   llama-server -m {model}
   --alias {served_model_name}
@@ -95,4 +100,5 @@ command: >
   --load-mode {load_mode}
   --cont-batching
   --metrics
+  -lv 3
   {extra_args}

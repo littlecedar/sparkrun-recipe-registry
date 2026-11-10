@@ -7975,6 +7975,34 @@ boots were the plain `pruned75` arm on the pinned nightly
   variant is the next instrument), no fabric-read number (needs a node whose chunks are remote), and the
   register row's state change needs the owner sign-off its 2026-11-09 TP1/TP2 gate asks for.
 
+## 2026-11-10 03:52 ET — GSQ-RCO arm is GPU-offloaded; its slow cells are Engram page churn, and its log level is now pinned
+
+- **The arm is not CPU inference.** A third boot on `.35` with a transient `-o extra_args='-lv 5'`
+  (evidence only) quotes the loader: `device_info: - CUDA0 : NVIDIA GB10 (124608 MiB, 120003 MiB free)`,
+  `system_info: … CUDA : ARCHS = 1210 | USE_GRAPHS = 1 …`,
+  `llama_prepare_model_devices: using device CUDA0 (NVIDIA GB10)`,
+  `load_tensors: loading model tensors … (load_mode = mmap)` (the `(load_mode = none)` block before it
+  is `common_params_fit`'s dry run), `offloading 39 repeating layers to GPU` / `offloaded 41/41 layers
+  to GPU`, all 41 layers assigned CUDA0, `CPU_Mapped model buffer 105,471.89 MiB` (Engram) beside
+  `CUDA0 model buffer 68,342.87 MiB` (transformer), KV 60/120/80 MiB. Container env sets no verbosity.
+- **Deciding term is the Engram page path.** Same cells, two boots, both GPU: majors/token
+  **94.8/50.8/54.2/34.0 → 44.5/20.6/10.1/0.7** while cells rose **4.79/7.27/8.53/11.70 →
+  6.42/12.10/17.77/31.54 t/s** (c5/c10 slot-limited by `parallel: 2`); NIC rx 0 bytes/token in both.
+  105.47 GiB mapped + 68.34 GiB in CUDA0 exceeds 121.7 GiB, so pages are reclaimed and re-faulted
+  at ~2 ms; boot 3's c10 is the node's GPU-compute ceiling. Neither boot is the arm's single number.
+- **Log firehose fixed as a defect.** Offending lines are level `D` and only above the engine default:
+  `D add_text: [PROMPT_INJECTION]…` (full prompt text), `D create_tensor:` (3,046 lines/boot),
+  per-request debug. Knob is `-lv N`; nothing in the image env or mods sets it. One 64-token request:
+  **1,194 lines / 83,306 B at `-lv 5` vs ~8 lines / ~1 KB at `-lv 3`**; whole boot 41,055 vs 1,230 lines
+  (`D` 38,408 vs 0, `create_tensor` 3,046 vs 0), with `slot print_timing` request timings present at
+  both levels (197 vs 757). `-lv 3` is now pinned in the recipe's `command:` before `{extra_args}`;
+  no corrective boot spent because the pin equals the level boot 2 was measured at.
+- **Measurement path registered:** no `benchmarking:` block and no fleet marker; the fleet
+  `concurrency-ladder` profile does not fit (pp 2048 ⇒ ≈3.5 h), so the arm's cells are the hand-rolled
+  chat ladder c1/c2/c5/c10 (64 tokens, `/v1/chat/completions`; raw completions EOSes after 1 token).
+- **Teardown:** boot 3 stopped by literal id; `.35` `ctns=0 vols=0`; samplers killed and `/tmp/w35*`
+  removed; receipt addendum `head:~/benchmarks/ds4-gsq-rco-20261110/RECEIPT-BOOT3.md`.
+
 ## 2026-11-10 02:47 ET — two flights ended inside one tick, and a board written four times under guard
 - **What the tick read, all machine-captured.** Census pair
 `07:15:22Z`→`07:16:37Z` (75 s): `docker ps -aq` `.30` 1, `.31`–`.35` 1 each, `docker ps -q` 1
