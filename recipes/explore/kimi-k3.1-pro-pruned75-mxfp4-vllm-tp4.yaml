@@ -24,10 +24,14 @@ description: >-
   (peak activation + CUDAGraph); KV is 24 full layers x ((512+64)x2 + (128+4)) B = 30,816 B/token,
   plus 0.105 GiB per sequence of KDA state (x4 seqs = 0.42 GiB). At the previously authored
   util 0.92 the budget is 111.95 GiB, i.e. short by 1.8 GiB before one KV block, and 32k needs
-  115.12 GiB free - more than any measured reading. The recipe ships the one point that holds:
-  gpu_memory_utilization 0.945 (115.00 GiB, needs >=114.65 GiB free and leaves 0.35 GiB spare)
-  with max_model_len 16384. A startup refusal on a busier node is a sizing answer, not a
-  checkpoint verdict.
+  115.12 GiB free - more than any measured reading. MEASURED 2026-11-10: the arm does not fit at
+  TP=4 under the 6.0 GiB host guard. With --enforce-eager and 8192 / 2 seqs / 1024 batched tokens
+  in effect, the weight-tensor allocation alone drove host MemAvailable to 0.79-4.07 GiB (MemFree
+  0.98-2.16 GiB) with the rank cgroup at ~11 GiB and page tables under 43 MiB, before any KV
+  cache, graph pool or prefill; the guard stopped the boot at its floor. The deciding term is the
+  110.71 GiB of weights plus ~8-10 GiB of engine host-side allocation, not the 3.05 GiB non-KV
+  overhead, so no context/seqs/graph flag moves it: TP=8, a smaller pruned body or a larger
+  unified pool is required. Receipt head:~/benchmarks/fit-kimi-eager-20261110/.
   A staged-wheelhouse route for tiktoken is proven and kept only as a
   template for an image that lacks the backend - tiktoken 0.14.0 + regex 2026.11.7,
   cp312 manylinux_2_28_aarch64, sha256s in the lane README, installed --no-index
@@ -41,7 +45,8 @@ description: >-
   nominal, but the staged shards measure 442.85 GiB, i.e. 110.71 GiB/rank. At
   util 0.945 the 121.69 GiB device gives 115.00 GiB, leaving 0.82 GiB after the
   pessimistic 3.05 GiB overhead and the 0.42 GiB of KV state: 28,400 tokens of
-  geometric maximum, so 16k ships with margin. The card's 1M context is not
+  geometric maximum. That is arithmetic on the nominal total only; the measured boot floor is
+  negative (see above), so no shipped point holds. The card's 1M context is not
   reachable at TP=4 on this hardware; it needs TP=8 or a larger unified pool.
   The card's own eval is TP=4 (GSM8K 5-shot 43.67 % on four B300s) and it states the
   regression plainly: "expect a large quality regression relative to the source
@@ -53,7 +58,7 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "737B"
   model_dtype: mxfp4
-  kv_dtype: bf16
+  kv_dtype: fp8_ds_mla
   tags: large_context
   # Not instrumented: this engine pin is absent from the fleet in the 2026-11-08
   # metrics rollout, so its flags are unverified for this digest; an unknown flag
@@ -98,8 +103,9 @@ defaults:
   max_num_seqs: 4
   max_num_batched_tokens: 2048
   quantization: compressed-tensors
-  # vLLM rejects `bf16` here (CacheConfig validation lists `bfloat16`)
-  kv_cache_dtype: bfloat16
+  # SM121 sparse-MLA backend (FLASHINFER_MLA_SPARSE_SM120) requires the packed
+  # fp8_ds_mla layout (656 B/layer/token); bfloat16 selects no backend (measured 2026-11-10).
+  kv_cache_dtype: fp8_ds_mla
   tool_call_parser: kimi_k3
   reasoning_parser: kimi_k3
   extra_args: ""

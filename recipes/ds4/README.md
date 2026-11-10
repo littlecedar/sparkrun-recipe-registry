@@ -1365,6 +1365,34 @@ guard, the `flashinfer_cutlass` exclusion and the marlin padding/OOM above are p
 sglang image we run — a patched TileLang gives exact MXFP4 on sm_121a (LIKELY; our measured negative
 on this image stands).
 
+**Fit arithmetic for the replay-off 1M cell, and the instrument gap — not measured (2026-11-10).**
+Two open ds4 items, scoped from the tree after the two-boot Kimi window, no boot spent on either:
+
+- **The replay-off floor is the static reserve, not the flag.** The control boot's 5.68 GiB
+  `MemAvailable` floor at `.35` is what this serve line *documents* for a 1M cold prefill: the
+  launcher's own comment records "at 0.80 a 1M prefill left the head 2.7 GiB available, at 0.78 it
+  leaves 5.7 GiB" (`launcher.py:143-149`), and `MEM_FRACTION_STATIC` is 0.78
+  (`launcher.py:149`). The engine's budget is `available_bytes = available_gpu_memory −
+  pre_model_load × (1 − mem_frac)` (`launcher.py:173-177`), so **each 0.01 of fraction is
+  ~1.217 GiB of non-static headroom**; 0.78 → 0.75 adds ~3.65 GiB to the headroom the cold prefill
+  draws on and shrinks the fast-loader pool by the same bytes (~2.3M tokens at 1670.75 B/token,
+  still ≥ the 1M cell). So the replay-off boot is consistent with the shipped serve line rather
+  than anomalous, and the honest lever is the serving-side reserve — **not** the cell shape for a
+  single-stream cell and never the 6.0 GiB guard. Next boot would test
+  `-o env.MEM_FRACTION_STATIC=0.75` on `zz-ds4-1017-sm121-arm3-control.yaml` with the identical 1M
+  single-stream cell; falsifier is the boot's own `full_token=` line plus a floor ≥6.0 GiB for the
+  whole prefill. (Arithmetic from the launcher, `SPECULATIVE` until that boot.)
+- **The ladder's missing symbol is a one-line shim, and it is register-worthy.** The adapter's
+  `block_verify.py:106` calls `dflash_utils.build_dflash_verify_target_probs`, which the pinned
+  engine spells `build_speculative_verify_target_probs`. Cheapest honest fix, with no vendored
+  adapter edit: in the overlay launcher's adapter-`sitecustomize` installation (the same path that
+  chains `ensure_inline_system_shim`), after the engine module imports, set
+  `dflash_utils.build_dflash_verify_target_probs = dflash_utils.build_speculative_verify_target_probs`
+  when the old name is absent. One symbol, guarded by an import-time `hasattr`, with a unit test
+  asserting the alias after the shim. It needs a boot to verify (llama-benchy warm-up is the
+  trigger), and a ladder cell on this image would still be confounded by the replay/pool question
+  above, so the two should be sequenced, not stacked.
+
 **No attention-compute pin is missing on our path (checked, not assumed).** Their
 `VLLM_DS41_ATTENTION_COMPUTE` exists because their fork's B12X V4.1 attention tuner may pick FP8
 internals (Q and P quantized, cache re-encoded, ~3 % relative error vs DeepSeek's reference) — a claim

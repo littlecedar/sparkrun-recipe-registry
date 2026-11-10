@@ -40,14 +40,16 @@ description: >-
   it (lane README has the acceptance contract).
   MEMORY: 110.71 GiB/rank of target + 4.19 GiB of drafter on rank 0 = 114.90 GiB;
   with the measured 3.05 GiB overhead and 0.42 GiB of KDA state the arm needs
-  118.37 GiB, so no utilisation value makes it fit at TP=4.
+  118.37 GiB, so no utilisation value makes it fit at TP=4. The plain parent was
+  booted 2026-11-10 and its floor is negative before any KV: see the plain sibling's
+  measured paragraph and head:~/benchmarks/fit-kimi-eager-20261110/.
 metadata:
   model_url: https://huggingface.co/LithosAI/Kimi-K3.1-Pro-DSpark
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "737B"
   model_dtype: mxfp4
   model_mtp_dtype: bf16
-  kv_dtype: bf16
+  kv_dtype: fp8_ds_mla
   draft_model: LithosAI/Kimi-K3.1-Pro-DSpark
   tags: large_context, speculative-decode
   # Not instrumented: this engine pin is absent from the fleet in the 2026-11-08
@@ -92,8 +94,9 @@ defaults:
   max_num_seqs: 4
   max_num_batched_tokens: 2048
   quantization: compressed-tensors
-  # vLLM rejects `bf16` here (CacheConfig validation lists `bfloat16`)
-  kv_cache_dtype: bfloat16
+  # SM121 sparse-MLA backend requires the packed fp8_ds_mla layout (656 B/layer/token);
+  # bfloat16 selects no backend (measured 2026-11-10).
+  kv_cache_dtype: fp8_ds_mla
   tool_call_parser: kimi_k3
   reasoning_parser: kimi_k3
   # vLLM's speculative-config field is `model`, not `draft_model`; the JSON lives here so

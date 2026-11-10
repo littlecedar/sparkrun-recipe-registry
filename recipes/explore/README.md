@@ -1153,7 +1153,9 @@ rows and `e_score_correction_bias` pruned with them), everything else the base
   [Fit arithmetic inside one GB10](#fit-arithmetic-inside-one-gb10-2026-11-08-tp4-accepts-16k-rejects-32k-and-the-drafter);
   the recipe now ships that point. The 423.0 GiB figure in
   [Size / fit](#kimik31-pro-pruned75-mxfp4-vllm-tp4) is nominal parameter arithmetic and stale for
-  fit. An OOM on this arm is therefore a **sizing answer**, not an engine or checkpoint verdict.
+  fit. An OOM on this arm is therefore a **sizing answer**, not an engine or checkpoint verdict —
+  and 2026-11-10 supplied it: see the fit section's measured paragraph (the floor is the weights,
+  not the overhead term).
   **Measure presence with `du -sL` or an inode-deduped `stat` walk:** `du -sb` reads 8,179 B even
   for the complete body because every snapshot entry is a symlink into the content-addressed store,
   so it describes a stub and a whole checkpoint identically. Receipt
@@ -1240,7 +1242,11 @@ kv_cache_dtype: 'bf16'. Valid values are: ['auto', 'float16', 'bfloat16', …]` 
 renders straight into `--kv-cache-dtype`, so the engine aborted in argument validation and neither
 arm reached model load, let alone speculator init — the drafter-binding question above was therefore
 **unproven at that point** (it is now answered at config level, bullet 1). Both recipes now pass
-`bfloat16` (2026-11-08 06:05 ET); nothing else about them changed.
+`bfloat16` (2026-11-08 06:05 ET); nothing else about them changed. **Corrected 2026-11-10:**
+`bfloat16` only clears `CacheConfig` spelling validation — the SM121 sparse-MLA backend
+(`FLASHINFER_MLA_SPARSE_SM120`) requires the packed `fp8_ds_mla` layout and rejects bfloat16 at
+backend selection, so both recipes now ship `kv_cache_dtype: fp8_ds_mla`; see the fit section's
+measured paragraph.
 
 **Staging: both artifacts are present.** Checked 2026-11-08: the pool's
 `vllm-project/Kimi-K3.1-Pro-pruned75` (snapshot `fc72e5a1`) holds the full body — 112 entries,
@@ -1336,6 +1342,25 @@ now ships the one point that holds the weights and
 a usable context: **`gpu_memory_utilization: 0.945`, `max_model_len: 16384`** (needs 114.65 GiB
 free, met by 3 of 5 readings, and leaves 0.35 GiB spare at the pessimistic overhead). A node that
 reports less refuses at startup: sizing, not a checkpoint verdict.
+
+**Measured 2026-11-10 — the floor is the weights, not the overhead term (the envelope above is
+arithmetic only).** Two quartet boots on `.31`–`.34`, receipt
+`head:~/benchmarks/fit-kimi-eager-20261110/`. (1) The shipped `kv_cache_dtype: bfloat16` selects
+**no attention backend**: the only sparse-MLA backend this SM121 image carries is
+`FLASHINFER_MLA_SPARSE_SM120`, whose constructor raises unless the cache is the packed
+`fp8_ds_mla` layout (`flashinfer_mla_sparse_sm120.py:70-74`), so the boot died in 80 s with
+`ValueError: No valid attention backend found` before any weight load. (2) With
+`--kv-cache-dtype fp8_ds_mla --enforce-eager`, 8192 ctx, 2 seqs and 1024 batched tokens — the
+reduced set the 3.05 GiB term would answer to — the boot reached model init and the **weight-tensor
+allocation alone** took host `MemAvailable` from 117.4 GiB to **0.79 / 1.79 / 2.03 / 4.07 GiB**
+(`.31/.32/.33/.34`, MemFree 0.98–2.16) within one 0.5 s sample, with the rank cgroup at ~11 GiB
+and page tables ≤43 MiB — no KV cache, no graph pool, no prefill. The 6.0 GiB guard stopped the
+task at its floor; zero kernel `oom-kill` and zero earlyoom lines. So the deciding term is
+110.71 GiB of weights + ~8–10 GiB of engine host-side init, not the 3.05 GiB non-KV term: no
+context/seqs/graph flag moves it, and the arm needs TP=8, a smaller pruned body or a larger
+unified pool. `fp8_ds_mla`'s packed row is 656 B/layer/token (512 fp8 + 16 B scale + 128 B bf16
+RoPE tail), so the shipped-dtype KV is 24 × (656 + 132) = **18,912 B/token**, not 30,816; the
+table above is kept as the 2026-11-08 bf16 envelope.
 
 **Boot safety, not just fit.** The recut makes this arm arithmetically bootable, not safe to boot:
 a quartet attempt that overruns the unified pool takes the **host** down — the 2026-11-08 11:27

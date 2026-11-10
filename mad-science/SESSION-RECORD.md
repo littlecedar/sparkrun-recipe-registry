@@ -7676,3 +7676,42 @@ has no falsifier. (c) Left untouched: every node's containers and volumes, `mad-
   added to `mad-science/TODO.md`: it is the frozen archive and every item above is a register row.
 - **No boot, no rank touched.** `.30` reads plus the pool pull only; `.31`–`.34` were left to the fit
   session's quartet window.
+
+## 2026-11-10 01:42 ET — Kimi pruned75 TP=4 fit falsified at weight allocation; two-boot window released
+
+Session `ds4-kimi-fit`, window declared in `.local/fleet-window.lock` (`.31`–`.34`, 06:22Z–09:30Z)
+after re-reading all nine campaign `state.json` roots (`arms[*].lease` empty, director active with
+"no runnable rows") and an idle census, released 06:28Z after `ctns=0 vols=0` on every rank. Both
+boots were the plain `pruned75` arm on the pinned nightly
+(`ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:98a2535b…`, resolved image id
+`sha256:e5fcda33…`, vLLM `0.33.0rc1.dev1016+g06129ab02`).
+
+- **Run 1 died at attention-backend selection, not fit (task `…ff72a3ed0a315084_14ad86133ff5`, 80 s).**
+  The shipped `kv_cache_dtype: bfloat16` selects **no** backend on this SM121 image: the only
+  sparse-MLA backend present, `FLASHINFER_MLA_SPARSE_SM120`, raises unless the cache is the packed
+  `fp8_ds_mla` layout (`flashinfer_mla_sparse_sm120.py:70-74`). The 2026-11-08 bf16→bfloat16 fix only
+  cleared `CacheConfig` spelling validation; it never reached backend selection. Both recipes now
+  ship `fp8_ds_mla`.
+- **Run 2 measured the floor at weight-tensor allocation (task `…_42eaba9eb819`, stopped at 70 s).**
+  With `--enforce-eager`, 8192 ctx, 2 seqs, 1024 batched tokens — the set that would answer to the
+  3.05 GiB non-KV term — the boot resolved its backends (native fused KDA decode, FlashKDA prefill,
+  `MarlinExperts` MXFP4 MoE) and then `Loading model from scratch` took host `MemAvailable` from
+  117.4 GiB to **0.79 / 1.79 / 2.03 / 4.07 GiB** on `.31/.32/.33/.34` inside one 0.5 s sample
+  (MemFree 0.98–2.16, page tables ≤43 MiB, rank cgroup ~11 GiB). The 6.0 GiB stop rule fired at
+  6.24 GiB on `.31`, `sparkrun stop` issued 3 s later; **zero kernel `oom-kill`, zero earlyoom
+  lines**, both services still `Restart=always` with `-m 4,1 -s 100,95`. So the deciding term is
+  110.71 GiB of weights + ~8–10 GiB of engine host-side init, **not** the 3.05 GiB overhead: no
+  context/seqs/graph flag moves it, and the arm needs TP=8, a smaller pruned body or a larger
+  unified pool. The DSpark sibling stays blocked on this parent (its 4.19 GiB is additive).
+- **Remains: no ds4 boot was taken, and the two open ds4 items are scoped in
+  `recipes/ds4/README.md` §SM121 survey arms** — the replay-off 1M floor is the serve line's
+  documented `MEM_FRACTION_STATIC` 0.78 reserve (next boot: `-o env.MEM_FRACTION_STATIC=0.75`, same
+  single-stream cell, falsifier = boot `full_token=` + floor ≥6.0 GiB), and the ladder's missing
+  `build_dflash_verify_target_probs` is a one-symbol alias shim in the overlay launcher's adapter
+  `sitecustomize` (register-worthy; no vendored adapter edit). Arm-5 remains a hardware gate and
+  was not re-booted.
+- **Register untouched by this session** (peer owns `queue.json`; `_save` has no CAS): the two Kimi
+  rows stay `blocked` and the mutation text is in the receipt and the session report, not applied.
+  Receipt `head:~/benchmarks/fit-kimi-eager-20261110/RECEIPT.md` (per-rank 2 Hz `MemAvailable`
+  series, launch logs, render, image id); `/tmp/fit-kimi-<rank>` removed and no session file left
+  outside the receipt root.
