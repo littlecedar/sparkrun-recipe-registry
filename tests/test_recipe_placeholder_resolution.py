@@ -462,6 +462,9 @@ class ServedModelNameNotRebound(unittest.TestCase):
         "ds4/zz-ds4-1017-sm121-arm3-control.yaml",
         "ds4/zz-ds4-1017-sm121-arm3-control-marlin.yaml",
         "ds4/zz-ds4-1017-malloc-pin-sglang.yaml",
+        # The arm-5 fi073 probe mounts the same overlay and renders the same line, so the
+        # launcher normalizes it identically.
+        "ds4/zz-ds4-1017-sm121-arm5-fi073.yaml",
         # The 1017 template A/B is the knapcio arm byte for byte except the pin, so it inherits
         # the same `--served-model-name {model}` line and the same overlay launcher that
         # normalizes it back to the repo id.
