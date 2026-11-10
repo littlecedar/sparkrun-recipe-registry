@@ -93,6 +93,64 @@ question is the null result. A backend that skipped the compressed segment, mis-
 indices, or read the wrong `kv_cache_format` still passes every gate and still produces tokens;
 only the answer comparison catches it.
 
+### Stop verdict (2026-11-10, `arm5-port`): the three deltas are not sufficient
+
+Read end-to-end, the 0.7.x SM12x route rejects `:0.2.1`'s KV cache and query **before any kernel
+runs**, so a three-delta image dies at the first decode step with a `ValueError`, not a silent
+wrong-logits token. The three deltas stay necessary; two more are not covered by them. Sources
+below are `flashinfer_python-0.7.3` (PyPI wheel sha256
+`548a3ea1f9057025ace0a21b298824f8de049eb4b6c5c458f763309509e2ae40`), byte-identical to tag
+`v0.7.3` for every file cited (`_core.py` `da3ed283…`, `_sparse_mla_sm120/_api.py` `c2c95f6e…`,
+`_policy.py` `c4c95e27…`).
+
+1. **BF16 query (delta 4).** `backend="sparse"` (`_core.py:2413-2416`) dispatches to
+   `_trtllm_batch_decode_sparse_mla_dsv4_sm120` (`:1262`), which begins
+   `if query.dtype != torch.bfloat16: raise ValueError("SM120 DSv4 sparse MLA only supports BF16
+   query…")` (`:1304-1306`; contract also `_api.py:684`). The fork hands it FP8 at both sites
+   (`deepseek_v4_trtllm_backend.py:335,472`), and q is *already* FP8 upstream:
+   `srt/models/deepseek_v4.py:2294-2306` fills an `float8_e4m3fn` `q_out` whenever
+   `token_to_kv_pool.uniform_fp8` (the trtllm pool flag). Delta 2 also has to turn that fused FP8
+   Q-prep branch off for this route — an upstream edit, not a call-site edit.
+2. **KV storage ABI (delta 5).** `:1384-1400` admits exactly three cache forms: packed `uint8`
+   rows with last dim 584 (`"fp8"`) or 528 (`"fp8_dsv41"`/`"fp8_dsv41_inline"`), or a dense cache
+   whose dtype equals the (BF16) query dtype at head dim 512. The fork's uniform-FP8 pool is
+   `torch.float8_e4m3fn` rows of exactly **512 B** (`deepseek_v4_memory_pool.py:347-371`;
+   `kv_norm_rope_store.py:46` hardcodes `CACHE + slot * 512`, unit-scale e4m3, no scale footer),
+   so the first decode raises `swa_kv_cache dtype must match query dtype, got
+   torch.float8_e4m3fn and torch.bfloat16` (`:1395-1396`). The note's earlier assumption of a
+   `"fp8"`/584 B fork cache is wrong (corrected in *What is NOT verified here*): the fork is
+   512 B/token and footerless, and a dense FP8 cache is not an accepted form either.
+   The nearest legal form is `fp8_dsv41_inline` (`_policy.py:74-82`: 512 data bytes + 16 UE8M0
+   group-32 scale bytes per token, 528 B/token), which would keep the fork's data bytes
+   byte-identical — a constant `0x7f` (2^0) footer reproduces its unit scale. But that reaches the
+   pool width/accounting (`get_bytes_per_token`, `kv_cache_total_dim`, `bytes_per_page_padded`,
+   `create_buffer`), both uniform-pool writers (`kv_norm_rope_store.py:46,97` for the SWA store,
+   `set_key_buffer_fused`'s `view(-1, 512)` `index_put` for the compressed store picked by
+   `compressor_trtllm.py:116`), `get_swa_key_bytes_per_token` (`deepseek_v4_memory_pool.py:1882-1888`)
+   — which `deepseek_v4_backend.py:3644` uses to choose the packed-format view the DeepGEMM sparse
+   MQA-logits kernel is fed — the backend's own views (`deepseek_v4_trtllm_backend.py:250-260`) and
+   an explicit `kv_cache_format=` on both calls. That is a KV-ABI change across the pool, two store
+   paths and the other ported kernel's format detection.
+
+Two corrections to the deltas as written above:
+
+- Delta 2's real shape: the 128 SWA columns are already `-1`-padded by `build_causal_swa_page_indices*`
+  (`dsv4_attn_metadata_kernels.py:470-580`), so the SWA segment is `sparse_indices[:, :128]` with
+  `swa_topk_lens = trtllm_swa_lens` (constant 128); the compressed tail becomes
+  `extra_sparse_indices = table[:, 128:]` with `extra_sparse_topk_lens = trtllm_c4_lens - 128`
+  (0.7.x counts the compressed segment only, no combined-length offset on this route).
+- Delta 3: neither call site passes `multi_ctas_kv_counter_buffer=`; the WAR is the monkeypatch of
+  `_fi_core._get_trtllm_gen_multi_ctas_kv_counter_buffer` at `deepseek_v4_trtllm_backend.py:102-118`,
+  an `AttributeError` at backend construction on 0.7.3. The SM12x route needs no counter buffer, so
+  drop the install (guarded no-op), do not rename it.
+- Rung 2 as written probes `dsv3_2` (`d_qk=576`, 656 B/token) — the wrong family. This route's
+  envelope is `supported_sparse_mla_sm120_configs()["dsv4_1"]` (`_policy.py:146`: 512 query,
+  528 B/token, `_DECODE_DSV4_1_TOPK=512`); `dsv3_2` only proves the kernel family loads.
+
+`dsv41-sm121-dg:0.2.1` + FlashInfer 0.7.3 + the three deltas is **not a bootable arm**. A viable
+Port A is a five-delta port (4 and 5 above plus the three) and needs a host to measure; nothing was
+built and no image tag was created for it.
+
 ## Port B — `ernie-flashinfer-sparse-sink-port`
 
 Target: ERNIE-5.5-Flash-Base TP=4, 6 MLA + 37 HCA layers, on the 2026-11-10 nightly.
@@ -149,7 +207,9 @@ correct port answers both. Run it before the GSM8K cell — it is one request pe
 
 - Whether SGLang's per-row `seq_lens` semantics on the SM12x sparse route match ERNIE's appended
   windows (dispatcher is authoritative; only a call settles it).
-- Whether 0.7.3's `sparse` route accepts the fleet's ds4.1 `kv_cache_format` (`fp8_dsv41`/inline,
-  528 B/token, vs the fork's implicit `"fp8"`, 584 B/token).
+- ~~Whether 0.7.3's `sparse` route accepts the fleet's ds4.1 `kv_cache_format`.~~ **Answered
+  2026-11-10 (Port A stop verdict): it does not.** The fork's uniform pool is 512 B/token, footerless
+  FP8 — not `"fp8"`/584 B as assumed here — and the route accepts only packed `uint8` 528/584 rows
+  or a dense BF16 cache at head dim 512.
 - ERNIE's real per-rank q-head count at TP=4 and the exact `window` the backend is constructed
   with (16 assumed from 64 heads / TP=4; `window` passed by `ernie55.py`, not read).
