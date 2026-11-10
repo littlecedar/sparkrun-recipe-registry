@@ -2044,6 +2044,21 @@
         "ARM_EXTRA_CLIENT": "sh -c \"cd /home/red/src/sparkrun-recipe-registry && python3 -B tools/longctx-cell.py --base-url http://$NODE:$PORT --model $SERVED --context-length 1039999 --chars-per-token 6.65 --concurrency 1 --max-tokens 128 --image-id \\\"$ARM_IMAGE_ID\\\" --json $L/longctx-1m-control.json\"",
         "ARM_EXTRA_TIMEOUT": "3600"
       }
+    },
+    {
+      "id": "longctx-cell-decode-sample-length",
+      "title": "longctx-cell: the answer-only question fixes the 1M decode sample at 6 tokens; add a long-generation lever so the arm-3 cell can reach steady state",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "ACCEPTANCE: a lever in tools/longctx-cell.py that yields materially more than 6 decode tokens at 1M (a long-generation prompt style), the achieved sample length recorded in each cell JSON (steps and completion_tokens are already recorded; the requested answer length must sit beside them so a receipt cannot misstate the sample), and a test at the same boundary style the tool's other guards use (longctx-cell's selftest already asserts prompt construction, parse_length and verdict boundaries; the new option needs its prompt/verdict boundary there, and tests/test_longctx_cell.py if the tool grows a module test). INTERFACE I WOULD BUILD: --task {retrieval,long-generation}, default retrieval preserving today's cell, plus --min-answer-tokens for long-generation; the prompt asks for at least N tokens of prose before the access code, and verdict adds a floor problem when completion_tokens < N. NOT BUILT: nothing in this row edits the tool. EVIDENCE measured 2026-11-10: the identical 1M cell on dsv41-sm121-dg:0.2.1 answered 3 steps / 6 tokens at max-tokens 128 and STILL 3 steps / 6 tokens at max-tokens 512 (ms/step 54.8 and 55.4), so max-tokens is not the lever; the question asking for the code only sets the sample length and no steady-state 1M decode figure is obtainable. Validating this lever needs a real 1M decode on a ready-gated boot (quartet cost), not a unit test alone. Cross-ref: sm121-arm3-control-1m-cell (this measurement) and w4-survey-arm3-sm121-boot (arm 3's 56.2 ms/step over 3 steps, the sample this row would turn into steady state).",
+      "provenance": "recipes/ds4/README.md section SM121 survey arms; tools/longctx-cell.py build_prompt; measured 2026-11-10 in head:~/benchmarks/sm121-arm3-control-20261109/",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []

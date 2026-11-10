@@ -22,14 +22,17 @@ distribution_config:
     enabled: false
 min_nodes: 4
 description: >-
-  Arm-5's paired CONTROL (`zz-` trial): arm 3's tree and serve line on the SAME
-  digest as `zz-ds4-1017-sm121-arm5-trtllm-mla.yaml` (`dsv41-sm121-dg:0.2.1`),
-  with decoder SWA bounded replay OFF in both arms per DEEPSEEK.md section 10.7,
-  so the only difference between the pair is `--dsv4-attn-backend trtllm`.
-  This is NOT the indexer-scoring arm: that measurement is
-  `zz-ds4-1017-sm121-indexer-scoring.yaml` on `:0.2.0` (its own control is the
-  shipped canary-roce-aff52fa5 line), and its run must not be read as arm 5's
-  control -- the two images differ.
+  Arm-5's paired CONTROL (`zz-` trial), and arm 3's serve line with decoder SWA
+  bounded replay off: same tree, same digest as
+  `zz-ds4-1017-sm121-arm5-trtllm-mla.yaml` (`dsv41-sm121-dg:0.2.1`,
+  `sha256:85c1ffc3…9195dc7`), same command and env except
+  `SWA_BOUNDED_REPLAY: "0"` (adds `--no-enable-decoder-swa-bounded-replay`).
+  Arm 5 differs from this control only by `--dsv4-attn-backend trtllm`; arm 3
+  (`zz-ds4-1017-sm121-indexer-scoring.yaml`, same digest) leaves the replay
+  knob at its default. Measured cost of the knob: the 1M cold prefill's host
+  `MemAvailable` floor is 5.68–7.02 GiB here against 9.94–10.71 GiB on the
+  default line, so this line cannot run that single-stream cell under the
+  6.0 GiB host guard.
 metadata:
   model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
