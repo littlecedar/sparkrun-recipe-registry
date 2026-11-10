@@ -38,8 +38,8 @@ into wrong logits rather than an error.
 
 The indexer cannot see the last `window` tokens. `Ernie5_5MlaAttnBackend`
 feeds the indexer `_topk_lengths(seq_lens, window) = (seq_lens - window).clamp_min(0)`
-(`ernie55_backend.py:66-68,145-160`), so positions inside the trailing window
-are outside the indexer's candidate range by construction. They reach attention
+(`ernie55_backend.py:72-74`, applied at `:127-146`), so positions inside the
+trailing window are outside the indexer's candidate range by construction. They reach attention
 only through `append_window_to_topk` (`ernie55_backend.py:180-189`), which
 merges them into the page table and returns a per-row `topk_length`. An impl
 switch that skips that call drops every one of those positions and still emits
@@ -111,7 +111,11 @@ static tables): `glm_nsa` (identical object to `dsv3_2`, same kernel, ABI, and
 constants) reports `d_qk 576`, `656 B/token`, decode up to 64 tokens, runtime
 page size, up to 128 heads, top-k at least 1. `supports_decode(num_heads=h,
 topk=2176, page_block_size=64)` is `True` for `h` in 8, 16, 32, 64, i.e. TP 8
-through TP 1. No head padding is needed -- unlike the FlashMLA route's fixed
+through TP 1. Measured 2026-11-10 with `flashinfer-python==0.7.3` on a
+GPU-less x86 host: `glm_nsa is dsv3_2` (one object in 0.7.3), `d_qk 576`,
+`656 B/token`, `max_num_tokens 64`, `page_block_size 64` with runtime page
+sizes, and `supports_decode` true at both topk 2048 and 2176 for all four head
+counts. No head padding is needed -- unlike the FlashMLA route's fixed
 64/128-head kernel, this one takes the rank's real head count.
 
 ## Acceptance ladder
