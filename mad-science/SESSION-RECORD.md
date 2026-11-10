@@ -7715,3 +7715,29 @@ boots were the plain `pruned75` arm on the pinned nightly
   Receipt `head:~/benchmarks/fit-kimi-eager-20261110/RECEIPT.md` (per-rank 2 Hz `MemAvailable`
   series, launch logs, render, image id); `/tmp/fit-kimi-<rank>` removed and no session file left
   outside the receipt root.
+
+## 2026-11-10 02:02 ET — a machine-runnable row was leased before its body landed; the row holds in state, and a declared window did not stop the campaign
+
+- **The campaign claimed `ds4-1017-template-refresh-ab` at `2026-11-10T06:42:57Z` while the `08c8657f…`
+  pool body was at 24–25 of 48 shards (58 of 84 files, `hf download` pid 2684722)** — the precondition
+  "body pull complete" lived only in the row's `notes`, and a queued row that carries a `recipe:` is
+  machine-runnable by definition, so prose could not hold it. **No container of the campaign's appeared:**
+  the four live quartets on `.31`–`.34` were the fit session's own boot (image `dsv41-sm121-dg:0.2.1`,
+  created `06:43:16Z`, `MEM_FRACTION_STATIC=0.75`), and none carried this arm's
+  `ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb394…` — the earlier "containers up on the A/B image"
+  reading in this session was wrong and is corrected here. Precondition leak, not a boot defect: no model
+  or engine is implicated.
+- **The second half is a protocol gap, and it is now a register row.** The claim landed at `06:42:57Z`
+  against a window declared `start_utc 06:43Z` for the same `.31`–`.34` — a claim on a window being
+  declared, which only timing kept from becoming a container collision. `campaign-ignores-declared-window`
+  carries it with acceptance (director reads the lock at assignment time and skips intersecting rows, or
+  the protocol states the row must be blocked / the unit suspended).
+- **A by-id caution, not a bug, after reading the code:** the shared intent-hash prefix
+  (`1c0dffa45afa6e47`) is harmless where the actor filters by recipe — `campaign/sparkrun_campaign/fleet.py:57-64`
+  plus `:72-75`/`:104-113` stop only their own recipe-path containers, and `tools/run-arm.sh:1073-1077`
+  anchors its remove grammar — so an id-aliasing defect row added earlier in this turn was withdrawn and
+  marked done; the surviving caution (check `docker ps` image before a bare by-id stop) sits in the A/B
+  row's notes.
+- **Fix applied to the A/B row:** `blocked`, with `recipe`/`tp`/`env` intact and a note naming the shard
+  and file counts, pid and log path at write time — the rule this cost is that a precondition a scheduler
+  cannot observe belongs in the row's *state*, never only in its notes.
