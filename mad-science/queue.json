@@ -2680,6 +2680,21 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "head-tickcap-capture-removal",
+      "title": "Head carries the 16:04Z board census capture dir: remove ~/tickcap-1601/ once .30 answers",
+      "estimate_h": 0.1,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "The 16:04-16:05 ET board tick ran its six-node census through the head and left its capture there: ~/tickcap-1601/ holds probe.sh, drive.sh and n1..n6.r{1,2}.txt (the per-node docker/df/proc reads the board rows were parsed from). Nothing on the head documents it, which is the defect AGENTS.md node hygiene exists to prevent. Removal is owed by the first session that reaches the head: rm -rf ~/tickcap-1601. Blocked only by reachability - ssh to the head began failing at 21:18Z (see the board reach row). Two facts the next session wants: (1) hermes ~/.ssh/config already aliases all six nodes directly (spark-head/spark-00 plus spark-01..spark-05 for 10.0.4.31-.35, user red), so a census need not hop through the head at all; (2) at 21:34Z ssh -v reports \"connect to address 10.0.4.30 port 22: No route to host\" - EHOSTUNREACH, a router-generated ICMP unreachable - while next hop 172.16.0.18 answers in 0.4 ms and 1.1.1.1 answers, so the loss is beyond this workstation next hop and cannot be resolved here to node-down versus far-side link.",
+      "provenance": "board tick 2026-11-10T21:04:26Z-21:05:22Z census capture",
+      "evidence": "head:~/tickcap-1601/",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
