@@ -2437,6 +2437,21 @@
       "claimed_at": "",
       "recipe": "recipes/ds4/zz-ds4-1017-sm121-arm5-trtllm-mla.yaml",
       "tp": 4
+    },
+    {
+      "id": "mem-guard-outlives-its-task",
+      "title": "A window arm's 6.0 GiB stop-rule guard outlives the arm, so the runner accumulates guards for tasks whose containers are gone",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "MEASURED 2026-11-10 17:24:30Z on the head, read-only: three `mem-guard.sh` processes were alive under `~/benchmarks/tp4-20261110b/` — pid 812563 for tid `b020d2dd178343a5_e71b756f3a6f` (that arm ended after its 12:07 ET cell; pid started 11:58:31 ET), pid 962497 for tid `1c0dffa45afa6e47_12bcc08db9da` (the attempt aborted during launch at 12:16-12:17 ET, its own launch.log ending at `launch 80.0s`), and pid 1005043 for the live tid `1c0dffa45afa6e47_be139521f1b7` (started 12:20:17 ET). Only one task had containers at that read (`docker ps -a` on .31 named only `sparkrun_1c0dffa45afa6e47_be139521f1b7_node_0`), so two of the three guards were guarding nothing. Each guard enforces a 6.0 GiB MemAvailable stop rule by issuing `sparkrun stop <literal tid>`, so a guard that outlives its task keeps sampling the fleet and keeps a stop path armed for a task id that no longer resolves; nothing in `arm1-boot.sh` (the window harness, which writes `mem-guard.pid` per arm) stops the previous arm's guard or checks it exited. Acceptance: the harness stops or refuses to start when a guard for a different tid is still alive, and a guard exits when its own tid's containers are gone; a test covers both.",
+      "provenance": "",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
