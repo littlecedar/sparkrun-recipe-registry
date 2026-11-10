@@ -8856,3 +8856,59 @@ id, so the pin is unresolved rather than proven wrong.
   clause kept as the condition a future production claim re-imposes and the boot gates still unknown — it
   is the runner's first boot. Every other `tp: 4` row is left as the runner will report its own mutations.
   `task-queue.py check` rc=0 at 149 rows.
+## 2026-11-10 12:11 ET — hourly board tick: quartet research window live, and a concurrent tick took the board
+
+- **The production serve's replacement is already up.** The census finds one research quartet: task
+  `sparkrun_b020d2dd178343a5_e71b756f3a6f` (the `b020d2dd…` prefix is sparkrun's cluster/recipe hash,
+  not the ended production task, whose suffix was `8ca88141f99d`) on image `sha256:3f448081…67a4d5`,
+  rank 0's own label naming `recipes/ds4/zz-ds4-1017-malloc-pin-sglang.yaml`. Containers created
+  16:57:37Z, all four `Up (healthy)` at 17:03Z, `sglang.launch_server` found inside each
+  (pids 269/314/302/305), and `/v1/models` 200 at 17:04:49Z with `max_model_len` 1048576 and
+  `model_path …/snapshots/08c8657f…`.
+- **A contradiction this tick hands to `tp4-runner` rather than resolves.** The lock declares
+  `.31`–`.34` (mtime 16:51:12Z); the boot placed `node_3` on `.35` six minutes later, and `.34` reads
+  0 containers / 0 volumes. Two facts, one window: either the declaration's node list or the launch's
+  rank set is stale, and only the owning session can say which.
+- **`.30` carries five `Created`-never-started containers** from 16:44:47–16:45:11Z (four unnamed
+  `lmsysorg/sglang` plus `fmprobe` on `sglang:nightly-dev-cu13-20261110-4a5c6b8f`), none labelled
+  `sparkrun.*`, beside the 11-08 `sm121m`; the node runs nothing and its root fell 753 664 B, the
+  fleet's largest fall this window. Left in place — a tick is read-only on the fleet.
+- **Pool growth still has no writer, fifth tick.** Mount used +30 408 704 B off the 17:03:2xZ read,
+  then exactly +524 288 B in the 60 s to 17:08:18Z, while 0 files under `/mnt/beegfs` (depth 4) or
+  `huggingface` (depth 6) are newer than 70–80 min, `hub` holds 102 entries, and 0 `hf` /
+  `hf_transfer` / `huggingface-cli` processes exist by `ps -eo comm` on all six nodes. This tick's
+  first count read 1 on five nodes and 2 on `.30` because `pgrep -f` matched its own parent shell —
+  the instrument, not a downloader — so the downloader explanation stays empty rather than
+  unexamined and the standing next probe is still the storage target's byte accounting, blocked on
+  `pool-target-probe-beegfs-ctl-absent`.
+- **Fleet state, re-measured**: volumes 0 on all six; root `df -B1` fell 1 372 160 B net over 66 s
+  (`.30` −753 664, ranks −106 496 to −135 168); campaign unit `inactive` since 16:50:47Z, nine state
+  roots / 33 arms (15 measured, 10 blocked, 3 failed, 5 skipped), 0 leases, 0 `needs_reap`. The
+  register read `f5d230af…` at 12:07 (149 tasks / 41 open / 0 claims); `4602dc5` at 12:09 moved it to
+  `4d8e7f33…` — **151 tasks, 109 done, 32 queued, 10 blocked, 0 claims, 42 open** — and closed
+  `longctx-cell-decode-sample-length` `done`.
+- **Two ticks published this hour, and the second one owns the board.** This session published
+  `dd19e960…` at 12:11 with both CAS guards (disk and `origin/main` both `d104938c…`) and `lint` at
+  rc=0. A concurrent tick republished at 12:17/12:18 over it, refreshing only the queue row and the
+  queue table to `4d8e7f33…` and carrying this session's census, pool and flight rows verbatim; that
+  composition is what `HEAD` (`a1ae090`) and the worktree carry. This session did **not** publish a
+  third board over it — a title later than 12:18 would claim a read this session did not take — and
+  its own 12:11 board commit (`7ce2c9e`, never pushed) was superseded in the shared clone by
+  `a1ae090`, so this ledger section is the only part of the tick that lands under this session's
+  subject. The first attempt at this section also reworded the 11:50 close-out's closing line
+  (`is the runner's first boot` became `it is the runner's first boot`) because the line was quoted
+  from a lossy display; the append below is rebuilt from the committed blob, so that line is
+  byte-identical to `095bec5`.
+- **A re-read after the publish, recorded rather than republished.** The 17:20:59–17:21:49Z census
+  (12:20:59–12:21:49 ET) shows the quartet's rank 0 container **started again at 17:19:02Z** —
+  `.31` reads `State.StartedAt` 17:19:02 against `CreatedAt` 16:57:37, its `sglang.launch_server`
+  pid is **282** (269 at the 17:03 read), and `/v1/models` answered **000** at 17:20:59Z — while
+  `.32`, `.33` and `.35` still run their original containers (their `StartedAt` was not re-read, so
+  the statement is about rank 0 only). `.30` gained a seventh container (7 with 0 running, root
+  −81 920 B across the 48 s pair), `.34` still 0, and the mount moved **+42 467 328 B** in the
+  13.5 min since 17:08:18Z with `hub` still at 102 entries. That read is **not** on the board: the
+  hour's landed board (`a1ae090`) carries the 17:03/17:04 pair and this session did not publish a
+  third composition over a landed tick's.
+- **Four landed rows folded** the 11:24 board could not cover: `b02583a` (register 147 → 149),
+  `095bec5` (production stop + malloc-pin unblocked), `3d1e9f0` (`--min-answer-tokens` in
+  `tools/longctx-cell.py`) and `4602dc5` (the two FlashInfer routes, register 151).
