@@ -7516,3 +7516,37 @@ has no falsifier. (c) Left untouched: every node's containers and volumes, `mad-
   `beegfs-meta-restart-loop-non-meta-hosts`; arm 3's falsifier stays undecided per the 22:45
   close-out; and the register's queue-mode gap — a queued quartet row with no `recipe:` — is the
   reason a live director alternates between "no runnable rows" and an empty fleet.
+
+## 2026-11-09 23:14 ET — correction: `arm3-control` is arm 5's paired control; arm 3's canary control is unrun
+
+- **The 22:45 section's identity framing was wrong and is superseded here, not rewritten.** The
+  survey table (`recipes/ds4/README.md` ~:1099) is explicit: arm 3's control is **the shipped
+  `canary-roce-aff52fa5` line** (`deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`);
+  `zz-ds4-1017-sm121-arm3-control.yaml` is **arm 5's paired control** — arm 3's serve line on the
+  same digest with decoder SWA bounded replay off. `.local/RESUME.md`'s "arm3-control" next action
+  conflated the two and this session inherited it. So the boot measured a negative on the wrong
+  line for arm 3: arm 3's falsifier is **OPEN**, its documented control has never been booted for
+  the 1M cell, and it is not guard-blocked. That line's 1M cell stopping under the 6.0 GiB guard is
+  a measured negative about the replay-off line and a useful fact for the arm-5 pair, nothing more.
+  Register row `arm3-control-cell-canary-line` (queued, quartet, tp 4, shipped canary recipe, same
+  client shape) is the comparison the lane table designs for arm 3.
+- **The memory-difference attribution was one step too strong.** Boot 1's `acceptance-lines.txt`
+  proves the launcher's `boot.py` argv carried `--no-enable-decoder-swa-bounded-replay` (boot 2's
+  did not) — the carrier. Boot 1's engine-side `server_args` was never captured: the guard's stop
+  destroyed the container before harvest, and the nodes' `/tmp/sparkrun_serve.log` now holds boot 2.
+  Boot 2's engine-side dump is measured and reads `enable_decoder_swa_bounded_replay': True`, i.e.
+  replay at default on the arm line. So the prefill floors differed (5.68–7.02 GiB replay-off vs
+  9.94–10.71 GiB arm line, same session, same digest, minutes apart) and replay-off is the only
+  recipe-level and argv-level difference, but **the mechanism is unverified** — the marlin
+  precedent stands: a flag is in effect at step 2, never at step 1.
+- **What survives unchanged.** The arm line's repeats at the identical sample length (3 steps / 6
+  tokens, 54.8 and 55.4 ms/step against 56.2, −2.5 % / −1.4 %) are reproducibility only; steady
+  state needs the tool lever. Register row `longctx-cell-decode-sample-length` now names the
+  concrete body change: `ignore_eos: true` (or a `min_tokens` floor) in the chat-completions body
+  yields roughly 64 steps at 128 tokens with the needle check intact, and because that changes the
+  protocol arm 3 must be re-measured under it before any delta is quoted.
+- **Lane doc corrected in place**: the arm-3 paragraph now says the falsifier stays open, names the
+  canary control, states the replay-off boot as arm 5's control line's measured negative, and says
+  the mechanism is unverified. The indexer recipe's `description:` regression was reverted to the
+  shipped-canary control sentence; the stale `:0.2.0` claim about the indexer arm was the only
+  stale clause and remains fixed in the arm3-control description. No boots, no fleet touch.

@@ -2054,11 +2054,33 @@
       "state": "queued",
       "model": "dsv4.1-1017",
       "node_cost": "quartet",
-      "notes": "ACCEPTANCE: a lever in tools/longctx-cell.py that yields materially more than 6 decode tokens at 1M (a long-generation prompt style), the achieved sample length recorded in each cell JSON (steps and completion_tokens are already recorded; the requested answer length must sit beside them so a receipt cannot misstate the sample), and a test at the same boundary style the tool's other guards use (longctx-cell's selftest already asserts prompt construction, parse_length and verdict boundaries; the new option needs its prompt/verdict boundary there, and tests/test_longctx_cell.py if the tool grows a module test). INTERFACE I WOULD BUILD: --task {retrieval,long-generation}, default retrieval preserving today's cell, plus --min-answer-tokens for long-generation; the prompt asks for at least N tokens of prose before the access code, and verdict adds a floor problem when completion_tokens < N. NOT BUILT: nothing in this row edits the tool. EVIDENCE measured 2026-11-10: the identical 1M cell on dsv41-sm121-dg:0.2.1 answered 3 steps / 6 tokens at max-tokens 128 and STILL 3 steps / 6 tokens at max-tokens 512 (ms/step 54.8 and 55.4), so max-tokens is not the lever; the question asking for the code only sets the sample length and no steady-state 1M decode figure is obtainable. Validating this lever needs a real 1M decode on a ready-gated boot (quartet cost), not a unit test alone. Cross-ref: sm121-arm3-control-1m-cell (this measurement) and w4-survey-arm3-sm121-boot (arm 3's 56.2 ms/step over 3 steps, the sample this row would turn into steady state).",
+      "notes": "ACCEPTANCE: a lever in tools/longctx-cell.py that yields materially more than 6 decode tokens at 1M. CONCRETE BODY CHANGE: set ignore_eos: true (or a min_tokens-style floor) in the chat-completions request body, so greedy decoding cannot stop at the answer code; at max-tokens 128 that yields roughly 64 decode steps while the needle check still runs on the reply. Record the achieved sample length (steps and completion_tokens) in each cell JSON, and record the body flags when the lever is opt-in, so a receipt cannot misstate the sample. Because ignore_eos changes the protocol, arm 3 must be re-measured under it before any delta is quoted. Test at the same boundary style the tool selftest uses (build_prompt, parse_length, verdict): assert the body carries ignore_eos/min_tokens when requested and not by default, plus the verdict floor. The --task {retrieval,long-generation} + --min-answer-tokens idea is optional sugar; ignore_eos is the thing to build. NOT BUILT: nothing in this row edits the tool. EVIDENCE measured 2026-11-10: the identical 1M cell on dsv41-sm121-dg:0.2.1 answered 3 steps / 6 tokens at max-tokens 128 and STILL 3 steps / 6 tokens at max-tokens 512 (54.8 and 55.4 ms/step), so max-tokens is not the lever. Validating needs a real 1M decode on a ready-gated boot (quartet cost). Cross-ref: arm3-control-cell-canary-line, sm121-arm3-control-1m-cell, w4-survey-arm3-sm121-boot.",
       "provenance": "recipes/ds4/README.md section SM121 survey arms; tools/longctx-cell.py build_prompt; measured 2026-11-10 in head:~/benchmarks/sm121-arm3-control-20261109/",
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "arm3-control-cell-canary-line",
+      "title": "Arm 3's documented control: shipped canary-roce-aff52fa5 line, identical 1M single-stream cell (cross-image)",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "dsv4.1-1017",
+      "node_cost": "quartet",
+      "notes": "THE COMPARISON THE LANE TABLE DESIGNS FOR ARM 3: boots the shipped canary-roce-aff52fa5 line (ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb394...) on .31/.32/.33/.35 and runs the identical 1M single-stream cell (context-length 1039999, chars-per-token 6.65, concurrency 1, max-tokens 128). CROSS-IMAGE: shipped canary vs the SM121 rebuild, so it measures tree + image + indexer-scoring together; any verdict must state that confound. SWA_BOUNDED_REPLAY must stay UNSET on canary: that image's arg has no --no- form and would reject it. A same-length 3-step median is a legitimate like-for-like against arm 3's 56.2 ms/step; a steady-state comparison needs the tool lever in longctx-cell-decode-sample-length and arm 3 re-measured under it. Cross-ref: sm121-arm3-control-1m-cell (the replay-off A/B booted in its place, which is arm 5's paired control, not this) and w4-survey-arm3-sm121-boot (the 56.2 measurement).",
+      "provenance": "recipes/ds4/README.md survey table (arm 3 row: control = shipped canary-roce-aff52fa5 line) and arm-3 paragraph; .local/RESUME.md next action 1 named the wrong recipe",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml",
+      "tp": 4,
+      "env": {
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/arm3-control-canary-20261110",
+        "ARM_EXTRA_CLIENT": "sh -c \"cd /home/red/src/sparkrun-recipe-registry && python3 -B tools/longctx-cell.py --base-url http://$NODE:$PORT --model $SERVED --context-length 1039999 --chars-per-token 6.65 --concurrency 1 --max-tokens 128 --image-id \\\"$ARM_IMAGE_ID\\\" --json $L/longctx-1m-canary.json\"",
+        "ARM_EXTRA_TIMEOUT": "3600"
+      }
     }
   ],
   "questions": []

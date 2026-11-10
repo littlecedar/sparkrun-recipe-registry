@@ -1284,16 +1284,24 @@ dive with rank cgroups ≤5.87 GB. Cell (retry JSON `longctx-1m.json`): prompt *
 TTFT **277.2 s**, needle **1/1 PASS** (`ZX81-1208`), **56.2 ms/step** median over **3 decode steps**
 (6 tokens, 0.112 s, 53.57 tok/s). The exact lane command overshot first — 1,039,999 predicted,
 1,072,210 counted, HTTP 400 — so it was retried with the tool's own `--chars-per-token 6.65`
-(observed 6.6778); both JSONs are kept. **The arm's falsifier is still undecided, but now for a measured reason**: the paired
-control boot (`zz-ds4-1017-sm121-arm3-control.yaml`, same digest, decoder SWA bounded replay off)
-passed every gate and then the mandatory host guard stopped the identical 1M cell mid-prefill — `.35` fell to
-**5.68 GiB** `MemAvailable` (`.33` 6.46, `.31` 7.02, `.32` 9.72 GiB) against the 6.0 GiB stop rule —
-so no same-protocol control ms/step exists and nothing here is a ≥5 % claim. The same session shows
-the one-knob difference costs host memory: the arm line's 1M cold prefill floored at **9.94–10.71
-GiB**. The arm line's cell also **repeats at the identical sample length** — **54.8** and **55.4
-ms/step** over 3 steps / 6 tokens (needle pass) against this cell's 56.2, i.e. −2.5 % and −1.4 %,
-inside a 5 % band — and `--max-tokens 512` still answered 6 tokens, so max-tokens is not the lever to
-steadier state. Receipt `head:~/benchmarks/sm121-arm3-control-20261109/`.
+(observed 6.6778); both JSONs are kept.
+**The arm's falsifier stays OPEN, and `arm3-control` is not arm 3's control.** The survey table
+above names arm 3's control as the shipped `canary-roce-aff52fa5` line
+(`deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`); that boot has never been run for this cell.
+`zz-ds4-1017-sm121-arm3-control.yaml` is arm 5's paired control — arm 3's serve line on the same
+digest with decoder SWA bounded replay off — and what it measured is a negative about that line,
+useful for the arm-5 pair: it passed every gate and then the mandatory host guard stopped its
+identical 1M cell mid-prefill (`.35` 5.68 GiB `MemAvailable`; `.33` 6.46, `.31` 7.02, `.32` 9.72
+GiB, against the 6.0 GiB stop rule). The arm line itself **repeats at the identical sample length**
+— **54.8** and **55.4 ms/step** over 3 steps / 6 tokens (needle pass) against this cell's 56.2,
+i.e. −2.5 % / −1.4 %, reproducibility only — and `--max-tokens 512` still answered 6 tokens, so
+max-tokens is not the lever to steady state. The prefill floor differed (5.68–7.02 GiB replay-off
+vs 9.94–10.71 GiB arm line, same session and digest, minutes apart) and replay-off is the only
+recipe-level and argv-level difference, but the engine-side flag state was **not captured** for
+that boot (the guard's stop destroyed the container), so the **mechanism is unverified** — a flag
+is in effect at step 2, never at step 1. Arm 3 needs its documented canary-line control run
+(`arm3-control-cell-canary-line`), and a steady-state figure needs the tool lever
+(`longctx-cell-decode-sample-length`). Receipt `head:~/benchmarks/sm121-arm3-control-20261109/`.
 The boot checklist's `Mean acceptance length 1` wording
 does not occur in SGLang's logs; the decode line reports `accept len: 3.12` and the metric
 `sglang:spec_accept_length` 3.125, i.e. speculative decode active. Teardown 23:03:58Z read 0

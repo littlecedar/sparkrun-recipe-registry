@@ -28,9 +28,8 @@ description: >-
   knapcio adapter set re-ported (c3) and the SM120 paged-sparse MQA-logits
   kernel. Same production environment as deepseek-v4.1-flash-knapcio-tp4-1m-
   sglang; the delta under test is the candidate-block indexer-scoring arm
-  (DEEPSEEK.md section 10.5: -17 % step time at 1M decode on 2x GB10). Its
-  same-digest control is `zz-ds4-1017-sm121-arm3-control.yaml` (decoder SWA
-  bounded replay off), not the shipped canary-roce-aff52fa5 line.
+  (DEEPSEEK.md section 10.5: -17 % step time at 1M decode on 2x GB10). Control
+  is the shipped canary-roce-aff52fa5 line.
 metadata:
   model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
