@@ -1387,6 +1387,25 @@ Two open ds4 items; the first is now measured, the second scoped from the tree:
   is not claimed; (ii) prefill ran **1,831 tok/s** against the shipped line's 4,090 tok/s 1M mean
   (245 s), 2.2× slower, with the 6 GiB floor and 94.6 % Engram hit rate as candidates — a same-node
   0.78 control separates them. Decode 44.7 ms/step vs arm 3's 56.2 is likewise open.
+- **Same-node 0.78 control, later the same hour (receipt `head:~/benchmarks/fit-ds4-frac78-control-20261110/`).**
+  The recipe default boots (`full_token=2,809,088`, TTR 171 s) but the identical cell is stopped at
+  130 s by the guard: floor **5.63 GiB** (`.34`; `.33` 6.05, `.32` 7.08, `.31` 6.66) against 0.75's
+  **6.14** on the same ranks. So 0.75 buys **+0.51 GiB** of floor, not the 3.65 the gross headroom
+  term suggests: the fast-loader pool shrinks 2,809,088 → 1,239,040 tokens (≈2.6 GB more KV at 0.78)
+  and hands most of the headroom back. `MEM_FRACTION_STATIC` is a **trade, not a free knob** — the
+  pool cut is what makes the cell runnable. The 0.78 cell produced no speed sample, so the prefill
+  rate and decode deltas above stay open; arm 3's falsifier still needs arm 3's own line at 0.75.
+- **The recipe pin is inert, and `refs/main` moved under it (2026-11-10).** The first control boot
+  died at `engram_backend.py:114` `FileNotFoundError … snapshots/08c8657f…/model-00047-of-00048
+  .safetensors`: the launcher resolves the HF cache's `refs/main`, which the 1017 template-refresh
+  pull had moved to that **incomplete** snapshot (46/48 shards, 2 `.incomplete` blobs), while
+  `model_revision: 1bae0e10…` never reaches the engine (the validator's `unpinned-model-revision`
+  finding is not cosmetic here). The pinned snapshot is complete; the boot was made with
+  `-o env.MODEL_PATH=/cache/huggingface/hub/models--deepseek-ai--DeepSeek-V4.1-Flash-1017/snapshots/
+  1bae0e10…`, which `resolve_checkpoint()` takes first and which showed up as the container's
+  `MODEL_PATH`. Until the pin is enforced in the serve line (or `refs/main` is held at a complete
+  snapshot), **every ds4 quartet boot follows a moving ref**; treat the pool's `refs/main` as a boot
+  input and check it before launching.
 - **The ladder's missing symbol is a one-line shim, and it is register-worthy.** The adapter's
   `block_verify.py:106` calls `dflash_utils.build_dflash_verify_target_probs`, which the pinned
   engine spells `build_speculative_verify_target_probs`. Cheapest honest fix, with no vendored
@@ -1472,13 +1491,22 @@ carries no prefill measurement at all.
   the first sample below; `--load-format direct` loads 75.45 GB of payload in 30.88 s (2.44 GB/s) with
   "0.00 GB BF16 expanded in the ring, 0.00 GB converted in the GPU scratch, 0.00 GB copied by Torch",
   plus a 12-bit packed BF16 LM head.
-- **The 8,000 t/s claim is not in either artefact.** The repo's own TP4 four-node prefill rows are
+- **The 8,000 t/s claim is not in either artefact.** The log carries **no throughput line at all**
+  (`grep -ciE 'tokens/s|t/s|throughput'` = **0**); the repo's own TP4 four-node prefill rows are
   **6,030 / 5,985 / 5,680 / 5,173 tok/s at 32K / 131K / 256K / 512K** (`README.md` table, r6x vs
-  `-1022`, both on 1017@`1bae0e10`), and its three-node 1M run measured 4,460 / 4,384 at 32K / 131K.
-  Our 1M cold-prefill mean is 4,090 tok/s at ~999k prompt tokens. So the comparable shipped numbers
-  sit in one band (~4–6k), the repo publishes **no TP4 1M prefill cell**, and a 2× claim would need a
-  log line the supplied artefact does not contain: an engine `Avg prompt throughput` with its prompt
-  token count, or a client timing of one 1M-token prefill. Do not quote 8,000 t/s.
+  `-1022`), and its three-node 1M run measured 4,460 / 4,384 at 32K / 131K. Our 1M cold-prefill mean
+  is 4,090 tok/s at ~999k prompt tokens. The served body is also **not our checkpoint**: a
+  `dealignai/…-UNCENSORED-FP8` derivative at 70.56 GiB/rank in memory, against our ds4 line's
+  **76.89 GB/rank** MXFP4 mem usage (the 110.71 GiB/rank figure belongs to the Kimi arm, not ds4),
+  with TileLang attention/MoE and an explicit KV-bytes budget. So "8,000 t/s" is backed by neither
+  the log nor the repo, and it is neither a fit lever for the blocked rows (below) nor a comparable
+  prefill number: a speed claim would need a same-length (32K **and** 1M) cell on the same
+  checkpoint, which neither side has published. Do not quote 8,000 t/s.
+- **The one transferable idea is already ours.** An explicit KV-bytes budget instead of a
+  utilisation fraction — their `kv_cache_memory_bytes` skipping memory profiling — is the same
+  mechanism as our `MAX_TOTAL_TOKENS` pin / `MEM_FRACTION_STATIC` pair, and it is the knob this
+  lane's measured boot pulls. Nothing new to adopt; the rest of the stack is prefill speed (TileLang
+  kernels, sequence-parallel prefill, L2 prefetch, async scheduling), not footprint.
 - **Is it a fit lever for our rows?** Only in mechanisms we already have equivalents for. The explicit
   KV cap is the same direction as `max_total_tokens` / `MEM_FRACTION_STATIC` (the boot below tests
   it); `--load-format direct` removes the transient double materialisation (a host-spike and TTR

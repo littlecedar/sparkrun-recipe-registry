@@ -7871,3 +7871,37 @@ boots were the plain `pruned75` arm on the pinned nightly
   reads `done` under a note that ends "BFCL NOT met" although its `client/bfcl.json` (1 896 782 B) exists.
   Node hygiene: this tick booted nothing, stopped nothing, wrote no node file, and removed its
   `.scratch/tick-0202-640781/` capture directory after publish.
+
+## 2026-11-10 02:42 ET — same-node 0.78 control: the lever buys +0.51 GiB, and the recipe pin is inert
+
+- **The 0.78 control boots and its cell is stopped at the floor.** Task
+  `sparkrun_1c0dffa45afa6e47_38b75ff4e937` on `.31`–`.34` (recipe default `MEM_FRACTION_STATIC=0.78`,
+  replay off, image `dsv41-sm121-dg:0.2.1`): `Load weight end 89.48 s / mem usage 76.65 GB`,
+  `full_token=2,809,088`, `Ready` 07:28:54Z (**TTR 171 s**), then the identical single-stream 1M cell
+  died at **130.16 s** (`RemoteDisconnected`, no `usage.prompt_tokens`) when the guard fired on `.34`
+  at 6.01 GiB. Per-rank minima **6.66 / 7.08 / 6.05 / 5.63 GiB**; zero kernel OOM, zero earlyoom.
+  Receipt `head:~/benchmarks/fit-ds4-frac78-control-20261110/`.
+- **Same-node comparison, the answer to the three deltas:** 0.78 floor **5.63** vs 0.75 floor
+  **6.14** on the same ranks — **+0.51 GiB**, not the 3.65 the gross headroom term suggests. The
+  pool fills it back: `full_token` 1,239,040 at 0.75 vs 2,809,088 at 0.78 (≈2.6 GB more KV).
+  `MEM_FRACTION_STATIC` is a **trade**, and the pool cut is what makes the cell runnable. The 0.78
+  cell produced no speed sample, so the 0.75 cell's prefill 1,831 tok/s vs the 4,090 mean and decode
+  44.7 vs arm 3's 56.2 stay open; arm 3's falsifier still needs arm 3's own line at 0.75.
+- **The recipe pin is inert and the pool's `refs/main` moved under it.** The first control boot
+  (`…_eb5100b2911f`, 143 s) died at `engram_backend.py:114` `FileNotFoundError` on
+  `snapshots/08c8657f…/model-00047-of-00048.safetensors`: the launcher resolves `refs/main`, which the
+  1017 template-refresh pull had moved to that **incomplete** snapshot (46/48 shards, 2
+  `.incomplete` blobs), while `model_revision: 1bae0e10…` never reaches the engine. Pinned for the
+  successful boot with `-o env.MODEL_PATH=…/snapshots/1bae0e10…` (container `MODEL_PATH` proved, farm
+  staged). Until the pin is enforced or `refs/main` is held at a complete snapshot, **every ds4
+  quartet boot follows a moving ref** — check the pool's `refs/main` before launching.
+- **A superseded guard fired twice.** Run 1's `mem-guard.sh` was not killed when its artefacts were
+  moved, so it read the same trigger at 07:31:09Z and issued `sparkrun stop` for the old id, which
+  reported `Workload stopped on 6 host(s)`; no foreign container was touched (only `.30`'s director
+  boot and `.35`'s llama.cpp solo were alive, neither matching). Kill a superseded guard before
+  reusing its trigger path.
+- **Window and director:** lock declared 07:14Z, deleted 07:37Z; director stopped 07:14:28Z and active
+  again **07:37:03Z** (`ctns=0 vols=0` verified on all four ranks first). Completions for `queue.json`
+  are in the receipt and the session report (peer owns the file): `sm121-arm3-control-1m-cell` gets the
+  0.75 sample, `w4-survey-arm5-control-boot` stays blocked on its C5 shape, plus two new rows —
+  `run-arm-exec-bit-guard` and `ds4-recipe-pin-not-enforced`.
