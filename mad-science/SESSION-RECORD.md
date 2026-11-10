@@ -8291,3 +8291,82 @@ row's to fix.
   the end-to-end validation while the ranks have since run a fourth instance, so a peer reading the
   lock alone cannot tell which boot holds them.
 
+## 2026-11-10 05:25 ET — pin moved to 08c8657f after validation; arm 3's documented control finally measured; window handed to ERNIE
+
+- **The pin moved (commit `363e5d4`) on template-only evidence plus end-to-end checks, not template
+  evidence alone.** 08c8657f vs 1bae0e10: same 57 files plus the upstream `chat_template.jinja`, identical
+  sizes, identical 96,085-entry weight map — no weight change implied. Validation boot
+  (`sparkrun_b020d2dd178343a5_819f27c403b9`, receipt
+  `head:~/benchmarks/fit-ds4-rev08c8657f-validate-20261110/`): TTR 145 s, pool 2,606,848, Engram packed;
+  house **easy 19/19, hard 17/18** with the same single miss (`hard-rev` → `nrukraps`) as the pin; needle
+  1/1 @32K (C1), 2/2 @32K (C2), 1/1 @131K; served template `95b7033a…`. No ladder cell: `llama-benchy` is
+  not installed on the boot host — the 32K C1/C2 readings are `longctx-cell` decode, labelled a
+  substitute. **Engram cost measured:** the body ships no shards, so the first boot packs 2 × 23.6 GiB per
+  rank in the background (≈290 s wall; slowest rank 210 s at 115 MiB/s) and serves the checkpoint fallback
+  until it lands; the pack is then cached and later boots arm it (verified on two boots).
+- **Arm 3's documented control is no longer the oldest unrun item.** The shipped
+  `deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`, exactly as it ships, no override: TTR 145 s, pool
+  2,729,984, floor 8.98-9.91 GiB, `[moe_b12x_next]` armed, no ÷128 `ValueError`, snapshot 08c8657f and
+  template 95b7033a proved from the boot; the identical single-stream 1M cell is **61.1 ms/step, prefill
+  4,242 tok/s, needle 1/1** (receipt `head:~/benchmarks/fit-ds4-canary-1m-clean-20261110/`). Three-way with
+  pools/floors: replay-off @0.75 44.7 (1.24M, 6.14 GiB); replay-on @0.75 not runnable (702K); arm 3 @0.78
+  56.2/54.8/55.4 (2.01M); shipped canary 61.1 (2.73M, 8.98 GiB). Instrument and cell identical, so decode
+  compares; pool/Engram/pin are named confounds and the pool itself moves ±0.2M between boots. **A first
+  canary cell reporting 91.4 ms/step was discarded**: the launch wrapper runs its own post-Ready 1M cell,
+  so the hand-started cell overlapped it and identical prompts shared a prefix cache (correction written in
+  `fit-ds4-canary-1m-20261110/RECEIPT.md`). Both boots of tonight's wrapper inherited that behaviour —
+  future boots should wait for its `cell done` before starting another cell.
+- **Window state handed over, not closed.** Director unit **stopped** since 08:34:27Z; lock
+  `.local/fleet-window.lock` stays in this session's name
+  (`window=ds4 TP4 research → ERNIE handoff`, ranks `.31`-`.34`, `ctns=0 vols=0` verified after the canary
+  stop, guards/samplers killed, `/tmp/fit-ds4-*` removed). The ERNIE TP=4 session takes it next; this
+  session comes back for the production knapcio boot (shipped line, no override, prove served path +
+  template sha + gate lines, one chat and one image request, leave up, restart the director).
+- **CI red from the pin move, and it is not this session's to fix.** `tests/test_ds4_recipes.py::
+  SglangLaneContract.test_checkpoint_revision_pinned_in_recipe` and `tests/test_cache_audit.py::
+  RecipeScan.test_shipped_pin_is_found_and_names_the_recipe` still assert `1bae0e10…`; the `.35` llama.cpp
+  session is fixing them in its own pathspec commit, so this session touches no test file.
+- **Register mutations:** `ds4-1017-template-refresh-ab` → done (already recorded); NEW
+  `ds4-revision-08c8657f-validated` (done: pin moved, acceptance = house 36/37 same miss + needles + template
+  sha + Engram pack wall recorded, all met); `arm3-control-cell-canary-line` → done (61.1 ms/step /
+  4,242 tok/s / floor 8.98 GiB, three-way confounds named); NEW `boot-wrapper-auto-cell` (queued: the
+  inherited launch wrapper runs its own post-Ready 1M cell, so any hand-started cell races it — measured
+  contamination tonight; fix = wait for `cell done` or gate the wrapper's cell behind a flag).
+
+## 2026-11-10 04:18 ET — tick that saw a control land, a fourth instance boot, and the pool's writer named
+
+- **Arm 3's documented control finally ran, and it does not reproduce arm 3's decode.** The shipped
+  knapcio arm exactly as it ships (no `-o`) booted on the `08c8657f` pin at TTR 133 s (08:54:49Z task
+  -> 08:57:02Z ready), pool `max_total_num_tokens=2521344`, floor 9.32-10.37 GiB with the 6.0 GiB guard
+  never firing, then ran the 1M single-stream cell **PASS**: prompt 1,035,623, TTFT 277.257 s (3,736
+  tok/s prefill), 91.4 ms/step over 3 steps / 6 tokens, needle 1/1, 0 errors. Three-way table names
+  what it cannot separate (KV pool 1.24M / 2.01M / 2.52M tokens, packed vs replay-off Engram, pin
+  `08c8657f` vs `1bae0e10`), so the arm-3 advantage stands as an observation, not a reproduction, and
+  the lane's 4,090 tok/s row is llama-benchy, a different instrument. Teardown verified 09:03:32Z
+  (`ctns=0 vols=0`, tmp cleared). Evidence: `head:~/benchmarks/fit-ds4-canary-1m-20261110/`.
+- **The fleet's pool growth this hour is one named download, not drift.** pid 3961488 runs
+  `hf download baidu/ERNIE-5.5-Flash-Base --revision 028544b2... --max-workers 32` on the head since
+  08:51Z (repo dir hub mtime 08:51:51Z, `download2.log` still growing at 09:12:33Z), and the captured
+  same-interval pair reads pool used +6 251 610 112 B over 48 s (130 MB/s) while the six node roots
+  fall 4 737 650 688 B over the same 48 s (98.7 MB/s) - the chunk store sits on each node's root, so
+  one stream explains both. `.35` also shows a fresh `image-pull.log` (09:12:02Z): the window is being
+  staged for that ERNIE TP=4 session.
+- **Five census reads inside one tick, because the window is booting repeatedly.** `docker ps -aq`
+  read 1/1/1/1/1/0 at 09:02:45Z (the canary instance healthy on `.31`-`.34`), 1/0/0/0/0/0 at
+  09:03:46Z and 09:07:40Z (after its spent teardown), then 1/1/1/1/1/0 at 09:11:25Z and 09:12:13Z with
+  a **fourth** instance (`..._2e722d4b77d9`) up healthy and answering `/v1/models` 200 on the same
+  `08c8657f` snapshot at `--mem-fraction-static 0.78`. Volumes 0 x 6 throughout; `.30`'s `sm121m`
+  `Created` leftover the only other container.
+- **The campaign drained itself at the moment the window was declared.** The user unit reads
+  `inactive (dead) since 03:34:27 EST`, `MainPID=0`, `code=exited, status=0/SUCCESS` after 12 min 22 s,
+  and its nine `~/benchmarks/*/state.json` roots hold 33 arms with 0 live leases (`director status`
+  9 measured / 10 blocked, each block naming the register rather than a bare refusal).
+- **A peer published mid-tick, so this composition folded rather than replaced.** The 04:10 ET peer
+  board (`a1c9f306...`) landed while this tick composed on `44965698...`; the second composition took
+  the new bytes as `--base`/`--expect-sha`/`--expect-remote-sha`, replaced only the seven stale
+  `In flight` rows, kept the peer `.35` row and its `Work queue` block byte-for-byte (their graph
+  comment already equalled this tick's own snapshot render of `976e9c30...`), and appended only rows
+  no peer row carried.
+- **Left open.** `ds4-1017-template-refresh-ab` still reads `blocked` while its own boot runs (fifth
+  hour); nothing in the register claims the live quartet; and the ERNIE TP=4 row the download is
+  staging was not resolved by this read-only tick.
