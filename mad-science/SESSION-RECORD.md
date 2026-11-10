@@ -8843,3 +8843,16 @@ id, so the pin is unresolved rather than proven wrong.
 - **Three landed rows folded** the 10:23 board could not cover: `523d06a` (10:16 board + the pool-probe
   blocker row), `b22c7b0` (10:22 ledger, the missing compare-and-swap with both hashes), `0b2b1ee`
   (10:23 board, "seven hours" replaced). Nothing else landed on the tree in the hour.
+## 2026-11-10 11:50 ET — owner stopped production at 16:44:48Z; the quartet is a research window again
+
+- **The owner ended the production serve deliberately** — "stopped the dsv41f knapcio production boot so
+  that you can resume TP>=4 boots" — after it had served **6 h 29 m** (ready 10:15:20Z, health 200 at the
+  last check, stopped 16:44:48Z). The same-second die on all four ranks with a clean `dmesg`, an unfired
+  guard, a watchdog that had already exited healthy and no director lease is exactly that: an explicit
+  stop, which is what `#51` asks for. `.local/fleet-window.lock` now carries the record (production stop,
+  uptime, task, pin, snapshot, template sha) and names the window `tp4-runner`'s to take; the production
+  claim is retired, not deleted.
+- **`ds4-malloc-pin-ab` is unblocked to `queued`** (still quartet / tp 4 / its recipe), with the stand-down
+  clause kept as the condition a future production claim re-imposes and the boot gates still unknown — it
+  is the runner's first boot. Every other `tp: 4` row is left as the runner will report its own mutations.
+  `task-queue.py check` rc=0 at 149 rows.
