@@ -1440,10 +1440,18 @@ arms are in `head:~/benchmarks/tp4-20261110b/e4-pair/`.
 **The 0.77 pair is a measured configuration.** Same fraction, image, checkpoint and context; the
 replay flag is the only difference:
 
-| arm | `full_token` | host floor (min rank) | 1M prompt (1,035,623) |
+| arm | `full_token` | host floor (min rank) | 1M prompt (1,035,624 server-counted) |
 |:--|--:|--:|:--|
 | replay off (`arm3-control`) | **2,135,552** | **7.64 GiB** | fits (106 % margin) |
 | replay on (`indexer-scoring`) | **1,997,824** | **10.87 GiB** | fits (93 % margin) |
+
+Every 1M cell in this lane asks the tool for the same **1,039,999 requested** tokens
+(`--context-length 1039999`, `--chars-per-token 6.65`); the prompt text is synthesized per boot, so
+the **server-counted** `usage.prompt_tokens` differs by one across boots: **1,035,624** on the 0.77
+steady cell (`e4b-indexer-077-steady/longctx-1m.out`) and **1,035,623** on the 0.75 cell
+(`fit-ds4-frac75-20261110/longctx-1m-frac75.out`). The two numbers are separate measurements of
+separate prompts against the same request, not a transcription of one — cite whichever boot a figure
+came from, and never mix a requested count with a server count in one subtraction.
 
 So the lane's "replay-on and 1M cannot coexist" is replaced by "they coexist at 0.77"; the earlier
 trade (`replay-off` needs 0.75 for the prefill floor, replay-on needs 0.78 for the pool) was an
