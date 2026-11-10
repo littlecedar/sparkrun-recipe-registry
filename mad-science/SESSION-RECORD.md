@@ -9447,3 +9447,45 @@ re-take, disclosed in that commit) and one landed row for `64fe2e5`. Dropped rat
 allowlist commit for the two marlin probes, superseded by `d13f8dd` and then `3ace8e9`'s derived
 exemption. Register row `campaign-leases-tp4-onto-30` opened from the journal's two `assign` lines,
 per the owner's 2026-11-08 `#67` ruling.
+
+## 2026-11-10 17:15 ET — 17:00 tick: board left standing under a peer's 17:13 board, and that board's pool rate does not survive a later pair
+
+- **Independent census pair, 22:03:01Z → 22:05:10Z (129 s), six nodes, read-only:** `.30` 9
+  containers / 0 running / 0 volumes (its nine `Created` leftovers untouched); `.31`–`.34` one
+  **running** rank each (`…_e2a8839bcbe8_node_0..3`, started 21:58:07Z); `.35` 0 / 0 / 0; root avail
+  net **−10,649,600 B**, movers `.34` −8,683,520, `.30` −880,640, `.31` −303,104, `.32` −290,816,
+  `.33` −294,912, `.35` −196,608. A peer tick's pair (22:03:22Z → 22:06:24Z) reads the same container
+  and volume shape, so two instruments agree.
+- **Its pool rate claim does not hold a second pair later.** The 17:13 board reads used
+  13,869,163,479,040 → 13,869,174,489,088 B across 22:03:22–22:06:24 (**+11,010,048 B / 182 s,
+  ~60 KB/s**). This tick's pair, 22:09:26Z → 22:10:07Z, reads 13,869,213,810,688 →
+  13,869,192,314,880 B, i.e. **−21,495,808 B / 41 s**. Both reads are real; the *rate* is not
+  sustained, and a ±20 MB-per-minute oscillation is what the series shows, so neither pair supports a
+  trend on its own.
+- **Live boot, later than the board's sample:** rank-0's shard loader read **90/128 (70 %)** at
+  22:12:43Z at ~7.7 s/shard (the board has 81/128 at 22:11:34Z, 8.25 s/shard), and the watchdog's
+  own line was `t=704s verdict=loading endpoint=down serve_pid=alive io_delta=670 log_delta=156
+  ranks=4`; `/v1/models` still **000**. Same boot, no contradiction, later evidence.
+- **Campaign, all nine roots read at 22:04:20Z:** unit `sparkrun-campaign` inactive with
+  `Result=success` / `ExecMainStatus 0`; exactly **one lease fleet-wide** — `h2h-20261107`,
+  `zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4` on `.30`–`.33`, `expires_at` epoch
+  `1794342572.35` = **20:29:32Z, expired** — and that arm holds no container anywhere (the `.31`–`.34`
+  ranks belong to the window), so nothing needs reap.
+- **Register:** this tick's snapshot was `adcd501d…` — 168 tasks, 116 done / 39 queued / 13 blocked /
+  0 running / **0 claims**, 52 open. It is superseded minutes later by the peer's `37f83228…` (117
+  done, `head-tickcap-capture-removal` closed). The claim invariant held on both: no claim anywhere,
+  and the booting arm's own row `ernie-5.5-flash-base-tp4-quality-gate` reads `queued`, so the live
+  boot carries no register claim.
+- **Window:** head's `.local/fleet-window.lock` is **137 B**, `window=ERNIE-GSM8K
+  2026-11-10T21:57:47Z +120m`, `claim=tp4-runner`, nodes `.31`–`.34`, `campaign=inactive-confirmed`;
+  this clone carries the same bytes, the two 707 B sync-conflict copies remain, and `.30` sits outside
+  the window so no rank landed there.
+- **Board left standing, deliberately.** A peer tick published a **17:13** board (disk sha
+  `d3ee34c9…`) from the same base this tick read (`f4dffc20…`), covering this hour with a *later*
+  register. Republishing this tick's composition would either be refused (`--base` / `--expect-sha`)
+  or rewrite a peer's rows inside the same cycle, so this tick wrote no board — the case the
+  2026-11-08 12:02 entry set. Nothing above is lost: the peer board carries the census, pool, flight,
+  campaign, queue and window cells, and this section carries the second instrument, the contradicting
+  pool pair and the claim-gap reading.
+- **Leftover, not this tick's:** a 0-byte untracked `python3` at the repo root (mtime 16:29 ET), a
+  shell-redirect accident; left in place rather than deleted under another session.
