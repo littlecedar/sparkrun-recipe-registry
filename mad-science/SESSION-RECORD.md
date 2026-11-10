@@ -8781,3 +8781,11 @@ id, so the pin is unresolved rather than proven wrong.
   taken from those two moments shows **exactly one task added and no row modified**, and 0 claims on
   both sides, so nothing was displaced this time — which is a collision that did not happen, not a
   guarantee that it cannot.
+- **Correction, published board's queue row: "seven hours" was wrong and is now bounded.** The row read
+  "the register did not move for seven hours (sha `cd5a86b4…` on the 07:13, 08:08 and 09:10 boards)",
+  but this same board's landed table records register writes at 05:55 (`41415f5`, 145 -> 146 rows),
+  06:14 and 06:20, and `cd5a86b4` first appears on the 07:13 board — so the same-sha span is three
+  boards (07:13 -> 09:10), and the honest clause is that its last write before this tick was 06:20.
+  Republished as the 10:23 board (title, queue row and nothing else moved), `publish` and `lint` rc=0;
+  a false elapsed figure on the coordination surface is the defect class AGENTS.md names, so it is
+  fixed in the board rather than only recorded here.
