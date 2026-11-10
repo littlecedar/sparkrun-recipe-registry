@@ -8178,3 +8178,41 @@ row's to fix.
   owning session's to close; the register's uncommitted rows (`3ba3d164…`) are a peer's to commit; and
   the meta restart loop's `NRestarts` keeps climbing because the row that owns it is queued, not done.
 
+## 2026-11-10 03:38 ET — tick that named the pool's writer, and the head that reaches no node by name
+
+- **The 42 GB that entered the pool this hour is one GGUF repo, and the node roots prove it is a
+  client's write.** `models--unsloth--flint-GGUF` reads **451 149 541 245 B** at 03:29 ET against
+  **408 704 348 062 B** at 03:13 (+42 445 193 183 B), with 11.3–49.9 GB shards completed at
+  02:50–03:09 inside `hub/blobs/`; the hub gained no directory, so nothing was added to the cache's
+  model set. Over the tick's 73 s census pair (08:26:35Z → 08:27:48Z) the pool's used bytes rose
+  **+18 903 203 840 B** while five of the six node roots fell a net **−17 652 015 104 B** (93.9 %),
+  which is the chunk store on the node roots doing what a pool write does — **LIKELY**, since no
+  inode or process ties the two. No `hf download` / `huggingface-cli` / `git-lfs` process exists on
+  the head or any of the six nodes, and this workstation does not mount the pool, so the downloader
+  is a client outside the fleet; a later pair (13 378 473 951 232 → 13 381 985 632 256 B over 30 s)
+  shows it still running at close. The register's `flint-four-arm-comparison` row asks for only the
+  18.49 GB `UD-Q3_K_XL` tier, so what moves is other tiers, not that row's own work.
+
+- **The head cannot reach a node by name, and every node answers by address.** `ssh spark-d325`,
+  `spark-ec1d`, `spark-3578`, `spark-324e` (and `.30`, `.35`) each fail `Host key verification
+  failed` citing `~/.ssh/known_hosts` lines 123–127 while `ssh <address> 'hostname -s'` returns every
+  node in the same minute, and `ssh-keygen -F <name>` finds **0** entries because `HashKnownHosts
+  yes` stores hashed FQDN entries that no longer match — the plain-address entries do. Register row
+  `head-mesh-cannot-reach-30` records only the `.30` half, so the condition reads as a single-node
+  quirk when it is fleet-wide. Every census in this tick is therefore taken by management address
+  from the head; `known_hosts` was not edited (read-only tick).
+
+- **The register outran the board twice inside one composition, and the publish door caught a
+  structural fault before CI did.** The peer's board published as `71edd074…` at 03:36 with register
+  `3ba3d164…` (143 rows), the live file moved to `7feb9d20…` (144 rows, 31 queued, 43 open, still 0
+  claims) before the first publish attempt, and both blocks were re-rendered from the later snapshot
+  rather than published stale. A first attempt was refused `table-missing-delimiter` because the
+  peer's file ended with a blank line and the appended landed rows began a new table block with no
+  `|---|---|---|` header — the door's check is what caught it, so an appended table after a stripped
+  file must `rstrip` the blank line before adding rows.
+
+- **Left open.** `.35`'s GSQ-RCO boot 3 is still loading (`/v1/models` 503 `Loading model`, watchdog
+  `t=745s verdict=loading`, host `MemAvailable` 49.07 GiB) and its register row stays `blocked`
+  without a claim; `head-mesh-cannot-reach-30` needs its note widened from `.30` to all six names or
+  a new row filed; and the flint fetch's client machine is still unnamed.
+
