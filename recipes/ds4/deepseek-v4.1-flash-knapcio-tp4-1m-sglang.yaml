@@ -2,9 +2,20 @@ recipe_version: "2"
 model: deepseek-ai/DeepSeek-V4.1-Flash-1017
 # The launcher sets SKIP_PREPARE=1 and serves the snapshot sparkrun renders from
 # {model}, so this pin -- not the image's baked REVISION -- decides the weights.
-# The 1017 refresh ships no chat template; the mod stages its patched copy, and a
-# template-less checkpoint with no mod template is refused (exit 2), not served.
-model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
+# 08c8657f (2026-11-10) differs from 1bae0e10 by exactly one file, the upstream
+# chat_template.jinja: all 48 shards keep their bytes and the 96,085-entry weight
+# map is identical, so the move is template-only and no weight change is implied.
+# It was validated end to end before moving (house 36/37, same sole hard-rev miss;
+# needles at 32K and 131K; `reasoning_effort: minimal` accepted; one image request
+# 200 "Red"), and the checkpoint ships no Engram shards, so the first boot on a new
+# revision re-packs 2 x 23.6 GiB per rank in the background (~four minutes wall,
+# slowest rank 210 s) and serves from the checkpoint fallback until the pack lands.
+# With 08c8657f the checkpoint ships its own chat_template.jinja, so
+# ensure_template_overlay returns early and the engine serves the upstream template
+# (sha256 95b7033a…); the mod's patched copy (297be886…) is only staged for a
+# template-less snapshot, and a template-less checkpoint with no mod template is
+# refused (exit 2), not served.
+model_revision: 08c8657f02291e11b6f6b63e0e16014f8e748518
 runtime: sglang
 container: ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb3947005e75afd8f8c10adf9dc1db4e5f96ea54c6411e960a4eeee073c5c
 min_nodes: 4
