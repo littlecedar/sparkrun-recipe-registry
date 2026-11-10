@@ -8722,3 +8722,11 @@ id, so the pin is unresolved rather than proven wrong.
   behind the ET clock), `d6d10cd` (its ledger close), and `69b62f4` (the census row's dropped
   preposition restored). All three were the previous tick's own work, so nothing from another
   session needed homing first.
+- **Correction to `97033b7`'s commit body, recorded rather than rewritten.** Its pool sentence reads
+  "58 % used, 258 GB free short of the 90 % budget", and both halves of that are wrong. The headroom
+  below the policy's cap (`STORAGE-POLICY.md` §budget: HF cache <= 90 % of pool capacity) is
+  **7 905 899 760 844 B ≈ 7.19 TiB** — 90 % of the 24 191 229 755 392 B pool is 21 772 106 779 852 B
+  against 13 866 207 019 008 B used — not 258 GB. And the `df` figure is the whole pool, not the
+  `huggingface` subtree that rule actually caps, so it can only bound a budget verdict, never state
+  one. The published board carries neither claim; the defect is confined to that commit body, and the
+  push had already landed, so it is corrected here instead of amended.
