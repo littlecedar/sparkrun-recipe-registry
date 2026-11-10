@@ -7812,10 +7812,22 @@ boots were the plain `pruned75` arm on the pinned nightly
   `graph --file` from that one copy, so the graph's counts line now reads `12 blocked, 1 edges, 11
   prose-gated, 0 question-gated, 0 question, 35 rows not drawn (--all)`.
 - **What the tick actually changed:** the queue cell, the Work queue graph and table, the publication
-  cell, the title, and **one landed row** (`354907a`). Peer cells for census, pool, flight, campaign
-  and window were kept verbatim where fresher — their census pair (07:02:06→07:05:00Z) and their
-  flight read (healthy at 07:14:33Z, `/v1/models` 200 at 07:19:16Z) both postdate this tick's read of
-  the same boot at `503`.
+  cell, the title, and **one landed row** (`354907a`). Only the peer's **flight** read (healthy at
+  07:14:33Z, `/v1/models` 200 at 07:19:16Z) postdates this tick's read of the same boot at `503`: their
+  census pair (07:02:06→07:05:00Z) is **earlier on both ends** than this tick's own
+  (07:04:09→07:06:55Z), and the tick kept theirs anyway because it carried the six uptimes and the
+  meta-loop restart counts. That is the wrong call in the class the fresh-census rule exists for — an
+  earlier pair replacing a later one — and the right move was to merge the two pairs into one cell,
+  not to keep the older wholesale.
+- **The window cell shipped true-at-read and stale-at-publish, and a peer corrected it.** No
+  `.local/fleet-window.lock` existed in either clone at this tick's 02:05/02:07 read, so the cell
+  recorded no four-rank window; `ds4-kimi-fit` wrote one for `.31`–`.34` at **02:14 ET**
+  (`start_utc` 07:14Z, `end_utc` 09:30Z, a same-node 0.78 control), ten minutes before this tick's
+  02:24 publish, and the peer board generated at 02:27 replaced the cell. The read was honest; the publish
+  was stale. The window row is a **claim**, not a census, so it has to be re-read immediately before
+  the publish rather than once at the top of the tick — and at 07:40Z the lock is absent again (the
+  quartet's second attempt had ended), so a reader cannot conclude "no window" from a lock read taken
+  minutes ago either.
 - **Instrument trap worth keeping:** the first census pass used `set -- $p` inside a `for … & done`
   loop and produced **six identical `.35` rows** — every line reported the last node with the same
   byte value, and nothing errored. It was caught only because the numbers repeated. The fix is
