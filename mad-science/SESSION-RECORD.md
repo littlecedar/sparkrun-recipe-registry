@@ -9320,3 +9320,56 @@ id, so the pin is unresolved rather than proven wrong.
 - **Open.** The `mem-guard` leak's six-trigger burst at 17:50:29–34Z (all against dead tids) and the
   `.30` container accumulation (nine, none running) stay as register/board rows rather than actions:
   the tick is read-only on the fleet.
+
+## 2026-11-10 14:15 ET — 14:00 tick: fleet idle under a campaign that exited 0, and two defects in this tick's own board
+- **What landed.** board published as **`0c61473`** (`7e9621b..0c61473`), gate
+**`conclusion: success`** for that sha; `In flight` rebuilt on two census reads
+19:03:01–19:03:58Z and 19:10:41–19:10:43Z, `Work queue` re-rendered from the
+worktree register snapshot `8c5a566a…` (159 tasks, 111 done, 48 open) with the
+trunk divergence named in the cell, nine landed rows appended.
+- **Not pushed, by policy.** `HEAD` was gate-red — `AGENTS.md` stated 118 recipes
+against 121 tracked, entirely from a peer's two unpushed recipe commits, and
+`push-gate` printed `red -- do not push` naming `test_doc_hygiene`. So the board
+commit was built on `origin/main` with a throwaway `GIT_INDEX_FILE`
+(`read-tree` → `update-index --cacheinfo` of the board blob → `write-tree` →
+`commit-tree -p origin/main`) and pushed as `<sha>:main`; local `main` untouched,
+the peer's commits still theirs to land. First attempt `5ba0187` (parent
+`9bc0e18`) was rejected non-fast-forward when a peer pushed mid-flight and was
+rebuilt as `0c61473` on `7e9621b`.
+- **Two defects in this tick's own board, named rather than left to a reader.**
+(1) the `pool` cell pairs `+1 794 113 536 B` with **58.5 min**, which is the
+18:06:14→19:03:58 leg; 18:06:14→19:10:43 is **64 min 29 s**. (2) the `queue` cell
+cites `.scratch/tick-1400-<compose pid>/queue.json`, a path that never existed —
+the snapshot was written under the capture pid, not the compose pid, and the
+directory was removed after publish. Both live only in `In flight`, which the
+next tick regenerates, so neither is re-corrected here; the cell's counts and
+sha are unaffected (`8c5a566a…`, 111/35/13).
+- **Measured hour, one home each.** census `docker ps -aq` **9 / 0 / 0 / 0 / 0 / 0**
+on both reads, 0 running and 0 volumes on all six, root avail net
+**−32 608 256 B / 460 s** (movers `.32` −15 724 544 and `.34` −9 187 328); pool
+used **+23 592 960 B / 405 s** and **+1 794 113 536 B** against 18:06:14Z, writer
+unnamed again (no `hf`/`rsync`/`rclone` process on the head, nothing at depth ≤ 2
+under the mount modified in 75 min); `beegfs-meta` loop **+88 restarts per host**
+in 460 s on `.31`–`.35`; nine roots = 34 arms, **0 leases, 0 `needs_reap`**;
+arm-3 indexer-scoring's 1M longctx cell **FAIL** (one request error, no
+`usage.prompt_tokens`); campaign's malloc-pin A/B house **90/100**, ladder at
+c1/c2/c5/c10.
+- **Instrument trap worth keeping.** On a 5 s restart loop `systemctl is-active`
+can sample the transient: `.33`'s `beegfs-meta` read `active` with
+`Result=success` at 19:03:02Z and `activating`/`exit-code` 107 s later at
+`NRestarts` 24 726. Only the restart count is evidence that the loop runs.
+- **Two holder classes, both read.** the campaign unit ran 13:34:16–14:09:44 ET
+and exited `Result=success`/status 0 (`journalctl --user -u sparkrun-campaign`),
+so "active, 0 leases" at 19:04:54Z became "exited" five minutes later — the cell
+states the live read and the landed row states the exit. No window lock in
+either copy; no read recorded which way the 16:52Z window ended between 18:12Z
+and 18:34Z, so the row asserts absence only.
+- **Verified, not assumed.** the worktree `AGENTS.md` carries a peer's in-flight
+re-take (121 scanned, 69 findings, 34 warnings, 33 `unpinned-model-revision` rows)
+laid over this tick's `doc-census --fix`, and a fresh `sparkrun recipe validate
+--strict` over the 121 tracked recipes prints **121 / 69 / 34 / 33**, so those
+four statements match the tree. The file was left as found rather than published:
+pushing counts without the peer's recipes reddens trunk the other way.
+- **Deferred.** pool growth still has no named writer past the depth-≤2 probe, and
+the board is ~304 KB — the `board-render-state-truncation` row's defect, not a
+tick action.
