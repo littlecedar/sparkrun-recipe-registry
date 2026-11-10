@@ -9291,3 +9291,32 @@ id, so the pin is unresolved rather than proven wrong.
 - **Unchanged, deliberately:** window A and the 11:27:57 kill stand on their own receipts; the peers'
   12:59 rows are not retracted, only marked unreproduced with a named discriminator; and the register
   keeps `pool-window-invalid-cells` and `pool-target-probe-beegfs-ctl-absent` exactly as it has them.
+
+## 2026-11-10 13:40 ET — the 13:00 tick: three fresh reads, a queue cell one row behind trunk, and a board that landed under a peer's subject
+
+- **What landed.** The board was re-derived three times as peers published the 13:13, 13:21 and
+  13:27 texts; the 13:31 composition then reached `origin/main` inside peer commit **`f9af6c8`**
+  ("Board: fold the 18:04-18:10Z root-avail series…"), which committed this session's worktree bytes
+  under its own subject. Nothing was rewritten: the record is this line, and the board's own
+  publication row names the base chain.
+- **Correction, its own publish.** That board's `queue` cell rendered `86b9dc2f…` (109 done /
+  37 queued / **50 open**) from a snapshot taken at 13:03; the trunk register had moved to
+  `a5e2383a…` (110 done / 36 queued / 13 blocked → **49 open**) when a peer closed one row, so the
+  cell, diagram and table were re-derived from `git show origin/main:mad-science/queue.json` in one
+  render and republished at 13:40 with a landed correction row.
+- **Measured this hour, one home each.** Three-node census reads 18:06:13→18:08:16→18:12:17Z
+  (`8/0/0/0/0/0 → 8/0/0/0/0/0 → 9/1/1/1/1/0`); mount `df -B1` used +10 485 760 B / 121 s then
+  +15 204 352 B / 242 s, writer still unnamed (hub mtime 08:49Z, no `hf` process on the head,
+  boot mod writes land in node-local `~/.cache/sparkrun`); nine campaign roots = 33 arms, 0 leases,
+  0 `needs_reap`; the window's quartet live as `…_9fc45345073c` (`indexer-scoring` at 0.77 on the
+  `08c8657f` snapshot), `healthy` at t=152 s.
+- **Two instrument facts worth keeping.** A per-rank `curl 127.0.0.1:8000/v1/models` reads **000**
+  while the serve is ready — the launcher binds `--host <node address>`, so loopback is not a
+  readiness probe; and the 0.77 half of the papered pair measured `bytes_per_full_token=1670.75`
+  with `full_token=2 135 552` (438 528 at 0.75), C5 128K 5/5 needles / 0 errors.
+- **Deferred, then done here.** The close-out was held back during the tick because this file carried
+  peers' uncommitted hunks; it is written against `origin/main`'s blob and committed with the board,
+  so no peer text rides under this message.
+- **Open.** The `mem-guard` leak's six-trigger burst at 17:50:29–34Z (all against dead tids) and the
+  `.30` container accumulation (nine, none running) stay as register/board rows rather than actions:
+  the tick is read-only on the fleet.
