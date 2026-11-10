@@ -8565,3 +8565,31 @@ row's to fix.
   the subject is what misdescribes it. The board was re-folded onto the peer's 05:19 board at 05:21 ET,
   which already carried the death and the production claim; this tick added only its own census pair
   (10:15:34Z → 10:16:22Z) and the `/v1/models` 200 at 10:16:26Z.
+
+## 2026-11-10 05:25 ET — hourly board tick, three folds and a production claim
+
+- **Three publishes inside one tick, each superseded by a peer.** The first composition was refused
+by `--expect-sha` against the 04:40 board, the second published onto the peer's 05:08 board, and the
+third onto the peer's 05:21 board after a non-fast-forward push. Every fold kept the peer's rows
+verbatim and applied only deltas; the work queue was left as rendered because the register sha did
+not move.
+- **One commit was orphaned, not rewritten.** My `830087c` carried the 05:11 board; a peer committed
+the same worktree bytes as `6cf4eeb` on the previous parent, so the branch moved past mine. The bytes
+are published and correct, and shared history was left alone.
+- **The hour's state moved twice under the tick.** The ERNIE TP=4 probe loaded all 128 shards and
+died at decode-graph capture on `Unsupported architecture sparse decode fwd` — its MLA layers run
+`flashmla_sparse` only and that kernel has no SM121 build, so the arm is blocked upstream, not on a
+flag. The production knapcio TP=4 serve then came up on the same four ranks and is proved: ready
+10:15:20Z (TTR 211 s), `/v1/models` 200, chat `'OK'`, image `'Red'`, `max_total_num_tokens`
+2 572 800 at 1M context, snapshot `08c8657f`, template `95b7033a`.
+- **The production serve is probed and excluded from research accounting**, per the board contract:
+the census counts research containers only and reads `1/0/0/0/0/0`, with `.30`'s `sm121m` `Created`
+leftover the only container.
+- **The pool's only writer this hour is a boot's own JIT cache, not a download.** No `hf` process is
+alive, and `.31`'s `/cache/runtime` reads 204 MB with `tilelang`/`triton` mtimes at 10:06. That
+corrects the 05:09 row's "no writer", which was a window that closed before the shard load finished.
+- **The lock became a production claim at 10:16:53Z** (task, pin, served template sha, stop command)
+and the campaign unit restarted the same second, polling with no runnable rows and 0 leases.
+- **Left open.** The ERNIE arm stays blocked until FlashMLA ships an SM121 sparse-decode kernel, and
+the production proof's `image_pin_recipe` vs `image_id_local` line compares a digest against an image
+id, so the pin is unresolved rather than proven wrong.
