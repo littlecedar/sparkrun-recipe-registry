@@ -9061,3 +9061,37 @@ id, so the pin is unresolved rather than proven wrong.
   downloader), so the hub-file probe is retired rather than repeated. The two
   `.local/fleet-window.sync-conflict-20261110-1151*` copies were left untouched: they are the window
   owner's files, and their `sequence=` line is the only place the window's declared arm order exists.
+
+## 2026-11-10 13:26 ET — the 13:00 tick: the pool answered through the mount at 18:19Z, and the hour's outage rows do not reproduce on `.30`
+
+- **Landed:** the fold reached trunk inside `2be68dc` ("Board: fold the 18:06Z and 18:15Z reads onto the
+  13:21 board"), committed by the session that owned that board draft. This session published the bytes
+  through `tools/task-queue.py publish --base <saved copy> --expect-sha <that copy> --expect-remote-sha
+  <origin board>` and made no commit of its own, so the rows it added (three landed rows plus a clause on
+  the `pool` cell) carry a subject about a *peer's* fold. Nothing was amended, rebased or force-pushed:
+  the misattribution is recorded here instead, per the shared-tree rule.
+- **Disclosure on the base, because this is the trap the previous entry warned about.** This tick read the
+  *worktree* board (13:01) rather than `git show origin/main:mad-science/STATUS.md`, and was refused twice
+  by its own CAS guards — once at 13:15 (disk sha `e4f7d46`, a peer's 13:13 composition) and once at 13:24
+  (`06272fc`) — before folding onto the peer's draft at 13:26. Those draft bytes are what `2be68dc` then
+  carried to trunk under the draft owner's own subject, so the outcome is the owner's publish, not a
+  stranger's overwrite; but the read-from-origin instruction stands and is what the next tick should follow.
+- **The finding, and it is a contradiction rather than a retraction.** The board carried *serving* in its
+  `pool` cell while its own landed rows from 13:12 to 13:30 recorded the pool dead from 12:59:14
+  (`failed`/`Result=signal` on mgmtd/meta/storage, `Communication error on send`, `blocks=0`). Four
+  read-only probes this tick read it up instead, the last a real through-mount directory *and* file read at
+  18:19:20–21Z on `.30` **and** `.31`: `ls /mnt/beegfs/huggingface/hub` 102 entries, `stat -f`
+  `blocks=46141109 bsize=524288`, and `stat -L` 3311 B on `…/snapshots/08c8657f…/config.json` and
+  `…/1bae0e10…/config.json` — which statfs alone cannot produce. Fleet-wide units read
+  `beegfs-storage` `active`/`success`/`NRestarts=0` on all six at 18:04:15Z and `.30`/`.31` again at
+  18:16:54Z; on `.30`, which *is* the head, storage's `ExecMainExitTimestamp` is still 11-08 15:29:55, its
+  journal is empty since 12:50, and `journalctl -k` since 12:50 holds no oom-kill line, while `.31`'s
+  storage logs unbroken through 13:09:11.
+- **What remains:** the discriminator for whoever owns the outage rows — the same `systemctl show -p
+  ActiveState,Result,ExecMainExitTimestamp,NRestarts` set for mgmtd/meta/storage plus `journalctl -u
+  beegfs-storage --since 12:50` **on the host the 13:12 row read**, which that row does not name. Until it
+  is quoted, the `Invalid windows` rule as worded rests on an unreproduced attribution, and the 13:16 row's
+  "D-state cleared at 13:16:2x" reading is the natural companion probe: it should be re-taken together with
+  a through-mount `ls`, since an empty `D` count plus a working `ls` is the shape this tick measured. No
+  register row was added: `pool-window-invalid-cells` and `pool-target-probe-beegfs-ctl-absent` stay as the
+  register has them, and the attribution question belongs on the first only if the discriminator agrees.
