@@ -70,7 +70,6 @@ flowchart LR
 
 | time ET | commit | one clause |
 |---|---|---|
-|---|---|---|
 | 11:46 | board refresh | census re-read 11:41:31–11:41:32 ET (all six idle, `.30`'s `Created` leftover only), pool proved by through-mount `stat -L` and 102 hub entries, campaign re-read (active, 32 arms, 0 leases, 9 measured / 9 blocked), register re-checked (122 tasks / 25 open / 0 questions / 0 claims), window absent on both copies, and host OOM policy read live `-900` on all six through unit property and `/proc` |
 | 02:17 | `534cac4` | dedup of the 753B register note, and the board's queue row re-rendered rather than hand-edited |
 | 02:29 | `d77ddd5` | 753B second boot closed `measured-rejected` never-ready on the artefact discriminator |
