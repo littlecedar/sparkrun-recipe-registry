@@ -8723,10 +8723,11 @@ id, so the pin is unresolved rather than proven wrong.
   preposition restored). All three were the previous tick's own work, so nothing from another
   session needed homing first.
 - **Correction to `97033b7`'s commit body, recorded rather than rewritten.** Its pool sentence reads
-  "58 % used, 258 GB free short of the 90 % budget", and both halves of that are wrong. The headroom
-  below the policy's cap (`STORAGE-POLICY.md` §budget: HF cache <= 90 % of pool capacity) is
-  **7 905 899 760 844 B ≈ 7.19 TiB** — 90 % of the 24 191 229 755 392 B pool is 21 772 106 779 852 B
-  against 13 866 207 019 008 B used — not 258 GB. And the `df` figure is the whole pool, not the
-  `huggingface` subtree that rule actually caps, so it can only bound a budget verdict, never state
-  one. The published board carries neither claim; the defect is confined to that commit body, and the
-  push had already landed, so it is corrected here instead of amended.
+  "58 % used, 258 GB free short of the 90 % budget", and the figure is wrong: the pool read is
+  13 866 207 019 008 B used of 24 191 229 755 392 B (**12.61 TiB of 22.00 TiB**), so 258 GB is not
+  any pool quantity either. But the deeper error is the metric, and `469ea8a`'s own wording repeated
+  it: `STORAGE-POLICY.md` §budget puts the 90 % line on the **HF cache's own bytes**, so neither a
+  headroom figure nor a pass/fail derives from a whole-pool `df` — this tick measured pool `df` and a
+  102-entry hub count, not the cache's byte total, and the cache being a subtree of the pool only makes
+  that pool figure an upper bound on it. The published board carries neither claim, so the defect is
+  confined to that commit body.
