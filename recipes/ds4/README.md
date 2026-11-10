@@ -1543,6 +1543,35 @@ Two open ds4 items; the first is now measured, the second scoped from the tree:
   (layers [1, 14]); packing in background`), so this arm booted on the checkpoint fallback path, a
   real difference from the pin that loads Engram; its pool came out 3,440,896 tokens. TTR 427 s
   (Engram packing in background), no throughput measured — the point was template identity.
+- **The pin moved to `08c8657f…` (commit `363e5d4`), and the move's cost is measured.** The two snapshots
+  differ by exactly one file — the upstream `chat_template.jinja`: every file present in both has the
+  identical size and the 96,085-entry `model.safetensors.index.json` weight map is identical, so the move
+  claims **no weight change**. Validated before moving (receipt
+  `head:~/benchmarks/fit-ds4-rev08c8657f-validate-20261110/`): house battery **easy 19/19, hard 17/18**
+  with the same sole miss as the pin's record (`hard-rev` → `nrukraps`, 37 items, `--max-tokens 4096`,
+  thinking at its served default); needles **1/1 at 32K (C1), 2/2 at 32K (C2), 1/1 at 131K**; the served
+  template is the snapshot's own `95b7033a…`. No ladder cell on the lane's instrument — `llama-benchy` is
+  not installed on the boot host, so the 32K C1/C2 readings are `longctx-cell` decode, not the req/s
+  ladder. **The cost:** 08c8657f ships no Engram shards, so the first boot on it packs **2 × 23.6 GiB per
+  rank** in the background (log `Engram shards missing … packing in background`) and serves from the
+  checkpoint fallback until it lands — measured **≈290 s wall, slowest rank 210 s (115 MiB/s)**; the pack
+  is then cached in `/cache/runtime/engram` and every later boot arms it (`Engram shards present …
+  prefetch ARMED`, measured twice). Every historical receipt predates this pin.
+- **Arm 3's documented control is finally measured — the shipped line, one clean 1M cell (2026-11-10,
+  receipt `head:~/benchmarks/fit-ds4-canary-1m-clean-20261110/`). The shipped recipe
+  `deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml` exactly as it ships, no override: TTR **145 s**, pool
+  `full_token=2,729,984`, floor **8.98-9.91 GiB**, `[moe_b12x_next]` armed, no ÷128 `ValueError`, served
+  snapshot `08c8657f…`/template `95b7033a…`; the identical single-stream 1M cell gives **61.1 ms/step**
+  and **prefill 4,242 tok/s**, needle 1/1. Three-way with pools and floors: replay-off @0.75 = 44.7
+  ms/step (1.24M pool, 6.14 GiB floor), replay-on @0.75 = not runnable (702K pool), replay-on @0.78 (arm
+  3's own line) = 56.2/54.8/55.4 (2.01M pool), **shipped canary = 61.1 (2.73M pool, 8.98 GiB floor)**.
+  instrument and the cell are the same across all four, so decode compares; the **pool/Engram/pin
+  differences are the confounds**, and the pool itself moves ±0.2M between boots (2.52M / 2.61M / 2.73M
+  on tonight's three shipped-line boots). Read: arm 3 is ~8 % faster per step than the shipped line at a
+  *smaller* pool, and the small-pool 0.75 line is 2× faster still but sits 2.8 GiB closer to earlyoom;
+  no single lever is isolated by this set. An earlier canary cell that reported 91.4 ms/step was
+  discarded: the launch wrapper's own post-Ready cell overlapped it and the identical prompts shared a
+  prefix cache (`head:~/benchmarks/fit-ds4-canary-1m-20261110/` carries the correction).
 - **The ladder's missing symbol is a one-line shim, and it is register-worthy.** The adapter's
   `block_verify.py:106` calls `dflash_utils.build_dflash_verify_target_probs`, which the pinned
   engine spells `build_speculative_verify_target_probs`. Cheapest honest fix, with no vendored

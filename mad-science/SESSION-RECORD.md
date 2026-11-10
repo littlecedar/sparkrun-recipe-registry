@@ -8370,3 +8370,44 @@ row's to fix.
 - **Left open.** `ds4-1017-template-refresh-ab` still reads `blocked` while its own boot runs (fifth
   hour); nothing in the register claims the live quartet; and the ERNIE TP=4 row the download is
   staging was not resolved by this read-only tick.
+## 2026-11-10 05:25 ET — pin moved to 08c8657f after validation; arm 3's documented control finally measured; window handed to ERNIE
+
+- **The pin moved (commit `363e5d4`) on template-only evidence plus end-to-end checks, not template
+  evidence alone.** 08c8657f vs 1bae0e10: same 57 files plus the upstream `chat_template.jinja`, identical
+  sizes, identical 96,085-entry weight map — no weight change implied. Validation boot
+  (`sparkrun_b020d2dd178343a5_819f27c403b9`, receipt
+  `head:~/benchmarks/fit-ds4-rev08c8657f-validate-20261110/`): TTR 145 s, pool 2,606,848, Engram packed;
+  house **easy 19/19, hard 17/18** with the same single miss (`hard-rev` → `nrukraps`) as the pin; needle
+  1/1 @32K (C1), 2/2 @32K (C2), 1/1 @131K; served template `95b7033a…`. No ladder cell: `llama-benchy` is
+  not installed on the boot host — the 32K C1/C2 readings are `longctx-cell` decode, labelled a
+  substitute. **Engram cost measured:** the body ships no shards, so the first boot packs 2 × 23.6 GiB per
+  rank in the background (≈290 s wall; slowest rank 210 s at 115 MiB/s) and serves the checkpoint fallback
+  until it lands; the pack is then cached and later boots arm it (verified on two boots).
+- **Arm 3's documented control is no longer the oldest unrun item.** The shipped
+  `deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`, exactly as it ships, no override: TTR 145 s, pool
+  2,729,984, floor 8.98-9.91 GiB, `[moe_b12x_next]` armed, no ÷128 `ValueError`, snapshot 08c8657f and
+  template 95b7033a proved from the boot; the identical single-stream 1M cell is **61.1 ms/step, prefill
+  4,242 tok/s, needle 1/1** (receipt `head:~/benchmarks/fit-ds4-canary-1m-clean-20261110/`). Three-way with
+  pools/floors: replay-off @0.75 44.7 (1.24M, 6.14 GiB); replay-on @0.75 not runnable (702K); arm 3 @0.78
+  56.2/54.8/55.4 (2.01M); shipped canary 61.1 (2.73M, 8.98 GiB). Instrument and cell identical, so decode
+  compares; pool/Engram/pin are named confounds and the pool itself moves ±0.2M between boots. **A first
+  canary cell reporting 91.4 ms/step was discarded**: the launch wrapper runs its own post-Ready 1M cell,
+  so the hand-started cell overlapped it and identical prompts shared a prefix cache (correction written in
+  `fit-ds4-canary-1m-20261110/RECEIPT.md`). Both boots of tonight's wrapper inherited that behaviour —
+  future boots should wait for its `cell done` before starting another cell.
+- **Window state handed over, not closed.** Director unit **stopped** since 08:34:27Z; lock
+  `.local/fleet-window.lock` stays in this session's name
+  (`window=ds4 TP4 research → ERNIE handoff`, ranks `.31`-`.34`, `ctns=0 vols=0` verified after the canary
+  stop, guards/samplers killed, `/tmp/fit-ds4-*` removed). The ERNIE TP=4 session takes it next; this
+  session comes back for the production knapcio boot (shipped line, no override, prove served path +
+  template sha + gate lines, one chat and one image request, leave up, restart the director).
+- **CI red from the pin move, and it is not this session's to fix.** `tests/test_ds4_recipes.py::
+  SglangLaneContract.test_checkpoint_revision_pinned_in_recipe` and `tests/test_cache_audit.py::
+  RecipeScan.test_shipped_pin_is_found_and_names_the_recipe` still assert `1bae0e10…`; the `.35` llama.cpp
+  session is fixing them in its own pathspec commit, so this session touches no test file.
+- **Register mutations:** `ds4-1017-template-refresh-ab` → done (already recorded); NEW
+  `ds4-revision-08c8657f-validated` (done: pin moved, acceptance = house 36/37 same miss + needles + template
+  sha + Engram pack wall recorded, all met); `arm3-control-cell-canary-line` → done (61.1 ms/step /
+  4,242 tok/s / floor 8.98 GiB, three-way confounds named); NEW `boot-wrapper-auto-cell` (queued: the
+  inherited launch wrapper runs its own post-Ready 1M cell, so any hand-started cell races it — measured
+  contamination tonight; fix = wait for `cell done` or gate the wrapper's cell behind a flag).
