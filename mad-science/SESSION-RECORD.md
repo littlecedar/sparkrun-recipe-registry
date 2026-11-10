@@ -8773,3 +8773,11 @@ id, so the pin is unresolved rather than proven wrong.
   a board carrying the previous cycle's census figures under a new title was one `publish` away; the
   fresh-marker/absent-marker assert is what caught it, and that assert belongs in every tick's compose
   rather than in the reader's eye.
+- **The register write has no compare-and-swap, so the hash is the only guard and it is stated
+  here.** `task-queue.py add` recomputes weights and `_save` rewrites the file wholesale (register row
+  `task-queue-write-clobbers-live-claim`), so a peer's `claimed_by` edit landing inside the write
+  window would be replaced silently. Hashed immediately before the `add`: `cd5a86b4…` (146 tasks,
+  0 claims); hashed immediately after: `fd9cab59…` (147 tasks, 0 claims). Diffing the two snapshots
+  taken from those two moments shows **exactly one task added and no row modified**, and 0 claims on
+  both sides, so nothing was displaced this time — which is a collision that did not happen, not a
+  guarantee that it cannot.
