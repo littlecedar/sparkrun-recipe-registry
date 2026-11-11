@@ -10872,3 +10872,43 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   window is one hour. Board discipline holds — the queue row quotes the ledger, not that prose.
 - **CI:** `tools/push-gate.py` printed `ok -- HEAD 24fcf076` on the committed tree before the push;
   the `gate` run for `24fcf07` was `in_progress` at close, so no green is claimed here.
+
+## 2026-11-11 13:11 ET hourly board tick: idle census, and the register stops being worktree-only
+
+- **Board:** published `bd9ad5b` through `publish` on base `eaebb38d…` (title 12:37 ET), with
+  `--expect-sha` and `--expect-remote-sha` both carrying the saved copy's sha256; the tool reported
+  `disk was 2026-11-11 12:37:00 ET`, so no peer board was overwritten. `lint` ok,
+  `tools/push-gate.py` `ok -- HEAD bd9ad5ba`, pushed as `1804ece..bd9ad5b`.
+- **Census (own read, `2026-11-11T18:05:33Z`, all six nodes):** nothing live — `docker ps -aq`
+  **9 / 0 / 0 / 0 / 0 / 0** (`.30`'s nine `Created` leftovers: `pa-k`, `pa-fi`, six
+  creatively-named `lmsysorg/sglang` shells, `fmprobe`, `sm121m`), running **0**, volumes **0**
+  everywhere; `MemAvailable` 116.6–117.3 GiB; `uptime -s` 01:33:31–01:38:00 with `kho=off` 1 and
+  `CmaTotal/CmaFree` 0/0 on all six, so no node rebooted.
+- **Byte pair, and its mechanism stated once:** roots net **-85,176,320 B** against the pool's
+  **+82,837,504 B** over the same window (`df -B1` 17:16:15Z → 18:03:50Z, 13,984,990,756,864 B
+  used, 10,206,238,998,528 B avail, 58 %); the pool cell carries `LIKELY` cache traffic with no
+  writer named, and the census cell keeps no second copy of that inference.
+- **The register is published bytes again.** The snapshot `8ef73753…` (189 tasks: 146 done,
+  34 queued, 9 blocked, 0 claims, **43 open**) equals `HEAD`/`origin/main`'s register, committed
+  as `1804ece` between this tick's first and second snapshot, so the earlier cells' "that edit is
+  worktree-only" caveat is retired rather than carried.
+- **Landed rows folded** for `367e736` (a terminal placement refusal ends the arm `rc=6` without
+  arming watchdog, sampler or guard; the appearance loop accepts only a container id absent before
+  launch), `90eae49` (two rows close; `doc-census --fix` states 1653 tests / 71 modules) and
+  `1804ece` (`model-cache-inspect-for-pool-bodies` closes on three `resolve`/`import` manifests and
+  their `inspect` reading; the Kai pinned revision reads `incomplete`, 36/36 files missing; the Kimi
+  engine row names its merged-fix dependency `#66037`/`4088c283`).
+- **Campaign unchanged, and its refusal re-diagnosed in one probe:** unit `sparkrun-campaign` active
+  since 01:37:57 EST with 0 restarts, `director status` 10 measured / 13 blocked, **0 live leases**;
+  the arm's `cannot reap … (rc=255)` is the stored `needs_reap` marker, not transport — the
+  same-shaped probe from the same head returns container counts on `.30`–`.33` at 18:05Z.
+- **Carried, not fixed (register rows, another session's working text):** four rows
+  (`campaign-ignores-declared-window`, `campaign-leases-tp4-onto-30`,
+  `campaign-does-not-honour-the-.30-exclusion`, `campaign-six-node-claim`) still assert a live Kimi
+  six-rank claim holding `.30`–`.35` until `2026-11-11T18:43:40Z`, while `.local/fleet-leases.json`
+  reads `{"leases":[],"version":1}` (33 B, mtime 11:44:48 ET) and the director lists 0 live leases.
+  The claim's own expiry is 13:43:40 ET, so the falsifier is the file the sentence cites; the fix is
+  a note edit on those four rows, not a board change.
+- **Two concurrent ticks** (this session and pid 2116005, both launched at 13:00) composed in
+  separate `.scratch/tick-1300-<pid>/` directories; this one published first, so the other's write
+  is refused by byte CAS rather than replacing these rows.
