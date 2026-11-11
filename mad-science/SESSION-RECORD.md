@@ -9489,3 +9489,60 @@ per the owner's 2026-11-08 `#67` ruling.
   pool pair and the claim-gap reading.
 - **Leftover, not this tick's:** a 0-byte untracked `python3` at the repo root (mtime 16:29 ET), a
   shell-redirect accident; left in place rather than deleted under another session.
+## 2026-11-10 19:17 ET — 19:00 tick: the quartet that is still loading at the third read, and the lock copies that disagree on its node set
+
+- **Landed:** board `1781bee` ("Board: quartet still loading at third read, and lock copies
+  disagree on the node set"), published through `tools/task-queue.py publish --base
+  .scratch/tick-1901-3435312/base.md --expect-sha 06bdc1b6… --expect-remote-sha 06bdc1b6…`,
+  `rc=0`, `lint` printing `ok: 1 markdown file(s) render`. Base, disk copy and `origin/main`'s
+  board were the same sha at the read, so the composition replaced no peer row. A peer's push
+  (`02b7021`) carried the commit to trunk; gate run for `02b7021` finished **success**.
+- **Census, three captures 00:03:46Z / 00:04:59Z / 00:05:37Z (111 s):** `docker ps -aq` 9 / 1 /
+  1 / 1 / 0 / 1 on every read and `docker ps -q` 0 / 1 / 1 / 1 / 0 / 1, volumes 0 × 6. The hour's
+  only work is **one TP=4 quartet on `.31`/`.32`/`.33`/`.35`**, and it changed attempts between
+  the first two reads: `1a0c703a149c` (`Up 5 minutes (healthy)`) replaced by `ac82b2c6fdda`
+  (`Up About a minute (health: starting)`), same pipeline `b020d2dd178343a5`, same image
+  `3f4480818acb`. `/v1/models` from rank 0 answers **000** on 8000, 8001 and 30000, and the four
+  ranks' `MemAvailable` fell 112 → 33 GiB between reads 2 and 3: a boot still loading, which is
+  the distinction a census row can state and a watchdog, not a row, can rule on.
+- **Pool serving, proved past the mount:** `beegfs-mgmtd`/`-meta`/`-storage` active on `.30`,
+  `findmnt` lists `/mnt/beegfs beegfs default`, `df -B1` used **13,920,845,692,928** B / avail
+  10,270,384,062,464 B / total 24,191,229,755,392 B at 00:04:59Z — **+126,353,408 B** over the
+  1,257 s since the 23:44:02Z read — with `ls …/hub` 102 entries and `stat -L` 3,957 B on the
+  Kolibri config as the read proof. No mover named; that stays the open row
+  `pool-target-probe-beegfs-ctl-absent`'s job.
+- **Campaign:** unit `sparkrun-campaign` inactive, `Result=success`, `ExecMainStatus 0`, stopped
+  17:57:02 ET. `state.json` enumerated rather than read off `status`: **23 arms, 1 lease** — the
+  Kimi pruned75 arm, hosts `.30`–`.33`, `expires_at` 23:02:01Z, expired and unreleased because
+  only a running director calls `expire()`, on a host set that starts inside the memory-risk
+  exclusion.
+- **Register:** snapshot `.scratch/tick-1901-3435312/queue.json`, sha256 `15063e3f…` — 170 tasks,
+  118 done / 36 queued / 16 blocked / 0 running / 0 claims / 0 questions, **52 open**, `check`
+  passing. Both board blocks are `--file <snapshot>` output (`graph --file` and top-level
+  `--file … render --board`), whose own comment reads `%% 16 blocked, 3 edges, 13 prose-gated, 0
+  question-gated, 0 question, 46 rows not drawn (--all)` — and the register had moved since the
+  19:00 board (`1c69a5f5…`), so both were re-derived rather than carried.
+- **The window copies disagree, and that is the finding of this tick.** This clone's
+  `.local/fleet-window.lock` reads `window=MARLIN-STREAMER-085 2026-11-10T23:40:27Z +120m`,
+  nodes `.31`–`.34`; the **head's** reads `window=MALLOC-AB32 2026-11-10T23:57:47Z +150m`, nodes
+  `.31`/`.32`/`.33`/`.35`. The live quartet sits on the head's set and `.34` is empty, so the
+  head's copy is operative and this clone's is a syncthing lag — but the five manual-launch
+  skills read only the clone's file, and a reader who trusted it would plan rank 3 onto an empty
+  node. Five declarations inside the hour: `ERNIE-GSM8K` 21:57:47Z, `MALLOC-CONTROL` 23:14:36Z,
+  `MARLIN-DUMMY-085-SWA` 23:27:36Z, `MARLIN-STREAMER-085` 23:40:27Z, `MALLOC-AB32` 23:57:47Z.
+- **Landed rows folded:** `dc54143` (board queue row onto the register `6a9db67` restored),
+  `b750e5a` (`memory_risky` tri-state plus `exclude_hosts`, with the negative control),
+  `571a3b3` (placeholder hosts in the exclusion examples, after the address-hygiene guard fired)
+  and `e33c6f8` (the `## In flight` heading a composition dropped, which `lint` cannot see). The
+  fold stopped there: `9aae82b`, `3620460` and `02b7021` landed after the coverage check, so the
+  board's landed table is three commits behind trunk by design and the next tick folds them.
+- **A defect this tick did not touch:** `## Landed session` now carries **625 rows** and the
+  board is **356 KB**, so every tick reads that before it can write one census row. Retiring the
+  table needs each row's fact homed here first, which is a separate, careful pass — writing it
+  into a board cycle would risk exactly the loss the ledger exists to prevent.
+- **This entry landed by a tree-built commit, not by naming the path.** The worktree copy of this
+  file carried a peer's unstaged **+42 / −157** — in-flight retirement work — so
+  `git commit -- mad-science/SESSION-RECORD.md` would have published a 157-line deletion under
+  this tick's subject, the class `9aae82b` had to restore at 19:08. Instead: HEAD's blob, this
+  entry appended, `hash-object` → `read-tree`/`update-index` on a throwaway `GIT_INDEX_FILE` →
+  `write-tree` → `commit-tree`. The peer's worktree bytes were left exactly as found.
