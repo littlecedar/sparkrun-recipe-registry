@@ -10551,3 +10551,61 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
 - **Not done:** no landed row added (nothing landed between `6926d51` and this commit), no suite or
   `validate --strict` re-run (no tracked recipe, mod or tool changed), and no register row touched —
   the tick is read-only on the register.
+
+## 2026-11-11 09:08 ET hourly board tick: idle fleet, and a probe that counted itself
+
+- **Board published on this tick's own census.** `publish` reported `disk was 2026-11-11 08:01:53 ET`,
+  was given the composed copy's sha256 and `origin/main`'s board sha256, so a peer publish inside the
+  window would have been refused rather than overwritten; `lint` ok. One whole-fleet sweep
+  `2026-11-11T14:01:38Z`–`14:02:0xZ`, workstation-direct plus a direct `.30` hop because the head's
+  own `.30` name entry still fails.
+- **Fleet idle and nothing measured.** `.31`–`.35` read 0 containers, 0 running, 0 volumes; `.30`
+  reads 0 running its nine never-started `Created` leftovers unchanged; no serve process on any node.
+  Root avail fell on all six (`-43,028,480 B` total), pool's mount `used` rose **+40,894,464 B** over
+  the same interval with the roots' own used sum rising `+43,028,480 B`, so the write is
+  fleet-spread — **LIKELY** the shared chunk store, no process named.
+- **Instrument finding: `pgrep -f sglang.launch_server` reads 2 on an idle node because it matches the
+  ssh command line that carries the probe script.** The discriminator is
+  `ps -eo args | grep -c '^/usr/bin/python.*sglang.launch_server'`, which reads 0 on all six. Any
+  future fleet-idle claim must use the anchored form; a bare `pgrep -f` self-matches and would read as
+  a live serve.
+- **Pool served, sixth interval.** 97 `models--*` plus 1 `datasets--*` (**102** entries, the same total
+  the previous board counted — the earlier "102 hub entries" figure counted all entries, not models
+  only, so nothing was deleted); `hf cache ls` reports **90 repo(s), 129 revision(s), 7.7 T on disk**,
+  i.e. 7 `models--*` dirs hf does not register, matching register row
+  `hf-cache-20261110-cache-consistency-defects`; `stat -L` on a shipped weight file
+  (`model-00007-of-00008.safetensors`, Ornith-1.5-122B-NVFP4) reports **10,002,042,136 B**. Units on
+  `.30` all `active`, `Result=success`, `NRestarts` 0. `.31`–`.35` keep the `activating`/`inactive`/
+  `active` shape with `beegfs-meta` `NRestarts` **5143 / 5145 / 5144 / 5156 / 5195** — some 750 more
+  than the previous board's read inside one hour, the 5 s loop.
+- **OOM policy re-read live on all six:** `OOMScoreAdjust` **-1000** on `beegfs-meta`,
+  `beegfs-mgmtd` and `beegfs-storage`, each unit's property and `/proc/<MainPID>/oom_score_adj`
+  agreeing, drop-in mtime `2026-11-08 16:03:58` on `.30`. No reboot (`uptime -s` 01:33:31–01:38:00),
+  and `kho=off` 1, `CmaTotal/CmaFree` 0/0, `nr_free_cma` 0 on all six.
+- **Campaign: unchanged hour, one premise falsified.** Unit `active (running)`, MainPID 2482,
+  `NRestarts` 0, since 01:37:57 EST; `director status` 10 measured / 13 blocked across 23 arms;
+  0 lease records across all nine campaign roots and `director lease --list` 0 live. The stored
+  `cannot list containers on .31 (rc=255)` still does **not** reproduce: all six addresses answer
+  `rc=0` from the head. **The nesting half of that board clause was wrong** and is corrected on the
+  board: `~/benchmarks/h2h-20261107/tp12-window` is a **symlink to `.`** (created 2026-11-07
+  23:06:09), so the "40 byte-identical copies" are one file behind a self-link — a recursive
+  `**/state.json` glob returns 41 matches whose `realpath` set has size **1**, and the root holds
+  exactly three type-`f` entries (`state.json` 61,728 B, `state.json.lock` 0 B,
+  `state.json.bak-pre-nohost30-20261109` 51,259 B). Register row `campaign-state-copy-re-nests` stays
+  `queued` on a premise its own measurement no longer supports; the register was not edited.
+- **`.30` name fault, with the discriminator the previous entry lacked.** The pin is genuine key
+  mismatch, now stated as fingerprints on both sides: `known_hosts:117` fingerprints
+  **`SHA256:YT7DxbMuiqEtnnYJ05MFaGwvjfTml3ffhsiOfVM+9RY`**, the node serves
+  **`SHA256:yY06tGdRd6CnqORX9aWzmHWBVlZj38kdYcC6jV+ObeA`**; the FQDN form matches nothing and the
+  address form answers `rc=0`. The earlier entries' `…gaRod` / `…AJgeR7…` fragments were sliced from
+  `ssh-keygen -F` output and are not comparable values — `…gaRod` is in fact the base64 tail of the
+  pinned key blob, not a fingerprint. `ssh-keygen -R` plus a re-pin from the address is still the fix.
+- **Register unchanged, so the queue table is the previous cycle's bytes.** `mad-science/queue.json`
+  sha256 `15944dab…` at snapshot and re-checked after rendering; `check` rc=0: 184 tasks, 139 done /
+  36 queued / 9 blocked / 0 running / 0 claims, 45 open. Graph line: `9 blocked, 2 edges, 8
+  prose-gated, 0 question-gated, 0 question, 41 rows not drawn`, tool stderr empty, so no
+  `blocked_by`/`blocks` disagreement to report.
+- **Not done:** no suite or `validate --strict` re-run (no tracked recipe, mod or tool changed), no
+  register row touched, and nothing booted, stopped or claimed. The board's one new landed row is this
+  tick's correction.
+
