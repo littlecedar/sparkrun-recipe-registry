@@ -9907,3 +9907,27 @@ only where it was folded.
 - **Still open from this tick**: the expired `h2h` lease object, the orphan `mem-guard.sh`, the RoCE GID
   hole as the lane's gating blocker, and `campaign-leases-tp4-onto-30` (the campaign's host order still
   starts at `.30`).
+
+## 2026-11-11 01:20 ET — addendum: the RoCE GID hole is one plane's table, and the register re-rendered
+
+A read-only probe of `/sys/class/infiniband/` on `.31` and `.35` refines the 01:10 entry's fleet fact
+without contradicting it. Four RDMA devices exist, one pair per plane, and only one pair carries the hole:
+
+- `rocep1s0f0` / `rocep1s0f1` map to `enp1s0f0np0` (Up, 192.168.0.x) and `enp1s0f1np1` (Down). GID index 3
+  on `rocep1s0f0` is **empty**; the IPv4-mapped RoCE v2 entry sits at index **4**, with the v1 mapping at
+  index 2.
+- `roceP2p1s0f0` / `roceP2p1s0f1` map to `enP2p1s0f0np0` (Up, 192.168.1.x) and `enP2p1s0f1np1` (Down), and
+  there index 3 **is** populated with the IPv4-mapped v2 entry (index 4 empty).
+
+So the failure the lane's three canary boots hit is GID/device selection on one plane, not an unpopulated
+fabric: `show_gids` prints a complete table on both Up ports, and the recipes set neither
+`NCCL_IB_GID_INDEX` nor `NCCL_IB_HCA`, so NCCL's default index 3 lands on the one empty entry
+(LIKELY, from the two tables plus the launch's own failure line). The lane stays blocked; the fix direction
+is a GID index or `NCCL_IB_HCA` pin, not fabric repair.
+
+Board: published 01:20 ET over base `2484a35e…` (the peer's 01:17 board). Every In-flight cell except
+`queue`, `boot` and `publication`, and every landed row, was kept verbatim; `queue` re-rendered from
+register `3be5701c…` (the blob `459cf70` committed, one blob across worktree, HEAD and `origin/main`), the
+`boot` cell gained the two-device discrimination and lost a stale "uncommitted register" phrase its own
+`queue` cell already contradicted, and one landed row records the probe. Lint printed
+`ok: 1 markdown file(s) render`.
