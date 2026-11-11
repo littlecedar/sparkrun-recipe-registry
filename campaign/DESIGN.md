@@ -185,7 +185,9 @@ ruling is about multi-machine boots — but they still do not land on a leased r
 `.local/fleet-window.lock` is still read, as a blanket hold for every declared host, because a
 session that wrote one has not moved to a lease yet; the lease command refuses while one exists,
 and the director never writes it. A worker's beat renews the record, a report releases it, and an
-expired record holds nothing, so a lost director stops holding the fleet after one TTL.
+expired record holds nothing, so a lost director stops holding the fleet after one TTL. Ledger
+ranks match a declared host exactly (the `.30` tail is placement's shorthand, not the ledger's),
+so a manual session leases the spelling `--hosts` uses.
 
 **Draining.** Manifest mode is unchanged: drained means exit 0 and stay down. A queue campaign
 defaults to **polling** instead — every `QUEUE_POLL` (30 s) a drained plan re-reads the register,
