@@ -938,6 +938,86 @@ def status_campaign(root: Path) -> int:
     return 0
 
 
+def _excluded(args: argparse.Namespace) -> tuple[str, ...]:
+    """The run's excluded-host set: `--exclude-host`, else `$CAMPAIGN_EXCLUDE_HOSTS`, else default.
+
+    A hostname-declared set names the head in the untracked EnvironmentFile, because a tracked
+    default may not carry its hostname.
+    """
+    flag = args.exclude_host
+    if flag is None:
+        from_env = os.environ.get("CAMPAIGN_EXCLUDE_HOSTS", "")
+        flag = [from_env] if from_env.strip() else None
+    return (plan.MEMORY_RISKY_EXCLUDED_HOSTS if flag is None else
+            tuple(host.strip() for value in flag
+                  for host in value.split(",") if host.strip()))
+
+
+def plan_command(args: argparse.Namespace) -> int:
+    """Plan-only: skip source, receipt predicate, placement and head proof for a manifest.
+
+    Writes nothing at all -- no `state.json`, no ledger record, no lease -- which is what makes it
+    safe against a live tree and live hosts. It prints the arm, the host order placement chose and
+    the proof lines for any waived rank; a refusal exits 3, because that is what `serve` would
+    refuse (the arm would be blocked, not placed elsewhere).
+    """
+    hosts = [host.strip() for host in args.hosts.split(",") if host.strip()]
+    if not hosts or len(set(hosts)) != len(hosts):
+        print(f"cannot plan: bad --hosts {hosts!r}", file=sys.stderr)
+        return 2
+    repo_root = Path(args.repo_root)
+    excluded = _excluded(args)
+    entries = plan.load_manifest(args.manifest)
+    verdicts = evidence.skips(repo_root)
+    problems = evidence.citation_problems(verdicts, repo_root)
+    for problem in problems:
+        print(f"stale-citation: {problem}")
+    if problems:
+        print("cannot plan: the skip source cites a document that no longer resolves",
+              file=sys.stderr)
+        return 2
+    measured = evidence.measured(Path(args.receipts_root).expanduser())
+    order, lines = plan.build(entries, verdicts, measured, repo_root)
+    for line in lines:
+        print(line)
+    arms: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        arm = entry["arm"]
+        arms[arm] = {
+            "tp": int(entry["tp"]),
+            "pp": int(entry.get("pp") or 1),
+            "nodes": int(entry.get("nodes") or entry["tp"]),
+            "status": (SKIPPED if arm in verdicts else MEASURED if arm in measured else PENDING),
+            "failures": 0,
+            "needs_reap": [],
+            "memory_risky": bool(entry.get("memory_risky")),
+            "exclude_hosts": list(entry.get("exclude_hosts") or ()),
+            "allow_hosts": list(entry.get("allow_hosts") or ()),
+            "window": str(entry.get("window") or ""),
+        }
+    choice = plan.next_assignment(order, arms, hosts, 0, excluded)
+    if choice is None:
+        print("plan: no pending arm fits the declared hosts")
+        return 3
+    arm, chosen = choice
+    record = arms[arm]
+    print(f"plan: {arm} -> {','.join(chosen)} (tp={record['tp']} pp={record['pp']} "
+          f"ranks={record['nodes']} window={record['window'] or '-'})")
+    barred = [host for host in chosen if plan.barred(host, excluded)]
+    for host in barred:
+        try:
+            proof = guardrails.prove(host, window=record["window"])
+        except plan.PlanError as exc:
+            print(f"lease-refused: {host} ({exc})")
+            print("plan: no state, lease or ledger written")
+            return 3
+        for line in proof:
+            print(f"lease-proof: {host} {line}")
+    print(f"plan: excluded host(s) used: {','.join(barred) or 'none'}")
+    print("plan: no state, lease or ledger written")
+    return 0
+
+
 def lease_command(args: argparse.Namespace) -> int:
     """The manual session's entry point: write, list or release a fleet lease.
 
@@ -1014,6 +1094,18 @@ def main(argv: list[str] | None = None) -> int:
     status = commands.add_parser("status",
                                  help="print a campaign's per-arm state without taking the lock")
     status.add_argument("--root", required=True, help="campaign directory holding state.json")
+    planp = commands.add_parser(
+        "plan", help="plan-only: placement and head proof for a manifest; writes nothing")
+    planp.add_argument("--manifest", required=True, help="campaign manifest (JSON list of arms)")
+    planp.add_argument("--hosts", required=True, help="comma-separated hosts the campaign may use")
+    planp.add_argument("--exclude-host", action="append", metavar="HOST",
+                       help="host a memory-risky shape may not take (repeatable, comma-separated; "
+                            "default: $CAMPAIGN_EXCLUDE_HOSTS, else "
+                            f"{','.join(plan.MEMORY_RISKY_EXCLUDED_HOSTS)})")
+    planp.add_argument("--repo-root", default=fleet.default_repo_root(),
+                       help="registry checkout: recipe paths and the skip source resolve here")
+    planp.add_argument("--receipts-root", default=os.path.expanduser("~/benchmarks"),
+                       help="where the per-arm executor writes its tp12-* windows")
     claim = commands.add_parser(
         "lease", help="write, list or release a fleet lease (a manual session's claim)")
     claim.add_argument("--hosts", help="comma-separated ranks this lease claims")
@@ -1029,6 +1121,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "status":
         return status_campaign(Path(args.root).expanduser())
+    if args.command == "plan":
+        try:
+            return plan_command(args)
+        except (plan.PlanError, StateError) as exc:
+            print(f"cannot plan: {exc}", file=sys.stderr)
+            return 2
     if args.command == "lease":
         return lease_command(args)
 
@@ -1039,15 +1137,7 @@ def main(argv: list[str] | None = None) -> int:
     if len(set(hosts)) != len(hosts):
         print(f"cannot start: duplicate hosts in {hosts!r}", file=sys.stderr)
         return 2
-    excluded_flag = args.exclude_host
-    if excluded_flag is None:
-        # The head's hostname may not ride in tracked code (address hygiene), so a hostname-declared
-        # set names it in the untracked EnvironmentFile this unit already sources.
-        from_env = os.environ.get("CAMPAIGN_EXCLUDE_HOSTS", "")
-        excluded_flag = [from_env] if from_env.strip() else None
-    excluded = (plan.MEMORY_RISKY_EXCLUDED_HOSTS if excluded_flag is None else
-                tuple(host.strip() for value in excluded_flag
-                      for host in value.split(",") if host.strip()))
+    excluded = _excluded(args)
     if args.once and args.queue is None:
         print("cannot start: --once is a queue-mode flag; a manifest campaign drains and exits",
               file=sys.stderr)

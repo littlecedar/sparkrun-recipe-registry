@@ -11,12 +11,14 @@ fake, and the head's guardrail probe is injected, so no test can ssh or boot.
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from sparkrun_campaign import director as director_module
 from sparkrun_campaign import guardrails, leases, plan, protocol, state
@@ -402,6 +404,7 @@ class SixNodeShape(DirectorCase):
         self.assertEqual(sorted(lease["hosts"]), sorted(self.HOSTS))
         self.assertEqual((lease["tp"], lease["pp"], lease["nodes"]), (2, 3, 6))
         self.assertEqual(len(lease["hosts"]), 6)
+        self.assertEqual(len(self.ledger.leases()), 1, "six ranks are one claim, not six")
         self.assertEqual(self.ledger.leases()[0]["hosts"], list(lease["hosts"]))
 
     def test_any_held_rank_refuses_the_six_node_lease(self) -> None:
@@ -415,6 +418,76 @@ class SixNodeShape(DirectorCase):
         leader, _ = self.build([self.arm("six", tp=2, pp=3)], hosts=self.HOSTS[:5])
         self.assertEqual(leader.handle(protocol.poll("w1"))["op"], "idle")
         self.assertNotIn("assign:", self.out.getvalue())
+
+
+class PlanOnly(unittest.TestCase):
+    """`director plan`: the placement and head proof without a state file, lease or ledger."""
+
+    HOSTS = ("node.30", "node.31", "node.32", "node.33", "node.34", "node.35")
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.repo = self.tmp / "repo"
+        for arm in ("six", "quartet"):
+            recipe(self.repo, "lane", arm)
+
+    def run_plan(self, entries: list[dict], prove) -> tuple[int, str]:
+        path = write(self.tmp / "manifest.json", json.dumps(entries))
+        out = io.StringIO()
+        with mock.patch.object(director_module.guardrails, "prove", prove), \
+                contextlib.redirect_stdout(out):
+            code = director_module.main([
+                "plan", "--manifest", str(path), "--hosts", ",".join(self.HOSTS),
+                "--exclude-host", ".30", "--repo-root", str(self.repo),
+                "--receipts-root", str(self.tmp / "receipts"),
+            ])
+        return code, out.getvalue()
+
+    def test_a_six_rank_waiver_prints_six_hosts_with_the_head_last_and_its_proof(self) -> None:
+        entries = [{"arm": "six", "path": "recipes/lane/six.yaml", "tp": 2, "pp": 3,
+                    "memory_risky": True, "allow_hosts": ["node.30"],
+                    "window": "fresh-window"}]
+        code, text = self.run_plan(
+            entries, lambda host, window="": [f"sampler: 1 bash /w/{window}/mem-guard.sh tid"])
+        self.assertEqual(code, 0)
+        self.assertIn("plan: six -> node.31,node.32,node.33,node.34,node.35,node.30 "
+                      "(tp=2 pp=3 ranks=6 window=fresh-window)", text)
+        self.assertIn("lease-proof: node.30 sampler: 1 bash /w/fresh-window/mem-guard.sh tid", text)
+        self.assertIn("plan: excluded host(s) used: node.30", text)
+        self.assertFalse((self.tmp / "state.json").exists())
+        self.assertFalse((self.repo / ".local").exists())
+
+    def test_a_missing_sampler_refuses_naming_the_host_and_window(self) -> None:
+        entries = [{"arm": "six", "path": "recipes/lane/six.yaml", "tp": 2, "pp": 3,
+                    "memory_risky": True, "allow_hosts": ["node.30"],
+                    "window": "fresh-window"}]
+
+        def refuse(host: str, window: str = "") -> list[str]:
+            raise plan.PlanError(f"{host}: host memory sampler for window {window!r} is not armed")
+
+        code, text = self.run_plan(entries, refuse)
+        self.assertEqual(code, 3)
+        self.assertIn("lease-refused: node.30 (node.30: host memory sampler for window "
+                      "'fresh-window' is not armed", text)
+        self.assertIn("plan: no state, lease or ledger written", text)
+
+    def test_a_quartet_without_the_waiver_never_touches_the_head(self) -> None:
+        entries = [{"arm": "quartet", "path": "recipes/lane/quartet.yaml", "tp": 2, "pp": 2,
+                    "memory_risky": True}]
+        calls: list[str] = []
+
+        def proof(host: str, window: str = "") -> list[str]:
+            calls.append(host)
+            return []
+
+        code, text = self.run_plan(entries, proof)
+        self.assertEqual(code, 0)
+        self.assertIn("plan: quartet -> node.31,node.32,node.33,node.34 "
+                      "(tp=2 pp=2 ranks=4 window=-)", text)
+        self.assertIn("plan: excluded host(s) used: none", text)
+        self.assertEqual(calls, [], "a safe placement proves nothing: it touches no head")
+        self.assertFalse((self.tmp / "state.json").exists())
 
 
 if __name__ == "__main__":

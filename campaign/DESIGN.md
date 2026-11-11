@@ -118,7 +118,13 @@ is therefore per boot: reusing a finished window's name would count its stale gu
 probe refuses with `PlanError` naming the host and the
 check, and the arm is blocked: it is never placed silently and never retried onto another host.
 Absent a declaration the exclusion is unchanged — `.30` is never chosen for a risky shape, and a
-risky shape short on safe ranks waits.
+risky shape short on safe ranks waits. **Nothing in this package arms the sampler**: the window's
+runner starts `mem-guard.sh <task-id>` with `TP4_DIR=~/benchmarks/<window>` and `TP4_RANKS` exported,
+which is why the gate reads the window name out of the running guard's path. The script stops only
+the TID in its own argv, so a guard for an unborn boot cannot exist before the launch; the pre-lease
+proof is therefore satisfied by a guard already running in the same window (measured 2026-11-11:
+`.30`'s live guard ran from `tp4-20261110b/mem-guard.sh`), and a fresh window refuses until its own
+sampler is running.
 
 **A manifest arm may declare `pp`.** Its rank count is `tp * pp`, so TP=2 × PP=3 is one six-rank
 lease: the record carries `tp`=2, `pp`=3, `nodes`=6 and all six hosts, and `next_assignment` refuses
@@ -490,7 +496,9 @@ waivable only with a named window plus the guardrail proof and otherwise refuses
 and check, and TP=2 × PP=3 leases six named ranks and refuses when one is held. The guardrail
 fixtures are the 2026-11-11 read-only capture from the head and one rank (the `--dryrun` lines, the
 eleven stale `tp4-20261110b` guards, and `.33`'s own probe shell), so a parser regression fails on
-the real output rather than on an invented one.
+the real output rather than on an invented one; `plan` is pinned to print a six-rank placement with
+the head last, refuse a missing sampler, place a quartet without touching the head, and write no
+state or ledger.
 
 Counting the root suite from a committed tree needs **the repository's own interpreter**: archive the
 tree, then count it with that clone's `.venv/bin/python -B -c
@@ -587,6 +595,20 @@ cd <checkout>/campaign
 uv run --frozen python -m sparkrun_campaign.director serve --dry-run \
   --manifest "$CAMPAIGN_MANIFEST" --hosts "$CAMPAIGN_HOSTS" --root "$CAMPAIGN_ROOT"
 ```
+
+Plan-only, against the live tree and hosts: it writes nothing at all — no `state.json`, no lease,
+no ledger — so it is safe while another session runs, and it prints the same decisions `serve`
+would take:
+
+```bash
+cd <checkout>/campaign
+uv run --frozen python -m sparkrun_campaign.director plan --manifest "$CAMPAIGN_MANIFEST" \
+  --hosts "$CAMPAIGN_HOSTS" --exclude-host .30
+```
+
+It prints the chosen arm, the host order (excluded hosts last), and the proof lines for a waived
+rank; exit 3 means placement or that proof refused, which is what `serve` would refuse (the arm is
+blocked, never placed elsewhere).
 
 Verification:
 
