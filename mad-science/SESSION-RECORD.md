@@ -10277,3 +10277,42 @@ Tick scope: read-only census, pool and claim reads, board publish; no boot, no s
   never-started `Created` containers and `.34`'s emptiness are as found. Census captures, the register
   snapshot and the four compose attempts stay in `.scratch/tick-0300-790725/` (git-ignored, not
   synced) as the evidence behind the numbers above.
+
+## 2026-11-11 04:11 ET board tick: the lease ledger is live and the clone's copy is stale
+
+- **Published `# Board — generated 2026-11-11 04:11 ET`** on base `cff497f3…` (`115d21f`, the
+  03:25 board blob), re-fetched before publish and guarded by both `--expect-sha` and
+  `--expect-remote-sha`. `publish` refused the first attempt over a raw cluster address in the
+  campaign cell (`cluster-address: <rank-1 management address>`); masked to the rank shorthand and
+  it landed.
+- **The served set turned over inside the hour, and the tool named it.** `sparkrun status` from the
+  head reads `recipes/explore/zz-ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang.yaml` (tp=4) as
+  task `e59088ba4d0f3858_3b07fe04d353`, four containers, launched `09:02:51Z`; the arm-3 control
+  (`1c0dffa45afa6e47_139d98e83d62`) is on none of the six ranks. `/v1/models` 000 at `09:04:47Z`
+  (t≈116 s) and every rank 116.7–117.6 GiB free at t≈16 s: **loading, unproven** — this arm's own
+  previous receipt took 916 s, so nothing here is a state claim.
+- **A lease exists for the first time, and only the head carries it.** Head
+  `.local/fleet-leases.json` at `09:03:48Z` (`c1003d36…`) holds one lease,
+  `session:tp4-20261111:ernie-window-control-receipt:1794387828`, on the four ranks, window
+  `boot-b`, to `06:02:43 ET`. This clone's copy is **26 minutes stale** and still carries the
+  earlier `kimi-param-floor-dummy-load` `boot-a` lease to `10:34:18Z`, so a workstation-side reader
+  would report a lease that has already been replaced. Read the head; `.local/` sync lag is now a
+  known trap for this cell.
+- **The pool pair reproduces, the cross-cycle level does not.** This tick: mount used
+  13 980 954 263 552 B against the six roots' own sum 13 980 954 009 600 B, **253 952 B apart**,
+  identical mount read on all six hosts, 102 hub entries, Kromoss `README.md` 7685 B through the
+  mount. The previous cycle's pair was 52.70 GB lower on both sides, yet its published per-node
+  avail figures imply only ~57 MB of net root consumption since. A chunk-store write consumes the
+  same bytes of a fixed-size ext4's avail, so the two cycles' figures cannot both be right as
+  labelled; the missing basis is a **per-node `used` series**, which is what the next pool cell
+  should carry instead of a mechanism story. No growth rate is quoted from the pair.
+- **Register moved before this tick and is quiet during it:** `7732cc17…`, 180 tasks, 48 open
+  (132 done / 36 queued / 10 blocked / 2 running), both claims `session:tp4-20261111` at
+  `08:30:37Z` — `kimi-param-floor-dummy-load` and `ernie-window-control-receipt`. `check` rc=0 from
+  the head and locally; the four arm-5 rows closed at `03:29` and `ds4-arm5-verify-route-batch-cap`
+  is the authoring row that took their place.
+- **Nothing on the fleet was touched.** Read-only throughout: one six-node census at
+  `09:03:06Z`–`09:03:08Z`, head probes at `09:03`–`09:07Z`, no boot, claim, lock, stop or lease.
+  `.30`'s nine never-started `Created` containers and `.34`'s emptiness are found, not created.
+  Captures, the register snapshot and the composed board stay in `.scratch/tick-0400-77k2/`
+  (git-ignored, not synced) as the evidence behind every figure above.
