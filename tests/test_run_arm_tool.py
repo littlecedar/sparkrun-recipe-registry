@@ -2751,5 +2751,126 @@ class WindowGuard(unittest.TestCase):
                       "a benchmark cell can run under a window whose guard is gone")
 
 
+class PlacementRefusalAndContainerBinding(unittest.TestCase):
+    """A refusal is terminal, and the captured container is this launch's own.
+
+    Measured 2026-11-11: `sparkrun run` refused placement (`only placed 0 of 4
+    ranks`, `GPU has an existing allocation` on every host) against a peer's Kimi
+    boot, and the driver went on to arm a watchdog and a mem-guard against that
+    peer's `sparkrun_*_node_0` container. A stub `sparkrun`/`ssh`/`docker` runs
+    the real launch+appearance slice, so the control flow is what is asserted.
+    """
+
+    START = "launch_arm() {"
+    END = 'echo "arm=$NAME container=$N task=$TID port=$PORT"'
+
+    SSH = """#!/bin/sh
+last=
+for a in "$@"; do last=$a; done
+case "$last" in
+  *"bash -s --"*) cat >/dev/null; exit 0 ;;
+esac
+exec /bin/sh -c "$last"
+"""
+    DOCKER = """#!/bin/sh
+cat "$PS_FIXTURE"
+[ -e "$LAUNCH_FLAG" ] && printf '%s\\n' "cccc2222dddd sparkrun_task_own_solo"
+"""
+    HOSTNAME = "#!/bin/sh\nexit 1\n"
+    SLEEP = "#!/bin/sh\n:\n"
+    SPARKRUN_REFUSE = """#!/bin/sh
+printf '%s\\n' \
+  'Error: cluster has insufficient free capacity for 4 node(s): Cluster cannot satisfy 4 ranks: only placed 0 of 4 ranks across 4 host(s)' \
+  'node-b / GPU 0: GPU has an existing allocation; exclusive ownership prevents sharing [occupied]' \
+  > "$LAUNCH_LOG"
+exit 1
+"""
+    SPARKRUN_LAUNCH = """#!/bin/sh
+: > "$LAUNCH_FLAG"
+exit 0
+"""
+
+    def launch_slice(self) -> str:
+        text = read_tool()
+        start = text.index(self.START)
+        end = text.index(self.END, start) + len(self.END)
+        return text[start:end]
+
+    def run_slice(self, mode: str) -> tuple[int, str, dict[str, str]]:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            bins = tmp / "bin"
+            bins.mkdir()
+            receipt = tmp / "receipt"
+            receipt.mkdir()
+            ps = tmp / "ps.txt"
+            ps.write_text("aaaa1111bbbb sparkrun_foreign_task_solo\n")
+            flag = tmp / "launched"
+            launch_log = receipt / "launch.log"
+            stubs = {
+                "ssh": self.SSH,
+                "docker": self.DOCKER,
+                "hostname": self.HOSTNAME,
+                "sleep": self.SLEEP,
+                "sparkrun": self.SPARKRUN_REFUSE if mode == "refuse" else self.SPARKRUN_LAUNCH,
+            }
+            for name, body in stubs.items():
+                path = bins / name
+                path.write_text(body)
+                path.chmod(0o755)
+            script = tmp / "slice.sh"
+            script.write_text(
+                "#!/usr/bin/env bash\n"
+                "set -uo pipefail\n"
+                f"L={receipt}\nNODE=node-a\nHOSTS=node-a\nNAME=stub\nPORT=8000\n"
+                "RECIPE=r.yaml\nARM_OPTS_ARR=()\n"
+                + self.launch_slice()
+                + "\n"
+            )
+            env = {
+                **os.environ,
+                "PATH": f"{bins}:{os.environ['PATH']}",
+                "PS_FIXTURE": str(ps),
+                "LAUNCH_FLAG": str(flag),
+                "LAUNCH_LOG": str(launch_log),
+                "ARM_CONTAINER_APPEAR_TIMEOUT": "5",
+                "ARM_APPEAR_POLL": "0.01",
+            }
+            out = subprocess.run(
+                ["bash", str(script)], capture_output=True, text=True, check=False,
+                env=env, timeout=60,
+            )
+            files = {
+                path.name: path.read_text(errors="replace")
+                for path in sorted(receipt.iterdir())
+            }
+            return out.returncode, out.stdout + out.stderr, files
+
+    def test_a_placement_refusal_is_terminal_and_arms_nothing(self) -> None:
+        rc, out, files = self.run_slice("refuse")
+        self.assertEqual(rc, 6, out)
+        self.assertIn("sparkrun refused placement", out)
+        self.assertIn("Nothing armed", out)
+        self.assertIn("only placed 0 of 4 ranks", files.get("placement-refusal.txt", ""))
+        for armed in ("watchdog.pid", "mem-guard.pid", "watchdog.log", "mem-guard.out"):
+            self.assertNotIn(armed, files, f"{armed} was armed for a launch that never ran")
+        self.assertNotIn("container=", out, "a refusal resolved a container it never created")
+
+    def test_a_launch_binds_to_its_own_container_and_ignores_a_preexisting_one(self) -> None:
+        rc, out, _ = self.run_slice("launch")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("container=sparkrun_task_own_solo", out)
+        self.assertNotIn("container=sparkrun_foreign_task_solo", out)
+        self.assertIn("task=task", out)
+
+    def test_the_refusal_exits_before_any_instrument_is_armed(self) -> None:
+        text = read_tool()
+        refusal = text.index("placement-refusal.txt")
+        self.assertLess(refusal, text.index("python3 tools/boot-watchdog.py"),
+                        "an instrument is armed on the path a refusal must leave")
+        self.assertLess(refusal, text.index("guard-arm: start"),
+                        "the window guard is armed on the path a refusal must leave")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -436,6 +436,19 @@ launch_arm() {
   sparkrun run "$RECIPE" -H "$HOSTS" --cluster WOPR "${ARM_OPTS_ARR[@]}" > "$L/launch.log" 2>&1 &
   LAUNCH=$!
 }
+# Bind container resolution to the container THIS launch creates. The appearance loop used to take
+# the first `_solo|_node_0` container on the node, so a launch that never created one bound to a
+# foreign workload: measured 2026-11-11, a placement-refused arm-5 launch armed a watchdog and a
+# mem-guard against a peer's Kimi container and recorded `verdict=loading` for it. Snapshot the
+# node's container ids first and accept only an id that was not there. The snapshot cannot use
+# `on_node` (defined after the launch), so it spells the two cases itself.
+if hostname -I 2>/dev/null | tr ' ' '\n' | grep -qx "$NODE"; then
+  PRE_CONTAINERS=$(docker ps --format '{{.ID}} {{.Names}}' 2>/dev/null || true)
+else
+  PRE_CONTAINERS=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" \
+    "docker ps --format '{{.ID}} {{.Names}}'" 2>/dev/null || true)
+fi
+PRE_IDS=$(printf '%s\n' "$PRE_CONTAINERS" | awk 'NF {print $1}' | tr '\n' ' ')
 # The effective overrides verbatim: `-o ...` is a CLI argument, not container env, so
 # `docker inspect` cannot recover it and the receipt would not say which knob produced its
 # numbers (2026-11-08: a marlin `--moe-runner-backend` trial left no such record). `(none)` when
@@ -593,13 +606,34 @@ appear_start=$SECONDS
 while :; do
   # Both container shapes: `_solo` for TP=1, `_node_<rank>` for a multi-rank launch. Matching only
   # `_solo` made every TP=2 launch print ARM FAIL 301 s in while its containers booted happily
-  # underneath (measured 2026-10-30, first pair run) -- same class as the boot-watchdog `_solo` fix,
-  # opposite direction.
-  N=$(on_node "docker ps --format '{{.Names}}' | grep -m1 -E '_solo|_node_0'" 2>/dev/null | tr -d '\r' || true)
+  # underneath (measured 2026-10-30, first pair run). Only an id that was NOT on the node before
+  # this launch counts: a peer's container may satisfy the name pattern on a shared node.
+  N=$(on_node "docker ps --format '{{.ID}} {{.Names}}'" 2>/dev/null \
+      | awk -v pre=" ${PRE_IDS:-} " '
+          { name = (NF >= 2 ? $2 : $1); id = (NF >= 2 ? $1 : "") }
+          name ~ /_(solo|node_0)$/ && (id == "" || index(pre, " " id " ") == 0) {
+            print name; exit }' \
+      | tr -d '\r' || true)
   [ -n "$N" ] && break
   waited=$((SECONDS - appear_start))
-  # A refused launch (a stale resource claim, a missing recipe, a placement failure) exits at
-  # once. This is the only prompt verdict: the launcher being gone AND no container existing.
+  # A sparkrun placement refusal is terminal and is not a boot: the launcher exits non-zero
+  # without creating a container for this launch. Record the refusal and its tail, arm nothing
+  # (no watchdog, no sampler, no guard), retry nothing, and exit on its own code. Measured
+  # 2026-11-11: a driver went on to arm instruments against a peer's container after
+  # `only placed 0 of 4 ranks ... GPU has an existing allocation`.
+  if ! kill -0 "$LAUNCH" 2>/dev/null \
+     && grep -qE 'insufficient free capacity|only placed [0-9]+ of [0-9]+ ranks|GPU has an existing allocation' \
+             "$L/launch.log" 2>/dev/null; then
+    { echo "# placement refusal: sparkrun created no container for this launch; terminal, nothing armed"
+      tail -20 "$L/launch.log"; } > "$L/placement-refusal.txt"
+    echo "ARM REFUSED $NAME: sparkrun refused placement; no container was created for this launch."
+    echo "  Nothing armed (no watchdog, no sampler, no guard), nothing retried. Evidence: $L/placement-refusal.txt"
+    tail -5 "$L/launch.log"
+    OOM_DONE=1   # nothing ran, so there is no OOM window to attribute
+    exit 6
+  fi
+  # Any other refused launch (a stale resource claim, a missing recipe) exits at once. This is
+  # the only other prompt verdict: the launcher being gone AND no container existing.
   if ! kill -0 "$LAUNCH" 2>/dev/null; then
     echo "ARM FAIL $NAME: launcher exited with no container after ${waited}s" \
          "(ceiling ${APPEAR_TIMEOUT}s). Last lines:"
