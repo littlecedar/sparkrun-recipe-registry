@@ -199,17 +199,28 @@ class Campaign:
 
     def add(self, arm: str, path: str, tp: int = 1, env: dict[str, str] | None = None,
             task: str = "", memory_risky: bool = False,
-            exclude_hosts: list[str] | tuple[str, ...] = ()) -> dict[str, Any]:
-        """One arm. `task` is its register row id: a queue campaign closes the row it claimed."""
+            exclude_hosts: list[str] | tuple[str, ...] = (),
+            nodes: int = 0, pp: int = 1,
+            allow_hosts: list[str] | tuple[str, ...] = (),
+            window: str = "") -> dict[str, Any]:
+        """One arm. `task` is its register row id: a queue campaign closes the row it claimed.
+
+        `nodes` is the rank count the lease takes (`tp * pp`; `tp` alone when absent), because the
+        six-node TP=2 x PP=3 shape has six ranks and two TP groups -- the executor keeps `tp`.
+        """
         if arm in self.data["arms"]:
             raise StateError(f"{arm!r} is already in this campaign")
         record = {
             "path": path,
             "tp": int(tp),
+            "pp": int(pp),
+            "nodes": int(nodes or tp),
             "env": dict(env or {}),
             "task": task,
             "memory_risky": bool(memory_risky),
             "exclude_hosts": list(exclude_hosts),
+            "allow_hosts": list(allow_hosts),
+            "window": window,
             "status": PENDING,
             "attempts": 0,
             "failures": 0,
@@ -221,13 +232,15 @@ class Campaign:
         self.data["arms"][arm] = record
         if arm not in self.data["order"]:
             self.data["order"].append(arm)
-        self.event(arm, "plan", path=path, tp=int(tp))
+        self.event(arm, "plan", path=path, tp=int(tp), pp=int(pp), nodes=record["nodes"])
         self.save()
         return record
 
     def refresh(self, arm: str, *, path: str, tp: int, env: dict[str, str],
                 task: str, memory_risky: bool = False,
-                exclude_hosts: list[str] | tuple[str, ...] = ()) -> bool:
+                exclude_hosts: list[str] | tuple[str, ...] = (),
+                allow_hosts: list[str] | tuple[str, ...] = (),
+                window: str = "") -> bool:
         """Adopt a register row's current launch fields for an arm that is not running now.
 
         Queue mode's precedence: the row is the current launch plan, so an arm awaiting its next
@@ -246,9 +259,10 @@ class Campaign:
         if record["status"] in (LEASED, MEASURED, SKIPPED):
             return False
         fresh: dict[str, Any] = {"env": dict(env), "memory_risky": bool(memory_risky),
-                                 "exclude_hosts": list(exclude_hosts)}
+                                 "exclude_hosts": list(exclude_hosts),
+                                 "allow_hosts": list(allow_hosts), "window": window}
         if not record["needs_reap"]:
-            fresh.update({"path": path, "tp": int(tp), "task": task})
+            fresh.update({"path": path, "tp": int(tp), "nodes": int(tp), "pp": 1, "task": task})
         changed = sorted(key for key, value in fresh.items() if record.get(key) != value)
         if not changed:
             return False
@@ -277,12 +291,14 @@ class Campaign:
         self.event(arm, "skip", verdict=verdict["verdict"], doc=verdict["doc"])
         self.save()
 
-    def assign(self, arm: str, worker: str, hosts: list[str], now: float) -> dict[str, Any]:
+    def assign(self, arm: str, worker: str, hosts: list[str], now: float,
+               ledger: str = "") -> dict[str, Any]:
         record = self.arm(arm)
         if record["status"] == LEASED:
             raise StateError(f"{arm!r} is already leased")
         if record["needs_reap"]:
             raise StateError(f"{arm!r} still needs a reap on {record['needs_reap']}")
+        nodes = int(record.get("nodes") or record["tp"])
         # Everything the worker needs to run the arm travels in the lease: the recipe path is what
         # the executor is invoked with, and `env` carries per-arm overrides (`ARM_OPTS`, `ARM_TAG`).
         lease = {
@@ -290,9 +306,12 @@ class Campaign:
             "arm": arm,
             "path": record["path"],
             "tp": record["tp"],
+            "pp": int(record.get("pp", 1)),
+            "nodes": nodes,
             "env": dict(record["env"]),
             "worker": worker,
             "hosts": list(hosts),
+            "ledger": ledger,
             "issued_at": now,
             "heartbeat_at": now,
             "expires_at": now + self.lease_ttl,

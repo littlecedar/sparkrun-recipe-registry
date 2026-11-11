@@ -24,6 +24,8 @@ the scheduling mechanism rather than the thing being scheduled, and this tree al
 | `state.py` | The persisted plan and per-arm records: atomic file writes, the single-director lock, lease/bookkeeping transitions | Which arm is next (that is `plan.py`) |
 | `plan.py` | The two plan sources (manifest and register), plan order, the register client that claims and closes rows through the tool, and the pure placement function | Talking to a worker |
 | `fleet.py` | Docker facts: which containers a recipe left on which hosts, and removal of only those | Knowing why it was asked |
+| `leases.py` | The fleet lease ledger: one record per multi-rank claim (holder, every rank, expiry, proof), the legacy declared window read as a blanket hold, renewal and release | Deciding what to boot (that is `plan.py`) |
+| `guardrails.py` | The head's lease-time proof: earlyoom's running argv, `OOMScoreAdjust` on ssh/NetworkManager/user@1000/BeeGFS, the armed memory sampler | Placement (that is `plan.py`) |
 | `director.py` | The service: prints the exclusions, claims the arm in the register before its lease, hands out leases, decides "measured" from receipts, reclaims dead leases, spawns workers, writes per-arm receipts | Running an arm |
 | `worker.py` | One slot: poll, run `tools/run-arm.sh`, heartbeat the lease, report the return code | Interpreting the return code |
 | `systemd/sparkrun-campaign.service` | Supervision on the head | Anything about a specific campaign |
@@ -77,7 +79,7 @@ Exclusions are named, never truncated:
 | `blocked_by` not an explicit empty list | skipped by name (`queue-skip: <row> (blocked by <ids>)`): a live dependency edge holds the row whatever its `state`, and a missing mirror is not an edit that opens it |
 | no `recipe`/`tp` | counted in one line (`authoring, not bootable`): most rows are prose work |
 | `tp` > declared hosts | skipped by name (`tp=4 needs 4 hosts, 2 declared`); a quartet is never cut onto fewer nodes |
-| memory-risky shape with no room outside the excluded hosts | skipped by name (`queue-skip: <row> (memory-risky shape needs 6 ranks, 5 declared outside .30)`); the row stays queued, never narrowed onto the head |
+| memory-risky shape with no room outside the excluded hosts | skipped by name (`queue-skip: <row> (memory-risky shape needs 6 ranks, 5 declared outside .30)`); the row stays queued, never narrowed onto the head — unless its own `allow_hosts`/`window` declaration waives the host, which then requires the lease-time proof (§The head is waivable…) |
 | two rows naming one recipe | one arm: any non-runnable sibling (`blocked`, `done`, a live edge, another session's claim) holds it by name (`queue-skip: <row> (recipe also named by sibling <id> is 'blocked')`), so a blocked or done row protects the recipe; two runnable rows are an ambiguity, named with both ids and skipped for that tick only, because the register has not said which row the numbers would close |
 
 **Placement keeps the head available, never a rank.** `--exclude-host` (default `.30`; a placement
@@ -96,6 +98,27 @@ that is only short on *free* safe hosts waits rather than spill onto one, and is
 onto an excluded host. An explicit `memory_risky: false` overrides the cost fallback for a shape
 measured to fit. The trigger and its hosts travel with the row into the state record
 (`memory_risky`, `exclude_hosts`), so assignment reads the row's current declaration.
+
+**The head is waivable only by the boot's own declaration, and only with proof.** Owner ruling
+2026-11-11 (#2): `.30` may host a memory-risky shape only inside an explicitly declared window,
+named per boot. The declaration is the row's (or manifest arm's) `allow_hosts` — the excluded hosts
+this boot may take — together with `window`, the window's name; one without the other, or
+`allow_hosts` on a shape not marked memory-risky, refuses the plan (`PlanError`, named). Even then
+every safe host is tried first and a waived host takes only the ranks that do not fit (the head
+stays last), and before the lease record exists the director proves the host's guardrails
+(`guardrails.prove`): earlyoom's running argv quoting a non-zero memory and swap threshold,
+`OOMScoreAdjust` negative on `ssh.service`, `NetworkManager.service`, `user@1000.service`,
+`beegfs-mgmtd.service`, `beegfs-meta.service` and `beegfs-storage.service`, and the window's
+`mem-guard` memory sampler armed. A missing probe refuses with `PlanError` naming the host and the
+check, and the arm is blocked: it is never placed silently and never retried onto another host.
+Absent a declaration the exclusion is unchanged — `.30` is never chosen for a risky shape, and a
+risky shape short on safe ranks waits.
+
+**A manifest arm may declare `pp`.** Its rank count is `tp * pp`, so TP=2 × PP=3 is one six-rank
+lease: the record carries `tp`=2, `pp`=3, `nodes`=6 and all six hosts, and `next_assignment` refuses
+it when any rank is free for fewer than six. The register's `tp` stays in {1, 2, 4} and is not
+widened — six ranks are a plan/manifest shape, and the register's `node_cost` vocabulary has no
+six-node value.
 
 **Ordering is the register's.** The plan is `tools/task-queue.py queue --json` in the order it
 prints — tier, then weight ascending, then id, which is exactly what the weight is for: a row that
@@ -137,6 +160,32 @@ A claim that cannot be written is a refusal to boot, not a warning: two sessions
 double-boot this project exists to prevent. The tool is the register's only writer (temp file +
 `os.replace`), so the campaign never edits the JSON itself; a failed *close* is printed loudly and
 the row may still read `running`, which is a queue-tool failure for a human, not a second boot.
+
+**The lease is the claim for every multi-rank boot.** Owner ruling 2026-11-11 (#9): one lease
+mechanism, not two. The ledger is `<repo-root>/.local/fleet-leases.json` — `.local/` because
+syncthing shares it (a lock written under `.scratch/` never left its clone, measured 2026-10-30)
+and it is git-ignored, so a claim carries no tracked address. One record names the holder, every
+rank (one host per rank), the arm, the window, the proof lines and an expiry; writes take an
+exclusive `flock` beside it and land through the state module's atomic `write_json`. The director
+is the writer for campaign boots — the record exists, and any rank is checked again, before the
+state lease a worker can launch from — and a manual session uses the same code path:
+
+```bash
+cd <checkout>/campaign
+uv run --frozen python -m sparkrun_campaign.director lease --hosts "$NODES" \
+  --holder <session> --ttl 14400 --window <window-name>
+#   --list, --release <id>; no --ttl refused: a claim that cannot expire is not a claim
+```
+
+Another holder's live lease is honoured: its ranks are removed from the campaign's free list
+before placement (`lease-held: <host> (lease <id> held by <holder>)`) and a shape that cannot fit
+waits; a claim that appears between placement and the write refuses that arm's boot for the tick
+(`lease-refused: …; not attempted`), never launches it. Single-rank boots take no record — the
+ruling is about multi-machine boots — but they still do not land on a leased rank. The legacy
+`.local/fleet-window.lock` is still read, as a blanket hold for every declared host, because a
+session that wrote one has not moved to a lease yet; the lease command refuses while one exists,
+and the director never writes it. A worker's beat renews the record, a report releases it, and an
+expired record holds nothing, so a lost director stops holding the fleet after one TTL.
 
 **Draining.** Manifest mode is unchanged: drained means exit 0 and stay down. A queue campaign
 defaults to **polling** instead — every `QUEUE_POLL` (30 s) a drained plan re-reads the register,
@@ -223,7 +272,8 @@ document or the new one, never a truncated one. A `flock` on `state.json.lock` m
 director refuse to start — two directors over one plan is the double-boot this project exists to
 prevent, so the refusal is at open time.
 
-Per arm: `path`, `tp`, `env`, `memory_risky`, `exclude_hosts`, `status`, `attempts`, `failures`,
+Per arm: `path`, `tp`, `pp`, `nodes`, `env`, `memory_risky`, `exclude_hosts`, `allow_hosts`,
+`window`, `status`, `attempts`, `failures`,
 `lease`, `needs_reap`, `last`, and a bounded history of transitions. Statuses are `pending`,
 `leased`, `measured`, `failed`, `skipped`, `blocked`. There is no separate `running`: the lease is
 the record of what is running.
@@ -361,6 +411,8 @@ disagreement is auditable (`status` beside `ladder`).
 | 2.02 node-hours lost because one stream's last arm ran 132 minutes while the other node was idle | Assignment is dynamic from one queue (`plan.next_assignment`); nothing cuts the plan into per-node slices. Control: the static slice leaves a free node with nothing runnable while work is pending. |
 | An inactive per-node `sparkrun` daemon surfaced as `[3/6] Distributing resources` then `[Errno 70] Communication error on send: /home/red/.cache/huggingface/token`, a token/permission error that it is not (leases `@3`–`@6`, 2026-11-08) | `sparkrun daemon status` on **each** host of the lease before the launch, and `sparkrun daemon start` on any host that answers `"running": false`. |
 | A worker (or the host) dies mid-arm, and the arm's containers keep running | Leases expire; the arm becomes pending-with-a-reap; the reap runs on all its hosts before it is handed out again. The worker also stops its own slot after 12 unreachable polls, so an orphan cannot outlive a crashed director indefinitely. |
+| The campaign leased two memory-heavy TP4 quartets onto `.30`–`.33` (2026-11-10), and on the same day attempted a quartet on ranks another session had declared in `.local/fleet-window.lock` | Every multi-rank boot writes a fleet lease first and refuses when any rank is leased; another holder's lease (or a declared window) removes those ranks before placement, and a memory-risky shape that needs an excluded host is refused unless its own declaration names it, its window is named, and its guardrails are proven. |
+| A six-node TP=2 x PP=3 shape could not be expressed at all, so the full-fleet claim was a human window with no lease | A manifest arm's rank count is `tp * pp`; the lease names all six hosts and refuses when any one is held. |
 
 ## Dependencies
 
@@ -421,6 +473,11 @@ ladder, a manifest-only plan boots a recorded negative, a static slice strands a
 trusts the state file re-boots a live arm, and a rank-0-only leftover check reports clean with rank
 1 alive. The four hardware items still have their skipped harness tests in
 `test_checklist_hardware.py`; the 2026-11-07 run is the evidence that closed them.
+
+`campaign/tests/test_leases.py` pins the 2026-11-11 rulings: a multi-rank boot writes its fleet
+lease before assignment and another holder's lease (or declared window) is honoured, `.30` is
+waivable only with a named window plus the guardrail proof and otherwise refuses naming the host
+and check, and TP=2 × PP=3 leases six named ranks and refuses when one is held.
 
 Counting the root suite from a committed tree needs **the repository's own interpreter**: archive the
 tree, then count it with that clone's `.venv/bin/python -B -c
@@ -554,6 +611,22 @@ While a run owns the state lock, an operator reads it through the same module wi
 cd <checkout>/campaign
 uv run --frozen python -m sparkrun_campaign.director status --root "$CAMPAIGN_ROOT"
 ```
+
+A manual session's multi-rank claim is the same ledger the director writes (§Queue mode), so it
+needs neither the campaign nor the legacy lock:
+
+```bash
+cd <checkout>/campaign
+uv run --frozen python -m sparkrun_campaign.director lease --list
+uv run --frozen python -m sparkrun_campaign.director lease --hosts "$NODES" \
+  --holder <session> --ttl 14400 --window <window-name>
+uv run --frozen python -m sparkrun_campaign.director lease --release <id>
+```
+
+`.local/` is syncthing-shared, so a claim written on another checkout reaches the head on sync
+delay; claims and boots belong on the head, which is where every session reads them. The ledger is
+not yet read by `tools/queue-drip.py` (that tool still reads campaign `state.json` and the lock);
+until it is, a drip session sees a manual lease only through the lock it replaces.
 
 Deliberately not done: a system-wide unit (needs root for no benefit), a timer (a campaign is
 started by a decision, not a schedule), and `Restart=always` (a finished campaign must not restart

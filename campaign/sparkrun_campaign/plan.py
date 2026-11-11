@@ -30,9 +30,11 @@ from typing import Any
 from .evidence import Verdict, skip_line
 from .state import FAILED, LEASED, PENDING, SKIPPED
 
-#: Runtime keys a recipe may carry. `tp` is the node count the arm was planned for; the manifest
-#: is where that decision lives because it is a property of the arm, not of the run. A queue row
-#: may ask for a quartet (`tp=4`), which `queue_entries` admits only when four hosts are declared.
+#: Runtime keys a recipe may carry. `tp` is the tensor-parallel width; the manifest is where that
+#: decision lives because it is a property of the arm, not of the run, and the rank count is
+#: `tp * pp` (`pp` defaults to 1 -- tp 2 x pp 3 is the six-node shape, `next_assignment` reads
+#: `nodes`). A queue row may ask for a quartet (`tp=4`), which `queue_entries` admits only when
+#: four hosts are declared; the register itself stays tp in {1,2,4}.
 TP_VALUES = (1, 2)
 #: The register, relative to `--repo-root`, when `--queue` is given without a path.
 DEFAULT_QUEUE = "mad-science/queue.json"
@@ -66,6 +68,36 @@ def memory_risky(row: dict[str, Any]) -> bool:
     if "memory_risky" in row:
         return bool(row["memory_risky"])
     return bool(row.get("exclude_hosts")) or row.get("node_cost") == "quartet"
+
+
+def waiver(owner: str, row: dict[str, Any], risky: bool,
+           excluded: tuple[str, ...] | None = None) -> tuple[list[str], str]:
+    """(hosts this boot may take despite the exclusion, its declared window name).
+
+    Owner ruling 2026-11-11 (#2): an excluded host is waivable only inside a window named per boot
+    and only by that boot's own declaration. A declaration without a window name is the silent
+    placement the ruling forbids, so it refuses the plan; when the run's exclusion set is known
+    (`excluded`), a waiver naming none of its hosts refuses too, because it could never be used
+    and would read as a guard that was not one.
+    """
+    declared = row.get("allow_hosts") or ()
+    window = str(row.get("window") or "").strip()
+    if not declared:
+        return [], ""
+    if not isinstance(declared, (list, tuple)) or not all(
+            isinstance(host, str) and host.strip() for host in declared):
+        raise PlanError(f"{owner}: allow_hosts must be a list of host strings, got {declared!r}")
+    hosts = [host.strip() for host in declared]
+    if not risky:
+        raise PlanError(f"{owner}: allow_hosts {hosts} without memory_risky; only a memory-risky "
+                        "shape may waive the exclusion")
+    if not window:
+        raise PlanError(f"{owner}: allow_hosts {hosts} without a declared `window` name; the "
+                        "exclusion is waivable only inside a window named per boot")
+    if excluded is not None and not any(barred(host, excluded) for host in hosts):
+        raise PlanError(f"{owner}: allow_hosts {hosts} names no excluded host "
+                        f"{list(excluded)}; the waiver would be inert")
+    return hosts, window
 
 
 class PlanError(RuntimeError):
@@ -230,9 +262,12 @@ def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
         risky = memory_risky(row)
         declared = row.get("exclude_hosts") or ()
         per_arm = tuple(str(host) for host in declared) if isinstance(declared, (list, tuple)) else ()
+        allow, window = waiver(task, row, risky, tuple(excluded_hosts) + per_arm)
         if risky:
             # A shape that cannot be placed without an excluded host is refused by name, never
-            # narrowed onto that host: the row stays queued for a human to reshape.
+            # narrowed onto that host: the row stays queued for a human to reshape. A declared
+            # waiver is the one exception, and the director proves the host's guardrails before
+            # the lease record exists.
             barred_for_arm = tuple(excluded_hosts) + per_arm
             if barred_for_arm and not any(barred(host, barred_for_arm) for host in hosts):
                 # Fail closed: a hostname-declared set that matches no exclusion would sort as if
@@ -241,10 +276,13 @@ def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
                     f"{task}: exclusion {', '.join(barred_for_arm)} matched no declared host "
                     f"{hosts!r}; declare the head under one of those names or pass --exclude-host")
             safe = [host for host in hosts if not barred(host, barred_for_arm)]
-            if tp > len(safe):
-                hit = [host for host in hosts if barred(host, barred_for_arm)]
-                reason = (f"memory-risky shape needs {tp} ranks, {len(safe)} declared outside "
-                          f"{', '.join(hit) or 'the excluded hosts'}")
+            waived = [host for host in hosts
+                      if barred(host, barred_for_arm) and barred(host, allow)]
+            if tp > len(safe) + len(waived):
+                hit = [host for host in hosts
+                       if barred(host, barred_for_arm) and host not in waived]
+                reason = (f"memory-risky shape needs {tp} ranks, {len(safe) + len(waived)} "
+                          f"declared outside {', '.join(hit) or 'the excluded hosts'}")
                 lines.append(f"queue-skip: {task} ({reason})")
                 excluded[arm] = reason
                 continue
@@ -266,16 +304,23 @@ def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
             owner[arm] = task
             continue
         owner[arm] = task
-        entries.append({"arm": arm, "path": recipe, "tp": int(tp),
+        entries.append({"arm": arm, "path": recipe, "tp": int(tp), "pp": 1, "nodes": int(tp),
                         "env": dict(row.get("env") or {}), "task": task,
-                        "memory_risky": risky, "exclude_hosts": list(per_arm)})
+                        "memory_risky": risky, "exclude_hosts": list(per_arm),
+                        "allow_hosts": allow, "window": window})
     if authoring:
         lines.append(f"queue: {authoring} row(s) queued without a recipe (authoring, not bootable)")
     return entries, lines, excluded
 
 
 def load_manifest(path: str | Path) -> list[dict[str, Any]]:
-    """Read and validate a campaign manifest: a JSON list of {arm, path, tp, env?}."""
+    """Read and validate a campaign manifest: a JSON list of {arm, path, tp, pp?, env?}.
+
+    `nodes` is `tp * pp`, so the six-node TP=2 x PP=3 shape is expressible here while the
+    register's `tp` stays in {1, 2, 4}. `memory_risky`, `allow_hosts` and `window` are the same
+    head-host waiver a register row may declare, and the director proves its guardrails before
+    the lease.
+    """
     path = Path(path)
     try:
         entries = json.loads(path.read_text(encoding="utf-8"))
@@ -302,10 +347,17 @@ def load_manifest(path: str | Path) -> list[dict[str, Any]]:
         tp = entry.get("tp", 1)
         if tp not in TP_VALUES:
             raise PlanError(f"{path}: {arm} has tp={tp!r}; expected one of {TP_VALUES}")
+        pp = entry.get("pp", 1)
+        if not isinstance(pp, int) or isinstance(pp, bool) or pp < 1:
+            raise PlanError(f"{path}: {arm} has pp={pp!r}; expected a positive integer")
         env = entry.get("env") or {}
         if not isinstance(env, dict):
             raise PlanError(f"{path}: {arm} has a non-object `env`")
-        out.append({"arm": arm, "path": recipe, "tp": int(tp), "env": dict(env)})
+        risky = bool(entry.get("memory_risky", False))
+        allow, window = waiver(f"{path}: {arm}", entry, risky)
+        out.append({"arm": arm, "path": recipe, "tp": int(tp), "pp": pp,
+                    "nodes": int(tp) * pp, "env": dict(env), "memory_risky": risky,
+                    "exclude_hosts": [], "allow_hosts": allow, "window": window})
     return out
 
 
@@ -351,11 +403,13 @@ def next_assignment(
     hosts in one lease -- `tools/run-arm.sh` is launched once with both, so one worker owns the pair.
 
     Hosts keep the declared order except that excluded ones come last, so a shape with room on
-    the safe hosts never takes the head whatever its `tp`. A memory-risky shape that is short on
-    free safe hosts waits instead of spilling onto one; the plan has already refused it by name
-    when the declared set could never cover it, and truncating onto the excluded host is the
-    2026-11-10 defect. A risky shape still runs when the safe hosts cover it: a ~20 GiB/rank
-    quartet on five safe hosts is placed, never refused.
+    the safe hosts never takes the head whatever its `nodes`. A memory-risky shape that is short
+    on free safe hosts waits instead of spilling onto one; the plan has already refused it by
+    name when the declared set could never cover it, and truncating onto the excluded host is the
+    2026-11-10 defect. The one way a risky shape takes an excluded host is that boot's own
+    declaration (`allow_hosts` + `window`), and even then it is tried only after every safe host
+    -- the director proves the host's guardrails before the lease. A risky shape still runs when
+    the safe hosts cover it: a ~20 GiB/rank quartet on five safe hosts is placed, never refused.
     """
     free = list(free_hosts)
     for arm in order:
@@ -368,11 +422,16 @@ def next_assignment(
             continue
         if record["needs_reap"]:
             continue
-        need = int(record["tp"])
+        need = int(record.get("nodes") or record["tp"])
         barred_for_arm = tuple(excluded_hosts) + tuple(record.get("exclude_hosts") or ())
+        allow = tuple(record.get("allow_hosts") or ())
         safe = [host for host in free if not barred(host, barred_for_arm)]
-        if record.get("memory_risky") and len(safe) < need:
-            continue
+        if record.get("memory_risky"):
+            waived = [host for host in free
+                      if barred(host, barred_for_arm) and barred(host, allow)]
+            if len(safe) + len(waived) < need:
+                continue
+            return arm, tuple((safe + waived)[:need])
         if len(free) < need:
             continue
         tail = [host for host in free if barred(host, barred_for_arm)]

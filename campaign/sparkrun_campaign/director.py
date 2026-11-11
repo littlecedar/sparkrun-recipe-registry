@@ -37,7 +37,7 @@ from collections import Counter
 from collections.abc import Callable
 from typing import Any
 
-from . import evidence, fleet, plan, protocol
+from . import evidence, fleet, guardrails, leases, plan, protocol
 from .state import (
     BLOCKED,
     FAILED,
@@ -95,6 +95,8 @@ class Director:
         register: plan.Register | None = None,
         once: bool = False,
         exclude_hosts: tuple[str, ...] = plan.MEMORY_RISKY_EXCLUDED_HOSTS,
+        ledger: leases.Ledger | None = None,
+        head_proof: Callable[[str], list[str]] = guardrails.prove,
     ):
         self.campaign = campaign
         self.entries = entries
@@ -112,6 +114,14 @@ class Director:
         self.once = once
         #: Hosts a memory-risky shape may not take; a placement decision of this run, never a role.
         self.exclude_hosts = tuple(exclude_hosts)
+        #: The fleet lease ledger: every multi-rank boot is claimed here before a worker can launch,
+        #: and another session's claim (or a legacy declared window) is honoured as a held rank.
+        self.ledger = ledger if ledger is not None else leases.Ledger(
+            self.repo_root / leases.LEDGER, clock=clock)
+        self.holder = f"sparkrun-campaign:{campaign.data['campaign']}"
+        #: The head's guardrail probe; a waived risky shape cannot be leased without its proof.
+        self.head_proof = head_proof
+        self._held_said: dict[str, str] = {}
         self._last_poll = 0.0
         self._idle_said = False
         self.max_parallel = int(campaign.data.get("max_parallel", 1))
@@ -241,7 +251,11 @@ class Director:
                 self.campaign.add(entry["arm"], entry["path"], entry["tp"],
                                   self._env_for(entry.get("env")), task=entry.get("task", ""),
                                   memory_risky=bool(entry.get("memory_risky")),
-                                  exclude_hosts=entry.get("exclude_hosts") or ())
+                                  exclude_hosts=entry.get("exclude_hosts") or (),
+                                  nodes=int(entry.get("nodes") or entry["tp"]),
+                                  pp=int(entry.get("pp") or 1),
+                                  allow_hosts=entry.get("allow_hosts") or (),
+                                  window=str(entry.get("window") or ""))
 
     def _pin_receipts_root(self) -> None:
         """Write this invocation's `--receipts-root` into every arm that can still run."""
@@ -274,7 +288,9 @@ class Director:
                                       env=self._env_for(entry.get("env")),
                                       task=str(entry.get("task", "")),
                                       memory_risky=bool(entry.get("memory_risky")),
-                                      exclude_hosts=entry.get("exclude_hosts") or ())
+                                      exclude_hosts=entry.get("exclude_hosts") or (),
+                                      allow_hosts=entry.get("allow_hosts") or (),
+                                      window=str(entry.get("window") or ""))
                 if record["status"] != BLOCKED or not unblock:
                     continue
                 if record["needs_reap"]:
@@ -475,7 +491,12 @@ class Director:
             lease = self._assign(str(message.get("worker", "")))
             return protocol.assign(lease) if lease else protocol.idle(IDLE_RETRY)
         if op == "beat":
-            live = self.campaign.beat(str(message.get("lease", "")), self.clock())
+            lease_id = str(message.get("lease", ""))
+            live = self.campaign.beat(lease_id, self.clock())
+            if live:
+                found = self.campaign.lease_for(lease_id)
+                if found is not None:
+                    self.ledger.renew(str(found[1].get("ledger") or ""), self.clock())
             return protocol.ack() if live else protocol.revoked("lease expired or unknown")
         if op == "report":
             return self._report(message)
@@ -484,11 +505,22 @@ class Director:
     def _assign(self, worker: str) -> dict[str, Any] | None:
         now = self.clock()
         self.campaign.expire(now)
+        declared = list(self.campaign.data.get("hosts", []))
+        # Another session's lease, or a declared window, is a held rank: the campaign does not
+        # choose it, and it is named so "no runnable row" is checkable rather than silent.
+        held = self.ledger.held_hosts(declared, now, holder=self.holder)
+        if held != self._held_said:
+            for host in sorted(held):
+                print(f"lease-held: {host} ({held[host]})", file=self.out)
+            for host in sorted(set(self._held_said) - set(held)):
+                print(f"lease-free: {host}", file=self.out)
+            self._held_said = held
+        free = [host for host in self.campaign.free_hosts(now) if host not in held]
         while True:
             choice = plan.next_assignment(
                 self.campaign.order,
                 self.campaign.arms(),
-                self.campaign.free_hosts(now),
+                free,
                 self.campaign.retries,
                 self.exclude_hosts,
             )
@@ -510,10 +542,46 @@ class Director:
             # The register is newer than the plan cached at prepare (a peer's hold can land while
             # this process is busy), and "never assign a held row" outranks a pending record.
             self._refuse(arm, refusal, cached, release=False)
+
+        # The head's lease gate: the only way a memory-risky shape may take an excluded host is
+        # its own declaration, and the guardrails are proven before any claim or lease record, so a
+        # refusal can never be a boot. A failed proof blocks the arm -- retrying elsewhere would be
+        # the silent placement the owner ruling forbids.
+        proof: list[str] = []
+        waived = tuple(self.campaign.arm(arm).get("allow_hosts") or ())
+        for host in [item for item in hosts
+                     if plan.barred(item, self.exclude_hosts) and plan.barred(item, waived)]:
+            try:
+                lines = self.head_proof(host)
+            except plan.PlanError as exc:
+                reason = f"lease refused: {exc}"
+                self.campaign.block(arm, reason)
+                self._write_receipt(arm, status=BLOCKED, rc=None, note=reason, mdir="", hosts=[],
+                                    lease_id="", started=None, leftovers=[])
+                print(f"{arm}: BLOCKED, {reason}", file=self.out)
+                return None
+            proof.extend(lines)
+            for line in lines:
+                print(f"lease-proof: {host} {line}", file=self.out)
+
+        # One writer for every multi-rank claim: the record names every rank before a worker can
+        # launch, so a peer's lease is either honoured above or the arm is not attempted.
+        ledger_id = ""
+        if len(hosts) > 1:
+            try:
+                claim = self.ledger.acquire(
+                    self.holder, list(hosts), ttl=self.campaign.lease_ttl, arm=arm,
+                    window=str(self.campaign.arm(arm).get("window") or ""), proof=proof)
+                ledger_id = str(claim["id"])
+            except leases.LeaseError as exc:
+                print(f"lease-refused: {arm} on {','.join(hosts)} ({exc}); not attempted",
+                      file=self.out)
+                return None
         try:
             # Before the lease exists, so no worker can launch an arm this campaign has not claimed.
             self._claim(arm)
         except plan.RegisterError as exc:
+            self.ledger.release(ledger_id)
             reason = f"register claim refused: {exc}"
             self.campaign.block(arm, reason)
             self._write_receipt(arm, status=BLOCKED, rc=None, note=reason, mdir="", hosts=[],
@@ -526,9 +594,15 @@ class Director:
             if refusal is not None:
                 # A hold that landed between the read above and this claim wins: the arm has not
                 # been leased, so no boot has happened. Release only a claim this director wrote.
+                self.ledger.release(ledger_id)
                 self._refuse(arm, refusal, cached, release=ours)
                 return None
-        lease = self.campaign.assign(arm, worker or "unknown", list(hosts), now)
+        try:
+            lease = self.campaign.assign(arm, worker or "unknown", list(hosts), now,
+                                         ledger=ledger_id)
+        except StateError:
+            self.ledger.release(ledger_id)
+            raise
         print(f"assign: {arm} -> {lease['worker']} on {','.join(hosts)} (lease {lease['id']})",
               file=self.out)
         return lease
@@ -561,6 +635,7 @@ class Director:
             print(f"{arm}: BLOCKED, leftover state unverifiable on {lease['hosts']}", file=self.out)
             self._settle(arm, BLOCKED, f"cannot verify leftovers on {lease['hosts']}: {exc}",
                          arm_dir)
+            self.ledger.release(str(lease.get("ledger") or ""))
             return protocol.ack(status=BLOCKED)
 
         if leftovers:
@@ -576,6 +651,7 @@ class Director:
                             hosts=lease["hosts"], lease_id=lease_id, started=lease["issued_at"],
                             leftovers=leftovers)
         self._settle(arm, status, reason or note, arm_dir)
+        self.ledger.release(str(lease.get("ledger") or ""))
         print(f"{arm}: rc={rc} -> {status}" + (f" ({reason})" if reason else ""), file=self.out)
         return protocol.ack(status=status)
 
@@ -861,6 +937,42 @@ def status_campaign(root: Path) -> int:
     return 0
 
 
+def lease_command(args: argparse.Namespace) -> int:
+    """The manual session's entry point: write, list or release a fleet lease.
+
+    Same ledger and same record as the director uses, so one mechanism claims a multi-rank boot.
+    A `--ttl` is required to write: the claim expires on its own, which is what lets a lost session
+    stop holding the fleet.
+    """
+    ledger = leases.Ledger(Path(args.repo_root).expanduser() / leases.LEDGER)
+    try:
+        if args.release:
+            released = ledger.release(args.release)
+            print(("released " if released else "no such live lease: ") + args.release)
+            return 0 if released else 3
+        if args.list or not args.hosts:
+            live = ledger.leases()
+            for record in live:
+                print(f"{record.get('id')} {record.get('holder')} on "
+                      f"{','.join(record.get('hosts') or ())} until "
+                      f"{float(record.get('expires_at') or 0):.0f}"
+                      + (f" ({record['window']})" if record.get("window") else ""))
+            print(f"{len(live)} live lease(s) in {ledger.path}")
+            return 0
+        if not args.holder or args.ttl is None:
+            print("cannot lease: --holder and --ttl are required to write a lease", file=sys.stderr)
+            return 2
+        hosts = [host.strip() for host in args.hosts.split(",") if host.strip()]
+        record = ledger.acquire(args.holder, hosts, ttl=args.ttl, arm=args.arm,
+                                window=args.window)
+        print(f"leased {record['id']} to {record['holder']} on {','.join(record['hosts'])}"
+              f" until {record['expires_at']:.0f}")
+        return 0
+    except leases.LeaseError as exc:
+        print(f"cannot lease: {exc}", file=sys.stderr)
+        return 3
+
+
 def main(argv: list[str] | None = None) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(line_buffering=True)
@@ -901,10 +1013,23 @@ def main(argv: list[str] | None = None) -> int:
     status = commands.add_parser("status",
                                  help="print a campaign's per-arm state without taking the lock")
     status.add_argument("--root", required=True, help="campaign directory holding state.json")
+    claim = commands.add_parser(
+        "lease", help="write, list or release a fleet lease (a manual session's claim)")
+    claim.add_argument("--hosts", help="comma-separated ranks this lease claims")
+    claim.add_argument("--holder", default="", help="session name that holds the lease")
+    claim.add_argument("--ttl", type=float, help="seconds until the lease expires (required)")
+    claim.add_argument("--arm", default="", help="arm the ranks are booting, for the record")
+    claim.add_argument("--window", default="", help="declared window name, per boot")
+    claim.add_argument("--release", default="", metavar="ID", help="drop this lease id")
+    claim.add_argument("--list", action="store_true", help="print every live lease")
+    claim.add_argument("--repo-root", default=fleet.default_repo_root(),
+                       help="registry checkout holding .local/fleet-leases.json")
     args = ap.parse_args(argv)
 
     if args.command == "status":
         return status_campaign(Path(args.root).expanduser())
+    if args.command == "lease":
+        return lease_command(args)
 
     hosts = [host.strip() for host in args.hosts.split(",") if host.strip()]
     if not hosts:
