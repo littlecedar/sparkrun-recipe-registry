@@ -207,8 +207,12 @@ Evidence status of the two new deltas' *contract* (read from the 0.7.3 wheel, no
 Built 2026-11-10 on `.35` once the quartet released it: `dsv41-sm121-dg:0.2.1-fi073` is now
 `sha256:1d47404119c18e20549ba5f3ad81fbf01d80e63e5f152361adf9f3f4811e5ae6` (35,143,615,166 B),
 superseding the three-delta `7752ccd68…`. The build's own gates passed (patch applied to all five
-files, `py_compile`, backend import). NOT booted and the canary not run, so no delta above the
-VERIFIED row is upgraded: `0x7F` stays LIKELY.
+files, `py_compile`, backend import). Booted once as a quartet (2026-11-11, `.31`/`.32`/`.33`/`.35`):
+the engine selects the ported route and **no ABI rejection or patch assert appears**, so deltas 4 and
+5 pass the engine's checks — but the boot then sits in `FlashInfer autotune`'s dummy forward for ~28
+min and was stopped, so the canary answer, the battery and every trough are unmeasured and `0x7F`
+stays LIKELY. Receipt `head:~/benchmarks/tp4-20261110b/arm5-fi073-canary/RECEIPT.md`; the blocker is
+written up in `recipes/ds4/README.md` (arm-5 section).
 
 ## Port B — `ernie-flashinfer-sparse-sink-port`
 

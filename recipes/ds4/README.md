@@ -1528,6 +1528,23 @@ pin, control still `arm3-control` on `:0.2.1`) is the measurement: `/health` 200
 success, and only the canary answer comparison catches a wrong-logits port. Carry the image to each
 booting rank with the `docker save | ssh 'docker load'` command above and check its id there before
 arming it.
+
+**Canary boot 2026-11-11 — the KV/query ABI passes, the boot blocks in FlashInfer autotune, so there
+is no port verdict either way.** The five-delta image (`sha256:1d47404119…`, 35,143,615,166 B) was
+carried over the `192.168.0.x` rail to `.31`/`.32`/`.33` (`.34` excluded: local tag, no `RepoDigests`)
+and booted as a quartet with `.35`, under `boot-watchdog` with `--rank` for all three peers and
+`--stall 600` (`unprobeable=0` on every line). **VERIFIED:** the engine selects the ported route —
+`DeepSeek V4 attention: trtllm backend enabled (uniform-FP8 KV pool, decode + sparse prefill)`, the
+528-byte pool line, and `Using DeepseekV4TrtllmAttnBackend` for target and draft — and **no
+`ValueError`, traceback or patch assert appears in its 230 log lines**, i.e. the predicted first-call
+rejection (BF16 query, packed 528-byte caches) does not happen. **The boot then sits in
+`FlashInfer autotune` for ~28 min** (dummy forward at a frozen log line, GPU 96 %, no tactic cache
+written) and was stopped by literal id; `ctns=0` and 0 volumes on all four ranks after. Not measured:
+the canary answer, the easy-tier battery, throughput, and any host floor (no sampler summary).
+Autotune is not skippable in this tree (`flashinfer_autotune.py:251` wraps a dummy forward
+unconditionally), so the next step is a diagnosis — `SGLANG_FLASHINFER_AUTOTUNE_CACHE=0` to name the
+fresh cache path, and `py-spy` on the scheduler with `SYS_PTRACE` added — not another blind boot.
+Receipt `head:~/benchmarks/tp4-20261110b/arm5-fi073-canary/RECEIPT.md`.
 The paired control
 (`zz-ds4-1017-sm121-arm3-control.yaml`) passed every boot gate on the same digest —
 `[moe_b12x_next] armed`, no ÷128, `Load weight end 167.24 s`, `/v1/models` 200 at
