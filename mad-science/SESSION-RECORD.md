@@ -10108,3 +10108,36 @@ Tick scope: read-only census, pool and claim reads, board publish; no boot, no s
 - **Left behind on purpose.** A later peer commit `011a9577` reddens `test_push_gate` on
   `push-gate: POSIX shells (bash-ism lint)`; it is their shell file, not board content, and this tick
   does not touch it.
+
+## 2026-11-11 02:00 ET — hourly board tick (post-reboot census, and two of this tick's own claims corrected)
+
+- **Board published** `df26571` (title 02:22 ET) on the peer's `a0509a4`, composed and pushed from a
+  throwaway clone because the shared worktree held a live peer edit. It folded the six commits the 01:45
+  board lacked (`ed62541`, `0ea5900`, `65426e3`, `0905135`, `724ae90`, `5174527`) and re-rendered the queue
+  at `3f65b2b5…` (178 tasks, 53 open, 2 claims) after a peer's stale-writer commit replaced the tick's own
+  first snapshot mid-run.
+- **Reboot crossed no kernel boundary** — corrected in `04c76ff`. The row had inferred "previous boot was
+  `-1024`" from `0ea5900`'s fold; `journalctl -b -1 -k` and `last -x reboot` on `.31`/`.34` both put
+  `7.0.0-1025-nvidia` on the boot that ended 01:36, and the 1024 → 1025 move is the 2026-11-08 15:29
+  reboot. `kho=off` plus zero `CmaTotal`/`CmaFree`/`nr_free_cma` hold on both sides.
+- **The pool `df` claim in `df26571` was wrong and this section retires it**: it read `LIKELY target
+  free-space accounting rather than bytes`. Re-measured 07:42:18Z, the mount reads **13,928,222,425,088 B**
+  used and the six roots' own `used` sums to **13,928,222,048,256 B** — 376,832 B apart — so the figure is
+  real bytes, but of the six root filesystems rather than of the chunk store. Anything written to any node
+  root moves it, which is why the +30.5 GB rise seen at 07:11 gave back all of it by 07:39:40 with no
+  staging body (`find … -name '*.incomplete' -newermt '-30 min'` empty; no `huggingface`, `hf_transfer` or
+  `snapshot_download` process on the fleet) — and why the tick's "no writer on any node" negative was never
+  supported: `/proc/<pid>/io` and `diskstats` were sampled on `.30` and `.34` only. The peer's 07:30
+  root-sum identity is the attribution that stands, and it is what the board carries.
+- **Gate repaired, `589200a`.** `011a957` added a push-gate step that runs `test_executable_modes` through
+  `unittest discover -p`; on any tree whose HEAD predates that module discovery finds nothing, exits 5 with
+  `NO TESTS RAN`, and the gate calls a clean tree red. That tree is the two fixtures in
+  `tests/test_push_gate.py`, so `011a957` and every commit after it — both board commits included — were
+  red at run 42980161372 / 42980295340. The step now runs only when the module is in the extracted tree and
+  otherwise prints `SKIPPED:`, the shape `bash -n` already uses when bash is absent. Correction to the
+  section above: the failing step is tracked executable modes, **not** `push-gate: POSIX shells
+  (bash-ism lint)` — that line is the last successful step's print, and the modes check is what exits 5.
+  Verified: `tests.test_push_gate` OK, `tests.test_executable_modes` OK, push-gate prints the step and
+  `ok -- HEAD 589200a8 is what CI will see` on the committed tree; its own CI run not yet read.
+- **Left behind on purpose**: the tick read the register, the campaign state and the fleet read-only, and
+  spawned nothing. Its private dirs (`.scratch/tick-0200-*`, the throwaway clones) are removed.
