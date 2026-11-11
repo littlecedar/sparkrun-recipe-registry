@@ -9534,5 +9534,25 @@ three census captures `2026-11-11T01:01:54Z`–`01:03:56Z` plus a fourth livenes
   `sync-conflict` copies remain.
 - Register unmoved at sha256 `3d9a822e…` (170 tasks / 121 done / 35 queued / 14 blocked / 49 open /
   0 claims / 0 questions, `check` ok), rendered from the snapshot rather than re-quoted.
-- The landed table folded the eleven commits since the last recorded SHA (`ef73eff` … `381d33d`)
-  instead of carrying them silently.
+- The landed table folded the commits since the last recorded SHA (`ef73eff` … `381d33d`) instead of
+  carrying them silently.
+
+### Outcome, same tick: boot C ended inside the hour and the abort is named
+
+The autotune did **not** hang: the cold search finished in ~10 min (`01:00:36` → `01:10:38`, log
+230 → 364 lines), so the 600 s no-growth dumper never fired, and the boot then died on a **2-element
+`ALLREDUCE`** in `/opt/dsv41/adapter/replicated_split.py:298` `_build`, reached from
+`deepseek_v4.py:1842 _forward_prepare` inside the autotune dummy forward — NCCL watchdog
+`Timeout(ms)=600000`, `Timeouts ran 600003 milliseconds`, `Fatal Python error: Aborted`. Both
+pre-registered candidates are refuted on evidence: no cached tactic file existed on any rank, and
+0.6.18's tables for this model are empty (`["_metadata", "_generation"]`, zero tuned ops). Floor
+measured: `MemAvailable` min **14.80 / 11.89 / 11.70 / 16.33 GiB** on `.31`/`.32`/`.33`/`.35` over
+866/866/865/865 one-Hz samples, `mem-guard.log` clean, teardown `ctns=0` and 0 volumes on all four.
+Not measured: any canary answer or easy-tier battery — the engine never listened. The next step is a
+fix, not a boot: make `replicated_split._build` collective symmetric across repeated dummy
+invocations.
+
+- The board's In flight table was rebuilt on a fourth capture `01:16:49Z` because the holder ended
+  inside the tick, and the window row now states the gap this hour exposed rather than reading the
+  missing lock as freedom: no lock existed while `tp4-runner` held a live quartet on
+  `.31`/`.32`/`.33`/`.35`, so a session trusting only the lock would have booted onto serving ranks.
