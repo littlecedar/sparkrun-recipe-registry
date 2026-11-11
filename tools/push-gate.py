@@ -133,6 +133,11 @@ def checks(tree: Path, gitdir: str, base: str | None) -> bool:
     ok &= run("tracked addresses (test_tracked_address_hygiene)",
               [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests",
                "-p", "test_tracked_address_hygiene.py"], tree, address).returncode == 0
+    # The archive tree has no `.git`, so this test reads HEAD through the same GIT_DIR the address
+    # check uses -- the committed mode, which is what the campaign executor actually receives.
+    ok &= run("tracked executable modes (test_executable_modes)",
+              [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests",
+               "-p", "test_executable_modes.py"], tree, address).returncode == 0
 
     shells = [s for s in changed(base, "*.sh") if (tree / s).is_file()]
     if not shutil.which("bash"):

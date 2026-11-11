@@ -82,8 +82,12 @@ jobs:
           python3 -B -m unittest discover -s campaign/tests -t campaign
 
       - name: Validate recipes (degrades honestly)
-        # sparkrun is not a guaranteed PyPI package here. Attempt to install it; if that fails,
-        # say so and do not fail the job — a skipped check must be visible, not silently green.
+        # sparkrun is not a guaranteed PyPI package here. A *missing* binary is the only tolerated
+        # state: say so, visibly, and exit 0. A binary that exists but does not run is a broken
+        # install and must redden this job -- run 42580641156 printed a version and then
+        # ModuleNotFoundError, and the half-install passed as "absent" while a board-only commit
+        # went red. So the absence check is positive (exists AND `--version` runs), and any other
+        # failure exits 1 with the install's own message quoted.
         run: |
           set -e
           mkdir -p "$SPARKRUN_HOME"
@@ -102,7 +106,12 @@ jobs:
             echo "SKIPPED: sparkrun not installable in CI"
             exit 0
           fi
-          sparkrun --version
+          if ! version="$(sparkrun --version 2>&1)"; then
+            echo "sparkrun is present but not runnable; its own message follows:" >&2
+            printf '%s\n' "$version" >&2
+            exit 1
+          fi
+          printf '%s\n' "$version"
           for f in recipes/*/*.yaml; do
             HOME="$SPARKRUN_HOME" sparkrun recipe validate "$f" >/dev/null
           done
