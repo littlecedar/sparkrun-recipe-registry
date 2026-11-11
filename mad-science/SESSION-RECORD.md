@@ -10826,6 +10826,15 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
 - **CI, read by SHA from the workstation:** `tools/push-gate.py` printed `ok -- HEAD 29274e66` on
   the committed tree before the push; the `gate` run for `29274e6` was `in_progress` at close, so no
   green is claimed here.
+- **CI closed after this entry, read by SHA from the workstation:** `29274e6` `gate` = **success**
+  (run 43067209746) and `cd7a755` = **success** (43067989378), so both of this tick's commits are
+  green. The peer commit that landed between them, `261461c` (43067351167), was **failure** on
+  `test_tracked_address_hygiene` for host aliases in its ledger text, and `47b07c0` (43067510704,
+  **success**) removed them — which is why this tree's gate was already clean when this tick pushed.
+- **Superseded by the peer's 12:26 board (`24fcf07`):** the `.31` reap refusal this entry called
+  "reported again, not explained" is a **stored `needs_reap`** recorded `2026-11-11T06:38:06Z`, not
+  a live ssh fault — 12 of 12 exact-shape probes answer rc=0 — so the hedge above is historical,
+  and the published board carries the mechanism.
 
 ## 2026-11-11 12:26 ET hourly board tick: the `.31` reap refusal explained, not reported again
 
