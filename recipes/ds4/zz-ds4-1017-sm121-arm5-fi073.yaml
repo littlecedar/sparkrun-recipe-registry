@@ -71,7 +71,11 @@ metadata:
   kv_dtype: fp8
   tags: trial
 mods:
+  # Order is pre_exec order: the overlay launcher's hook runs as root against
+  # the mounted runtime cache, so the reown runs after it (register row
+  # `runtime-cache-flashinfer-root-owned-subtree`).
   - "mods/dsv41-sglang-overlay"
+  - "mods/reown-runtime-cache"
 executor_config:
   entrypoint: ""
   shm_size: 32gb
