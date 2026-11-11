@@ -1,9 +1,17 @@
 # ===========================================================================
-# LICENSE — ERNIE 5.5 Flash Base Model License v1.0 (new class; owner question
-# open in mad-science/QUESTIONS.md). Free non-commercial use; commercial
-# use permitted only up to US$50 M annual revenue, with attribution and a
-# one-time written notice (S4.2), otherwise separate authorization (S4.3).
-# PROBE arm, not the shipped default.
+# LICENSE BANNER — READ BEFORE DISTRIBUTING THIS RECIPE OR ITS OUTPUTS
+#
+# baidu/ERNIE-5.5-Flash-Base is licensed under the **ERNIE 5.5 Flash Base
+# Model License v1.0** (card `license: other`), not an Apache/MIT class:
+#   * free non-commercial use;
+#   * commercial use permitted only up to US$50 M annual revenue, with
+#     attribution and a one-time written notice to the licensor (S4.2);
+#     above that threshold it needs separate authorization (S4.3);
+#   * the attribution and the notice travel with the arm: this banner, the
+#     lane README and the root index row carry them wherever the arm is
+#     documented, and a serve exposed to third parties carries them too.
+# Owner ruling 2026-11-11: shippable under those terms. The recipe ships the
+# repo id and revision; the weights stay in the HF cache under the licence.
 # ===========================================================================
 # Route arm for `zz-ernie-5.5-flash-base-tp4-sglang` (the blocked control,
 # unchanged). Byte-identical image pin, checkpoint revision and command: the
@@ -40,9 +48,11 @@ description: >-
   envelope is checked GPU-less at launch: 16 q-heads per rank at TP=4, topk
   2176 (2048 index_topk + 128 window, aligned), 656 B/token, page 64. Quality,
   not throughput, decides this arm: greedy GSM8K >= 0.93 plus the window
-  falsifier. DRAFT probe (`zz-`), not shippable as-is: the checkpoint's license
-  class has no owner ruling, and it ships no chat template, so
-  /v1/completions is the answering endpoint. Window 131072 is upstream's only
+  falsifier. Shipped 2026-11-11 (owner licence ruling): the class is shippable
+  with its attribution and one-time notice obligations attached. It ships no
+  chat template, so /v1/completions is the
+  answering endpoint, and the imperative form of the window falsifier fails
+  (a known behaviour, not a gate). Window 131072 is upstream's only
   validated context.
 metadata:
   model_url: https://huggingface.co/baidu/ERNIE-5.5-Flash-Base
@@ -50,16 +60,20 @@ metadata:
   model_params: "280B"
   model_dtype: fp8
   kv_dtype: fp8
-  tags: large_context
+  tags: official, license
   caveats: >-
     ERNIE 5.5 Flash Base Model License v1.0: free non-commercial use; commercial
     use permitted only up to US$50 M annual revenue, with attribution and a
     one-time written notice (S4.2), otherwise separate authorization (S4.3).
-    This class has no owner ruling yet, so the arm stays probe-only until one
-    lands. The tokenizer ships no chat_template (tokenizer_config.json carries
-    none, chat_template.jinja 404), so /v1/chat/completions has no prompt
-    contract; serve /v1/completions. The route is unproven until the quality
-    cell: a wrong-logits port passes boot and CUDA-graph capture.
+    Owner ruling 2026-11-11: shippable with those obligations attached, so this
+    banner, the lane README and the root index row carry them, and a serve
+    exposed to third parties must too. The tokenizer ships no chat_template
+    (tokenizer_config.json carries none, chat_template.jinja 404), so
+    /v1/chat/completions has no prompt contract; serve /v1/completions. The
+    window falsifier passes in QA form only: the imperative form fails its
+    control at 4,264 and 17,940 prompt tokens (trio_c2.json), a known
+    behaviour, not a gate. The quality cell is the acceptance: a wrong-logits
+    port passes boot and CUDA-graph capture (190/200 0-shot GSM8K measured).
 
 defaults:
   port: 8000

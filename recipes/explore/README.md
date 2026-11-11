@@ -41,7 +41,7 @@ the pyannote diarizer. Explore keeps the language and agentic/RAG arms.
 - [ternary-bonsai-2-9b-q2_0-llamacpp](#ternary-bonsai-2-9b-q2_0-llamacpp)
 - [zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm](#zz-beam-10-501b-a23b-nvfp4-tp4-vllm)
 - [zz-ernie-5.5-flash-base-tp4-sglang](#zz-ernie-55-flash-base-tp4-sglang)
-- [zz-ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang](#zz-ernie-55-flash-base-tp4-flashinfer-sparse-sglang)
+- [ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang](#ernie-55-flash-base-tp4-flashinfer-sparse-sglang)
 - [zz-sage-a1.5-35b-a3b-fp8-sglang](#zz-sage-a15-35b-a3b-fp8-sglang)
 - [zz-sage-a1.5-35b-a3b-q4km-llamacpp](#zz-sage-a15-35b-a3b-q4km-llamacpp)
 - [zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm](#zz-kimi-k31-pro-superexpert-24b-q4p-ref-vllm)
@@ -1019,11 +1019,13 @@ is **unproven by fit here** and is not promised — only a winner re-checks it.
 endpoint until a template is staged (the ds4 template-overlay is the prior art). This is a finding
 about the checkpoint, not a boot blocker.
 
-**License: new class, probe only.** ERNIE 5.5 Flash Base Model License v1.0 — free non-commercial
-use; commercial use permitted only up to US$50 M annual revenue, with attribution and a one-time
-written notice (§4.2), otherwise separate authorization (§4.3). That is neither an Apache/MIT nor a
-non-commercial-only class, so shipping it as a default needs an owner ruling first; the recipe carries
-the license banner and `metadata.caveats` and stays a `zz-` probe.
+**License: new class, shipped under obligations 2026-11-11.** ERNIE 5.5 Flash Base Model License
+v1.0 — free non-commercial use; commercial use permitted only up to US$50 M annual revenue, with
+attribution and a one-time written notice (§4.2), otherwise separate authorization (§4.3). That is
+neither an Apache/MIT nor a non-commercial-only class; the owner ruled it shippable with those
+obligations on 2026-11-11, and the promoted route arm below carries the banner, the caveats and the
+index row. This control stays a `zz-` probe for the engine reason only (FlashMLA has no SM12x sparse
+decode), not for licensing.
 
 **Staging throughput (fleet fact).** HF caps one connection at ~1.5 MB/s from this head (two 12 s
 `resolve` probes: 1.54 and 1.60 MB/s); the default 8 workers gave 12 MB/s (~6 h for this body) and
@@ -1082,10 +1084,11 @@ at 09:43:44Z while the sampler's minimum was 37.3 GiB and shard load sat at 13/1
 whose last lines are `nothing captured` + `sparkrun stop` is a failed instrument, not a dead boot** —
 check the sampler and the kernel log before recording a verdict.
 
-## [zz-ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang](zz-ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang.yaml)
+## [ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang](ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang.yaml)
 
-SGLang 2026-11-10 nightly · **4 nodes (TP=4)** · **PROBE — booted and measured 2026-11-10 through the
-campaign runner's own quartet window: 0-shot GSM8K 95.0 %, window falsifier T-pass / N-silent / C-pass**.
+SGLang 2026-11-10 nightly · **4 nodes (TP=4)** · **SHIPPED 2026-11-11 — booted and measured 2026-11-10
+through the campaign runner's own quartet window: 0-shot GSM8K 95.0 %, window falsifier T-pass /
+N-silent / C-pass (QA form)**.
 
 The route arm for the FlashMLA-blocked control above: byte-identical image pin, revision, command
 and readiness, plus the lane mod
@@ -1108,6 +1111,21 @@ decode at most 64 tokens, `supports_decode` true for 8/16/32/64 heads; the pool 
 `kv_scale_format="arbitrary_fp32"` route GLM DSA already runs on this board; the sink is the same
 float32 `(num_heads,)` tensor whose contract both kernels document as
 `lse' = log(exp(lse) + exp(sink))`. The mod's launch-time verify fails closed on all of it.
+
+### Shipped 2026-11-11 — the licence ruling and the serving contract
+
+The checkpoint's class was the only thing holding this arm as a `zz-` probe. The owner ruled it
+shippable 2026-11-11, and the obligations now travel with the arm everywhere it is documented
+(recipe banner and `metadata.caveats`, this section, the root index row): **attribution** to Baidu
+as the model's licensor, and a **one-time written notice** to the licensor before commercial use
+(§4.2). Commercial use is permitted only up to US$50 M annual revenue; above that it needs separate
+authorization (§4.3). The serving contract ships with it: **`/v1/completions` only** — the
+checkpoint carries no chat template, so there is no `/v1/chat/completions` prompt contract — and the
+window falsifier's **imperative form fails its control at 4,264 and 17,940 prompt tokens**
+(`head:~/benchmarks/tp4-20261110b/ernie-gate2/trio_c2.json`), a known behaviour of the prompt form
+recorded rather than gated; the QA form is the one that passes. Promotion evidence is the same
+receipt: `Ready` **916 s** on task `sparkrun_e59088ba4d0f3858_e2a8839bcbe8`, `ernie55` backend,
+`kv_cache_dtype=fp8_e4m3`, **190/200 0-shot GSM8K**.
 
 **Measured 2026-11-10 (Boot B; receipt `head:~/benchmarks/tp4-20261110b/ernie-gate2/`).** `Ready`
 about 1,230 s, `/v1/models` 200 at 131,072, the engine printing `Use ernie55 attention backend …

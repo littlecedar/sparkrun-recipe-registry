@@ -286,7 +286,8 @@ measurement.
 | mellum2.1-12b-a2.5b-q4km-thinking-llamacpp    | ✨🚀🧠🔧   |       110.5 |  154.3 |  208.3 |   186.0 |               8.07GB |     — | /v1/chat/completions |  1 | [Model][JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF]                                                                                                                                                                                                                     |
 | ternary-bonsai-2-9b-q2_0-llamacpp             | 👀🚀🧠   |        75.5 |  129.2 |  152.0 |   129.8 |               2.38GB |     — | /v1/chat/completions |  1 | [Model][prism-ml/Ternary-Bonsai-2-9B-gguf]                                                                                                                                                                                                                               |
 | spark-x2.6-4b-bf16-sglang                     | 🧠🦾🔧   |       20.38 |  46.38 |  99.27 |  156.20 |                8.22GB |   85% | /v1/chat/completions |  1 | [Model][XHToken/Spark-X2.6-4B] |
-| spark-x2.6-4b-fp8-sglang                      | —      |       40.80 |  77.06 | 146.63 |  217.58 |                4.47GB |   85% | /v1/chat/completions |  1 | [Model][XHToken/Spark-X2.6-4B-FP8] |
+| spark-x2.6-4b-fp8-sglang | — | 40.80 | 77.06 | 146.63 | 217.58 | 4.47GB | 85% | /v1/chat/completions | 1 | [Model][XHToken/Spark-X2.6-4B-FP8] |
+| ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang | ✨📜 | — | — | — | — | 268.65GB | 78% | /v1/completions | 4 | [Model][baidu/ERNIE-5.5-Flash-Base] |
 
 * _The **Nemotron-3.5-Lightning** row is its first boot (2026-10-21, `.35`, manual docker, no new image):
   TTR ≈ 6 min in, 20.10 GiB of NVFP4 weights, `max_model_len 32768`, KV 10,703,667 tokens = 326.65×, C1 63.27 ± 0.65
@@ -306,6 +307,8 @@ measurement.
 * _The **Laguna-M.1** row is the family's **two-node ceiling reference** (2026-10-20 test pair, `bench_6ca06d393d60`, 129.75 GiB staged, 259.51 GiB distributed): C1 **12.85 ± 0.08** → C10 **34.64 ± 0.06** t/s, flattening past c5; house 37/37, needle 3/3 at 262,144, tools 60.5 % (the whole loss is `parallel`/`parallel_multiple` emitting one call per response). The recipe's `container:` was bumped to `vllm-openai:v0.32.0` on 2026-10-22 for a CVE and has **not** been re-booted on it — every cell here is the `v0.29.0` boot. Receipt `~/benchmarks/laguna-m1-20261020/`; lane section [`recipes/explore/README.md`](recipes/explore/README.md#poolside-laguna-m1-nvfp4-vllm-tp2)._
 * _The **Spark-X2.6** rows are the lane's 2026-10-22 tier A/B (`~/benchmarks/spark-x26-20261022/`): bf16 is the accuracy control (house **37/37** thinking-on, 30/37 thinking-off) and FP8 the shipped fast tier (C1 +100 % / C10 +39 % over it, house 37/37 on the rerun). The FP8 recipe carries no `metadata.tags`, so its Flags cell stays `—`. Its one rated risk: `trick-2` runs away at a 4096-token cap (`max_tokens` ≥ 8192 answers 3/3, 0 empty)._
 * _**Ripple-65B Preview** (dense 65B, 80 layers, 2M positions, card claim 80.52 TerminalBench 2.1) is **authored but not indexed**: three `zz-` probes — NVFP4 TP=1, the same plus the DFlash2 drafter, and BF16 TP=2 as the unquantized control and the only 1M-context cell — pinned to one engine digest (`vllm/vllm-openai:nightly@sha256:390a656b…`, vLLM ≥ 0.33.0 is the only build with `ricursive`) and **never booted**, so they carry no row. Flags when measured: ✨🚚🧠🦾🔧 (🚀 only if C1 clears 50 t/s). Quant matrix, fit arithmetic, the boot discriminators and the named unknowns: [`recipes/explore/README.md`](recipes/explore/README.md#ripple-65b-preview-2026-11-08-trial-not-booted)._
+
+* _The **ERNIE-5.5-Flash-Base** row **shipped 2026-11-11 under the ERNIE 5.5 Flash Base Model License v1.0** (card `license: other`): free non-commercial use; commercial use only below US$50 M annual revenue, carrying **attribution** to Baidu and a **one-time written notice** to the licensor (§4.2), separate authorization above the threshold (§4.3) — the recipe banner carries the same terms. `/v1/completions` only (the checkpoint ships no chat template) and the C1–C10 cells stay `—`: quality, not throughput, is its cell. 0-shot GSM8K **190/200 = 95.0 %**; window falsifier T/N/C passes in QA form and the **imperative form fails its control** at 4,264 and 17,940 prompt tokens (`trio_c2.json`) — recorded as behaviour, not gated. `Ready` 916 s on task `sparkrun_e59088ba4d0f3858_e2a8839bcbe8`, receipt `head:~/benchmarks/tp4-20261110b/ernie-gate2/`; lane section [`recipes/explore/README.md`](recipes/explore/README.md#ernie-55-flash-base-tp4-flashinfer-sparse-sglang)._
 
 ## Liquid AI
 | Recipe | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s | Size | Mem% | API | TP | Model Cards |
@@ -368,6 +371,8 @@ See [MECHANICS.md](recipes/MECHANICS.md) for the sparkrun command-template rules
 * https://spark-arena.com
 
 <!-- Links -->
+[baidu/ERNIE-5.5-Flash-Base]: https://huggingface.co/baidu/ERNIE-5.5-Flash-Base
+
 [LiquidAI/LFM3-1.7B-GGUF]: https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF
 
 [LiquidAI/d1-2B-GGUF]: https://huggingface.co/LiquidAI/d1-2B-GGUF
