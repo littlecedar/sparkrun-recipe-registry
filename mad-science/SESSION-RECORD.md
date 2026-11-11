@@ -9867,3 +9867,43 @@ only where it was folded.
   and a pause rather than a retry if it drops. `AGENTS.md` §"Node hygiene" points at it; the two campaign
   placement rows say a lease that cannot show the checks is refused.
 
+## 2026-11-11 01:10 ET — hourly board tick (fleet idle, one claimed session, register attribution corrected twice)
+
+- **Three whole-fleet reads** 06:03:04Z / 06:05:46Z / 06:07:32Z, all six nodes answering address, are the
+  census: `docker ps -aq` 9 on `.30` (all `Created`) and 0 on `.31`–`.35`, running 0 and volumes 0 on every
+  node every read. `MemAvailable` 115.9–116.0 GiB on `.30`, 117.3–117.4 GiB on the rest, flat. No production
+  serve was live, so nothing is excluded from research accounting this cycle.
+- **Pool serving**, proved three ways on `.30`: units `active` with `Result=success`, 102 hub entries, and a
+  through-mount `stat -L` on the Kromoss snapshot README = 7685 B. Its `df -B1` used total rises
+  +25,165,824 B over 162 s then +13,631,488 B over 106 s (~155 and ~129 KB/s), and the three closes add
+  38,797,312 B while the six node roots lose 38,633,472 B net — within 164 KB — so the writer **is** the
+  pool's chunk store on the node roots. That mechanism is named in the pool row only; the census row does
+  not restate it.
+- **One session holds the only live claims.** `session:tp4-20261111` claimed `ds4-arm5-flashinfer-073-port`
+  and `ds4-arm5-dspark-bf16-query-delta` at 05:23:36–37Z on the register. Its receipt
+  `head:~/benchmarks/arm5-fi073c-20261111/RECEIPT.md` (written 01:03 ET) records three canary boots all
+  dead: boot 1 target-only at t=63 s on `deepseek_v4_hook.py:108` (only EAGLE/DSPARK are admissible, and
+  `SPEC_ALGO` is launcher-owned so `off` is clobbered to `DSPARK`), boot 2 DSpark at t=117 s and the
+  unmodified `:0.2.1` control at t=117 s on the same NCCL line — `rocep1s0f0` GID index 3 is empty and NCCL
+  selects it, so `ibv_modify_qp failed … local GID ::`. The RoCE hole, not the port, blocks every TP=4 boot
+  of this lane. No rank held a container at any read; the head runs no `sparkrun`/`run-arm` process and one
+  `mem-guard.sh` armed at 01:04:16 ET has no launch behind it.
+- **Campaign unchanged.** User unit `sparkrun-campaign` inactive (`ExecMainExitTimestamp` 2026-11-10
+  17:57:02 EST, status 0); nine `state.json` roots enumerated with exactly one lease object in the whole set
+  — `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4@5` on `.30`–`.33`, expired 2026-11-10T23:02:01Z, unreleased
+  because only a running director calls `expire()`. Its host set still starts at `.30`.
+- **No declared window**: neither this clone nor the head's carries `.local/fleet-window.lock`; each holds
+  only the same two 707 B sync-conflict copies plus a zero-byte `status-board.lock`.
+- **Register: 176 tasks, 54 open, 2 claims, 0 questions**, and three blobs inside one hour carry identical
+  counts — `7b36774d…` at `205cc3a`, `0fe45ce6…` at `6b10bbb` (the snapshot this board renders), and
+  `3be5701c…` at `459cf70`. The tick published that fact wrong twice and corrected forward both times:
+  `2280de9` compared the register against the HEAD it read at 06:03 and called the later rows uncommitted
+  authoring, and `078fe4d` then called `3be5701c…` a worktree draft after `459cf70` had committed it.
+  `214f586` carries the corrected sentence. Never rewrite a pushed shared-head commit, so these stay as
+  forward corrections with their reasons in the bodies.
+- **Landed rows added**: `6b10bbb` (floor probe, `ARM_EXTRA_CLIENT_AT=pre-ready`, its guard),
+  `f9a630a` (suite/module counts re-derived), `459cf70` (owner's six-machine authorization and `.30`
+  guardrails), and the arm-5 `fi073c` receipt.
+- **Still open from this tick**: the expired `h2h` lease object, the orphan `mem-guard.sh`, the RoCE GID
+  hole as the lane's gating blocker, and `campaign-leases-tp4-onto-30` (the campaign's host order still
+  starts at `.30`).
