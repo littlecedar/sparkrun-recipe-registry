@@ -10492,3 +10492,62 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   `{"leases":[],"version":1}`; register `15944dab`, 184 tasks / 45 open / 0 claims, `check` rc=0.
 - **Not done:** no register row was edited (the tick is read-only on the register), so this
   mechanism and the two half-right register claims stay here and on the board for their owners.
+
+## 2026-11-11 08:12 ET hourly board tick: idle fleet, a fifth pool interval, and `.31`'s refusal stored
+
+- **Board published over `origin/main`'s board**, blob `242d28c5`, title `07:21 ET`: composed from a
+  saved copy in `.scratch/tick-0800-1214124/base.md`, published with that copy's sha256 and the
+  fetched remote board's content sha (`--expect-remote-sha` takes the content hash, not the blob id —
+  the blob id is refused), `publish` rc=0 and the tail read `disk was 2026-11-11 08:01:53 ET`, lint
+  `ok`, commit `9c34c22`, gate run 43027125195 **success**. Diff was `13 insertions, 15 deletions`:
+  In flight rows and the title only — `## Work queue` and `## Landed session` were verified
+  byte-identical to HEAD before the commit, and the published bytes match the composed file
+  (`d1c96411…`).
+- **Fleet idle, nothing measured.** One file-backed six-node sweep `2026-11-11T13:01:53Z`–`13:01:55Z`,
+  workstation-direct: `.31`–`.35` read 0 containers, 0 running, 0 volumes; `.30` reads 0 running with
+  its nine never-started `Created` leftovers under the same names as the 07:02 read; `pgrep
+  sglang.launch_server` 0 on all six and no image reported on any node. OOM policy re-read `-1000`
+  through both doors on six nodes; `kho=off` 1, `CmaTotal/CmaFree` 0/0, `nr_free_cma` 0 on all six.
+- **Memory cell: a unit trap avoided, not published.** `MemAvailable` is reported in kB
+  (`.30` 122,611,896 kB = **116.9 GiB**), which is unchanged from the 07:21 board on all six
+  (117.0 / 117.0 / 117.0 / 117.5 / 116.9). A draft cell read the kB figure as GiB and would have
+  published a fleet-wide 5.7 GiB rise that never happened; the composed rows divide by 1,048,576 and
+  carry the same values as base.
+- **Pool: fifth fleet-spread interval.** Units on `.30` `active`/`success`/`NRestarts` 0, mount listed,
+  `df -B1` through the mount used **13,981,225,320,448 B** / avail **10,210,004,434,944 B** / total
+  **24,191,229,755,392 B** (58 %), used **+44,564,480 B** on the base read while the six node roots'
+  own `used` sum rose **+42,303,488 B** over the same window, movers `.34` +12,410,880 / `.31`
+  +12,386,304 / `.30` +5,406,720 / `.32` +4,038,656 / `.33` and `.35` +4,030,464 B. Labelled
+  **LIKELY** chunk-store traffic and kept to that one cell: no container, serve or user process was
+  live at either read. Reads proved through the mount by 102 hub entries and `stat -L` on the
+  Kromoss snapshot, **1,189,176,800 B**.
+- **Two probe legs returned nothing and were dropped, not published.** The first pool probe guessed a
+  snapshot path that does not exist, so its `stat -L` leg was empty, and a `journalctl -u
+  beegfs-storage --since '2 hours ago' | grep -c -i RDMA` leg returned 0. The snapshot path was
+  rediscovered inside the probe script on the second read (the path is printed only when it resolves),
+  which produced the 1,189,176,800 B figure above; the RDMA leg was **not** re-stated on the board at
+  all, so the base board's "RDMA storage connections from 01:40" claim is neither confirmed nor
+  contradicted here — a 2 h window cannot see a 01:40 connection, so a future tick must not read that
+  0 as a missing leg.
+- **Holders: both classes empty.** No `.local/fleet-window.lock` in this clone or on the head
+  (`/home/red/src/sparkrun-recipe-registry/.local/`); the two `fleet-window.sync-conflict-*.lock`
+  copies are not claims. Head `fleet-leases.json` unchanged at 33 B / mtime 04:50:47 ET /
+  `{"leases":[],"version":1}`, and `director lease --list` printed `0 live lease(s)` at 13:05:55Z.
+- **Campaign active, `.31` refusal stored.** Unit active (MainPID 2482, `NRestarts` 0, since
+  01:37:57 EST), `director status` **10 measured / 13 blocked** over 23 arms, **0 lease records and 0
+  live** across all nine roots read straight out of each `state.json`. The blocked line `cannot list
+  containers on `.31` (rc=255)` does not reproduce: from the same head every one of the six node
+  addresses answered `rc=0` at 13:04Z. `--root` and `--receipts-root` both name `h2h-20261107`, which
+  is `campaign-state-copy-re-nests`.
+- **`.30` name fault is live and is the pin.** `ssh-keygen -F spark-41e1` matches hashed
+  `known_hosts:117` pinning ed25519 `…gaRod`, the FQDN form matches nothing, the address form is
+  pinned at line 128 and answers `rc=0`, and `ssh spark-41e1` still dies `Host key verification
+  failed`. Register row `head-mesh-cannot-reach-30` stays open; the fix is `ssh-keygen -R` plus a
+  re-pin from the address and an FQDN entry, not a hosts edit.
+- **Register unchanged, so the table is the previous cycle's bytes.** `mad-science/queue.json` sha256
+  `15944dab…` at snapshot and re-checked at 08:04 ET, `check` rc=0: 184 tasks, 36 queued / 9 blocked /
+  0 running / 0 claims, 45 open. Graph line: `9 blocked, 2 edges, 8 prose-gated, 0 question-gated, 0
+  question, 41 rows not drawn`, tool stderr empty, so no `blocked_by`/`blocks` disagreement to report.
+- **Not done:** no landed row added (nothing landed between `6926d51` and this commit), no suite or
+  `validate --strict` re-run (no tracked recipe, mod or tool changed), and no register row touched —
+  the tick is read-only on the register.
