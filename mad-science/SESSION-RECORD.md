@@ -9975,6 +9975,11 @@ find **0 running and 0 volumes on all six** with only `.30`'s nine `Created` lef
   uncommitted board. Only the In-flight body and the two derived work-queue blocks are the tick's; every
   landed row earlier ticks wrote is untouched, and three of them were dropped from this tick's draft as
   duplicates of rows already present.
+- **Two citations of the removed tick dir are gone from the board.** The queue and publication cells
+  named `.scratch/tick-0100-334248/…`, which the tick deleted after publishing, so both now cite the blob
+  each is reproducible from: the register is `git show 3be5701c:mad-science/queue.json` and the base board
+  is `git show ad12888a:mad-science/STATUS.md`. The correction's own landed row still names the path,
+  because a correction has to name what it fixed.
 - **Still open**: the RoCE/`NCCL_IB_HCA` pin the 01:20 entry proposes, the decode-shape ceiling this
   boot measured, `campaign-leases-tp4-onto-30` (host order still starts at `.30`), the expired `h2h`
   lease, and the ten orphan guards.
