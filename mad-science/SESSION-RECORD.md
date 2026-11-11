@@ -10420,4 +10420,7 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   The inputs that produced `dsv41-sm121-dg:0.2.1-fi073d` — `recipes/ds4/patch_dsv41_fi073.py`
   (delta 8) and `recipes/ds4/Dockerfile.dsv41-fi073` — landed in `cc91428`, completing the pair
   against the receipt's build hashes (patch `96c0a986…`, dockerfile `66d2956a…`). The pushed
-  history was not rewritten; no register row is needed.
+  history was not rewritten; no register row is needed. The same commit published a removal this
+  session did not make: a concurrent session had already deleted a 38-line `tick 05:00–05:22`
+  section from this file in both index and worktree, `17d131b` took worktree content, and the text
+  is recoverable at the parent (`git show 17d131b^:mad-science/SESSION-RECORD.md`).
