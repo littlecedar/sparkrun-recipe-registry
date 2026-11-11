@@ -1745,14 +1745,19 @@ fails closed — duplicate ids, a dangling `blocks`/`blocked_by` ref, a cycle (m
 cycle path), a missing/non-numeric/negative `estimate_h`, a bad `state`/`node_cost`, a stored
 `blocked_by` drifted from its derived mirror, any non-`running` task still carrying claim fields
 (repair with `update --id <id>`, which clears them before validating), or an
-unresolvable/untracked `recipe`, a bad `tp`, a `tp`/`node_cost` disagreement and a non-string
-`env` all exit 1 naming the offending id. There are no silent defaults: the queue never guesses an estimate
-or invents a dependency.
+unresolvable/untracked `recipe`, a bad `tp`, a `tp`/`node_cost` disagreement, a non-string
+`env`, or a register that changed on disk between this command's read and its write (a peer
+writer — the message names the row and nothing is written) all exit 1 naming the offending id.
+There are no silent defaults: the queue never guesses an estimate or invents a dependency.
 
 Caveats:
 
 - **`blocked_by` is a stored mirror, not an independent field.** The tool rewrites it on every
   mutation; hand-edited divergence fails `check` with the exact diff (`rerun update` fixes it).
+- **A stale writer loses, loudly.** `load` stamps the bytes it read and `_save` compares them with
+  the file immediately before the atomic replace; when a peer rewrote the register in between, the
+  command exits 1 naming the row and writes nothing, so the peer's new row and claim survive and the
+  stale title/state is never applied. Rerun the command — it re-reads. A single writer is unaffected.
 - **`state: blocked` is an annotation, not a dependency.** It marks an external gate (an owner
   decision, a missing authorization); structural blocking lives in `blocks`/`blocked_by`. A task
   whose blockers are all `done` is runnable even with a non-empty `blocked_by`.

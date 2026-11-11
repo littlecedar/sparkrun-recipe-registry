@@ -40,6 +40,7 @@ import io
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import tempfile
@@ -372,11 +373,12 @@ class AtomicSave(unittest.TestCase):
             path = Path(tmp) / "queue.json"
             path.write_text(json.dumps({"priority_models": [], "tasks": [task("a", 1.0)]}), encoding="utf-8")
             before = path.read_bytes()
+            data = tq.load(path)
             orig = tq.os.replace
             tq.os.replace = lambda *a, **k: (_ for _ in ()).throw(OSError("boom"))
             try:
                 with self.assertRaises(OSError):
-                    tq._save(path, {"priority_models": []}, [task("a", 1.0), task("b", 2.0)])
+                    tq._save(path, data, [task("a", 1.0), task("b", 2.0)], row="b")
             finally:
                 tq.os.replace = orig
             self.assertEqual(path.read_bytes(), before, "the register must be unchanged")
@@ -385,10 +387,83 @@ class AtomicSave(unittest.TestCase):
     def test_the_saved_register_keeps_its_mode(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "queue.json"
-            path.write_text("{}", encoding="utf-8")
+            path.write_text(json.dumps({"priority_models": [], "tasks": []}), encoding="utf-8")
             path.chmod(0o640)
-            tq._save(path, {"priority_models": []}, [task("a", 1.0)])
+            data = tq.load(path)
+            tq._save(path, data, [task("a", 1.0)], row="a")
             self.assertEqual(path.stat().st_mode & 0o777, 0o640)
+
+
+class StaleWrite(unittest.TestCase):
+    """A whole-file replace must lose to a peer write, not overwrite it from a stale snapshot.
+
+    Measured 2026-11-11: a fold driver holding a pre-update snapshot reverted three machine-runnable
+    fields a peer had just written, because `_save` replaced the whole tasks list.
+    """
+
+    @staticmethod
+    def _register(path: Path, tasks: list) -> None:
+        path.write_text(json.dumps({"priority_models": [], "tasks": tasks}, indent=2) + "\n",
+                        encoding="utf-8")
+
+    def test_a_stale_writer_refuses_nonzero_and_leaves_the_peer_row_and_claim(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "queue.json"
+            self._register(path, [task("a", 1.0)])
+            first, stale = tq.load(path), tq.load(path)
+            peer = first["tasks"][0]
+            peer["state"] = "running"
+            peer["claimed_by"] = "session:peer"
+            peer["claimed_at"] = "2026-11-11T06:00:00Z"
+            first["tasks"].append(task("b", 2.0))
+            relink(first["tasks"])
+            tq._save(path, first, first["tasks"], row="b")
+            written = path.read_bytes()
+
+            # The stale process runs `update` against the snapshot it loaded before the peer wrote.
+            stale["tasks"][0]["title"] = "clobbered"
+            orig_load = tq.load
+            tq.load = lambda _path: stale
+            err = io.StringIO()
+            try:
+                with contextlib.redirect_stderr(err):
+                    rc = tq.main(["--file", str(path), "update", "--id", "a", "--title", "clobbered"])
+            finally:
+                tq.load = orig_load
+
+            self.assertEqual(rc, 1, "a stale writer must exit non-zero")
+            message = err.getvalue()
+            self.assertIn("a:", message, "the refusal names the row")
+            self.assertIn("changed on disk", message)
+            self.assertIn(f"read it on {socket.gethostname()}", message,
+                          "the refusal names the host whose snapshot is stale")
+            self.assertEqual(path.read_bytes(), written, "nothing written")
+
+            reloaded = {row["id"]: row for row in tq.load(path)["tasks"]}
+            self.assertEqual(sorted(reloaded), ["a", "b"], "the peer's row survives")
+            self.assertEqual(reloaded["a"]["claimed_by"], "session:peer", "the live claim survives")
+            self.assertEqual(reloaded["a"]["title"], "a", "the stale title is not applied")
+
+    def test_a_single_writer_still_writes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "queue.json"
+            self._register(path, [task("a", 1.0)])
+            data = tq.load(path)
+            data["tasks"][0]["title"] = "renamed"
+            tq._save(path, data, data["tasks"], row="a")
+            self.assertEqual(tq.load(path)["tasks"][0]["title"], "renamed")
+
+    def test_a_done_transition_still_clears_the_claim(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "queue.json"
+            running = task("a", 1.0, state="running")
+            running["claimed_by"] = "session:tp4-20261111"
+            running["claimed_at"] = "2026-11-11T05:23:37Z"
+            self._register(path, [running])
+            self.assertEqual(tq.main(["--file", str(path), "done", "--id", "a"]), 0)
+            row = tq.load(path)["tasks"][0]
+            self.assertEqual(row["state"], "done")
+            self.assertEqual((row["claimed_by"], row["claimed_at"]), ("", ""))
 
 
 class TitleMonotonicity(unittest.TestCase):

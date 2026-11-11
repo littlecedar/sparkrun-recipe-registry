@@ -82,6 +82,7 @@ import hashlib
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import time
@@ -98,6 +99,10 @@ REQUIRED_STR = ("id", "title", "model", "node_cost", "notes", "provenance")
 #: (`env` defaults to empty), and `tp` must agree with `node_cost`.
 COST_NODES = {"single": 1, "pair": 2, "quartet": 4}
 TP_VALUES = (1, 2, 4)
+#: `load` stamps the bytes it read here; `_save` compares it with the file before replacing it.
+SNAPSHOT = "_loaded_sha256"
+#: Named in a stale-write refusal: with a syncthing-shared tree, "which host read this" is the clue.
+HOST = socket.gethostname()
 
 
 class QueueError(Exception):
@@ -116,15 +121,21 @@ class PeerWriteInFlight(QueueError):
 
 def load(path: Path) -> dict:
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        raw = path.read_bytes()
     except FileNotFoundError:
         raise QueueError(f"queue file not found: {path}") from None
-    except json.JSONDecodeError as exc:
+    except OSError as exc:
+        raise QueueError(f"queue file cannot be read: {path}: {exc}") from exc
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise QueueError(f"queue file is not valid JSON: {path}: {exc}") from None
     if not isinstance(data, dict) or not isinstance(data.get("tasks"), list):
         raise QueueError(f"{path}: top level must be an object with a 'tasks' list")
     if not isinstance(data.get("priority_models"), list):
         raise QueueError(f"{path}: 'priority_models' must be a list of tiers")
+    # The bytes this command read, so `_save` can refuse to replace a register a peer rewrote since.
+    data[SNAPSHOT] = hashlib.sha256(raw).hexdigest()
     return data
 
 
@@ -391,15 +402,36 @@ def ordering(data: dict, path: Path | None = None) -> list[dict]:
 
 # ---------------------------------------------------------------- commands
 
-def _save(path: Path, data: dict, tasks: list[dict]) -> None:
-    """Write the register atomically: tmp file, then `os.replace`.
+def _save(path: Path, data: dict, tasks: list[dict], *, row: str = "") -> None:
+    """Write the register atomically: compare-and-swap, then tmp file, then `os.replace`.
 
     This file is syncthing-shared with a live second writer, and a torn write here does NOT read as
     corruption -- JSON stays syntactically valid while task rows silently vanish, which is the one
     failure mode nobody notices. `write_text` truncates first, so a sync in that window publishes a
     half file; rename is atomic on the same filesystem, so a reader (or syncthing) sees either the old
     register or the new one.
+
+    Atomic replace is not enough with a second writer: a command that read the register and then spent
+    time on a ladder of `update` calls would replace the whole file from its stale snapshot, taking a
+    peer's new row or claim with it (measured 2026-11-11: three machine-runnable fields reverted this
+    way). So the bytes `load` read are compared with the file immediately before the replace; any
+    difference is a peer write and this writer loses loudly, with nothing written.
     """
+    snapshot = data.pop(SNAPSHOT, None)
+    if snapshot is None:
+        # Only a caller that never loaded the file: refuse rather than write without a comparison, so
+        # the CAS cannot be skipped by accident (an internal misuse, not a queue-data defect).
+        raise QueueError(f"{row or path}: refusing to save without the snapshot load() took")
+    try:
+        current = hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise QueueError(f"{row or path}: cannot re-read {path} to check for a peer write: {exc}") from exc
+    if current != snapshot:
+        raise QueueError(
+            f"{row}: {path} changed on disk since this command read it on {HOST} -- a peer wrote "
+            "the register; nothing written. Re-read it and rerun; the peer's rows and claims are "
+            "intact."
+        )
     data["tasks"] = tasks
     body = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     tmp = path.with_name(f"{path.name}.tmp-{os.getpid()}")
@@ -451,7 +483,7 @@ def cmd_add(args, path: Path) -> None:
     tasks.append(task)
     _relink(tasks)
     validate({"tasks": tasks, "priority_models": data["priority_models"]}, path)
-    _save(path, data, tasks)
+    _save(path, data, tasks, row=args.id)
     print(f"added {args.id} (weight recomputed on next `queue`)")
 
 
@@ -516,7 +548,7 @@ def cmd_update(args, path: Path) -> None:
         task["claimed_by"] = task["claimed_at"] = ""
     _relink(tasks)
     validate(data, path)
-    _save(path, data, tasks)
+    _save(path, data, tasks, row=args.id)
     print(f"updated {args.id}: state={task['state']} estimate_h={task['estimate_h']}")
 
 
