@@ -27,6 +27,10 @@ RECIPE=${1:?usage: run-arm.sh <recipe-path> [node[,node...]]}
 # just `NODE` there, so every `-H` site stays the same expression.
 HOSTS=${2:-${ARM_NODE:-}}
 NODE=${HOSTS%%,*}
+if [ -z "$NODE" ]; then
+  echo "usage: run-arm.sh <recipe-path> [node-ip]  (or set ARM_NODE)"
+  exit 1
+fi
 # ARM_TAG suffixes the receipt name (`-d4`, `-d8`): a sweep re-runs ONE recipe with different
 # `-o` overrides, and without a tag every leg writes the same directory and rotates the previous
 # leg to `.prev-<HHMMSS>` -- the numbers survive but the attribution does not.
@@ -571,48 +575,59 @@ else
   on_node() { ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" "$1"; }
 fi
 
-for _ in $(seq 1 60); do
+# The stop path is installed BEFORE the appearance loop: a launch abandoned there used to
+# outlive the executor and leave unowned containers (measured 2026-11-08: a pair boot was
+# called failed while its serve went on to answer). TID is empty until a container resolves
+# and `$LAUNCH` is the launcher itself, so every reference is guarded.
+trap 'oom_watchdog_check; stop_capture; [ -n "${TID:-}" ] && sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${LAUNCH:-}" ] && kill "$LAUNCH" 2>/dev/null; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; [ -n "${EXTRA_PID:-}" ] && kill "$EXTRA_PID" 2>/dev/null; exit' EXIT INT TERM
+
+# How long a container may take to appear follows the LAUNCHER's progress, not a fixed clock.
+# A 129.6 GB pair distribution took 340 s to produce a container, and the old 300 s window
+# called that a failure while the launch went on to serve (measured 2026-11-08,
+# `zz-ripple-65b-preview-bf16-tp2-vllm` attempt 3: containers at 10:32:47Z, `/v1/models` 200).
+# 900 s is the floor for a multi-rank body; a campaign raises it with
+# `ARM_CONTAINER_APPEAR_TIMEOUT`. `ARM_APPEAR_POLL` exists so a guard can drive this loop.
+APPEAR_TIMEOUT=${ARM_CONTAINER_APPEAR_TIMEOUT:-900}
+APPEAR_POLL=${ARM_APPEAR_POLL:-5}
+appear_start=$SECONDS
+while :; do
   # Both container shapes: `_solo` for TP=1, `_node_<rank>` for a multi-rank launch. Matching only
   # `_solo` made every TP=2 launch print ARM FAIL 301 s in while its containers booted happily
   # underneath (measured 2026-10-30, first pair run) -- same class as the boot-watchdog `_solo` fix,
   # opposite direction.
   N=$(on_node "docker ps --format '{{.Names}}' | grep -m1 -E '_solo|_node_0'" 2>/dev/null | tr -d '\r' || true)
   [ -n "$N" ] && break
-  # A refused launch (a stale resource claim, a missing recipe, a placement
-  # failure) exits at once. Waiting the full five minutes for a container that
-  # will never appear burns another lane's window -- measured 2026-10-29 when a
-  # dead pid's reservation blocked `.35` and the script spun anyway.
+  waited=$((SECONDS - appear_start))
+  # A refused launch (a stale resource claim, a missing recipe, a placement failure) exits at
+  # once. This is the only prompt verdict: the launcher being gone AND no container existing.
   if ! kill -0 "$LAUNCH" 2>/dev/null; then
-    echo "ARM FAIL $NAME: launcher exited with no container. Last lines:"
+    echo "ARM FAIL $NAME: launcher exited with no container after ${waited}s" \
+         "(ceiling ${APPEAR_TIMEOUT}s). Last lines:"
     tail -5 "$L/launch.log"
-    # The trap is not installed yet, and this is exactly the marlin shape: an engine killed during
-    # init leaves no container, so its 137/143 is attributable only from here.
+    # This is exactly the marlin shape: an engine killed during init leaves no container, so
+    # its 137/143 is attributable only from here.
     oom_watchdog_check
     exit 5
   fi
-  sleep 5
+  # At the ceiling the launcher is still alive, so it is killed first and the failure is then
+  # stated on the same two conditions: gone AND no container.
+  if [ "$waited" -ge "$APPEAR_TIMEOUT" ]; then
+    echo "ARM FAIL $NAME: no container appeared after ${waited}s (ceiling ${APPEAR_TIMEOUT}s," \
+         "ARM_CONTAINER_APPEAR_TIMEOUT); launcher was still running, killing it"
+    tail -5 "$L/launch.log"
+    kill "$LAUNCH" 2>/dev/null
+    oom_watchdog_check
+    exit 1
+  fi
+  sleep "$APPEAR_POLL"
 done
-if [ -z "$NODE" ]; then
-  echo "usage: run-arm.sh <recipe-path> [node-ip]  (or set ARM_NODE)"
-  exit 1
-fi
-
-if [ -z "${N:-}" ]; then
-  echo "ARM FAIL $NAME: no container appeared (see $L/launch.log)"
-  oom_watchdog_check
-  exit 1
-fi
 TID=${N#sparkrun_}; TID=${TID%_node_*}; TID=${TID%_solo}
 # The receipt cell a pre-ready client waits on: the task id does not exist until the launch
 # resolves, and a client armed before it must not invent one.
 printf '%s\n' "$TID" > "$L/task-id.txt"
 echo "arm=$NAME container=$N task=$TID port=$PORT"
 
-# Whatever happens to this script -- SIGINT, SIGTERM, an early exit, a timeout --
-# the task does not outlive it. The explicit stop below is the normal path; this
-# trap is the one that covers the script being killed mid-measurement, which is
-# the same class of leak as forgetting the stop entirely.
-trap 'oom_watchdog_check; stop_capture; sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; [ -n "${EXTRA_PID:-}" ] && kill "$EXTRA_PID" 2>/dev/null; exit' EXIT INT TERM
+# The stop path is already installed, above the appearance loop.
 
 # The image cell belongs to every receipt, not to the arms that happen to carry a quality client:
 # the concurrency rows had to smuggle an image-id gate into ARM_EXTRA_CLIENT because this block
@@ -712,9 +727,16 @@ for _ in $(seq 1 "$POLLS"); do
     wait "$WD"; wd_rc=$?; wd_done=1
     case "$wd_rc" in
       0) ready=yes ;;                                   # watchdog saw the endpoint answer
-      3) echo "watchdog: serve dead and stopped (rc=3) at t=$((SECONDS))s -- never ready"
+      3) # rc=3 covers both of the watchdog's stop verdicts (`dead` and `stalled`), so the
+         # receipt must carry the word the instrument actually printed: filing a stall as a
+         # death blames the engine for a frozen instrument (measured 753B attempt 5: the
+         # watchdog log says verdict=stalled at t=2532s and the arm said "serve dead").
+         wd_verdict=$(sed -n 's/.*verdict=\([a-z_]*\).*/\1/p' "$L/watchdog.log" 2>/dev/null | tail -1)
+         wd_verdict=${wd_verdict:-unknown}
+         printf 'verdict=%s rc=%s at_s=%s\n' "$wd_verdict" "$wd_rc" "$SECONDS" > "$L/watchdog-verdict.txt"
+         echo "watchdog: serve ${wd_verdict} and stopped (rc=$wd_rc) at t=$((SECONDS))s -- never ready"
          ready=no; break ;;                             # rc=4 below, then harvest + teardown:
-                                                        # a dead arm's serve log is the evidence
+                                                        # the watchdog's captured log is the evidence
       *) echo "watchdog exited rc=$wd_rc (its own error) -- this boot has no liveness" \
               "instrument left; polling the endpoint only" ;;
     esac
@@ -1163,7 +1185,24 @@ for hn in $(echo "$HOSTS" | tr ',' ' '); do
     ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" "rm -f /tmp/serve-$c.log" >/dev/null 2>&1
   done
 done
-echo "serve logs harvested: $harvested (expected one per running rank; 0 means the log was gone)"
+# harvest-report: start
+# Report what the receipt HOLDS, not only what this loop copied: a boot the watchdog stopped
+# leaves `serve-reaped-<container>.log` (written before its stop), and that used to be invisible
+# to the count — the arm whose only surviving log was the reaped one still printed 0.
+live_logs=()
+reaped_logs=()
+for f in "$L"/serve-*.log; do
+  [ -e "$f" ] || continue
+  case "${f##*/}" in
+    serve-reaped-*) reaped_logs+=("${f##*/}") ;;
+    *) live_logs+=("${f##*/}") ;;
+  esac
+done
+for name in "${live_logs[@]+"${live_logs[@]}"}"; do echo "serve log: $name (harvested)"; done
+for name in "${reaped_logs[@]+"${reaped_logs[@]}"}"; do echo "serve log: $name (reaped by the watchdog)"; done
+echo "serve logs harvested: $harvested live copy/copies; receipt holds" \
+     "${#live_logs[@]} live and ${#reaped_logs[@]} reaped serve log(s)"
+# harvest-report: end
 echo "engine stdout captured: $captured container stream(s) (a boot that died has no other copy)"
 
 stop_capture

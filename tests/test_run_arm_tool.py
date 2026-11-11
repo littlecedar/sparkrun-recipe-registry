@@ -117,13 +117,18 @@ class RunArmContract(unittest.TestCase):
         )
 
     def test_exit_trap_covers_a_killed_script(self):
-        """A killed script must still stop the task it booted."""
+        """A killed script must still stop the task it booted — and the launcher it left."""
         text = read_tool()
         trap = TRAP_RE.search(text)
         assert trap is not None, "no `trap ... sparkrun stop ... EXIT` line"
-        tid_at = text.find("TID=${N#sparkrun_}")
-        self.assertGreater(tid_at, 0, "task id is not parsed where expected")
-        self.assertGreater(trap.start(), tid_at, "the trap is installed before $TID is known")
+        # Installed after the launch and before the appearance loop, because an abandoned
+        # launch must not outlive the executor; `$TID` is empty until a container resolves.
+        self.assertLess(text.index("\nlaunch_arm\n"), trap.start(),
+                        "the trap runs before there is a launcher to reap")
+        self.assertIn('[ -n "${TID:-}" ] && sparkrun stop "$TID"', text,
+                      "the trap stops a task it may not have")
+        self.assertIn('[ -n "${LAUNCH:-}" ] && kill "$LAUNCH"', text,
+                      "the trap never kills the launcher")
 
     def test_verification_follows_the_stop(self):
         """The container/volume re-count must come after the stop, not from it."""
@@ -607,6 +612,10 @@ class ReadinessLoopBehaviour(unittest.TestCase):
             tmp = Path(tmpdir)
             wd = tmp / "watchdog.sh"
             wd.write_text(f"#!/usr/bin/env bash\nexit {watchdog_exit}\n")
+            # The receipt cell the arm reads the verdict from; the stub only carries an exit
+            # status, so the loop's own word comes from here (as it does in a real arm).
+            (tmp / "watchdog.log").write_text(
+                "WATCHDOG t=1s verdict=dead endpoint=down serve_pid=gone\n", encoding="utf-8")
             probes = tmp / "probe.log"
             script = tmp / "loop.sh"
             script.write_text(
@@ -614,6 +623,7 @@ class ReadinessLoopBehaviour(unittest.TestCase):
 set -uo pipefail
 NODE=127.0.0.1
 PORT=1
+L={tmp}
 # The endpoint probe is the only stub: an instrument, never a server, so what is
 # measured is the loop's own control flow. `probes=` counts iterations.
 curl() {{ echo probe >> {probes}; printf '000'; }}
@@ -2393,9 +2403,160 @@ class OomWatchdog(ExecutedBlock):
     def test_the_check_runs_in_the_exit_trap_and_before_it_on_the_early_exits(self):
         text = read_tool()
         self.assertIn("oom_watchdog_check; stop_capture", text, "the trap does not record the death")
-        self.assertIn("exit 5", text)
-        self.assertLess(text.index("oom_watchdog_check\n    exit 5"),
-                        text.index("trap 'oom_watchdog_check"), "the early exit is not covered")
+        # The trap now precedes the appearance loop (an abandoned launch must not outlive the
+        # executor), so the fail-fast `exit 5` is covered by it rather than running before it.
+        self.assertLess(text.index("trap 'oom_watchdog_check"),
+                        text.index("APPEAR_TIMEOUT=${ARM_CONTAINER_APPEAR_TIMEOUT"),
+                        "the trap is installed after the appearance loop")
+        self.assertLess(text.index("trap 'oom_watchdog_check"),
+                        text.index("kill -0 \"$LAUNCH\" 2>/dev/null; then"),
+                        "the appearance fail-fast runs before the stop path exists")
+        self.assertIn('kill "$LAUNCH" 2>/dev/null', text, "the trap never kills the launcher")
+
+    # -- the appearance window: it follows the launcher, not a fixed 300 s --------------------
+    APPEAR_START = "APPEAR_TIMEOUT=${ARM_CONTAINER_APPEAR_TIMEOUT"
+    APPEAR_END = '\n  sleep "$APPEAR_POLL"\ndone\n'
+
+    def appear_block(self) -> str:
+        text = read_tool()
+        start = text.index(self.APPEAR_START)
+        return text[start:text.index(self.APPEAR_END, start) + len(self.APPEAR_END)]
+
+    def run_appear(self, env_extra=None, launch="sleep 30 & LAUNCH=$!", files=None):
+        body = (
+            'on_node() { ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" "$1"; }\n'
+            "oom_watchdog_check() { :; }\n"
+            f"{launch}\n"
+            + self.appear_block()
+            + '\necho "seen=$N"\n'
+        )
+        return self.run_block(body, files=files or {}, env_extra=env_extra,
+                              receipt_extra={"launch.log": "launcher output\n"})
+
+    def test_a_slow_launcher_is_not_failed_before_the_ceiling(self):
+        rc, out, _, _ = self.run_appear(
+            {"ARM_CONTAINER_APPEAR_TIMEOUT": "2", "ARM_APPEAR_POLL": "0"})
+        self.assertEqual(rc, 1, out)
+        self.assertIn("after 2s (ceiling 2s", out, "the failure does not name the wait and ceiling")
+        self.assertIn("ARM_CONTAINER_APPEAR_TIMEOUT", out, "the knob is not named")
+        self.assertIn("launcher was still running, killing it", out)
+        self.assertNotIn("launcher exited with no container", out, "a slow launch was read as refused")
+
+    def test_a_gone_launcher_fails_at_once_and_names_the_wait(self):
+        rc, out, _, _ = self.run_appear(
+            {"ARM_CONTAINER_APPEAR_TIMEOUT": "900", "ARM_APPEAR_POLL": "0"},
+            launch="LAUNCH=999999")
+        self.assertEqual(rc, 5, out)
+        self.assertIn("launcher exited with no container after 0s (ceiling 900s)", out)
+
+    def test_a_container_that_appears_ends_the_wait(self):
+        rc, out, _, _ = self.run_appear(
+            {"ARM_CONTAINER_APPEAR_TIMEOUT": "900", "ARM_APPEAR_POLL": "0"},
+            launch="LAUNCH=999999",
+            files={"head.test.ps": "sparkrun_abc123_solo\n"})
+        self.assertEqual(rc, 0, out)
+        self.assertIn("seen=sparkrun_abc123_solo", out)
+
+    def test_the_default_ceiling_covers_a_multi_rank_body(self):
+        self.assertIn("ARM_CONTAINER_APPEAR_TIMEOUT:-900", read_tool(),
+                      "the default window is below the measured 340 s pair distribution")
+
+    def test_negative_control_without_the_ceiling_the_wait_does_not_end(self):
+        """Removing the ceiling check leaves the old fixed-clock wait: the run hangs past it."""
+        block = self.appear_block()
+        mutated = block.replace(
+            'if [ "$waited" -ge "$APPEAR_TIMEOUT" ]; then',
+            'if [ "$waited" -ge 999999 ]; then')
+        self.assertNotEqual(mutated, block, "the ceiling moved; this control is vacuous")
+        body = (
+            'on_node() { ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$NODE" "$1"; }\n'
+            "oom_watchdog_check() { :; }\n"
+            "LAUNCH=$$\n"
+            + mutated
+        )
+        with self.assertRaises(subprocess.TimeoutExpired):
+            self.run_block(body, env_extra={"ARM_APPEAR_POLL": "0.05"}, timeout=2)
+
+    # -- the harvest count: it reports what the receipt holds ---------------------------------
+    HARVEST_START = "# harvest-report: start"
+    HARVEST_END = "# harvest-report: end"
+
+    def harvest_block(self) -> str:
+        text = read_tool()
+        start = text.index(self.HARVEST_START)
+        return text[start:text.index(self.HARVEST_END, start)]
+
+    def test_a_reaped_only_arm_reports_one_not_zero(self):
+        rc, out, _, _ = self.run_block("harvested=0\n" + self.harvest_block(), receipt_extra={
+            "serve-reaped-sparkrun_abc_node_0.log": "Traceback: boom\n"})
+        self.assertEqual(rc, 0, out)
+        self.assertIn("serve log: serve-reaped-sparkrun_abc_node_0.log (reaped by the watchdog)", out)
+        self.assertIn("receipt holds 0 live and 1 reaped serve log(s)", out)
+
+    def test_live_and_reaped_logs_are_counted_apart(self):
+        rc, out, _, _ = self.run_block("harvested=1\n" + self.harvest_block(), receipt_extra={
+            "serve-0.log": "live\n",
+            "serve-reaped-sparkrun_abc_node_0.log": "reaped\n"})
+        self.assertEqual(rc, 0, out)
+        self.assertIn("receipt holds 1 live and 1 reaped serve log(s)", out)
+        self.assertIn("serve log: serve-0.log (harvested)", out)
+
+    def test_negative_control_the_old_counter_never_names_the_reaped_log(self):
+        """Pre-fix text: one number from the copy loop, so the one surviving log is invisible."""
+        old = ('harvested=0\n'
+               'echo "serve logs harvested: $harvested (expected one per running rank; 0 means the log was gone)"\n')
+        rc, out, _, _ = self.run_block(old, receipt_extra={
+            "serve-reaped-sparkrun_abc_node_0.log": "Traceback: boom\n"})
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("serve-reaped", out, "the old counter named the log; this control is void")
+
+
+class WatchdogVerdict(ExecutedBlock):
+    """`rc=3` covers two verdicts, and the receipt must carry the watchdog's own word.
+
+    Measured 2026-11-11 (753B attempt 5): `watchdog.log` read
+    `WATCHDOG t=2532s verdict=stalled …` and the arm receipt said "serve dead and stopped",
+    so a frozen instrument was filed as an engine death.
+    """
+
+    CASE_START = 'case "$wd_rc" in'
+
+    def case_block(self) -> str:
+        text = read_tool()
+        start = text.index(self.CASE_START)
+        return text[start:text.index("    esac\n", start) + len("    esac\n")]
+
+    def run_verdict(self, log: str, rc: int = 3, block: str | None = None):
+        body = (f"ready=no\nwd_rc={rc}\nfor _ in 1; do\n"
+                + (block or self.case_block()) + 'done\necho "ready=$ready"\n')
+        return self.run_block(body, receipt_extra={"watchdog.log": log})
+
+    def test_a_stall_is_not_filed_as_a_death(self):
+        rc, out, files, _ = self.run_verdict(
+            "WATCHDOG t=2532s verdict=stalled endpoint=down serve_pid=alive io_delta=0\n")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("serve stalled and stopped (rc=3)", out)
+        self.assertNotIn("serve dead", out, "a stall was filed as a death")
+        self.assertEqual(files["watchdog-verdict.txt"].split()[0], "verdict=stalled")
+
+    def test_a_death_still_reads_as_a_death(self):
+        _rc, out, files, _ = self.run_verdict(
+            "WATCHDOG t=120s verdict=dead endpoint=down serve_pid=gone\n")
+        self.assertIn("serve dead and stopped (rc=3)", out)
+        self.assertEqual(files["watchdog-verdict.txt"].split()[0], "verdict=dead")
+
+    def test_an_unreadable_log_is_unknown_not_a_death(self):
+        _rc, out, files, _ = self.run_verdict("")
+        self.assertIn("serve unknown and stopped", out)
+        self.assertEqual(files["watchdog-verdict.txt"].split()[0], "verdict=unknown")
+
+    def test_negative_control_hardcoding_dead_reproduces_the_defect(self):
+        block = self.case_block()
+        mutated = block.replace("wd_verdict=${wd_verdict:-unknown}", "wd_verdict=dead")
+        self.assertNotEqual(mutated, block, "the verdict read moved; this control is vacuous")
+        _rc, out, _files, _ = self.run_verdict(
+            "WATCHDOG t=2532s verdict=stalled endpoint=down\n", block=mutated)
+        self.assertIn("serve dead", out, "the mutation did not reproduce the defect")
 
 
 if __name__ == "__main__":

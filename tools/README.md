@@ -64,6 +64,17 @@ or blocks the stop. **Its limit is one host:** a TP=2 arm's rank-1 container liv
 node, so only rank 0's log is preserved; `--node` names a single host and probing both is out of
 scope for now.
 
+**Three fields name what happened, not what the script assumed.** A stopped boot writes
+`<receipt>/watchdog-verdict.txt` carrying the watchdog's own `verdict=` word (`dead` or `stalled`):
+`rc=3` covers both, and a stall filed as a death blames the engine for a frozen probe (measured 753B
+attempt 5). The appearance window follows the launcher rather than a fixed clock
+(`ARM_CONTAINER_APPEAR_TIMEOUT`, 900 s default, with `ARM_APPEAR_POLL`), and it fails only when the
+launcher is gone **and** no container exists — naming how long it waited — because a 129.6 GB pair
+distribution took 340 s and the old 300 s window called it a failure while the boot went on to serve.
+The harvest count enumerates `serve-*.log` and `serve-reaped-*.log` by name, so an arm whose only
+surviving log was reaped reports 1, not 0. The stop trap is installed before the appearance loop and
+kills the launcher pid as well as the task, so a launch abandoned there cannot outlive the executor.
+
 ## Contents
 
 - [run-arm.sh pooling receipts](#runarmsh-pooling-receipts)
