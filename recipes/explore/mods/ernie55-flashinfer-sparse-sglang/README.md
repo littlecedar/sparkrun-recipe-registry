@@ -172,6 +172,17 @@ result; paste the line into the receipt and stop. The `device:` line is
 informational: the patch gates on `major == 12`, and a non-GB10 board changes
 the record, not the route.
 
+Cache ownership belongs to the hook, not the boot: the verifier imports
+`flashinfer` as root, and FlashInfer 0.7.3 fixes its cache root at import as
+`FLASHINFER_WORKSPACE_BASE/.cache/flashinfer` (default `$HOME`, i.e. the
+shared runtime cache). `run.sh` therefore exports `FLASHINFER_WORKSPACE_BASE`
+and `TMPDIR` to a mod-owned `/cache/runtime/ernie55-flashinfer-sparse-sglang-verify/`
+before the verifier runs, and refuses the launch if the shared tree gains a
+root-owned entry newer than its stamp or is not owned by the cache owner —
+a root-owned `flashinfer_jit.log` kills every later uid-1000 serve
+(`mad-science/AGENTS.md` §Mods). Repairing a tree already left root-owned is a
+`chown -R` at boot, not this mod's job.
+
 The other half of rung (i) is the boot's own parameter block: the serve prints
 seven usage lines, and the receipt quotes all seven verbatim. Four facts must
 appear in them, or the boot is not this route however it answers: the ERNIE

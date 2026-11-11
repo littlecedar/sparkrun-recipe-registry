@@ -286,5 +286,17 @@ class FailClosedControls(unittest.TestCase):
         self.assertIn("[site3-whitelist]", proc.stdout)
 
 
+class CacheOwnership(unittest.TestCase):
+    """The hook runs as root and imports flashinfer; the cache it writes is shared."""
+
+    def test_verifier_import_is_pointed_away_from_the_shared_cache(self) -> None:
+        script = (SCRIPT.parent / "run.sh").read_text()
+        export = script.index('export FLASHINFER_WORKSPACE_BASE="$MOD_CACHE" TMPDIR="$MOD_CACHE/tmp"')
+        self.assertLess(export, script.index("verify-ernie55-flashinfer-sparse.py"))
+        # And a write that lands under the shared tree anyway refuses the launch.
+        self.assertIn('-uid 0 -newer "$STAMP"', script)
+        self.assertIn("shared flashinfer cache", script)
+
+
 if __name__ == "__main__":
     unittest.main()
