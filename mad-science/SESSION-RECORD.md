@@ -10796,6 +10796,6 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   local stdin to `/dev/null`, so `ssh -n host bash -s <<'EOS'` runs an empty script and returns rc=0 with
   no output — the first census of this tick came back with six end markers and no data. Dropping `-n`
   when the script travels on stdin is the fix; outer `ssh head bash -s < script` plus inner
-  `ssh host bash -s <<'EOS'` works. The worker aliases (`spark-head`, `spark-01`…`spark-05`) are only
-  reachable from the head for node hops, and `spark-head` from the head itself fails host-key
-  verification, so the `.30` read is taken on the outer channel.
+  `ssh host bash -s <<'EOS'` works. The worker aliases are reachable only from the head for node hops,
+  and the head's own alias fails host-key verification from the head itself, so the `.30` read is taken
+  on the outer channel.
