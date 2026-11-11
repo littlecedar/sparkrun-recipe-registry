@@ -10694,3 +10694,57 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   `ok -- HEAD 838c6213` here. The red/green pair is closed on CI: `d236ce4` completed **success**
  at the second read, so the red commit and its fix are one failing and one passing run; `6362db5`,
  `838c621` and `777a915` were still `in_progress` then.
+
+## 2026-11-11 11:28 ET hourly board tick: three publications, two boot deaths inside one hour
+
+- **Each publication was true at its instant and false within minutes**, so the hour needed three.
+  `267922c` (title `11:12 ET`) read task `…_3383f2c899d7` (boot 5) loading on all six; boot 5 died at
+  t=584 s and its watchdog stopped it. `986b8db` (title `11:21 ET`) recomposed from sweep B
+  (`16:18:08`–`16:18:10Z`) on task `…_9cbbe346ca17` (boot 6, launched `16:15:51Z`); boot 6 died at
+  `16:25:07Z`. The final publication reads sweep C (`16:27:19`–`16:27:21Z`): **nothing live**, 0
+  running and 0 volumes on all six, `.30` carrying only its nine never-started `Created` leftovers,
+  and boot 6's own teardown census at `16:26:43Z` agreeing line for line.
+- **Boot 5's cause, and why the engine's own remedy did not apply.** The reaped
+  `serve-reaped-…_3383f2c899d7_node_0.log` (45 805 B) ends
+  `ValueError: DEEPSEEK_V32_INDEXER needs 64-token kernel blocks, which packed 5760-token KV cache
+  blocks cannot be split into. Reduce --block-size to 64 or set VLLM_KV_CACHE_LAYOUT to a
+  layer-compact layout (e.g. LBNHC)` — while that boot's argv already carried `--block-size 64`
+  (read from the live container's `vllm serve … --kv-cache-dtype fp8_ds_mla --block-size 64`), so the
+  flag alone does not produce splittable blocks for this quant.
+- **Boot 6's cause is a one-word defect, and it names the next attempt.** Its reaped log (32 840 B)
+  ends `ValueError: VLLM_KV_CACHE_LAYOUT=LBNHC does not satisfy every supported set; valid layouts:
+  ['BLHNC']` — the layout env is the right lever and the spelling passed was wrong. A boot 7 with
+  `BLHNC` had not launched by `16:27:21Z`; that spelling is the standing instruction for whoever
+  boots next, and no board row should claim the layout lever is disproven.
+- **The register does not record either boot.** `kimi-tp2-pp3-six-node` still reads `queued` with
+  `claimed_by` empty and no `recipe`/`tp`, while its recipe
+  `recipes/explore/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp2-pp3.yaml` (5 251 B, mtime `09:35 ET`) is
+  untracked in this clone. Two boots and a live lease therefore exist on the fleet and nowhere in the
+  register, against the claim-before-boot invariant; the board's queue row carries it because the
+  register cannot.
+- **The Landed table's leading `11:46` row is old, not a future stamp**, and it stays where it is.
+  That row was written when the register held 122 tasks; today's register holds 187, so it predates
+  the day's later ticks and its position at the top is the defect, not its clock. The no-reorder rule
+  means only a note can fix it, which is this bullet; a tick that needs its history in order should
+  read `git log`, not the table's first row.
+- **Two provenance faults in this tick's own probes, both now checked at the right path.** The
+  `FLEETLOCK` line of the census probe ran over ssh from the remote login cwd, so `.local/…` resolved
+  to `~/.local` and proved nothing about the head clone; re-read at
+  `/home/red/src/sparkrun-recipe-registry/.local/` it holds only the two
+  `fleet-window.sync-conflict-*` copies (mtime 2026-11-10 11:51) and no live `fleet-window.lock`, so
+  the lease remains the only claim. And the pool row's `stat -L` was strengthened to a read that
+  answers: through the mount,
+  `…/models--vllm-project--Kimi-K3.1-Pro-pruned75/snapshots/fc72e5a1…/config.json` reads 7 303 B,
+  15 blocks.
+- **Pool read after the teardown, and it falls.** `16:27:22Z`: used **13,981,748,559,872 B**, avail
+  10,209,481,195,520 B, total 24,191,229,755,392 B (`df` 58%), hub **102** entries. That is
+  **−742,391,808 B** on the `16:18:11Z` read taken while boot 6 was loading — **LIKELY** boot 6's
+  teardown deleting its own runtime tree, and the first time this tick's series fell rather than rose.
+- **A printed interval, not a measurement, was the defect.** The `11:12` refresh row renders its
+  sweep-A window as `16:03:17Z–16:02:47Z`; the six reads ran `16:02:47Z`→`16:03:18Z`. The row is left
+  in place with this tick's own correction row beside it, in the same shape as the `10:3x` zone
+  correction whose class it repeats.
+- **CI, read by SHA from this workstation** (`gh run list`): `267922c` `gate` = **success**
+  (run 43056428786); `986b8db` (43057863127), peer `99d7d2e` (43057174954) and `7833247`
+  (43058390572) were still `in_progress` at this read, so this tick claims no green for them beyond
+  `tools/push-gate.py`'s `ok -- HEAD 986b8db6` on the committed tree.
