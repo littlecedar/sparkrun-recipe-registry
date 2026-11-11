@@ -10850,8 +10850,12 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   because that arm's `h2h-20261107/state.json` record carries `needs_reap` on the four hosts with
   `last.at` **`2026-11-11T06:38:06Z`**, and `status` echoes that instant's `last.reason`. Twelve
   same-shaped probes in three passes at `17:09:03Z` (`.30`–`.33`, `BatchMode`, the filter the reaper
-  uses) all answer **rc=0** with 0 containers, so the hosts stay refused only until the director
-  reaps and clears the marker. The two earlier ticks could only say it did not reproduce.
+  uses) all answer **rc=0** with 0 containers. The two earlier ticks could only say it did not
+  reproduce. **Corrected 12:36 ET:** the marker is not a host lock. The director skips only this
+  arm (`plan.py:523`) and refuses only its lease (`state.py:314`), so `.30`–`.33` stay fully
+  placeable for every other arm; only `tools/queue-drip.py:313-315` turns this record's host list
+  into a hold, and the marker clears through the director's verified reap (`state.py:381`), never a
+  register flip. The board row carried the same overstatement until the correction fold below.
 - **Published `24fcf07`** (board sha `82551bbd…`) on base `1ce699ae…` (title 12:19 ET) with
   `--expect-sha` and `--expect-remote-sha` carrying the saved copy; `lint` ok. The first publish
   attempt was refused on two RFC1918 literals inside the `needs_reap` list — masked `.30`–`.33`.
