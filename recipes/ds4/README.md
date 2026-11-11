@@ -1529,6 +1529,25 @@ success, and only the canary answer comparison catches a wrong-logits port. Carr
 booting rank with the `docker save | ssh 'docker load'` command above and check its id there before
 arming it.
 
+**Draft-path delta (2026-11-11) — two draft-only sites, rebuilt, not yet booted.** The five-delta
+image's last boot (2026-11-11T01:50Z, `-o env.CUDA_GRAPH_MAX_BS_DECODE=10`, autotuner off) cleared
+the 96-row envelope and died at t≈245 s in the port's own assert, `AssertionError: SM12x sparse MLA
+needs a BF16 query, got torch.float8_e4m3fn` (`deepseek_v4_trtllm_backend.py:361`, reached from
+`dspark_worker_v2.py:515 init_cuda_graphs` → `deepseek_v4_dspark.py:760`). Both missing pieces sit in
+`deepseek_v4_dspark.py`, which the model-side delta never touched: the draft attention forward
+allocates a second FP8 Q buffer (now BF16 under `is_sm120_supported()`), and its 192-column
+window+block table (`ceil_align(128 + 5, 64)`) would then hit the port's fail-closed "no combined
+length" branch at `deepseek_v4_trtllm_backend.py:374`; that branch is now the faithful port of the
+packed branch it replaced — the table goes whole as the SWA segment (every entry is SWA storage,
+`compress_ratio == 0`) and the split stays gated on `compress_ratio != 0`. Rebuilt
+`dsv41-sm121-dg:0.2.1-fi073c`
+(`sha256:3f33790c79ba753042094784e68873cefaeeb30c3c37ecd1a4c37d696f472946`, 35,143,722,364 B) on
+`.35`; gates: anchors, `py_compile` of six files, backend import, and in-image
+`supported_sparse_mla_sm120_configs()['dsv4_1_inline'].supports_decode(num_heads=16, topk=192,
+page_block_size=256, num_tokens=60)` `True` with `192 in _DECODE_DSV4_TOPKS`. The target decode call
+block is byte-identical to the five-delta image's (fi073b → fi073c diff: only the draft branch and
+the split condition). Numerics unmeasured; the draft path's numbers are the risk.
+
 **Canary boot 2026-11-11 — the KV/query ABI passes, the boot blocks in FlashInfer autotune, so there
 is no port verdict either way.** The five-delta image (`sha256:1d47404119…`, 35,143,615,166 B) was
 carried over the `192.168.0.x` rail to `.31`/`.32`/`.33` (`.34` excluded: local tag, no `RepoDigests`)

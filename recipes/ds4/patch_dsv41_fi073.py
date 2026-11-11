@@ -15,9 +15,15 @@ Port A and its stop verdict:
 * the persistent trtllm counter-buffer WAR is dropped when FlashInfer no longer
   exposes ``_get_trtllm_gen_multi_ctas_kv_counter_buffer`` (removed in 0.7.x;
   the SM12x route takes no counter buffer).
+* the DSpark draft block's table (SWA_WINDOW + block, 64-aligned to 192) is
+  passed whole as the SWA segment: every entry indexes SWA storage
+  (``compress_ratio == 0``) and its per-row count is a total, not a
+  compressed count, so the 0.7.x split call adds no tail for it.
 * BF16 query (SM12x only): the route rejects FP8 queries
   (``_core.py:1304-1306``), so the uniform-FP8 pool's contiguous FP8 Q buffer
-  and both ``q.to(float8)`` casts are gated off on capability major 12.
+  and both ``q.to(float8)`` casts are gated off on capability major 12. The
+  DSpark draft model allocates its own Q buffer in the draft attention forward
+  (``deepseek_v4_dspark.py``), so that site is gated too.
 * 528-byte inline-scale KV (SM12x only): ``_core.py:1384-1400`` accepts packed
   ``uint8`` rows at 528 bytes per token (512 all-FP8 values + 16 UE8M0
   group-32 scale bytes) instead of the fork's 512-byte footerless pool. The
@@ -41,6 +47,7 @@ PKG = ROOT.parent
 BACKEND = ROOT / "layers/attention/deepseek_v4_trtllm_backend.py"
 BACKEND_BASE = ROOT / "layers/attention/deepseek_v4_backend.py"
 MODEL = ROOT / "models/deepseek_v4.py"
+DSPARK = ROOT / "models/deepseek_v4_dspark.py"
 POOL = ROOT / "mem_cache/deepseek_v4_memory_pool.py"
 STORE = PKG / "kernels/ops/attention/dsv4/kv_norm_rope_store.py"
 
@@ -62,7 +69,7 @@ SEMAPHORE_NEW = (
     '    _orig = _fi_core._get_trtllm_gen_multi_ctas_kv_counter_buffer\n'
 )
 
-# --- DSpark draft refusal (the split call has no combined length) ------------
+# --- DSpark draft table (combined window+block, one segment) -----------------
 DSPARK_OLD = (
     '        if swa_width > SWA_WINDOW:\n'
     '            # DSpark attends noncausally to its context window plus the whole\n'
@@ -73,15 +80,12 @@ DSPARK_OLD = (
     '            seq_lens = core_attn_metadata.swa_topk_lengths[:bs]\n'
 )
 DSPARK_NEW = (
-    '        if swa_width > SWA_WINDOW:\n'
-    '            # The 0.7.x split call has no combined length: the DSpark draft\n'
-    '            # tail lives in SWA storage but its per-row length is a total, not\n'
-    '            # a compressed count, so re-plumbing it needs its own measurement.\n'
-    '            raise NotImplementedError(\n'
-    '                "FlashInfer 0.7.x SM121 port: the DSpark noncausal draft path "\n'
-    '                "(swa_width > 128 with compress_ratio=0) is not re-plumbed for "\n'
-    '                "the split sparse-table call; run without speculative decoding."\n'
-    '            )\n'
+    '        # DSpark draft block: its 64-aligned table (SWA_WINDOW + block) packs\n'
+    '        # the noncausal context window and the block slots in SWA storage, so\n'
+    '        # the 0.7.x surface takes it whole as the SWA segment: the per-row\n'
+    '        # count is a total, not a compressed count, hence no tail to split;\n'
+    '        # the compressed cache is the SWA cache (compress_ratio == 0) and the\n'
+    '        # packed branch\'s seq_lens override is unused by this route.\n'
 )
 
 # --- delta 4a: BF16 query in the backend ------------------------------------
@@ -192,10 +196,13 @@ DECODE_CALL = (
 DECODE_CALL_NEW = (
     '        # 0.7.x split call: the 128 SWA columns are their own segment and\n'
     '        # the compressed tail is a second one, each with its own length.\n'
+    '        # Only a compressed-layer table carries such a tail; a wider\n'
+    '        # compress_ratio == 0 table is the DSpark draft\'s combined\n'
+    '        # window+block table and goes whole as the SWA segment.\n'
     '        swa_topk_lens = core_attn_metadata.trtllm_swa_lens[:bs]\n'
     '        extra_sparse_indices = None\n'
     '        extra_sparse_topk_lens = None\n'
-    '        if sparse_indices.shape[1] > SWA_WINDOW:\n'
+    '        if compress_ratio != 0 and sparse_indices.shape[1] > SWA_WINDOW:\n'
     '            extra_sparse_indices = sparse_indices[:, SWA_WINDOW:]\n'
     '            extra_sparse_topk_lens = sparse_topk_lens - SWA_WINDOW\n'
     '            sparse_indices = sparse_indices[:, :SWA_WINDOW]\n'
@@ -299,6 +306,37 @@ MODEL_Q_NEW = (
     '                    else torch.float8_e4m3fn\n'
     '                ),\n'
     '                device=x.device,\n'
+    '            )\n'
+)
+
+# --- delta 6: BF16 query on the DSpark draft path ---------------------------
+# The draft model owns a second Q-buffer allocation (its attention forward),
+# so the model-side gate in delta 4b never reached it: the draft handed the
+# ported decode an FP8 query and tripped the backend's fail-closed BF16 assert
+# during draft CUDA-graph capture.
+DSPARK_IMPORT_OLD = 'from sglang.srt.utils import add_prefix, is_npu\n'
+DSPARK_IMPORT_NEW = (
+    'from sglang.srt.utils import add_prefix, is_npu\n'
+    'from sglang.srt.utils.common import is_sm120_supported\n'
+)
+DSPARK_Q_OLD = (
+    '            q_out = torch.empty(\n'
+    '                (hidden_states.shape[0], self.n_local_heads, self.head_dim),\n'
+    '                dtype=torch.float8_e4m3fn,\n'
+    '                device=hidden_states.device,\n'
+    '            )\n'
+)
+DSPARK_Q_NEW = (
+    '            # FlashInfer >= 0.7 SM12x takes BF16 query; the contiguous FP8\n'
+    '            # buffer is a trtllm-gen (SM100/103) contract only.\n'
+    '            q_out = torch.empty(\n'
+    '                (hidden_states.shape[0], self.n_local_heads, self.head_dim),\n'
+    '                dtype=(\n'
+    '                    torch.bfloat16\n'
+    '                    if is_sm120_supported()\n'
+    '                    else torch.float8_e4m3fn\n'
+    '                ),\n'
+    '                device=hidden_states.device,\n'
     '            )\n'
 )
 
@@ -609,6 +647,9 @@ patch(BACKEND, PREFILL_CALL, PREFILL_CALL_NEW)
 patch(MODEL, MODEL_IMPORT_OLD, MODEL_IMPORT_NEW)
 patch(MODEL, MODEL_Q_OLD, MODEL_Q_NEW)
 
+patch(DSPARK, DSPARK_IMPORT_OLD, DSPARK_IMPORT_NEW)
+patch(DSPARK, DSPARK_Q_OLD, DSPARK_Q_NEW)
+
 patch(POOL, POOL_IMPORT_OLD, POOL_IMPORT_NEW)
 patch(POOL, POOL_CLASS_OLD, POOL_CLASS_NEW)
 patch(POOL, SWA_STORE_OLD, SWA_STORE_NEW)
@@ -632,11 +673,31 @@ assert 'backend="trtllm-gen"' not in backend_text, "a trtllm-gen call site survi
 assert backend_text.count('backend="auto"') == 2, backend_text.count('backend="auto"')
 assert backend_text.count('"fp8_dsv41_inline" if is_sm120_supported()') == 2
 assert backend_text.count("assert q.dtype == torch.bfloat16") == 2
+assert "the DSpark noncausal draft path" not in backend_text, (
+    "the DSpark draft-path refusal survived"
+)
+assert (
+    backend_text.count(
+        "if compress_ratio != 0 and sparse_indices.shape[1] > SWA_WINDOW:"
+    )
+    == 1
+), "the decode split is not gated on compressed ratios"
+assert backend_text.count("if sparse_indices.shape[1] > SWA_WINDOW:") == 1, (
+    "a decode split survived beside the prefill one"
+)
 
 model_text = MODEL.read_text()
 assert "from sglang.srt.utils.common import is_sm120_supported" in model_text
 assert "torch.bfloat16\n                    if is_sm120_supported()" in model_text, (
     "the SM12x BF16 Q buffer gate is missing"
+)
+
+dspark_text = DSPARK.read_text()
+assert dspark_text.count("dtype=torch.float8_e4m3fn") == 0, (
+    "a DSpark draft FP8 Q buffer survived; the SM12x decode never sees one"
+)
+assert dspark_text.count("dtype=(\n                    torch.bfloat16") == 1, (
+    dspark_text.count("dtype=(\n                    torch.bfloat16")
 )
 
 pool_text = POOL.read_text()
@@ -657,4 +718,4 @@ assert base_text.count("_dsv4_uniform_sm12x(") == 5, base_text.count(
     "_dsv4_uniform_sm12x("
 )
 
-print("patched:", BACKEND, MODEL, POOL, STORE, BACKEND_BASE, sep="\n  ")
+print("patched:", BACKEND, MODEL, DSPARK, POOL, STORE, BACKEND_BASE, sep="\n  ")

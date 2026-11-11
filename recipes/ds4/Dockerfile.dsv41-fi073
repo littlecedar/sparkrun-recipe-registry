@@ -54,12 +54,13 @@ print('rung1-2 ok:', flashinfer.__version__, prov.version, len(prov.modules), 'm
 COPY patch_dsv41_fi073.py /opt/fi073/patch_dsv41_fi073.py
 RUN set -eux; \
     python3 /opt/fi073/patch_dsv41_fi073.py; \
-    python3 -m py_compile \
-        /sgl-workspace/sglang/python/sglang/srt/layers/attention/deepseek_v4_trtllm_backend.py \
-        /sgl-workspace/sglang/python/sglang/srt/layers/attention/deepseek_v4_backend.py \
-        /sgl-workspace/sglang/python/sglang/srt/models/deepseek_v4.py \
-        /sgl-workspace/sglang/python/sglang/srt/mem_cache/deepseek_v4_memory_pool.py \
-        /sgl-workspace/sglang/python/sglang/kernels/ops/attention/dsv4/kv_norm_rope_store.py; \
+python3 -m py_compile \
+/sgl-workspace/sglang/python/sglang/srt/layers/attention/deepseek_v4_trtllm_backend.py \
+/sgl-workspace/sglang/python/sglang/srt/layers/attention/deepseek_v4_backend.py \
+/sgl-workspace/sglang/python/sglang/srt/models/deepseek_v4.py \
+/sgl-workspace/sglang/python/sglang/srt/models/deepseek_v4_dspark.py \
+/sgl-workspace/sglang/python/sglang/srt/mem_cache/deepseek_v4_memory_pool.py \
+/sgl-workspace/sglang/python/sglang/kernels/ops/attention/dsv4/kv_norm_rope_store.py; \
     python3 -c "import sglang.srt.layers.attention.deepseek_v4_trtllm_backend as m; print('import ok:', m.__file__)"
 
 WORKDIR /opt/dsv41

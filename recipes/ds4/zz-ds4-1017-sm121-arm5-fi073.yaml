@@ -6,24 +6,26 @@ model: deepseek-ai/DeepSeek-V4.1-Flash-1017
 # patched copy (a template-less checkpoint with no mod template is refused).
 model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
 runtime: sglang
-# Local-only SM121 image, built 2026-11-10 for the FlashInfer 0.7.x sparse-MLA
+# Local-only SM121 image, built 2026-11-11 for the FlashInfer 0.7.x sparse-MLA
 # port (mad-science/SM121-SPARSE-MLA-PORT.md section Port A). Layers over
 # dsv41-sm121-dg:0.2.1 (byte-identical arm-3 control digest below) are:
 # flashinfer_python 0.7.3 + the jit-cache shim + the sm121a provider (ships
-# jit_cache/sparse_mla_sm120/sparse_mla_sm120.so), then five tree deltas via
+# jit_cache/sparse_mla_sm120/sparse_mla_sm120.so), then six tree deltas via
 # recipes/ds4/patch_dsv41_fi073.py: backend="trtllm-gen" -> "auto", the split
 # SWA/compressed sparse table call, the removed 0.7 counter-buffer WAR, the
-# BF16 query (SM12x rejects FP8 Q), and the 528-byte fp8_dsv41_inline KV pool.
-# Built by recipes/ds4/Dockerfile.dsv41-fi073.
-# Image ID (local, byte-identifies the artifact; nothing pushed), five-delta
-# rebuild 2026-11-10 on .35 (35,143,615,166 B). The three-delta id
-# 7752ccd68…da098571 no longer exists on the host.
-#   sha256:1d47404119c18e20549ba5f3ad81fbf01d80e63e5f152361adf9f3f4811e5ae6
+# BF16 query (SM12x rejects FP8 Q) on both the target and the DSpark draft Q
+# buffers, the 528-byte fp8_dsv41_inline KV pool, and the DSpark draft's
+# combined window+block table passed whole as the SWA segment (0.7.x has no
+# combined-length tail split). Built by recipes/ds4/Dockerfile.dsv41-fi073.
+# Image ID (local, byte-identifies the artifact; nothing pushed), rebuild
+# 2026-11-11 on .35 (35,143,722,364 B). Predecessors: the five-delta
+# 1d47404119… (draft path still refused) and the three-delta 7752ccd68….
+#   sha256:3f33790c79ba753042094784e68873cefaeeb30c3c37ecd1a4c37d696f472946
 # It exists only on the build host; carry it with the command in
 # recipes/ds4/README.md "SM121 survey arms" before a boot. distribution_config
 # disables sparkrun's image distribution, which would try to pull this local
 # tag from a registry.
-container: dsv41-sm121-dg:0.2.1-fi073
+container: dsv41-sm121-dg:0.2.1-fi073c
 distribution_config:
   containers:
     enabled: false
@@ -33,16 +35,21 @@ description: >-
   arm-5/arm-3 image, DeepSeek V4 attention still `--dsv4-attn-backend trtllm`.
   CONTROL IS ARM 3 ON `dsv41-sm121-dg:0.2.1` (same tree, replay off,
   `zz-ds4-1017-sm121-arm3-control.yaml`): this image's only delta is FlashInfer
-  plus the five adapter deltas, so a booted cell would compare against that
+  plus the adapter deltas, so a booted cell would compare against that
   digest, not against `:0.2.0`.
-  STATUS (2026-11-10): rebuilt with all five deltas (id in the header); the
-  three-delta build it replaced raised `ValueError` on its first attention
-  call by construction. The rebuilt image feeds a BF16 query and a 528-byte
-  `fp8_dsv41_inline` KV pool, and every GPU-less build gate passed (patch
-  anchors, `py_compile` of all five files, backend import). NOT booted:
-  `/health` answering 200 is not evidence the port works, the numerics are
-  unmeasured, so only the canary answer comparison in
-  mad-science/SM121-SPARSE-MLA-PORT.md section "Acceptance ladder" counts.
+  STATUS (2026-11-11): rebuilt with six deltas (id in the header). The
+  2026-11-11T01:50Z boot of the five-delta image died in draft CUDA-graph
+  capture on the port's own BF16 assert, because the DSpark draft model
+  allocates its own FP8 Q buffer; behind that assert the draft's 192-column
+  window+block table would also hit the port's fail-closed "no combined
+  length" branch. Both draft-path sites are now patched (`deepseek_v4_dspark.py`
+  Q buffer, whole-table single-segment call), and every GPU-less build gate
+  passed (patch anchors, `py_compile` of all six files, backend import,
+  in-image `supports_decode(num_heads=16, topk=192, page_block_size=256)`).
+  NOT booted: the target decode path is byte-identical to the five-delta
+  image's call, and the draft path's numerics are unmeasured, so only the
+  canary answer comparison in mad-science/SM121-SPARSE-MLA-PORT.md section
+  "Acceptance ladder" counts.
 metadata:
   model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
