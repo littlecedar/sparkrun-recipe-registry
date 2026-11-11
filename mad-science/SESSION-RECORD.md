@@ -9858,4 +9858,12 @@ only where it was folded.
   unlimited inference API. It is `TODO.md` §"Settled questions" `## Owner directive 2026-11-11 — TP1/TP2 parked
   until production returns`, supersedes nothing (the 2026-11-09 gate still governs inside a TP4 session), and
   the four parked rows recite it without changing state.
+- **`.30` moved from excluded to guardrailed.** The owner authorized the whole six-machine fleet
+  (`## Owner authorization 2026-11-11 — six-machine fleet, .30 guardrailed`): risk is accepted because this is
+  research, a crash may cost a physical cluster reboot measured in hours, and work pauses meanwhile. `.30` is
+  allowed only when the boot's own declaration names it and six checks pass — earlyoom re-proven per window with
+  a quoted dry-run, OOM scores re-verified on `ssh`/network/user managers/BeeGFS, launch and watchdog driven
+  elsewhere, the sampler armed before the launch with an id-only stop rule, non-head rank with id-only stops,
+  and a pause rather than a retry if it drops. `AGENTS.md` §"Node hygiene" points at it; the two campaign
+  placement rows say a lease that cannot show the checks is refused.
 

@@ -935,6 +935,28 @@ stable question ids — the round raised one numbered register question, `#84`.
 — provenance: owner 2026-11-11 (thread answer after the TP>=4 survey round); `mad-science/queue.json` rows named
 above; `mad-science/QUEUE.md` §Session protocol; `mad-science/SESSION-RECORD.md` 2026-11-11 00:24 ET entry.
 
+## Owner authorization 2026-11-11 — six-machine fleet, `.30` guardrailed
+- **Owner authorization, 2026-11-11:** **all six machines may be used**, and `.30` is no longer excluded — it
+ carries guardrails instead. In the owner's words: some risk is acceptable because this is research; if a node
+ crashes the owner can physically reboot the cluster, which may take hours, and work simply pauses until then.
+ The guardrails accepted, as six conditions:
+ 1. earlyoom is re-proven per window, not remembered: live thresholds, `Restart=always`, and a dry-run report
+    quoted in that boot's receipt.
+ 2. OOM score protection is re-verified on the services that must survive — `ssh`, the network manager, the user
+    manager and the BeeGFS units — because a reboot puts the old values back.
+ 3. the launch and the watchdog are driven from a different machine than `.30`, so losing `.30` does not take the
+    instrument with it.
+ 4. the host memory sampler is armed before the launch, and its stop rule is a named task id only.
+ 5. `.30` is placed as a non-head rank; stops by named id only, never a list.
+ 6. if `.30` drops, work pauses rather than retrying against a dead control machine.
+- **What changes.** The exclusion reading of `#67`/S2 is superseded: `.30` is usable, not excluded, and the risk
+ is accepted on the terms above. S2's declaration requirement stays — a boot still names its window and nodes —
+ and the six checks are what turns `.30` from "never" into "allowed", so a boot that has not shown them is
+ refused, not merely annotated. The 2026-11-11 TP1/TP2 parking directive is untouched: it governs *which* arms
+ may run, not where they may land.
+— provenance: owner 2026-11-11 (oversight thread); `mad-science/queue.json` rows `campaign-leases-tp4-onto-30`,
+`campaign-does-not-honour-the-.30-exclusion`; `AGENTS.md` §"Node hygiene"; `mad-science/TODO.md` `#67` and S2.
+
 # TODO list
 
 **Standing rules (owner decisions 2026-10-15/18/19, condensed 2026-10-24 — the full original

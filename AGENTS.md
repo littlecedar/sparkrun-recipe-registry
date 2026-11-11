@@ -470,6 +470,10 @@ remove what the session created** — a leftover is anything undocumented, unkno
   for every boot that is not that memory-risky TP4 shape. **The exclusion is waivable only inside an
   explicitly declared window, named per boot** (owner answer 2026-11-11, `mad-science/TODO.md`
   §"Settled questions" under `## Owner round 2026-11-11 — TP>=4 survey`, S2); the default stands.
+  **Superseded 2026-11-11 by the owner's six-machine authorization:** `.30` is usable with guardrails
+  rather than excluded, and the six checks plus the accepted risk live in `mad-science/TODO.md`
+  §"Settled questions" under `## Owner authorization 2026-11-11 — six-machine fleet, .30 guardrailed` —
+  a boot that cannot show them is still refused.
   **This framing has regressed three times (2026-10-24 twice, 2026-10-25/26): sweep it on sight in board
   rows, briefs, lock rows, skills and memory, and correct the wording before anything else in the turn.**
   **If a production workload is
