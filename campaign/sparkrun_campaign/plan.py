@@ -20,7 +20,10 @@ with one host free -- be tested without a fleet.
 
 from __future__ import annotations
 
+import fcntl
 import json
+import socket
+import struct
 import subprocess
 import sys
 from collections.abc import Callable
@@ -53,6 +56,103 @@ def barred(host: str, entries: tuple[str, ...] | list[str]) -> bool:
     """Whether `host` matches any exclusion entry (exact, or the `.30` tail shorthand)."""
     return any(host == entry or (entry.startswith(".") and host.endswith(entry))
                for entry in entries)
+
+
+#: The one flag that turns the record-host refusal into a declared risk. The campaign's `--root`
+#: carries `state.json`, its lock, the socket and the receipts, so the host the director runs on is
+#: also the host that would notice a lost rank: a shape taking it loses the lease record and the
+#: service with the node. Nothing about that is memory safety -- `.30`'s earlyoom window is a
+#: different question, and a six-node boot on `.30` needs both answered.
+RECORD_RISK_FLAG = "--accept-record-risk"
+#: SIOCGIFADDR: an interface's address without a resolver.
+_SIOCGIFADDR = 0x8915
+
+
+def local_identities() -> set[str]:
+    """The names and addresses that identify this host, read without a DNS lookup.
+
+    A resolver that hangs must not be able to block a start (the 0.4.2 `getaddrinfo` hang), so
+    only `gethostname()` and the interface addresses are read.
+    """
+    host = socket.gethostname()
+    names = {host, host.split(".")[0]}
+    return {name.strip().lower() for name in names if name.strip()} | _addresses()
+
+
+def _addresses() -> set[str]:
+    """This host's IPv4 interface addresses.
+
+    shortcut: IPv4 only -- every host set this fleet declares is IPv4; read
+    `/proc/net/if_inet6` too when an IPv6 host set first appears.
+    """
+    found: set[str] = set()
+    for _index, name in socket.if_nameindex():
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            try:
+                packed = fcntl.ioctl(probe.fileno(), _SIOCGIFADDR,
+                                     struct.pack("256s", name[:15].encode()))
+            except OSError:
+                continue
+        found.add(socket.inet_ntoa(packed[20:24]))
+    return found
+
+
+def record_hosts(hosts: list[str] | tuple[str, ...],
+                 identities: set[str] | None = None) -> tuple[str, ...]:
+    """The declared hosts that hold this campaign's record: this machine, by name or address.
+
+    The record root is a directory on the host the director runs on, so the record host is
+    detected from the running host, never from a tracked name (the hygiene gate forbids the head's
+    hostname in tracked files).
+    """
+    here = local_identities() if identities is None else identities
+    here = {name.strip().lower() for name in here}
+    return tuple(host for host in hosts if host.strip().lower() in here)
+
+
+def record_conflict(owner: str, nodes: int, hosts: list[str] | tuple[str, ...],
+                    record: tuple[str, ...] | list[str]) -> None:
+    """Refuse a shape that cannot be placed without the host holding the campaign record root.
+
+    `nodes` ranks drawn from `hosts` avoid `record` only while there are that many hosts outside
+    it; when there are not, every placement puts a rank on the record host, and losing that node
+    takes `state.json`, the lease record and the service that would reap the arm. The two ways
+    forward are named, because a guardrail that could be satisfied by reading the code is not one.
+    """
+    held = [host for host in record if host in hosts]
+    if not held:
+        return
+    outside = len([host for host in hosts if host not in record])
+    if nodes <= outside:
+        return
+    raise PlanError(
+        f"{owner}: {nodes} ranks over {len(hosts)} declared hosts cannot avoid "
+        f"{', '.join(held)}, which holds the campaign record (state.json, its lock, the socket "
+        f"and the receipts under --root): that node dropping takes the lease record and the "
+        f"service that would notice. Either run the director from a host that is not a rank -- "
+        f"with ~/.config/sparkrun/clusters/WOPR.yaml present there, or tools/run-arm.sh refuses "
+        f"it as a launch host -- and keep --root outside the rank set; or declare the risk with "
+        f"{RECORD_RISK_FLAG} \"<why>\", which records the acceptance in the journal and "
+        f"state.json")
+
+
+def record_gate(entries: list[dict[str, Any]], hosts: list[str] | tuple[str, ...],
+                record: tuple[str, ...] | list[str], accept: str = "") -> list[str]:
+    """(lines to print) for the record-host gate: refuse the impossible shapes, else announce.
+
+    With `accept` (the operator's own words) every shape proceeds and the acceptance is printed;
+    without it, `record_conflict` refuses the shapes that must take the record host, and the rest
+    are left to placement, which keeps that host out of the free list unless the risk is accepted.
+    """
+    held = [host for host in record if host in hosts]
+    if accept:
+        return ([f"record-risk-accepted: {','.join(held)} ({accept})"] if held else [])
+    for entry in entries:
+        record_conflict(str(entry["arm"]), int(entry.get("nodes") or entry["tp"]), hosts, held)
+    if not held:
+        return []
+    return [f"record-held: {','.join(held)} (campaign record root; a shape takes it only when "
+            f"{RECORD_RISK_FLAG} declares the risk)"]
 
 
 def memory_risky(row: dict[str, Any]) -> bool:

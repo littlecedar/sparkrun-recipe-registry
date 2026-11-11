@@ -118,6 +118,32 @@ check, and the arm is blocked: it is never placed silently and never retried ont
 Absent a declaration the exclusion is unchanged — `.30` is never chosen for a risky shape, and a
 risky shape short on safe ranks waits.
 
+**A rank that holds the campaign record is a second, different risk.** `--root` carries
+`state.json`, its lock, the director socket and the receipts, so the host the director runs on is
+also the host that would notice a dead rank: a six-rank shape over all six declared hosts
+necessarily includes it, and if that node drops, the lease record and the service that would reap
+the arm go with it. The gate is computed from the running host — `gethostname()` and the
+interface addresses, never a tracked name, because the address-hygiene gate forbids the head's
+hostname in tracked files — so it follows the service rather than a hardcoded `.30`. Plan time
+(`serve`, `serve --dry-run` and `plan`) refuses, with `PlanError` and exit 2, every shape that
+cannot be placed outside the record host: `nodes` greater than the declared hosts outside it. The
+message names the host and both ways forward: run the director from a host that is not a rank —
+`~/.config/sparkrun/clusters/WOPR.yaml` present there, else `tools/run-arm.sh` refuses it as a
+launch host — and keep `--root` outside the rank set; or declare the risk with
+`--accept-record-risk "<why>"`, which prints `record-risk-accepted:` and stores the text under
+`record_risk` in `state.json`, so a later reader sees a risk that was chosen, not one the plan
+missed. Without the flag the record host is also removed from the free hosts before placement
+(`record-held:` says why), so a shape that could only fit by taking it waits instead of booting.
+The rule is about the record, not the director: a record host declared away from this process
+refuses the same way, and a `--root` on a mount served by a rank is **not** detected — the gate
+knows the record host as the host running the director, and a real out-of-band record host is a
+recorded gap, not built.
+
+The owner's `.30` conditions are a **memory** guardrail (earlyoom, negative `OOMScoreAdjust`, the
+window's guard script) and say nothing about record survival. A six-node boot on `.30` needs
+both: the declared memory window with its lease-time proof, and this record-risk declaration.
+One does not imply the other, and neither substitutes for the other.
+
 **A manifest arm may declare `pp`.** Its rank count is `tp * pp`, so TP=2 × PP=3 is one six-rank
 lease: the record carries `tp`=2, `pp`=3, `nodes`=6 and all six hosts, and `next_assignment` refuses
 it when any rank is free for fewer than six. The register's `tp` stays in {1, 2, 4} and is not
@@ -492,7 +518,11 @@ fixtures are the 2026-11-11 earlyoom capture (including the `--dryrun` lines) an
 control: a process scan is gone, so the eleven dead-window guards cannot pass anything and only an
 executable script under the declared window does; `plan` is pinned to print a six-rank placement
 with the head last, refuse a missing guard script, place a quartet without touching the head, and
-write no state or ledger.
+write no state or ledger. The record-host gate is pinned there too (`RecordRoot`, and the
+`PlanOnly` cases): a six-rank shape refused when it cannot avoid a declared record host, the same
+refusal for a record host this process does not sit on, the declared `--accept-record-risk` text
+reaching both the journal and `state.json`, and a quartet that fits outside the record host placing
+normally while one that only fits by taking it waits.
 
 Counting the root suite from a committed tree needs **the repository's own interpreter**: archive the
 tree, then count it with that clone's `.venv/bin/python -B -c
@@ -536,6 +566,16 @@ points at them, so a reader never has to guess which window a status refers to.
 A **per-user** unit: the campaign runs as the account that owns the checkout and the SSH keys, and
 no step needs privilege. `loginctl enable-linger` is what makes it survive the last SSH session
 ending, and a reboot.
+
+**A node chosen to drive needs the cluster profile there first.** `tools/run-arm.sh` launches with
+`--cluster WOPR` and refuses as a launch host (exit 14, before any container) on a machine without
+`~/.config/sparkrun/clusters/WOPR.yaml`: sparkrun's only fallback is an anonymous cluster, which
+fans the weights out per node and measures a different arm, so the refusal is the honest answer.
+Driving from a host that is not a rank therefore means copying the profile there first
+(untracked, `umask 077`, carrying the shared cache and `skip_fan_out`), then installing the unit.
+The record root on that host must stay outside the rank set (§A rank that holds the campaign
+record is a second, different risk); when the only available driver is a rank, the plan refuses
+until `--accept-record-risk "<why>"` declares it.
 
 Install (no root anywhere):
 

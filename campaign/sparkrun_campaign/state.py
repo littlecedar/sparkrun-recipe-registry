@@ -281,6 +281,21 @@ class Campaign:
         self.save()
         return True
 
+    def accept_record_risk(self, hosts: list[str] | tuple[str, ...], reason: str) -> bool:
+        """Record that the operator accepted ranks on the host holding this campaign's record.
+
+        The record-root gate refuses such a shape unless it is declared (`--accept-record-risk`),
+        and this is the declaration: beside the plan it applies to, so a later reader sees a risk
+        that was chosen rather than one the plan missed.
+        """
+        risk = {"hosts": list(hosts), "reason": reason, "accepted_at": time.time()}
+        previous = self.data.get("record_risk") or {}
+        if (previous.get("hosts"), previous.get("reason")) == (risk["hosts"], reason):
+            return False
+        self.data["record_risk"] = risk
+        self.save()
+        return True
+
     def record_skip(self, arm: str, verdict: Verdict) -> None:
         record = self.arm(arm)
         if record["status"] in (MEASURED, SKIPPED):

@@ -267,7 +267,7 @@ class DirectorCase(unittest.TestCase):
         self.ledger = leases.Ledger(self.repo / leases.LEDGER, clock=self.clock)
 
     def build(self, entries: list[dict], *, hosts: tuple[str, ...] = ("node-a", "node-b"),
-              head_proof=None):
+              head_proof=None, record_hosts: tuple[str, ...] = (), record_risk: str = ""):
         path = write(self.tmp / "manifest.json", json.dumps(entries))
         campaign = state.Campaign.open(self.root / "state.json", campaign="test",
                                        hosts=hosts, max_parallel=2)
@@ -277,7 +277,8 @@ class DirectorCase(unittest.TestCase):
             campaign, plan.load_manifest(path),
             root=self.root, receipts_root=self.receipts, repo_root=self.repo,
             run_arm_sh=self.run_arm, clock=self.clock, spawn=False, out=self.out,
-            fleet_reap=self.fleet.reap, ledger=self.ledger, head_proof=proof)
+            fleet_reap=self.fleet.reap, ledger=self.ledger, head_proof=proof,
+            record_hosts=record_hosts, record_risk=record_risk)
         leader.prepare()
         return leader, campaign
 
@@ -450,6 +451,75 @@ class SixNodeShape(DirectorCase):
         self.assertNotIn("assign:", self.out.getvalue())
 
 
+class RecordRoot(DirectorCase):
+    """R4: the rank that holds the campaign record root is refused unless its risk is declared.
+
+    `--root` carries state.json, its lock, the socket and the receipts, so a shape taking that host
+    loses its own instrument with the node. The record host is detected from the running host, but
+    the rule is about the record: it fires for a declared record host whatever host this process
+    runs on.
+    """
+
+    HOSTS = HEAD
+
+    def six(self, **fields) -> dict:
+        return self.arm("six", tp=2, pp=3, **fields)
+
+    def test_a_six_rank_shape_that_must_take_the_record_host_refuses_naming_it(self) -> None:
+        with self.assertRaises(plan.PlanError) as ctx:
+            self.build([self.six()], hosts=self.HOSTS, record_hosts=("node.30",))
+        message = str(ctx.exception)
+        self.assertIn("node.30", message)
+        self.assertIn("cannot avoid", message)
+        self.assertIn("--accept-record-risk", message)
+        self.assertIn("not a rank", message)
+        self.assertIn("WOPR.yaml", message)
+        self.assertFalse(self.ledger.leases(), "a refused plan writes no claim")
+
+    def test_the_refusal_needs_neither_the_director_nor_a_hardcoded_name(self) -> None:
+        # The record root on `.33` refuses even though this process runs elsewhere: the rank set
+        # is what puts the record on a node, not where the director happens to sit.
+        with self.assertRaises(plan.PlanError) as ctx:
+            self.build([self.six()], hosts=self.HOSTS, record_hosts=("node.33",))
+        self.assertIn("node.33", str(ctx.exception))
+
+    def test_the_running_host_is_matched_by_its_own_name_or_address(self) -> None:
+        self.assertEqual(
+            plan.record_hosts(["node.30", "node.31"], {"node.30", "192.0.2.30"}),
+            ("node.30",))
+        self.assertEqual(plan.record_hosts(["192.0.2.30", "node.31"], {"192.0.2.30"}),
+                         ("192.0.2.30",), "an address-form host set is detected too")
+        self.assertEqual(plan.record_hosts(["node.30"], {"elsewhere"}), ())
+
+    def test_the_declared_risk_lets_the_shape_run_and_is_recorded(self) -> None:
+        reason = "owner accepted a sixth rank on the record host"
+        leader, _ = self.build([self.six()], hosts=self.HOSTS,
+                               record_hosts=("node.30",), record_risk=reason)
+        self.assertIn(f"record-risk-accepted: node.30 ({reason})", self.out.getvalue())
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        self.assertEqual(sorted(lease["hosts"]), sorted(self.HOSTS))
+        written = json.loads((self.root / "state.json").read_text(encoding="utf-8"))
+        self.assertEqual(written["record_risk"]["hosts"], ["node.30"])
+        self.assertEqual(written["record_risk"]["reason"], reason)
+
+    def test_a_quartet_that_fits_outside_the_record_host_is_unaffected(self) -> None:
+        leader, _ = self.build([self.arm("six", tp=2, pp=2, memory_risky=True)],
+                               hosts=self.HOSTS, record_hosts=("node.30",))
+        self.assertNotIn("record-risk-accepted", self.out.getvalue())
+        self.assertIn("record-held: node.30", self.out.getvalue())
+        self.assertEqual(leader.handle(protocol.poll("w1"))["lease"]["hosts"],
+                         ["node.31", "node.32", "node.33", "node.34"])
+
+    def test_a_quartet_that_would_only_fit_by_taking_the_record_host_waits(self) -> None:
+        self.ledger.acquire("another-session", ["node.31", "node.32"], ttl=600)
+        leader, _ = self.build([self.arm("six", tp=2, pp=2)], hosts=self.HOSTS,
+                               record_hosts=("node.30",))
+        self.assertEqual(leader.handle(protocol.poll("w1"))["op"], "idle")
+        self.assertNotIn("assign:", self.out.getvalue())
+        leader.record_hosts = ()  # control: without the gate this tick leases the record host
+        self.assertIn("node.30", leader.handle(protocol.poll("w1"))["lease"]["hosts"])
+
+
 class PlanOnly(unittest.TestCase):
     """`director plan`: the placement and head proof without a state file, lease or ledger."""
 
@@ -518,6 +588,50 @@ class PlanOnly(unittest.TestCase):
         self.assertIn("plan: excluded host(s) used: none", text)
         self.assertEqual(calls, [], "a safe placement proves nothing: it touches no head")
         self.assertFalse((self.tmp / "state.json").exists())
+
+
+    def test_a_six_rank_plan_refuses_the_host_holding_the_record_root(self) -> None:
+        entries = [{"arm": "six", "path": "recipes/lane/six.yaml", "tp": 2, "pp": 3}]
+        code, _, err = self.run_plan_risk(entries, identities={"node.30"})
+        self.assertEqual(code, 2)
+        self.assertIn("node.30", err)
+        self.assertIn("--accept-record-risk", err)
+        self.assertIn("not a rank", err)
+        self.assertFalse((self.tmp / "state.json").exists(), "a refusal writes no state")
+        self.assertFalse((self.repo / ".local").exists())
+
+    def test_the_declared_risk_plans_six_hosts_and_prints_the_acceptance(self) -> None:
+        entries = [{"arm": "six", "path": "recipes/lane/six.yaml", "tp": 2, "pp": 3}]
+        code, text, err = self.run_plan_risk(
+            entries, extra=("--accept-record-risk", "owner accepted the record host"),
+            identities={"node.30"})
+        self.assertEqual(code, 0, err)
+        self.assertIn("record-risk-accepted: node.30 (owner accepted the record host)", text)
+        self.assertIn("plan: six -> node.31,node.32,node.33,node.34,node.35,node.30", text)
+        self.assertFalse((self.tmp / "state.json").exists(), "plan writes no state")
+
+    def test_a_quartet_that_fits_outside_the_record_host_plans_normally(self) -> None:
+        entries = [{"arm": "quartet", "path": "recipes/lane/quartet.yaml", "tp": 2, "pp": 2}]
+        code, text, err = self.run_plan_risk(entries, identities={"node.30"})
+        self.assertEqual(code, 0, err)
+        self.assertIn("record-held: node.30", text)
+        self.assertIn("plan: quartet -> node.31,node.32,node.33,node.34", text)
+
+    def run_plan_risk(self, entries: list[dict], *, extra: tuple[str, ...] = (),
+                      identities: set[str]) -> tuple[int, str, str]:
+        """`director plan` with the running host declared, capturing the refusal on stderr."""
+        path = write(self.tmp / "manifest.json", json.dumps(entries))
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(plan, "local_identities", return_value=identities), \
+                mock.patch.object(director_module.guardrails, "prove",
+                                  lambda host, window="": []), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = director_module.main([
+                "plan", "--manifest", str(path), "--hosts", ",".join(self.HOSTS),
+                "--exclude-host", ".30", "--repo-root", str(self.repo),
+                "--receipts-root", str(self.tmp / "receipts"), *extra,
+            ])
+        return code, out.getvalue(), err.getvalue()
 
 
 if __name__ == "__main__":

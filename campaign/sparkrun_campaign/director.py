@@ -97,6 +97,8 @@ class Director:
         exclude_hosts: tuple[str, ...] = plan.MEMORY_RISKY_EXCLUDED_HOSTS,
         ledger: leases.Ledger | None = None,
         head_proof: Callable[..., list[str]] = guardrails.prove,
+        record_hosts: tuple[str, ...] | list[str] | None = None,
+        record_risk: str = "",
     ):
         self.campaign = campaign
         self.entries = entries
@@ -121,6 +123,12 @@ class Director:
         self.holder = f"sparkrun-campaign:{campaign.data['campaign']}"
         #: The head's guardrail probe; a waived risky shape cannot be leased without its proof.
         self.head_proof = head_proof
+        #: Declared hosts that hold this campaign's record root, and the operator's acceptance of
+        #: a shape that takes one. The root is a local directory, so the record host is this host;
+        #: a shape cannot avoid it once its ranks outnumber the hosts outside it.
+        self.record_hosts = (tuple(record_hosts) if record_hosts is not None else
+                             plan.record_hosts(list(campaign.data.get("hosts", []))))
+        self.record_risk = record_risk.strip()
         self._held_said: dict[str, str] = {}
         self._last_poll = 0.0
         self._idle_said = False
@@ -158,6 +166,15 @@ class Director:
             )
         measured = evidence.measured(self.receipts_root)
         entries, queue_lines, excluded = self._plan()
+        declared = list(self.campaign.data.get("hosts", []))
+        gate = plan.record_gate(entries, declared, self.record_hosts, self.record_risk)
+        for line in gate:
+            print(line, file=self.out)
+        if self.record_risk and any(host in declared for host in self.record_hosts):
+            # The declaration lands in the state beside the plan it applies to, so the acceptance
+            # is auditable rather than a flag a later reader cannot see.
+            self.campaign.accept_record_risk(
+                [host for host in self.record_hosts if host in declared], self.record_risk)
         order, lines = plan.build(entries, verdicts, measured, self.repo_root)
         for line in queue_lines + lines:
             print(line, file=self.out)
@@ -516,6 +533,10 @@ class Director:
                 print(f"lease-free: {host}", file=self.out)
             self._held_said = held
         free = [host for host in self.campaign.free_hosts(now) if host not in held]
+        if not self.record_risk:
+            # The record root lives on this host; an arm that only fits by taking it waits, and
+            # the plan already refused the shapes that could never avoid it.
+            free = [host for host in free if host not in self.record_hosts]
         while True:
             choice = plan.next_assignment(
                 self.campaign.order,
@@ -977,6 +998,11 @@ def plan_command(args: argparse.Namespace) -> int:
               file=sys.stderr)
         return 2
     measured = evidence.measured(Path(args.receipts_root).expanduser())
+    record_risk = str(getattr(args, "accept_record_risk", "") or "").strip()
+    record = plan.record_hosts(hosts)
+    for line in plan.record_gate(entries, hosts, record, record_risk):
+        print(line)
+    free = [host for host in hosts if record_risk or host not in record]
     order, lines = plan.build(entries, verdicts, measured, repo_root)
     for line in lines:
         print(line)
@@ -995,7 +1021,7 @@ def plan_command(args: argparse.Namespace) -> int:
             "allow_hosts": list(entry.get("allow_hosts") or ()),
             "window": str(entry.get("window") or ""),
         }
-    choice = plan.next_assignment(order, arms, hosts, 0, excluded)
+    choice = plan.next_assignment(order, arms, free, 0, excluded)
     if choice is None:
         print("plan: no pending arm fits the declared hosts")
         return 3
@@ -1090,7 +1116,11 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--run-arm", default=str(Path(fleet.default_repo_root()) / "tools" / "run-arm.sh"),
                        help="per-arm executor (default: tools/run-arm.sh in --repo-root)")
     serve.add_argument("--dry-run", action="store_true",
-                       help="read the evidence, print the plan, do not bind or spawn")
+                       help="read evidence, print the plan, do not bind or spawn")
+    serve.add_argument("--accept-record-risk", default="", metavar="REASON",
+                       help="declare, in your own words, that a rank may hold the campaign "
+                            "record root (state.json, its lock, the socket and the lease record); "
+                            "recorded in the journal and state.json")
     status = commands.add_parser("status",
                                  help="print a campaign's per-arm state without taking the lock")
     status.add_argument("--root", required=True, help="campaign directory holding state.json")
@@ -1105,7 +1135,10 @@ def main(argv: list[str] | None = None) -> int:
     planp.add_argument("--repo-root", default=fleet.default_repo_root(),
                        help="registry checkout: recipe paths and the skip source resolve here")
     planp.add_argument("--receipts-root", default=os.path.expanduser("~/benchmarks"),
-                       help="where the per-arm executor writes its tp12-* windows")
+                       help="where per-arm executor writes its tp12-* windows")
+    planp.add_argument("--accept-record-risk", default="", metavar="REASON",
+                       help="declare, in your own words, that a rank may hold the campaign "
+                            "record root; printed as the acceptance, nothing written")
     claim = commands.add_parser(
         "lease", help="write, list or release a fleet lease (a manual session's claim)")
     claim.add_argument("--hosts", help="comma-separated ranks this lease claims")
@@ -1175,6 +1208,7 @@ def main(argv: list[str] | None = None) -> int:
         register=register,
         once=args.once,
         exclude_hosts=excluded,
+        record_risk=args.accept_record_risk,
     )
     try:
         director.validate()
