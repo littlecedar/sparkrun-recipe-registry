@@ -846,6 +846,62 @@ folded into the rows they govern; these rows keep them citable.
   — provenance: owner 2026-11-09; `QUESTIONS.md` `#69` and the dated correction on its answer; `mad-science/queue.json`
   rows named above; `AGENTS.md` §"Node hygiene".
 
+## Owner round 2026-11-11 — TP>=4 survey
+Nine survey questions were asked in one file, each carrying the evidence that made it a question; all nine
+came back answered in one round. `mad-science/SURVEY.md` was deleted at this fold, so this section is the
+durable copy of both question and answer. Numbering here is the survey's own (`S1`–`S9`), not the register's
+stable question ids — the round raised one numbered register question, `#84`.
+- **S1 — What runs first?** *Answered 2026-11-11:* **finish DeepSeek arm 5 (a).** Add the missing sixth delta
+ (the draft path hands the ported decode call an FP8 query and trips its own BF16 assert), rebuild the image on
+ the build node, carry it to four ranks, boot the canary. — provenance: `mad-science/SURVEY.md` Q1 (file deleted
+ at this fold; this section is its durable copy); `.scratch/tp4-survey/evidence.md` §1; queue row
+ `ds4-arm5-flashinfer-073-port`; owner 2026-11-11.
+- **S2 — Is the `.30` exclusion absolute, or waivable?** *Answered 2026-11-11:* **waivable — but only inside
+ an explicitly declared window, named per boot (b).** The default is unchanged: a memory-overrunning TP4 quartet
+ still avoids `.30`. — provenance: `mad-science/SURVEY.md` Q2 (deleted fold); `.scratch/tp4-survey/evidence.md`
+ §1 and §3; queue rows `campaign-leases-tp4-onto-30`, `campaign-does-not-honour-the-.30-exclusion`;
+ `mad-science/TODO.md` `#67`; `AGENTS.md` §"Node hygiene" (amended 2026-11-11); owner 2026-11-11.
+- **S3 — Kimi's fate: keep chasing, one last four-machine attempt, or park?** *Answered 2026-11-11:* **keep
+ chasing (a) — declare a six-machine window.** No further four-machine attempt is authorized. — provenance:
+ `mad-science/SURVEY.md` Q3 (deleted fold); `.scratch/tp4-survey/evidence.md` §3 and §6; queue rows
+ `kimi-pruned75-tp4-boot`, `kimi-pruned75-dspark-tp4-boot`, `kimi-tp2-pp3-six-node`; owner 2026-11-11.
+- **S4 — Arm 5's cost: pay it, fold it into a later build, or abandon the arm?** *Answered 2026-11-11:* **pay
+ it (a): rebuild, carry, boot.** The build is the expensive half and the port is one code delta from a boot. —
+ provenance: `mad-science/SURVEY.md` Q4 (deleted fold); `.scratch/tp4-survey/evidence.md` §1; queue row
+ `ds4-arm5-flashinfer-073-port`; owner 2026-11-11.
+- **S5 — ERNIE: done measured, file the missing controls first, or also get a licence ruling?** *Answered
+ 2026-11-11:* **(b) then (c)** — file the missing control answers into the receipt first, then get a licence-class
+ ruling so the recipe can ship, probe-only or otherwise. The receipt step is queue row
+ `ernie-window-control-receipt`; the ruling is register question `#84`. — provenance: `mad-science/SURVEY.md` Q5
+ (deleted fold); `.scratch/tp4-survey/evidence.md` §2; queue row `lane-survey-baidu-ernie-5.5-flash-base`; owner
+ 2026-11-11.
+- **S6 — Dummy-load probe: write a client so it records itself, or leave it hand-run?** *Answered 2026-11-11:*
+ **write the small client so the probe records itself (a), then lease it normally.** Hand-run-only is rejected. —
+ provenance: `mad-science/SURVEY.md` Q6 (deleted fold); `.scratch/tp4-survey/evidence.md` §5; queue rows
+ `dummy-load-artefact-contract`, `kimi-param-floor-dummy-load`; owner 2026-11-11.
+- **S7 — Register hygiene: fix all five defects, only add the missing row, or leave the register?** *Answered
+ 2026-11-11:* **fix all five (a), add the missing BF16 row, and retire the superseded arm-5 rows.** Landed at this
+ fold: the arm-5 rows point `recipes/ds4/zz-ds4-1017-sm121-arm5-fi073.yaml`; the older "hang" story is marked
+ history; the Kimi fit memo's 115.02 GiB baseline is flagged stale against today's 117.2–117.4; the dummy-load
+ row's "recipe uncommitted" story is corrected in place; the ERNIE freeze attribution is corrected and its gap
+ restated as recordability, not capability; `w4-survey-arm5-sm121-boot` is closed onto its successor. The missing
+ BF16 row is now explicit: `ds4-arm5-dspark-bf16-query-delta` names the sixth delta — the DSpark draft path
+ handing the ported sparse decode an FP8 query — and blocks `ds4-arm5-flashinfer-073-port`, which this session
+ claims as in-flight work. — provenance: `mad-science/SURVEY.md` Q7 (deleted fold);
+ `.scratch/tp4-survey/evidence.md` §1–§2 and its "Cross-cutting register/evidence mismatches" list; owner
+ 2026-11-11.
+- **S8 — Is any node reserved before the session resumes?** *Answered 2026-11-11:* **nothing is reserved (a);
+ the whole fleet is free for this session.** — provenance: `mad-science/SURVEY.md` Q8 (deleted fold);
+ `.scratch/tp4-survey/evidence.md` preamble (all six nodes `docker ps -q` = 0, campaign unit inactive since
+ 17:57 EST, no declared window); owner 2026-11-11.
+- **S9 — How does a six-node window get claimed, given the lock file does not cross clones and a campaign lease
+ lives in a separate file?** *Answered 2026-11-11:* **use the campaign's own lease as the only claim for any
+ multi-machine boot (b).** A lease claims any multi-machine boot, the lock file is no longer the sole mechanism,
+ and a session takes a lease — or a declared window the campaign honors — before booting more than one node. —
+ provenance: `mad-science/SURVEY.md` Q9 (deleted fold); `mad-science/QUEUE.md` §Session protocol item 4; queue
+ rows `campaign-six-node-claim`, `campaign-ignores-declared-window`; `AGENTS.md` §"Node hygiene" (amended
+ 2026-11-11); owner 2026-11-11.
+
 # TODO list
 
 **Standing rules (owner decisions 2026-10-15/18/19, condensed 2026-10-24 — the full original

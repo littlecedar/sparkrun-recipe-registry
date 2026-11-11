@@ -9814,3 +9814,35 @@ measured is already on `mad-science/STATUS.md` as published by the peer ticks `3
   regeneration. So the failure is a stale/shared **name** entry set on the head, and the address path is
   the correct one to probe with; nothing was edited in `/home/red/.ssh/known_hosts`, since a changed host
   key is a fleet fact for the register row, not tick cleanup.
+
+## 2026-11-11 00:24 ET — the TP>=4 survey round is folded, and its question file is gone
+
+No boot, no window, no cluster write. Nine survey questions the owner answered in one file now live in the
+tree's durable records; `mad-science/SURVEY.md` was untracked and is deleted, so the round's text survives
+only where it was folded.
+
+- **The answers are the record.** `mad-science/TODO.md` §"Settled questions" carries a new
+  `## Owner round 2026-11-11 — TP>=4 survey` with all nine questions and answers (`S1`–`S9`, the survey's own
+  numbering — no register id is reused), each citing `.scratch/tp4-survey/evidence.md` §n. The nine were:
+  finish arm 5 first; the `.30` exclusion is waivable inside an explicitly declared window named per boot;
+  Kimi keeps chasing the six-machine shape with no further four-machine attempt; arm 5's rebuild/carry/boot
+  is paid; ERNIE files its control answers into a receipt and then gets a licence ruling; the dummy-load probe
+  writes its own artefact and leases normally; the five register defects are fixed with the missing BF16 row
+  added and the superseded arm-5 rows retired; nothing is reserved for the session; and a campaign lease is
+  the only claim for any multi-machine boot.
+- **The register now says that.** `ds4-arm5-flashinfer-073-port` is machine-runnable on
+  `recipes/ds4/zz-ds4-1017-sm121-arm5-fi073.yaml` (quartet, tp 4) and claimed by `session:tp4-20261111`;
+  the new authoring row `ds4-arm5-dspark-bf16-query-delta` is its sixth delta and blocks it; the stale
+  `:0.2.1-trtllm-mla` pointer on the sparse-route row is gone; `w4-survey-arm5-sm121-boot` is closed onto its
+  successor; `kimi-tp2-pp3-six-node` is released onto the new `campaign-six-node-claim` row; ERNIE's route row
+  points the sparse arm and its freeze story is corrected to the head losing reachability during `TP0 Init
+  parallel`; and `ernie-window-control-receipt` is the recordability row that files `trio_c2.py`'s answers.
+- **`#84` is the one open question.** ERNIE-5.5-Flash-Base's licence class (ship with attribution and
+  use-notice obligations, probe-only, or drop) is now both register `questions` row 84 and the
+  `QUESTIONS.md` §Spend & risk row; `task-queue.py questions` reads 1 open of 1.
+- **What was superseded.** The arm-5 `trtllm-gen requires SM100/SM103` stop reason predates the fi073 boots;
+  the "hang" story on the sparse-route row bypassed two flags the arm already carries; the Kimi fit memo's
+  115.02 GiB baseline is stale against 117.2–117.4; the dummy-load row's "recipe uncommitted" story is dead
+  (the arm landed in `72dfa0c`); and the ERNIE freeze is no longer attributed to the multimem line that also
+  appears in a healthy boot. `kimi-pruned75-tp4-boot` and its drafter row keep their notes as history.
+

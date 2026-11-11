@@ -467,9 +467,12 @@ remove what the session created** — a leftover is anything undocumented, unkno
   memory risk, and it is still not a role** (owner, 2026-11-08, `mad-science/TODO.md` §"Settled
   questions" `#67`): a memory-overrunning TP4 quartet boot runs on `.31`–`.35`, never on `.30`, because
   a global OOM there takes `ssh`, `NetworkManager` and the BeeGFS units — `.30` remains a normal worker
-  for every boot that is not that memory-risky TP4 shape. **This framing has regressed three
-  times (2026-10-24 twice, 2026-10-25/26): sweep it on sight in board rows, briefs, lock rows, skills
-  and memory, and correct the wording before anything else in the turn.** **If a production workload is
+  for every boot that is not that memory-risky TP4 shape. **The exclusion is waivable only inside an
+  explicitly declared window, named per boot** (owner answer 2026-11-11, `mad-science/TODO.md`
+  §"Settled questions" under `## Owner round 2026-11-11 — TP>=4 survey`, S2); the default stands.
+  **This framing has regressed three times (2026-10-24 twice, 2026-10-25/26): sweep it on sight in board
+  rows, briefs, lock rows, skills and memory, and correct the wording before anything else in the turn.**
+  **If a production workload is
   running on a node, leave it alone and ask; never displace it** (`TP4-BGFS Q2`): a cell on ranks that
   also serve the model the agents run on measures a box answering its own requests, so wait for the
   declared window. **Reading is always fine** — `sparkrun status`, `docker ps`/`inspect`, log reads,
@@ -480,7 +483,10 @@ remove what the session created** — a leftover is anything undocumented, unkno
   **`.local/fleet-window.lock`** naming your session, the node set, the declared window and a timestamp;
   delete it when the window ends. A session that finds the lock must not boot on the named nodes —
   report and wait. Until an agent-chat system exists, this file is the coordination mechanism
-  (`TP4-BGFS Q20`). **It lives in `.local/`, not `.scratch/`** — syncthing's `**/.scratch` ignore
+  (`TP4-BGFS Q20`). **Changed 2026-11-11 (owner answer S9): a campaign lease is the only claim for any
+  multi-machine boot** — this file is no longer the sole mechanism, and a session takes a lease, or a
+  declared window the campaign honors, before booting more than one node.
+  **It lives in `.local/`, not `.scratch/`** — syncthing's `**/.scratch` ignore
   means a lock written there never leaves the clone that wrote it, so a window declared on the head was
   invisible to every other checkout (measured 2026-10-30); `.local/` is synced and git-ignored, which
   is what a shared, untracked claim needs. `tools/queue-drip.py` reads both paths so an older lock is
