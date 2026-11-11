@@ -9165,7 +9165,8 @@ id, so the pin is unresolved rather than proven wrong.
   are both stale: the peer pushed `82d426e`/`fd8a756` and merged them, so this clone's `main` equals
   `origin/main` and the tree-built commit route is no longer needed for the next board write.
 - **The guard attribution in the 13:13 flight row and the 12:57–13:05 landed rows was wrong, and it
-  is corrected on the board as `d7374e3`.** Read in full (33 lines) instead of by tail, `mem-guard.log`
+  is corrected on the board as `d7374e3`, whose gate run `42875603235` finished **success**. Read in
+  full (33 lines) instead of by tail, `mem-guard.log`
   shows `17:55:36Z guard start tid=…80bd6321ebb5` one second before `17:55:37Z TRIGGER` on `.32` with
   `sample=[1794333036 6109556]` — that task's **own** guard, not a leftover from an earlier attempt,
   and the two start lines those rows cited (17:59:02Z, 18:03:25Z) belong to tasks that had not yet
@@ -9292,161 +9293,35 @@ id, so the pin is unresolved rather than proven wrong.
   12:59 rows are not retracted, only marked unreproduced with a named discriminator; and the register
   keeps `pool-window-invalid-cells` and `pool-target-probe-beegfs-ctl-absent` exactly as it has them.
 
-## 2026-11-10 13:40 ET — the 13:00 tick: three fresh reads, a queue cell one row behind trunk, and a board that landed under a peer's subject
 
-- **What landed.** The board was re-derived three times as peers published the 13:13, 13:21 and
-  13:27 texts; the 13:31 composition then reached `origin/main` inside peer commit **`f9af6c8`**
-  ("Board: fold the 18:04-18:10Z root-avail series…"), which committed this session's worktree bytes
-  under its own subject. Nothing was rewritten: the record is this line, and the board's own
-  publication row names the base chain.
-- **Correction, its own publish.** That board's `queue` cell rendered `86b9dc2f…` (109 done /
-  37 queued / **50 open**) from a snapshot taken at 13:03; the trunk register had moved to
-  `a5e2383a…` (110 done / 36 queued / 13 blocked → **49 open**) when a peer closed one row, so the
-  cell, diagram and table were re-derived from `git show origin/main:mad-science/queue.json` in one
-  render and republished at 13:40 with a landed correction row.
-- **Measured this hour, one home each.** Three-node census reads 18:06:13→18:08:16→18:12:17Z
-  (`8/0/0/0/0/0 → 8/0/0/0/0/0 → 9/1/1/1/1/0`); mount `df -B1` used +10 485 760 B / 121 s then
-  +15 204 352 B / 242 s, writer still unnamed (hub mtime 08:49Z, no `hf` process on the head,
-  boot mod writes land in node-local `~/.cache/sparkrun`); nine campaign roots = 33 arms, 0 leases,
-  0 `needs_reap`; the window's quartet live as `…_9fc45345073c` (`indexer-scoring` at 0.77 on the
-  `08c8657f` snapshot), `healthy` at t=152 s.
-- **Two instrument facts worth keeping.** A per-rank `curl 127.0.0.1:8000/v1/models` reads **000**
-  while the serve is ready — the launcher binds `--host <node address>`, so loopback is not a
-  readiness probe; and the 0.77 half of the papered pair measured `bytes_per_full_token=1670.75`
-  with `full_token=2 135 552` (438 528 at 0.75), C5 128K 5/5 needles / 0 errors.
-- **Deferred, then done here.** The close-out was held back during the tick because this file carried
-  peers' uncommitted hunks; it is written against `origin/main`'s blob and committed with the board,
-  so no peer text rides under this message.
-- **Open.** The `mem-guard` leak's six-trigger burst at 17:50:29–34Z (all against dead tids) and the
-  `.30` container accumulation (nine, none running) stay as register/board rows rather than actions:
-  the tick is read-only on the fleet.
+### 16:00 ET tick — independent census, and the refusal that changed shape
 
-## 2026-11-10 14:15 ET — 14:00 tick: fleet idle under a campaign that exited 0, and two defects in this tick's own board
-- **What landed.** board published as **`0c61473`** (`7e9621b..0c61473`), gate
-**`conclusion: success`** for that sha; `In flight` rebuilt on two census reads
-19:03:01–19:03:58Z and 19:10:41–19:10:43Z, `Work queue` re-rendered from the
-worktree register snapshot `8c5a566a…` (159 tasks, 111 done, 48 open) with the
-trunk divergence named in the cell, nine landed rows appended.
-- **Not pushed, by policy.** `HEAD` was gate-red — `AGENTS.md` stated 118 recipes
-against 121 tracked, entirely from a peer's two unpushed recipe commits, and
-`push-gate` printed `red -- do not push` naming `test_doc_hygiene`. So the board
-commit was built on `origin/main` with a throwaway `GIT_INDEX_FILE`
-(`read-tree` → `update-index --cacheinfo` of the board blob → `write-tree` →
-`commit-tree -p origin/main`) and pushed as `<sha>:main`; local `main` untouched,
-the peer's commits still theirs to land. First attempt `5ba0187` (parent
-`9bc0e18`) was rejected non-fast-forward when a peer pushed mid-flight and was
-rebuilt as `0c61473` on `7e9621b`.
-- **Two defects in this tick's own board, named rather than left to a reader.**
-(1) the `pool` cell pairs `+1 794 113 536 B` with **58.5 min**, which is the
-18:06:14→19:03:58 leg; 18:06:14→19:10:43 is **64 min 29 s**. (2) the `queue` cell
-cites `.scratch/tick-1400-<compose pid>/queue.json`, a path that never existed —
-the snapshot was written under the capture pid, not the compose pid, and the
-directory was removed after publish. Both live only in `In flight`, which the
-next tick regenerates, so neither is re-corrected here; the cell's counts and
-sha are unaffected (`8c5a566a…`, 111/35/13).
-- **Measured hour, one home each.** census `docker ps -aq` **9 / 0 / 0 / 0 / 0 / 0**
-on both reads, 0 running and 0 volumes on all six, root avail net
-**−32 608 256 B / 460 s** (movers `.32` −15 724 544 and `.34` −9 187 328); pool
-used **+23 592 960 B / 405 s** and **+1 794 113 536 B** against 18:06:14Z, writer
-unnamed again (no `hf`/`rsync`/`rclone` process on the head, nothing at depth ≤ 2
-under the mount modified in 75 min); `beegfs-meta` loop **+88 restarts per host**
-in 460 s on `.31`–`.35`; nine roots = 34 arms, **0 leases, 0 `needs_reap`**;
-arm-3 indexer-scoring's 1M longctx cell **FAIL** (one request error, no
-`usage.prompt_tokens`); campaign's malloc-pin A/B house **90/100**, ladder at
-c1/c2/c5/c10.
-- **Instrument trap worth keeping.** On a 5 s restart loop `systemctl is-active`
-can sample the transient: `.33`'s `beegfs-meta` read `active` with
-`Result=success` at 19:03:02Z and `activating`/`exit-code` 107 s later at
-`NRestarts` 24 726. Only the restart count is evidence that the loop runs.
-- **Two holder classes, both read.** the campaign unit ran 13:34:16–14:09:44 ET
-and exited `Result=success`/status 0 (`journalctl --user -u sparkrun-campaign`),
-so "active, 0 leases" at 19:04:54Z became "exited" five minutes later — the cell
-states the live read and the landed row states the exit. No window lock in
-either copy; no read recorded which way the 16:52Z window ended between 18:12Z
-and 18:34Z, so the row asserts absence only.
-- **Verified, not assumed.** the worktree `AGENTS.md` carries a peer's in-flight
-re-take (121 scanned, 69 findings, 34 warnings, 33 `unpinned-model-revision` rows)
-laid over this tick's `doc-census --fix`, and a fresh `sparkrun recipe validate
---strict` over the 121 tracked recipes prints **121 / 69 / 34 / 33**, so those
-four statements match the tree. The file was left as found rather than published:
-pushing counts without the peer's recipes reddens trunk the other way.
-- **Deferred.** pool growth still has no named writer past the depth-≤2 probe, and
-the board is ~304 KB — the `board-render-state-truncation` row's defect, not a
-tick action.
-
-## 2026-11-10 14:50-15:35 ET — the quartet window: steady state, the 0.77 pair, marlin's read term, ERNIE's route
-
-Receipts `head:~/benchmarks/tp4-20261110b/`. Campaign suspended 16:50:47Z (inactive/dead
-16:50:50Z), restored 18:34:16Z, re-suspended 19:09:46Z for the ERNIE boot and restored 19:34:04Z;
-final `.31`-`.35` `ctns=0 vols=0`. Window lock written 16:52Z, released 18:35Z; not re-taken for the
-ERNIE boot, which is a lapse, not a rule.
-
-**Arm 3 has a steady-state number, and it overturns the 56.2 headline.** `zz-ds4-1017-sm121-indexer-scoring`
-at `MEM_FRACTION_STATIC=0.77`, pool `full_token=1,997,824`, prompt 1,035,624 tokens, TTFT 411.6 s:
-**64 answer tokens over 37 decode steps = 31.8 ms/step, 51.04 tok/s**, needle 1/1, floor 10.87 GiB.
-The old 56.2 / 54.8 / 55.4 were 3-step medians where the first step carries the prefill hand-off;
-`--max-tokens 512` never lengthened the sample, and the lever did (`--min-answer-tokens 64 --task
-long-generation --chars-per-token 6.65`). Every C>=2 median in this window (14,364 / 22,906 / 82,652
-ms/step) is prefill **queueing**, not decode.
-
-**The 0.77 pair exists.** Replay off: 2,135,552 tokens, floor 7.64 GiB; replay on: 1,997,824, floor
-10.87 GiB; the 1,035,623-token prompt fits both. The "replay-on and 1M cannot coexist" reading was
-a two-point sampling artefact (0.75 and 0.78 only): `available_bytes` is steep near 0.75 because a
-2.25 GB fixed SWA term is subtracted first.
-
-**The 6.0 GiB guard was not the blocker for C5 at 0.75**: five concurrent 131,072-token prefills ran
-(282.8 s, 5/5 needles, zero errors, floor 10.67 GiB), so `w4-survey-arm5-control-boot`'s shape
-reduction is unnecessary and the guard stays at 6.0.
-
-**Marlin's killer is the read path, not the loader window and not the parameter set.** Serial loader
-boot: flag in effect (`Multi-thread loading shards` absent, serial shard line present), trough
-unchanged at 5.31 / 5.56 / 5.70 GiB — H1 falsified. Dummy-load isolator: the padded set allocates
-**82.99 GB + 2.26 GB draft and leaves 26.09 GiB**, then refuses `--mem-fraction-static=0.6` with its
-own `0.768` minimum — H2 falsified as the killer, H4 falsified. The dive needs reads (H3, the
-per-module repack copy, with the fast loader's "weight copies paced to 6.0 GB in flight"); H5 (page
-cache) stays open because this window's sampler recorded only `MemAvailable`. A paired-flag refusal
-worth keeping: `Model loader extra config is not supported for load format LoadFormat.DUMMY`.
-
-**The TensorFold TP=4 negative is source-confirmed and has a named unlock.** The pinned image's
-`cli.py:252-253` still gates on `CUDA_TP4`, declared only by `families/glm5_next/__init__.py:20`;
-upstream PR #391 was closed unmerged 2026-10-06 ("the Python engine is frozen; the Zig engine has no
-DeepSeek-V4.1 family yet"). The unlock is a Zig-engine build on `deepseek-v41-zig-tp4`, a new
-image + engine + kit arm, never an override.
-
-**The ERNIE FlashInfer sparse route boots and keeps the window.** `Ready` at t=770 s on the pinned
-nightly, engine's own `Use ernie55 attention backend … page_size=256, kv_cache_dtype=fp8_e4m3`;
-needle planted in the **final 128 tokens** answered `ZX81-4321` while the middle control garbled it,
-so the tail arrives through `append_window_to_topk` rather than being silently dropped. The quality
-gate (greedy GSM8K >= 0.93) did not run: a clean boot plus a window check is not a correctness result
-and the arm stays open.
-
-**The campaign leased into a declared window, twice in one day.** With the lock held it took
-`arm3-control-marlin` (rc=4, 18:38:23Z) and `malloc-pin-sglang` on `.30`-`.33` (rc=0 measured,
-18:45:41Z); the second lease is a second measurement of `ds4-malloc-pin-ab` and the first put `GPU
-has an existing allocation` in front of this session's launch. Register row
-`campaign-ignores-declared-window`. The malloc-pin treatment itself booted clean (b12x `a7d7d29b`
-armed, zero divide-by-128, `Ready`, 1M advertised, `kv_cache_dtype fp8_e4m3`, chat and image 200s,
-ladder C1 54.6 / C2 186.6 ms/step PASS, load floors 12.31-17.07 GiB); its control half was not booted
-by this session.
-
-**Published**: the three loader experiment recipes (`zz-…-marlin-serial`, `zz-…-marlin-dummy`,
-`zz-kimi-…-load-format-dummy-vllm-tp4`) and the served-name guard exception for the two marlin arms —
-CI green on `d13f8dd` (run 42888010746). Untried when the window closed: marlin dummy at 0.78, the
-Kimi parameter floor, the malloc-pin control, and Kimi TP=2 x PP=3 on six nodes.
-
-**The 14:00 tick's board, and the window gap it caught.** Published on the 14:25 tick's composition
-(`d587efd`), with the queue half re-rendered from trunk's register (`d4e9dc63`, 160 tasks / 48 open)
-because a peer's register commit landed mid-tick. What the tick measured that no earlier composition
-had: between the 19:11:36Z quartet launch and 14:51:09 ET `fleet-window.lock` was absent in both
-clones while four ranks ran - the lock was re-declared at 14:51:09 (223 B, `claim=tp4-runner`,
-`campaign=stopped by this session before launch; restored at window end`), so a campaign restart in
-that gap would have leased the ranks under live work; the campaign itself was restarted 14:34:02 and
-assigned the Kimi dummy arm to the same four nodes before being stopped again. Landed alongside: the
-stale census that reddened `main` (118 vs 121 tracked recipes, carrier of a peer's `AGENTS.md`
-re-take, disclosed in that commit) and one landed row for `64fe2e5`. Dropped rather than pushed: an
-allowlist commit for the two marlin probes, superseded by `d13f8dd` and then `3ace8e9`'s derived
-exemption. Register row `campaign-leases-tp4-onto-30` opened from the journal's two `assign` lines,
-per the owner's 2026-11-08 `#67` ruling.
+- **Two pairs of the same hour, from two instruments.** This tick's census ran 21:01:49Z → 21:05:21Z
+  (212 s) and read `docker ps -aq` **9 / 0 / 0 / 0 / 0 / 0**, `docker ps -q` **0** on all six and
+  volumes **0** on all six; the concurrent tick's pair (21:04:26Z → 21:05:22Z) reads the same, and both
+  ticks' `df -B1` pool value for **21:05:21Z is 13,869,067,534,336 B used** to the byte. Two instruments
+  agreeing is the whole of this pair's value — it changed no state and found no new idle node.
+- **The pool's byte series has no trend, and the 15:51 board's "falling" was one pair.** 20:21:28Z
+  13,868,911,820,800 → 21:02:16Z 13,869,046,562,816 (+134,742,016 B / 2,448 s) → 21:05:21Z
+  +20,971,520 B / 185 s. Reverse, then reverse again; ±0.5 GB per tick. Only a longer series can say
+  what the chunk store is doing.
+- **The one thing this tick added is the *shape* of the management-plane refusal.** The fleet stopped
+  answering between 21:05:21Z (last read) and 21:18Z. Two probes from this session failed: the first
+  `Connection timed out`, the one at **21:23:13Z** `No route to host` (**EHOSTUNREACH**). So packets
+  stopped being dropped silently and a host on the path started declaring the destination unreachable.
+  A last-hop ARP failure for the node address and a router with no route for the subnet both produce
+  that answer, and this workstation cannot separate them; a probe from inside the cluster segment can.
+  Published as one clause on the board's `reach` row (`771b6b6`, in the green tip `eba3eb4`).
+- **A register note leaked cluster addresses and CI caught it, not a reader.** `897da3b`'s capture-dir
+  row named the head and node aliases plus dotted addresses; the run for that commit is the only
+  failure in the chain (`42905420242`), and `8cad5e8` + `eba3eb4` redacted it to `.30`-style shorthand,
+  after which gate `42905686535` on `eba3eb4` is **success**. Nothing was re-run to confirm the failure:
+  the address test named the file and line.
+- **Concurrent ticks overwrote each other four times in eight minutes** (`d7d9c13e`, `696eb8f2`,
+  `47b8fcc1`, then this fold). Two guards actually did work — `--expect-sha` refused my first fold over
+  a peer's 16:26 board, and `--expect-remote-sha` refused the second because that peer had not pushed
+  yet; retrying 20 s later, after their push, published cleanly. Composing earlier and publishing later
+  is the failure mode; publish against bytes you can name.
 
 ## 2026-11-10 17:15 ET — 17:00 tick: board left standing under a peer's 17:13 board, and that board's pool rate does not survive a later pair
 
@@ -9465,7 +9340,7 @@ per the owner's 2026-11-08 `#67` ruling.
 - **Live boot, later than the board's sample:** rank-0's shard loader read **90/128 (70 %)** at
   22:12:43Z at ~7.7 s/shard (the board has 81/128 at 22:11:34Z, 8.25 s/shard), and the watchdog's
   own line was `t=704s verdict=loading endpoint=down serve_pid=alive io_delta=670 log_delta=156
-  ranks=4`; `/v1/models` still **000**. Same boot, no contradiction, later evidence.
+  ranks=4`; `/v1/models` still **000** at that read.
 - **Campaign, all nine roots read at 22:04:20Z:** unit `sparkrun-campaign` inactive with
   `Result=success` / `ExecMainStatus 0`; exactly **one lease fleet-wide** — `h2h-20261107`,
   `zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4` on `.30`–`.33`, `expires_at` epoch
@@ -9489,60 +9364,141 @@ per the owner's 2026-11-08 `#67` ruling.
   pool pair and the claim-gap reading.
 - **Leftover, not this tick's:** a 0-byte untracked `python3` at the repo root (mtime 16:29 ET), a
   shell-redirect accident; left in place rather than deleted under another session.
-## 2026-11-10 19:17 ET — 19:00 tick: the quartet that is still loading at the third read, and the lock copies that disagree on its node set
 
-- **Landed:** board `1781bee` ("Board: quartet still loading at third read, and lock copies
-  disagree on the node set"), published through `tools/task-queue.py publish --base
-  .scratch/tick-1901-3435312/base.md --expect-sha 06bdc1b6… --expect-remote-sha 06bdc1b6…`,
-  `rc=0`, `lint` printing `ok: 1 markdown file(s) render`. Base, disk copy and `origin/main`'s
-  board were the same sha at the read, so the composition replaced no peer row. A peer's push
-  (`02b7021`) carried the commit to trunk; gate run for `02b7021` finished **success**.
-- **Census, three captures 00:03:46Z / 00:04:59Z / 00:05:37Z (111 s):** `docker ps -aq` 9 / 1 /
-  1 / 1 / 0 / 1 on every read and `docker ps -q` 0 / 1 / 1 / 1 / 0 / 1, volumes 0 × 6. The hour's
-  only work is **one TP=4 quartet on `.31`/`.32`/`.33`/`.35`**, and it changed attempts between
-  the first two reads: `1a0c703a149c` (`Up 5 minutes (healthy)`) replaced by `ac82b2c6fdda`
-  (`Up About a minute (health: starting)`), same pipeline `b020d2dd178343a5`, same image
-  `3f4480818acb`. `/v1/models` from rank 0 answers **000** on 8000, 8001 and 30000, and the four
-  ranks' `MemAvailable` fell 112 → 33 GiB between reads 2 and 3: a boot still loading, which is
-  the distinction a census row can state and a watchdog, not a row, can rule on.
-- **Pool serving, proved past the mount:** `beegfs-mgmtd`/`-meta`/`-storage` active on `.30`,
-  `findmnt` lists `/mnt/beegfs beegfs default`, `df -B1` used **13,920,845,692,928** B / avail
-  10,270,384,062,464 B / total 24,191,229,755,392 B at 00:04:59Z — **+126,353,408 B** over the
-  1,257 s since the 23:44:02Z read — with `ls …/hub` 102 entries and `stat -L` 3,957 B on the
-  Kolibri config as the read proof. No mover named; that stays the open row
-  `pool-target-probe-beegfs-ctl-absent`'s job.
-- **Campaign:** unit `sparkrun-campaign` inactive, `Result=success`, `ExecMainStatus 0`, stopped
-  17:57:02 ET. `state.json` enumerated rather than read off `status`: **23 arms, 1 lease** — the
-  Kimi pruned75 arm, hosts `.30`–`.33`, `expires_at` 23:02:01Z, expired and unreleased because
-  only a running director calls `expire()`, on a host set that starts inside the memory-risk
-  exclusion.
-- **Register:** snapshot `.scratch/tick-1901-3435312/queue.json`, sha256 `15063e3f…` — 170 tasks,
-  118 done / 36 queued / 16 blocked / 0 running / 0 claims / 0 questions, **52 open**, `check`
-  passing. Both board blocks are `--file <snapshot>` output (`graph --file` and top-level
-  `--file … render --board`), whose own comment reads `%% 16 blocked, 3 edges, 13 prose-gated, 0
-  question-gated, 0 question, 46 rows not drawn (--all)` — and the register had moved since the
-  19:00 board (`1c69a5f5…`), so both were re-derived rather than carried.
-- **The window copies disagree, and that is the finding of this tick.** This clone's
-  `.local/fleet-window.lock` reads `window=MARLIN-STREAMER-085 2026-11-10T23:40:27Z +120m`,
-  nodes `.31`–`.34`; the **head's** reads `window=MALLOC-AB32 2026-11-10T23:57:47Z +150m`, nodes
-  `.31`/`.32`/`.33`/`.35`. The live quartet sits on the head's set and `.34` is empty, so the
-  head's copy is operative and this clone's is a syncthing lag — but the five manual-launch
-  skills read only the clone's file, and a reader who trusted it would plan rank 3 onto an empty
-  node. Five declarations inside the hour: `ERNIE-GSM8K` 21:57:47Z, `MALLOC-CONTROL` 23:14:36Z,
-  `MARLIN-DUMMY-085-SWA` 23:27:36Z, `MARLIN-STREAMER-085` 23:40:27Z, `MALLOC-AB32` 23:57:47Z.
-- **Landed rows folded:** `dc54143` (board queue row onto the register `6a9db67` restored),
-  `b750e5a` (`memory_risky` tri-state plus `exclude_hosts`, with the negative control),
-  `571a3b3` (placeholder hosts in the exclusion examples, after the address-hygiene guard fired)
-  and `e33c6f8` (the `## In flight` heading a composition dropped, which `lint` cannot see). The
-  fold stopped there: `9aae82b`, `3620460` and `02b7021` landed after the coverage check, so the
-  board's landed table is three commits behind trunk by design and the next tick folds them.
-- **A defect this tick did not touch:** `## Landed session` now carries **625 rows** and the
-  board is **356 KB**, so every tick reads that before it can write one census row. Retiring the
-  table needs each row's fact homed here first, which is a separate, careful pass — writing it
-  into a board cycle would risk exactly the loss the ledger exists to prevent.
-- **This entry landed by a tree-built commit, not by naming the path.** The worktree copy of this
-  file carried a peer's unstaged **+42 / −157** — in-flight retirement work — so
-  `git commit -- mad-science/SESSION-RECORD.md` would have published a 157-line deletion under
-  this tick's subject, the class `9aae82b` had to restore at 19:08. Instead: HEAD's blob, this
-  entry appended, `hash-object` → `read-tree`/`update-index` on a throwaway `GIT_INDEX_FILE` →
-  `write-tree` → `commit-tree`. The peer's worktree bytes were left exactly as found.
+### 17:24 ET — follow-up to the 17:15 entry: the ERNIE quartet served while this tick was writing
+
+- The arm's own watchdog crossed the line inside the tick: `t=1037s verdict=healthy endpoint=ok
+  serve_pid=alive io_delta=1688410 log_delta=7023 ranks=4` at **22:21:11Z**, `/v1/models` **200** at
+  22:21:12Z, and `/v1/completions` answering 200 in rank-0's log. The peer's later board (17:22) has
+  it first, from a `.30` read at 22:19:20–22:19:33Z, so nothing is owed to the board from here; this
+  bullet exists so the 22:12 loading sample above cannot be read as the arm's last word.
+- **Nothing changed by it in this tick's ledger rows:** the lease, window, register and census cells
+  above were read before the transition and stay true as read.
+
+## 2026-11-10 19:25 ET — quartet close-out: two loader questions answered, one A/B left unresolved, and a lease on the excluded head
+
+Record of the `tp4-runner` window that ran 21:00Z–00:25Z. Every number below is this session's own
+measurement unless the bullet cites another session; receipts are under `head:~/benchmarks/tp4-20261110b/`.
+
+### ERNIE-5.5-Flash-Base TP=4 — the gate closed measured, after one boot died on the fabric
+
+- **Boot 1 (`ernie-gate`) stalled in weight load, not in the engine.** `Load weight begin. avail
+  mem=108.78 GB` at 21:13:54, last line ever written `multimem all-gather disabled because the TP group
+  spans across nodes` at 21:13:57 — the SSH link dropped during `TP0 Init parallel`, so the TP weight
+  broadcast never completed and the process sat frozen for 30 minutes. The driver’s own readiness probe
+  gave up at **1364 s** (`endpoint did not become ready … rank-0 readiness probe failed: Timeout`),
+  **left the four containers running for 32 minutes** with 4 GiB used per rank (container baseline, no
+  weights resident), and was topped by id `sparkrun_e59088ba4d0f3858_9533d15053fe` at 21:43:33Z.
+  Harness gap: a readiness failure ends the driver but leaves the serve up.
+- **Boot 2 (`ernie-gate2`) reached Ready at ~22:17:50Z, ≈1,230 s after launch.** Watchdog armed on the
+  first sample and never fired: `ranks=4 unprobeable=0` on **all 89 samples**, `peer_moved` 0×1 / 1×1 /
+  2×18 / 3×69, verdicts `loading` 88 + `healthy` 1 (arm line and mid-load samples in
+  `ernie-gate2/watchdog-arm-evidence.txt`). Shard progress was visible throughout (36/128 at ~t=300 s,
+  75/128 at t=598 s, 94/128 at t=739 s).
+- **GSM8K 0-shot, 200 rows: 190/200 = 95.0 %**, `finish={'stop': 200}`, `empty=1`
+  (`results/baidu_ERNIE-5.5-Flash-Base.gsm8k.none.json`). **Descriptive only** — `run_benchmarks.py`
+  runs gsm8k **0-shot** while the model card’s 93.0 is **8-shot**, so this sits where a healthy port
+  should and far above the ≪0.60 collapse floor. The eight misses: one scorer/format (gold `120000`
+  answered `120,000` in `\boxed{}`), six genuine arithmetic or logic errors, one empty reply.
+- **Falsifier trio passes: T, N and C**, all four ranks, same serve (`trio.json`, `trio.py`,
+  `trio_c.py`, `trio_c2.py`): T (code ~25 tokens from the end, 7,827 prompt tokens) answered; N (T’s
+  bytes with the code sentence removed, 7,816) stayed silent; C in QA form answered at 4,005 and
+  26,547 prompt tokens (code 400 and 3,000 from the end, the latter past the 2048 candidate cap).
+- **The imperative form is a trap, and it is the reusable finding.** `State the access code only.` with
+  the code 400 or 1,977 tokens back produced the same echo at both distances, i.e. a FAIL that says
+  nothing about the port; **style decided the outcome, not distance**, so a probe built on that line
+  measures nothing. Any future window falsifier should carry the QA form.
+- **Stated-step decode sample: 128 steps in 7.62 s = 16.80 tok/s** (`decode_sample.py`), contended with
+  the accuracy run — recorded as a contended number, not a clean-window one.
+- Teardown 22:54:20Z by id, `.31`–`.34` `ctn=0`, lock removed.
+
+### DSV4 marlin — the destination exists; the loader is the whole remaining barrier
+
+- **`load_format: dummy` at `MEM_FRACTION_STATIC=0.78` (`.31`–`.34`) separates destination from
+  loader.** Weights `mem usage=82.24 GB` + draft `2.28 GB`, host trough **25.87 / 27.63 / 26.86 /
+  27.67 GiB** over 256 one-Hz samples per rank — so 84.52 GB of body fits with 25.87 GiB headroom, and
+  the 5.31–5.70 GiB troughs of the serial-loader runs belong to the **fractional loader’s transient
+  inflation**, not to the model. That boot then refused *after* the weights, at pool sizing: `DSV4 SWA
+  pool cap (100864 tokens, 2.25 GB) leaves no room for the full KV pool within the available 1.69 GB`
+  — a pool-split wall, not a host-memory wall. Receipt `marlin-dummy-078/`.
+- **A destination config exists at TP=4: `0.85` + `--swa-prefix-tails 64` builds the pool and serves.**
+  `server_args` confirms both (`mem_fraction_static: 0.85, swa_prefix_tails: 64`); the split becomes
+  `available_bytes=9.80 GB`, `swa_fixed=1.70 GB`, **`full_token=5,201,664`**; the server came up with
+  `/health` 200 and `POST /v1/chat/completions` 200 on `cuda graph: True`. The only failure was the
+  dummy’s own quality smoke — `boot.py:227` asserts the reply is `'42'` and random weights answer
+  gibberish — so it raised `AssertionError` and the watchdog stopped it
+  (`verdict=dead cause='AssertionError'`), trough 10.14–11.41 GiB. Receipt `marlin-dummy-085/`.
+- **The knobs are coupled, and that is why 0.78 could never be fixed by the fraction alone:** the SWA
+  term is subtracted *before* the pool is divided, so `0.85` with 128 tails would have refused the same
+  way.
+- **`runai_streamer` is a measured negative with its mechanism.** The image accepts it
+  (`runai_model_streamer` installed; loader extra keys `distributed`, `concurrency`, `memory_limit`),
+  but the library refuses first: `RunaiStreamerMemoryLimitException: Memory limit supplied: 40000000000
+  cannot be smaller than: 98308270592` — 40 GB is `DEFAULT_MEMORY_LIMIT_STRING`
+  (`runai_model_streamer/file_streamer/requests_iterator.py:14`), 98.3 GB is the chunk it insists on.
+  With `model_loader_extra_config='{"memory_limit":110000000000}'` the load starts (`avail mem=111.50
+  GB`) and the host dives anyway: **4.99 / 4.77 / 5.86 / 6.98 GiB**, the 6.0 GiB guard fires, and rank-0
+  dies **exit -15** (guard SIGTERM, not -9; no OOM line). So streaming of this kind cannot buy the copy
+  back at this checkpoint size. Receipt `marlin-streamer-085b/`.
+- **What survives:** the destination fits, the pool builds, the server serves — marlin at TP=4 now needs
+  exactly **one streaming loader** that holds neither the checkpoint layout nor the repacked layout
+  twice. Recorded in `recipes/ds4/README.md` (commits `2dd1ca5`, `4ef7244`).
+
+### malloc pin A/B — unresolved, and the earlier 3-step gap was noise
+
+- Re-run at `--max-tokens 48 --min-answer-tokens 32`, 8k retrieval cell, `.31/.32/.33/.35`, both halves:
+  control C1 **42.2 ms/step over 27 steps** (41.67 tok/s), C2 42.6 over 34; treatment C1 **43.6 over
+  23**, C2 36.6 over 33. Needles 1/1 and 2/2 throughout, `verdict: PASS`.
+- **Three consecutive C1 runs on the treatment boot span 43.6 → 33.3 → 35.0 ms/step (23/23/19 steps)** —
+  a ±15 % spread, larger than the control-treatment gap and pointing in both directions between cells.
+  Verdict: **unresolved at this sample size, not confirmed.** The earlier 47.5 vs 54.6 numbers were
+  3-step medians and are noise; the lane doc now says so.
+- Floors: treatment 11.17–12.39 GiB, control 10.64–15.42 GiB. Receipts `malloc-ab32-control/`,
+  `malloc-ab32-treatment/`.
+
+### The campaign leased a 110.71 GiB/rank arm onto `.30`
+
+- The director was restarted at 22:54:37Z and leased within seconds: `Nov 10 17:54:41 spark-41e1
+  sparkrun-campaign[3019538]: assign: kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4 -> w1 on the head plus
+  three ranks (lease kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4@5)`. The
+  declared set is `CAMPAIGN_HOSTS` naming the head and all five ranks in
+  `~/.config/sparkrun-campaign.env`
+  (untracked), and the queue chose the arm because it was `unmeasured … no marker and no
+  machine-readable artefact` — **no fit or placement check entered the decision**.
+- Stopped on the owner’s order 22:57:02Z (campaign `inactive`), lease
+  `ff72a3ed0a315084_eb8f1c82bc2e` stopped (`Workload stopped on 6 host(s)`); `.30` answered afterwards
+  with `MemAvailable` 116.155 GiB and no reboot. The env file was **not** edited — host-set policy is
+  the owner’s.
+- **The durable fix landed from the campaign session, not this one:** `campaign/sparkrun_campaign/plan.py`
+  now carries `MEMORY_RISKY_EXCLUDED_HOSTS = (".30",)`, classifies a row by `memory_risky` /
+  `exclude_hosts` / `node_cost: quartet`, sorts excluded hosts last, and **refuses by name** a risky
+  shape that cannot fit outside them (`queue-skip: <row> (memory-risky shape needs 6 ranks, 5 declared
+  outside .30)`; an exclusion matching no declared host fails the plan closed). Cited to
+  `campaign/DESIGN.md:80-98` and `campaign/tests/test_queue_mode.py:289-339` (commit `3620460`).
+
+### Contracts and tools carried out of tonight
+
+- **Client-artefact contract** (executor side, `tools/README.md:193-197`, `tools/run-arm.sh:893-930`):
+  a successful `ARM_EXTRA_CLIENT` hook writes one `<receipt>/quality.json` with a `producer` block and a
+  `client` mapping of every JSON it wrote; a failed hook manufactures nothing. `next-arms.py` reads
+  `quality.json` as a client measurement only when its content checks out, and `tools/doc-census.py`
+  plus the suite guard the pair. Not this session’s work — cited from the tree (commit `3620460`); the
+  ERNIE follow-up that would use it is a **blocked** register row, not a wired hook.
+- **Watchdog arming discipline (this session’s tool change).** `tools/boot-watchdog.py --rank NODE:CONTAINER`
+  is group-scoped: `group_stalled()` returns False if **any** rank probe is `None`, so a single wrong
+  container name leaves the log printing `ranks=4` while the veto can never fire. Arm with one `--rank`
+  per peer, `--stall 600`, and **read a mid-load sample for `unprobeable=0`** before trusting it —
+  tonight that held on 89/89 samples between the 0.78 dummy and the ERNIE gate.
+- **`longctx-cell.py --completions`** (`5b11940`) and **`run_benchmarks.py --completions`** (`2435ff4`)
+  are both on trunk with stated counts `bd34d77`/`dd0273f`; the async-client follow-up and `task-queue`
+  placement fields came from other sessions (`3620460`). Suite total after tonight: **1586**.
+
+### Fleet facts worth carrying
+
+- **`.34` cannot serve a digest-pinned image**: it holds the bytes under local tags with no
+  `RepoDigests`, so `docker image inspect <digest>` says "No such image". Every ds4 boot in the second
+  half of tonight used `.31/.32/.33/.35` for that reason; the arm5 carry will hit the same wall.
+- **`.30` is excluded for memory-risky shapes** as a standing rule, not a preference: a global OOM
+  there takes `ssh`, `NetworkManager` and the BeeGFS units with it.
+- All boots tonight were topped by id, `ctn=0` verified on every rank, samplers stopped, lock removed;
+  the campaign was left **inactive** and no director was started by this session after the owner’s stop.
