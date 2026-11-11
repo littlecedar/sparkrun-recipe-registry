@@ -10247,3 +10247,33 @@ Tick scope: read-only census, pool and claim reads, board publish; no boot, no s
 - **Remaining in the register.** `ds4-arm5-verify-route-batch-cap`, `sparkrun-single-gid-index-for-two-hcas`,
   the four campaign lease/placement rows (mechanism landed, no live lease or six-node boot yet),
   `mem-guard-outlives-its-task` (lifetime fix), and the earlyoom policy row's last open item.
+
+## 2026-11-11 03:21 ET — board tick: composed on the newest published base
+
+- **Published `bc2cc38`** (`# Board — generated 2026-11-11 03:21 ET`, 398 039 B) on base `0f54622c…`
+  (`8e160b2`, the peer tick's 03:17 board). Three earlier bases were discarded before publishing:
+  `17a87c4a…` (the 02:44 board this tick first read), `6a9bb6c9…` (the peer's 03:09 board) and
+  `2249062c…` (its 03:14 board). `--expect-sha`/`--expect-remote-sha` refused twice when a peer
+  published mid-tick, and once when a peer had written an unpublished composition to disk — that one
+  was published by its own tick and fetched again.
+- **The In flight body is the base's, verbatim**, because that base's sweep C
+  (`08:13:02Z`–`08:13:05Z`) is later than this tick's census (`08:12:18Z`–`08:12:21Z`). Re-emitting
+  this tick's own node rows would have replaced a record of a ready-and-laddered boot with an older
+  "loading, `/v1/models` 000" reading: the weakening `board-publish-accepts-weaker-replacement`
+  describes, with a fresher title stamp making it pass every byte guard.
+- **New measurement, this tick's own:** at `08:12:18Z`–`08:12:21Z` the through-mount `used` read
+  13 928 257 552 384 B against the six roots' own `df -B1 --output=used /` sum of
+  13 928 257 478 656 B — **73 728 B apart**, with 102 hub entries and Kromoss `README.md` 7685 B
+  through the mount on every node. A fourth independent pair on the identity, taken 44 s before the
+  peer's sweep C, agreeing with all three of theirs.
+- **Two corrections to what this tick's commit body says.** (1) "the register did not move this tick"
+  is true of the tick's snapshot only: at 03:00 the register was `ca309917…` with 178 tasks / 50 open,
+  and by 03:35 it is `7732cc17…` with 180 tasks, four arm-5 rows closed and one row added mid-tick.
+  (2) The `| queue |` In flight row was **not** dropped by this tick: the 03:14 board carried it and
+  the 03:17 base did not, and a composer that keeps its base's body verbatim inherits the gap. Filed
+  as `board-publish-keeps-in-flight-row-set` with the byte evidence; that row rode `origin` in a
+  peer's commit `bd46fdb` rather than this tick's.
+- **Nothing on the fleet was touched.** Read-only: no boot, claim, lock, lease or stop; `.30`'s nine
+  never-started `Created` containers and `.34`'s emptiness are as found. Census captures, the register
+  snapshot and the four compose attempts stay in `.scratch/tick-0300-790725/` (git-ignored, not
+  synced) as the evidence behind the numbers above.
