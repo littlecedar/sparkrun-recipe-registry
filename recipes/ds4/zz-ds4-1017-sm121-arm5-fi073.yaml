@@ -67,13 +67,18 @@ description: >-
   message; 128 packed rows are admitted. SM12x visibility is the per-token
   table alone (`mla/_core.py:2413-2434` forwards no `seq_lens`/`cum_seq_lens_q`,
   and probe outputs are bitwise identical with and without both).
-  NOT MEASURED: the engine falsifier. The first serve on this image hung in
-  FlashInfer autotune -- `env:` now carries `--disable-flashinfer-autotune`
-  (reason on the line above it), which the measured pair passed -- and the
-  relaunch found all six nodes taken by another boot under the same lease
-  holder. A claim with the unique holder `session:tp4-20261111:arm5-verify`
-  is refused while that lease is live, so no serve has run. Next serve must
-  compare 16 concurrent canary answers to `4183` before trusting the row.
+  MEASURED 2026-11-11 (`:fi073e`, lease
+  `session:tp4-20261111:arm5-verify:manual:1794414688`, task
+  `eebf614384a7cc78_2e954f287339`, ready 273 s, recipe's own env:
+  `MEM_FRACTION_STATIC=0.78`, `MAX_RUNNING_REQUESTS=16`,
+  `CUDA_GRAPH_MAX_BS_DECODE=10`, gate in `EXTRA_SGLANG_ARGS`, no `-o`):
+  canary greedy `4183`; **16 concurrent copies of the canary: 16/16 `4183`,
+  0 errors** (2.091 s, clean rerun 1.145 s), i.e. 96-row target-verify
+  batches execute the routed variant; one C16 line (depth 0, pp 2048,
+  tg 128) reads tg 68.89 t/s aggregate, pp 1691.7 t/s, TTFR 16.98 s.
+  Host floor 10.83 / 10.46 / 11.36 / 10.05 GiB; guard never fired. One run
+  is a line, not a ladder cell. Receipt:
+  `head:~/benchmarks/arm5-verify-route-20261111/`.
 metadata:
   model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>

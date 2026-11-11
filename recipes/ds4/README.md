@@ -1949,12 +1949,20 @@ Measured pair, one window, symmetric shaping (`MEM_FRACTION_STATIC=0.75`,
   table alone: the SM120 dispatch (`mla/_core.py:2413-2434`) forwards neither `seq_lens` nor
   `cum_seq_lens_q`, and probe outputs are bitwise identical with and without both. Artifact
   `probe_verify_route.fi073e.json`; the decision is stated in `patch_dsv41_fi073.py` delta 9.
-  **Not measured:** the engine-level numerics falsifier (16 concurrent canary answers still `4183`)
-  and a C16 line. The first serve attempt on `:fi073e` hung in FlashInfer autotune before the recipe
-  carried the `--disable-flashinfer-autotune` gate (it does now, with the reason in `env:`); the
-  relaunch then lost the quartet to another boot under the same lease holder. A later claim with a
-  workstream-unique holder was refused while that lease stayed live, so no serve ran. Record that as
-  an open measurement — not as a property of the route.
+  **Measured 2026-11-11** (`:fi073e`, lease `session:tp4-20261111:arm5-verify:manual:1794414688`,
+  task `eebf614384a7cc78_2e954f287339`, ready 273 s, recipe's own env —
+  `MEM_FRACTION_STATIC=0.78`, `MAX_RUNNING_REQUESTS=16`, `CUDA_GRAPH_MAX_BS_DECODE=10`, no `-o`):
+  canary greedy **`4183`** (19 prompt / 3 completion tokens, 2.858 s); **16 concurrent copies of
+  the canary: 16/16 `4183`, 0 errors**, 2.091 s and a clean rerun 1.145 s. Those batches run
+  target-verify at 96 rows (16 × 6), i.e. the routed prefill variant; the scheduler admitted
+  1 + 15 new sequences in one step and decoded above the 10-request graph cap (`cuda graph:
+  False`). **One C16 line** (depth 0, pp 2048, tg 128, one run): **tg 68.89 t/s aggregate,
+  pp 1691.7 t/s, TTFR 16.98 s, 82 s wall**. Host floor min `MemAvailable` **10.83 / 10.46 /
+  11.36 / 10.05 GiB** on `.31/.32/.33/.35`; the 6.0 GiB guard never fired, the
+  serve log showed no `ValueError`/`Traceback` after the concurrent runs, and the C16 benchmark
+  returned rc=0. One run is a line, not a ladder cell: no cross-image
+  throughput claim. Stopped by literal task id; 0 containers/0 volumes per rank; lease released
+  by id (0 live leases).
 
 Receipts: `head:~/benchmarks/arm5-fi073c-20261111/` — `RECEIPT-canary-fi073d.md` §§10–11,
 `boot5b-fi073d/`, `boot6-arm3-canary/`, `boot7-arm5-ladder/`, `boot8-arm3-ladder/`;
