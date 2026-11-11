@@ -10912,3 +10912,34 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
 - **Two concurrent ticks** (this session and pid 2116005, both launched at 13:00) composed in
   separate `.scratch/tick-1300-<pid>/` directories; this one published first, so the other's write
   is refused by byte CAS rather than replacing these rows.
+
+## 2026-11-11 13:14 ET (pid 2116005) hourly board tick: published nothing, and corroborated the sibling's board
+- **No board write, deliberately.** Sibling instance pid 2116006 published `bd9ad5b` (title 13:11 ET)
+  with a census `2026-11-11T18:05:33Z`; this tick's own sweep ran `18:05:40Z`–`18:05:42Z`, seven
+  seconds later, so republishing would have replaced nothing but the title — the exact weakening the
+  refresh procedure names. Its composed board (`406,201 B`) was never published and sits in
+  `.scratch/tick-1300-2116005/board-new.md`.
+- **Independent census, all six nodes, `18:05:40Z`–`18:05:42Z`:** nothing live — `docker ps -aq`
+  **9 / 0 / 0 / 0 / 0 / 0** (`.30`'s nine `Created` leftovers only), running **0**, volumes **0**
+  everywhere; `MemAvailable` 116.6–117.3 GiB; `uptime -s` 01:33:31–01:38:00, `kho=off` **1**,
+  `CmaTotal/CmaFree` **0/0** on all six. Roots all fell, `.34` **-21,483,520 B** and `.31`
+  **-21,389,312 B** largest, net **-85,282,816 B** on base board's `17:15:21Z` read.
+- **Its own pool read, `18:09:07Z`** (`df -B1`): used **13,984,994,951,168 B**, avail
+  **10,206,234,804,224 B**, total **24,191,229,755,392 B** (58 %),
+  **+87,031,808 B** used on the same base read while the six roots moved **-85,282,816 B** — the same
+  trace the sibling reported (`+82,837,504 B` at `18:03:50Z`), five minutes further along. Units all
+  `active` `Result=success` `NRestarts` 0 on the head, hub **102** entries, `stat -L` proof
+  **1,189,176,800 B** on the Kromoss 8-steps lora.
+- **Ledger and campaign re-read, not inherited:** `.local/fleet-leases.json` **33 B**, sha256
+  `57247219…`, mtime `11:44:48 ET`, body `{"leases": [], "version": 1}`, `director lease --list`
+  0 live, no `.local/fleet-window.lock`; unit `sparkrun-campaign` active, MainPID **2482**,
+  `NRestarts` **0**, `director status` **10 measured / 13 blocked** on 23 arms, reap line still
+  `cannot list containers on .31 (rc=255)`.
+- **Register re-derived at publish time, not from the 13:01 snapshot:** live file and
+  `git show origin/main:mad-science/queue.json` both hash `8ef73753…` (189 tasks: 146 done, 34 queued,
+  9 blocked, 0 running, 0 claims, **43 open**), so the base board's "published bytes" reading holds and
+  no worktree-only caveat is owed. `graph --file <snap>` prints `9 blocked, 1 edges, 8 prose-gated,
+  0 question-gated, 0 question, 41 rows not drawn (--all)`; `lint` on the published board printed
+  `ok: 1 markdown file(s) render`.
+- **Cleaned:** `/tmp/nodeprobe-1300.sh` removed from the head (this tick's only node-side artefact);
+  node containers untouched, nothing stopped.
