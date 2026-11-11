@@ -9792,3 +9792,25 @@ measured is already on `mad-science/STATUS.md` as published by the peer ticks `3
   verification (`known_hosts` offending lines 117 and 123–127) while the same six answer by address in the
   same second, so `head-mesh-cannot-reach-30` is a fleet-wide name-set defect and every probe here hops
   `10.0.4.NN`.
+
+## 2026-11-10 23:50 ET — addendum: one overstated sentence, and the head's name entries are stale rather than its nodes re-keyed
+
+- **Correction to the 23:40 entry's opening.** "every fact this tick measured is already on
+  `mad-science/STATUS.md`" overstated: the board's census cell still stops at 04:13:32Z and carries none of
+  the 04:13:14Z / 04:14:39Z / 04:16:58Z node-level re-reads, and the `kho=off` / `CmaTotal` evidence on it
+  comes from earlier landed rows, not from this tick's read. What holds is narrower and is the reason the
+  board was left alone: **no fact this tick measured would change the board's state** — nothing was
+  running, the pool's counter moved by MiB-quantized closes, and the register, lease and window cells were
+  unchanged — so a fourth composition would have restated the same zeros.
+- **The head's name entries are stale, not six re-keyed nodes.** One discriminator settles it (head,
+  04:47:16Z): `getent hosts` maps every name to its correct address, `ssh-keyscan -t ed25519` over the six
+  addresses prints exactly the six fingerprints the failed logins reported (`.30` =
+  `SHA256:yY06tGd…`, `.31` = `SHA256:CwZrWg7…`, and so on), so **name→address drift is excluded** and each
+  name reaches the host whose key it was offered. What is wrong is the stored side: `ssh-keygen -F <name>`
+  returns `SHA256:YT7DxbMuiqEtnnYJ05MFaGwvjfTml3ffhsiOfVM+9RY` for **four different names** — `spark-41e1`,
+  `spark-d325`, `spark-324e` and `spark-383f` — i.e. one host key was written under four names by a bulk
+  write, while `spark-ec1d` (`vdgdTsi3…`) and `spark-3578` (`AcmBHVjm…`) hold unrelated stale keys. By
+  address every node stores three keys with the current one among them, which is the residue of a real
+  regeneration. So the failure is a stale/shared **name** entry set on the head, and the address path is
+  the correct one to probe with; nothing was edited in `/home/red/.ssh/known_hosts`, since a changed host
+  key is a fleet fact for the register row, not tick cleanup.
