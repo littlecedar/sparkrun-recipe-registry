@@ -10015,3 +10015,27 @@ find **0 running and 0 volumes on all six** with only `.30`'s nine `Created` lef
   in its own argv, so a leaked guard is a stale no-op. What accumulates is processes, ssh sessions and
   stop paths that resolve to nothing, so `mem-guard-outlives-its-task` stays open for a lifetime fix
   rather than a hazard removal.
+
+## 2026-11-11 02:17 ET — hourly board tick (post-reboot state, and a kernel claim in this ledger corrected)
+
+- **Board regenerated from a post-reboot census.** Two whole-fleet reads at `07:02:56Z`–`07:02:58Z` and
+  `07:04:35Z`–`07:04:38Z`: all six idle, `docker ps -aq` `9 / 0 / 0 / 0 / 0 / 0`, volumes 0, pool serving
+  (`.30` units success, 102 hub entries, through-mount `stat -L` 7685 B on both Kromoss snapshots,
+  `df -B1` used 13,928,130,150,400 B at `07:04:35Z`). Register re-read at `HEAD` = `origin/main` = `5174527`:
+  178 tasks, 125 done, 39 queued, 12 blocked, 2 running, 2 claims, 0 questions, **53 open**. Campaign unit is
+  **active** again from the reboot (queue mode, six declared hosts, `h2h-20261107`), with **0** leases across
+  nine `state.json` roots, 10 measured / 13 blocked, and one arm refused because its reap probe could not list
+  containers on `.31` while this tick's own reads reached that node twice (LIKELY transient).
+- **Correction to the reboot entry above: "came back on kernel 7.0.0-1025 from 1024" is half wrong.**
+  `journalctl -b -1 -k` reads `7.0.0-1025-nvidia` on **all six** nodes and `uname -r` the same now, so this
+  reboot crossed no kernel boundary; the 1024 → 1025 change was the 2026-11-08 15:29 reboot (`last -x` on
+  `.30`: 1024 on Nov 5 → 1025 on Nov 8 → 1025 today). The owner-authorization and 06:33–06:38Z halves stand.
+  `kho=off` and a zero CMA/nr_free_cma still hold on all six.
+- **Publication**: board sha256 `f5d365fa…`, base `1c79e54a…` (`HEAD` = `origin/main`), published through
+  `task-queue.py publish` with both sha guards; a first publish carried the reboot row before the per-node
+  kernel probe and the maskable addresses, was restored with `git checkout -- mad-science/STATUS.md` (board was
+  this tick's own composition, sha verified first) and republished. `lint` ok; `push-gate` ok on `5174527`.
+- **Carried onto the board, not fixed here**: `.30` still holds nine `created` containers with no sparkrun
+  labels (leftover litter, no reservation), the `beegfs-meta` 5 s restart loop continues on `.31`–`.35` after
+  its counters reset at boot (284/287/286/304/335 at the first read), and the two `session:tp4-20261111`
+  register claims are held-but-idle.
