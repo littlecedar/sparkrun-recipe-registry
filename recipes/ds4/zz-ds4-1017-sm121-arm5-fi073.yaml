@@ -16,16 +16,23 @@ runtime: sglang
 # BF16 query (SM12x rejects FP8 Q) on both the target and the DSpark draft Q
 # buffers, the 528-byte fp8_dsv41_inline KV pool, and the DSpark draft's
 # combined window+block table passed whole as the SWA segment (0.7.x has no
-# combined-length tail split). Built by recipes/ds4/Dockerfile.dsv41-fi073.
+# combined-length tail split), and (seventh, `:fi073d`) row-packed prefill
+# index tables: 0.7.3 builds call metadata from the tensors' strides and
+# refuses a column slice of the combined table as "no matching decode
+# instantiation" (`_sparse_mla_sm120/_prepared.py:175`) -- measured on the GB10
+# at 193 and 16,384 rows, packed admitted / sliced refused, on both the
+# functional call and the wrapper's `run`. Built by
+# recipes/ds4/Dockerfile.dsv41-fi073.
 # Image ID (local, byte-identifies the artifact; nothing pushed), rebuild
-# 2026-11-11 on .35 (35,143,722,364 B). Predecessors: the five-delta
-# 1d47404119… (draft path still refused) and the three-delta 7752ccd68….
-#   sha256:3f33790c79ba753042094784e68873cefaeeb30c3c37ecd1a4c37d696f472946
+# 2026-11-11 on .35. Predecessors: 3f33790c79… (six deltas; died on the prefill
+# row envelope), the five-delta 1d47404119… (draft path still refused) and the
+# three-delta 7752ccd68….
+#   sha256:c684c90b41ee94b98cc263afbd4d5db2845984c9a6406023dfbd5123aadc112d
 # It exists only on the build host; carry it with the command in
 # recipes/ds4/README.md "SM121 survey arms" before a boot. distribution_config
 # disables sparkrun's image distribution, which would try to pull this local
 # tag from a registry.
-container: dsv41-sm121-dg:0.2.1-fi073c
+container: dsv41-sm121-dg:0.2.1-fi073d
 distribution_config:
   containers:
     enabled: false
@@ -37,19 +44,24 @@ description: >-
   `zz-ds4-1017-sm121-arm3-control.yaml`): this image's only delta is FlashInfer
   plus the adapter deltas, so a booted cell would compare against that
   digest, not against `:0.2.0`.
-  STATUS (2026-11-11): rebuilt with six deltas (id in the header). The
-  2026-11-11T01:50Z boot of the five-delta image died in draft CUDA-graph
-  capture on the port's own BF16 assert, because the DSpark draft model
-  allocates its own FP8 Q buffer; behind that assert the draft's 192-column
-  window+block table would also hit the port's fail-closed "no combined
-  length" branch. Both draft-path sites are now patched (`deepseek_v4_dspark.py`
-  Q buffer, whole-table single-segment call), and every GPU-less build gate
-  passed (patch anchors, `py_compile` of all six files, backend import,
-  in-image `supports_decode(num_heads=16, topk=192, page_block_size=256)`).
-  NOT booted: the target decode path is byte-identical to the five-delta
-  image's call, and the draft path's numerics are unmeasured, so only the
-  canary answer comparison in mad-science/SM121-SPARSE-MLA-PORT.md section
-  "Acceptance ladder" counts.
+  STATUS (2026-11-11T07:05Z): rebuilt with seven deltas (id in the header).
+  The six-delta image boot 3/4 story: after the fleet reboot sparkrun's own
+  detected NCCL env is sufficient (`RoCEnante ready: world=4
+  hcas=roceP2p1s0f0,rocep1s0f0 gid_index=3`, `Init parallel ends. elapsed=47.27
+  s`), and both boots then died on the prefill row envelope
+  (`num_tokens=193 ... no matching decode instantiation`) because the 0.7.x
+  metadata check admits only row-packed index tables and the port passed
+  column slices of the combined table. Delta 7 repacks them; measured on the
+  GB10 in-image (packed admitted and executed at 193 and 16,384 rows, sliced
+  refused, both entries). GPU-less build gates green (patch anchors applied
+  once, fail-closed on a second run, `py_compile` of all six files, backend
+  import). The canary answer comparison in
+  mad-science/SM121-SPARSE-MLA-PORT.md section "Acceptance ladder" remains the
+  only acceptance; the target decode call is byte-identical to the six-delta
+  image. Batching: the served line stays at the launcher's
+  `MAX_RUNNING_REQUESTS=16`, but verifying a 16-request line is 96 decode rows
+  against the 64-row envelope, so it needs the verify route (register row
+  `ds4-arm5-verify-route-batch-cap`), not a raised capture cap.
 metadata:
   model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
@@ -82,6 +94,9 @@ env:
   SGLANG_SKIP_SGL_KERNEL_VERSION_CHECK: "1"
   # The treatment.
   EXTRA_SGLANG_ARGS: "--dsv4-attn-backend trtllm --enable-metrics --enable-cache-report"
+  # The port's sparse-decode capture refuses more than 10 rows (10 x 6 = 60,
+  # inside the 64-row envelope); the measured boots passed this as `-o env.…`.
+  CUDA_GRAPH_MAX_BS_DECODE: "10"
   # Section 10.7's control design: replay OFF in both arms. The launcher turns
   # this into --no-enable-decoder-swa-bounded-replay, which wins because boot.py
   # appends its own --enable-... earlier in argv.

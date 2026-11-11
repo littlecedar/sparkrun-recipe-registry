@@ -93,8 +93,9 @@ WEIGHT_INDEX_NAME = "model.safetensors.index.json"
 # the recipe: SKIP_SMOKE(0), WARMUP(1), HOST(0.0.0.0), SERVED_MODEL_NAME,
 # SPARK_PREFILL_TP_MIN_CONTEXT(32768), SPARK_PREFILL_TP_MIN_ROWS(1024),
 # DSV41_FAST_LOAD_TP_SLICE(auto), DSV41_FAST_LOAD_INFLIGHT_GB(6),
-# CUDA_GRAPH_MAX_BS_DECODE (boot.py defaults it to MAX_RUNNING_REQUESTS, so
-# pinning it separately would be a second place to drift).
+# CUDA_GRAPH_MAX_BS_DECODE (boot.py defaults it to MAX_RUNNING_REQUESTS; a
+# recipe pins it only when its engine port's capture is narrower, as the arm-5
+# SM121 recipe does at 10).
 #
 # DSV41_FAST_LOAD("1") is NOT redundant: adapter/fast_load.py's enabled() reads
 # the variable with a "0" default, so the image's loader is stock unless this
