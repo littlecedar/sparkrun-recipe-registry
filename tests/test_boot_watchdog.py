@@ -220,6 +220,72 @@ class StallIsNotLoading(unittest.TestCase):
     def test_a_healthy_endpoint_is_never_stalled(self):
         self.assertFalse(bw.is_stalled(True, True, idle=1800, stall=600))
 
+_GONE = (False, None, 0, None, None)
+
+
+def _drive(per_rank, stall="25", ranks=(), dead_grace="0"):
+    """main() over per-rank serve_state returns on a fake clock that steps 10 s a call.
+
+    `per_rank` is `{node: [samples]}` (or a bare list for the single-rank shape); each node's
+    queue is consumed in call order, then repeats the gone sample. The clock step makes the
+    difference visible without a 600 s wait: the fixed predicate resets the idle clock every
+    check (idle 10 s < 25 s), the io+log-only one lets it accumulate (10 s, 20 s, 30 s …)
+    and fires inside four samples.
+    """
+    calls: list[list[str]] = []
+
+    def fake_run(argv, **_kwargs):
+        calls.append(list(argv))
+        # The arming check lists containers once; the fixture's container must exist, as it
+        # does on the node by the time a watchdog is armed after `node0 container up`.
+        if argv[0] == "ssh" and "docker ps --format" in argv[-1]:
+            return mock.Mock(stdout="sparkrun_abc123_solo\n", stderr="")
+        return mock.Mock(stdout="", stderr="")
+
+    if isinstance(per_rank, list):
+        per_rank = {"n1": per_rank}
+    queues = {node: list(samples) for node, samples in per_rank.items()}
+
+    def sampler(node, _ctn, _pattern):
+        queue = queues.get(node, [])
+        return queue.pop(0) if queue else _GONE
+
+    class Clock:
+        t = 1000.0
+        step = 10.0
+
+        def monotonic(self):
+            self.t += self.step
+            return self.t
+
+        def time(self):
+            return self.t
+
+        def sleep(self, _seconds):
+            pass
+
+    tmp = Path(tempfile.mkdtemp())
+    fake = mock.Mock(run=fake_run, SubprocessError=subprocess.SubprocessError)
+    with (
+        mock.patch.object(bw, "time", Clock()),
+        mock.patch.object(bw, "subprocess", fake),
+        mock.patch.object(bw, "http_ok", return_value=False),
+        mock.patch.object(bw, "serve_state", side_effect=sampler),
+    ):
+        rc = bw.main([
+            "--endpoint", "http://127.0.0.1:1",
+            "--task-id", "abc123",
+            "--node", "n1",
+            "--container", "sparkrun_abc123_solo",
+            "--interval", "0",
+            "--dead-grace", dead_grace,
+            "--stall", stall,
+            *(f"--rank={rank}" for rank in ranks),
+            "--log", str(tmp / "watchdog.log"),
+        ])
+    return rc, calls, (tmp / "watchdog.log").read_text()
+
+
 class MemoryIsProgress(unittest.TestCase):
     """A memory-only load is progress, not a stall — twice measured, once as a false stop.
 
@@ -234,67 +300,8 @@ class MemoryIsProgress(unittest.TestCase):
     envelope, below a real load's ~282 MB per 10 s check.
     """
 
-    def drive(self, per_rank, stall="25", ranks=()):
-        """main() over per-rank serve_state returns on a fake clock that steps 10 s a call.
-
-        `per_rank` is `{node: [samples]}` (or a bare list for the single-rank shape); each node's
-        queue is consumed in call order, then repeats the gone sample. The clock step makes the
-        difference visible without a 600 s wait: the fixed predicate resets the idle clock every
-        check (idle 10 s < 25 s), the io+log-only one lets it accumulate (10 s, 20 s, 30 s …)
-        and fires inside four samples.
-        """
-        calls: list[list[str]] = []
-
-        def fake_run(argv, **_kwargs):
-            calls.append(list(argv))
-            # The arming check lists containers once; the fixture's container must exist, as it
-            # does on the node by the time a watchdog is armed after `node0 container up`.
-            if argv[0] == "ssh" and "docker ps --format" in argv[-1]:
-                return mock.Mock(stdout="sparkrun_abc123_solo\n", stderr="")
-            return mock.Mock(stdout="", stderr="")
-
-        if isinstance(per_rank, list):
-            per_rank = {"n1": per_rank}
-        queues = {node: list(samples) for node, samples in per_rank.items()}
-
-        def sampler(node, _ctn, _pattern):
-            queue = queues.get(node, [])
-            return queue.pop(0) if queue else self.GONE
-
-        class Clock:
-            t = 1000.0
-            step = 10.0
-
-            def monotonic(self):
-                self.t += self.step
-                return self.t
-
-            def time(self):
-                return self.t
-
-            def sleep(self, _seconds):
-                pass
-
-        tmp = Path(tempfile.mkdtemp())
-        fake = mock.Mock(run=fake_run, SubprocessError=subprocess.SubprocessError)
-        with (
-            mock.patch.object(bw, "time", Clock()),
-            mock.patch.object(bw, "subprocess", fake),
-            mock.patch.object(bw, "http_ok", return_value=False),
-            mock.patch.object(bw, "serve_state", side_effect=sampler),
-        ):
-            rc = bw.main([
-                "--endpoint", "http://127.0.0.1:1",
-                "--task-id", "abc123",
-                "--node", "n1",
-                "--container", "sparkrun_abc123_solo",
-                "--interval", "0",
-                "--dead-grace", "0",
-                "--stall", stall,
-                *(f"--rank={rank}" for rank in ranks),
-                "--log", str(tmp / "watchdog.log"),
-            ])
-        return rc, calls, (tmp / "watchdog.log").read_text()
+    def drive(self, per_rank, stall="25", ranks=(), dead_grace="0"):
+        return _drive(per_rank, stall=stall, ranks=ranks, dead_grace=dead_grace)
 
     GONE = (False, None, 0, None, None)
     # The 753B boot's own memory series per check: allocator jitter, not load progress.
@@ -612,6 +619,32 @@ class TestArmRefusal(unittest.TestCase):
         self.assertIn("refusing to arm", text)
         self.assertIn("already carries the 'sparkrun_' prefix", text)
         self.assertIn("WATCHDOG arm:", text, "the resolved container name was not printed")
+
+
+class HookIsNotAServe(unittest.TestCase):
+    """2026-11-11, ERNIE attempt 1: a mod's python `pre_exec` hook matched the serve pattern, was
+    watched alive, exited (rc=137 on `.35`), and the crash-edge rule stopped a healthy boot before
+    the engine started. Arming is evidence: the serve log only grows once the serve runs."""
+
+    HOOK = (True, None, 0, None, None)       # matched python process, no serve log yet
+    SERVE = (True, None, 4096, None, None)   # the engine, writing /tmp/sparkrun_serve.log
+
+    def test_a_hook_that_exits_is_not_a_serve_death(self):
+        rc, _calls, log = _drive(
+            [self.HOOK, _GONE, self.SERVE, self.SERVE, _GONE, _GONE],
+            stall="3600", dead_grace="1000",
+        )
+        verdicts = [line for line in log.splitlines() if "verdict=" in line]
+        self.assertGreaterEqual(len(verdicts), 5, log)
+        self.assertIn("verdict=dead_candidate", verdicts[1],
+                      "the hook's exit must stay the timed candidate, never a death")
+        self.assertEqual(rc, 3, log)
+        self.assertIn("verdict=dead ", verdicts[-1],
+                      "the real serve's death must still stop the boot")
+
+    def test_the_old_rule_would_have_killed_the_hook(self):
+        """Negative control: with seen_alive set by any matched process, the hook's exit is a death."""
+        self.assertEqual(bw.decide(False, False, 2, seen_alive=True), "dead")
 
 
 if __name__ == "__main__":

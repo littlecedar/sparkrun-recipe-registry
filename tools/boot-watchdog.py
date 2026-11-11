@@ -16,7 +16,11 @@ distinction explicit and acts on it:
     reading a 30 s ssh timeout as a sighting would kill a healthy boot.
   * serve child alive (`pgrep` in the container)               -> loading
     (its `/proc/<pid>/io` deltas are logged so a 45-min GLM weight load is
-    visibly progressing, never misread as dead)
+    visibly progressing, never misread as dead. The crash edge arms only once a non-empty
+    `/tmp/sparkrun_serve.log` says the SERVE is running: the pattern also matches plain
+    `python`, and a mod's `pre_exec` hook is a short python process that would otherwise be
+    watched alive and then read as a serve death — measured 2026-11-11, ERNIE attempt 1, a
+    healthy boot stopped on `.35`)
   * child **gone after we watched it alive**, or its serve log ends on a fatal
     line (`Traceback`, `NotImplementedError`, `CUDA error`, `Received sigquit`,
     `Killed`, `out of memory`), on the 2nd consecutive *observed* absence
@@ -579,7 +583,14 @@ def main(argv: list[str] | None = None) -> int:
         ok = http_ok(args.endpoint + "/v1/models")
         samples = [serve_state(node, ctn, args.serve_pattern) for node, ctn in ranks]
         alive, _io, _logsize, _mem, fatal = samples[0]
-        if alive:
+        # Arming is evidence the SERVE exists, never just that some matched process does: the pattern
+        # includes plain `python`/`python3` (2026-10-26 ruling), and a mod's `pre_exec` hook is a
+        # python process that matches, runs, and exits. Measured 2026-11-11 on ERNIE attempt 1: the
+        # hook's exit was read as a serve death and a healthy boot was stopped on `.35` before the
+        # engine started. A serve writes `/tmp/sparkrun_serve.log`; a hook does not, so only a match
+        # with a non-empty serve log arms the crash edge. A serve that never logs is still covered by
+        # the never-seen-alive candidate path and its --dead-grace timer.
+        if alive and _logsize:
             seen_alive = True
         delta = log_delta = mem_delta = -1
         peer_moved = 0
