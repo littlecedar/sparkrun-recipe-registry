@@ -432,6 +432,91 @@ if [ ${#MP_MISS[@]} -gt 0 ]; then
 fi
 # model-path: end
 
+# cache-inspect: start
+# The `ls` above only counts entries, so a body that declares 36 files and presents 0 B passes it
+# and the arm spends a boot on a stub (measured: `vllm-sr/Decision-2.0-Kai-0.6B@cd49ea3813` in the
+# pool reads `incomplete`, 36 checked / 36 missing). `sparkrun model-cache inspect` compares the
+# saved manifest's per-file identity and exact sizes against the pool -- the declared-vs-present
+# gate (head:~/benchmarks/cache-inspect-20261111/README.md). Policy, and the reason for it: most
+# arms' bodies have no manifest yet, so a gate that refused every one of them would be switched off
+# within a day. `complete` proceeds; `incomplete` or `unavailable` refuses here, before anything is
+# launched (exit 16, no watchdog and no sampler); `unverified` gets ONE `resolve` -- it writes a
+# JSON manifest and downloads no weights -- and is re-inspected: still unverified warns and
+# proceeds, unless ARM_REQUIRE_COMPLETE_BODY=1 makes that a refusal too.
+CI_FILE="$L/cache-inspect.txt"
+CI_HOST=${HOSTS%%,*}
+: > "$CI_FILE"
+# One row per host, so the verdict is the worst row: a TP=2 pair whose second host cannot observe
+# its cache is not "complete" because the first said so. The counts are the body's, not the sum:
+# `checked` is the largest FILES column, `missing` the launcher's own "N problem file(s)" lines.
+ci_parse() {
+  awk '
+    function rank(s) { return s == "unavailable" ? 0 : (s == "incomplete" ? 1 : (s == "unverified" ? 2 : 3)) }
+    $2 ~ /^(complete|incomplete|unverified|unavailable)$/ {
+      if (worst == "" || rank($2) < rank(worst)) worst = $2
+      if ($4 + 0 > files) files = $4 + 0
+      if (detail == "") { detail = $5; for (i = 6; i <= NF; i++) detail = detail " " $i }
+    }
+    /problem file\(s\)/ { for (i = 1; i <= NF; i++) if ($i ~ /^[0-9]+$/) missing += $i }
+    END { printf "%s\t%d\t%d\t%s\n", (worst == "" ? "parse-error" : worst), files, missing, detail }
+  '
+}
+ci_probe() {
+  ci_raw=$(sparkrun model-cache inspect "$MP_MODEL" --revision "$MP_REV" -H "$CI_HOST" 2>&1)
+  ci_rc=$?
+  IFS=$'\t' read -r CI_STATUS CI_FILES CI_FAILS CI_DETAIL <<< "$(printf '%s\n' "$ci_raw" | ci_parse)"
+  printf '### inspect rc=%s host=%s status=%s checked=%s missing=%s\n%s\n' \
+    "$ci_rc" "$CI_HOST" "$CI_STATUS" "$CI_FILES" "$CI_FAILS" "$ci_raw" >> "$CI_FILE"
+}
+refuse_body() {
+  echo "ARM REFUSED $NAME: the pinned body is $CI_STATUS per \`model-cache inspect\`" \
+       "(model=$MP_MODEL revision=$MP_REV host=$CI_HOST checked=${CI_FILES:-0} missing=${CI_FAILS:-0});" \
+       "nothing was launched."
+  if [ -n "${CI_DETAIL:-}" ]; then echo "  Detail: $CI_DETAIL"; fi
+  echo "  A boot here loads a stub or dies in the loader: the declared files are not all present at"
+  echo "  the pin. Evidence: $CI_FILE, $L/model-preflight.txt"
+  exit 16
+}
+if [ -z "$MP_MODEL" ] || [ -z "$MP_REV" ]; then
+  printf 'status=skipped reason=no-model-or-revision-pin\n' > "$CI_FILE"
+else
+  ci_probe
+  case "$CI_STATUS" in
+    complete)
+      echo "cache-inspect: complete on $CI_HOST (checked=$CI_FILES files)"
+      ;;
+    unverified)
+      printf '### resolve (manifest only; no weights downloaded)\n' >> "$CI_FILE"
+      if sparkrun model-cache resolve "$MP_MODEL" --revision "$MP_REV" \
+           --output "$L/cache-inspect-manifest.json" >> "$CI_FILE" 2>&1; then
+        ci_probe
+      else
+        printf '### resolve failed rc=%s\n' "$?" >> "$CI_FILE"
+      fi
+      if [ "$CI_STATUS" != complete ]; then
+        if [ "${ARM_REQUIRE_COMPLETE_BODY:-0}" = 1 ]; then
+          refuse_body
+        fi
+        echo "cache-inspect: WARN $CI_STATUS on $CI_HOST (${CI_DETAIL:-no detail}); proceeding --" \
+             "the body has no saved manifest. Set ARM_REQUIRE_COMPLETE_BODY=1 to refuse."
+        printf '### proceeding unverified: %s\n' "${CI_DETAIL:-no detail}" >> "$CI_FILE"
+      else
+        echo "cache-inspect: complete on $CI_HOST after resolve (checked=$CI_FILES files)"
+      fi
+      ;;
+    parse-error)
+      # The command printed something this parse cannot read (a CLI change, a traceback): that is
+      # this gate's own defect, not evidence about the body, so it must not refuse a boot.
+      echo "cache-inspect: WARN the inspect output could not be parsed on $CI_HOST; proceeding"
+      printf '### proceeding parse-error\n' >> "$CI_FILE"
+      ;;
+    *)
+      refuse_body
+      ;;
+  esac
+fi
+# cache-inspect: end
+
 launch_arm() {
   sparkrun run "$RECIPE" -H "$HOSTS" --cluster WOPR "${ARM_OPTS_ARR[@]}" > "$L/launch.log" 2>&1 &
   LAUNCH=$!

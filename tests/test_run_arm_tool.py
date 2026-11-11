@@ -1687,6 +1687,8 @@ DP_START = "# daemon-preflight: start"
 DP_END = "# daemon-preflight: end"
 MP_START = "# model-path: start"
 MP_END = "# model-path: end"
+CI_START = "# cache-inspect: start"
+CI_END = "# cache-inspect: end"
 OOM_START = "# oom-watchdog: start"
 OOM_END = "# oom-watchdog: end"
 M_START = "# metrics-scrape: start"
@@ -1719,8 +1721,25 @@ ex=$(sed -n 1p "$f"); code=$(sed -n 2p "$f"); body=$(sed -n '3,$p' "$f")
 printf '%s\\n%s' "$body" "$code"
 """
 
-# Fixture lines for a node's `sparkrun daemon status`: <exit code>, then stdout.
+# Fixture lines for a node's `sparkrun daemon status`: <exit code>, then stdout. The same binary is
+# the driver's `model-cache` client, so those verbs read their own fixtures: an inspect attempt
+# counter like the `ls` probe (`cache-inspect.<n>.txt`, falling back to `cache-inspect.txt`) and a
+# `resolve.txt` for its own status and output.
 NODE_SPARKRUN_STUB = """#!/usr/bin/env bash
+if [ "${1:-}" = "model-cache" ]; then
+  case "${2:-}" in
+    inspect)
+      n=$(sed -n 1p "$NODES/.attempt.inspect" 2>/dev/null || echo 0); n=$((n + 1))
+      echo "$n" > "$NODES/.attempt.inspect"
+      f="$NODES/cache-inspect.$n.txt"; [ -f "$f" ] || f="$NODES/cache-inspect.txt"
+      [ -f "$f" ] || { echo "sparkrun: no inspect fixture" >&2; exit 2; }
+      ex=$(sed -n 1p "$f"); sed -n '2,$p' "$f"; exit "${ex:-0}" ;;
+    resolve)
+      f="$NODES/resolve.txt"
+      [ -f "$f" ] || { echo "Wrote manifest to ${@: -1}"; exit 0; }
+      ex=$(sed -n 1p "$f"); sed -n '2,$p' "$f"; exit "${ex:-0}" ;;
+  esac
+fi
 f="$NODES/${DP_HOST:-?}.sparkrun"
 [ -f "$f" ] || { echo "sparkrun: no fixture for ${DP_HOST:-?}" >&2; exit 2; }
 ex=$(sed -n 1p "$f"); sed -n '2,$p' "$f"; exit "${ex:-0}"
@@ -2276,6 +2295,126 @@ class PoolGate(ExecutedBlock):
         self.assertLess(text.index(DP_END), at, "the daemon probe must run first")
         self.assertLess(at, text.index("CAPTURE_DIR="), "the capture is armed before the gate")
         self.assertLess(at, text.index("\nlaunch_arm\n"), "the launch precedes the gate")
+
+
+class CacheInspectGate(ExecutedBlock):
+    """The executor refuses a body that is not `complete` at the pin, before it spends a boot.
+
+    Exit 12's `ls` counts entries, and the measured Kai pin declares 36 files with 0 B present, so
+    it passes that gate. `model-cache inspect` is the declared-vs-present verdict; the policy that
+    keeps it from blocking every arm: only `unverified` (no saved manifest yet) gets the warn and
+    proceed path, and `ARM_REQUIRE_COMPLETE_BODY=1` turns that into a refusal too.
+    """
+
+    PRELUDE = ("MP_MODEL=deepseek-ai/DeepSeek-V4.1-Flash-1017\n"
+               "MP_REV=1bae0e1088993b9b82de08f59de5be5a34e42170\n"
+               "MP_PATH=/fake/pool/huggingface/hub/models--x--y/snapshots/1bae0e10\n")
+    COMPLETE = ("0\nHosts: 1 host(s) (--hosts)\n"
+                "HOST       STATUS    LEVEL     FILES  DETAIL\n"
+                "head.test  complete  metadata  84\n")
+    INCOMPLETE = ("1\nHosts: 1 host(s) (--hosts)\n"
+                  "HOST       STATUS      LEVEL     FILES  DETAIL\n"
+                  "head.test  incomplete  metadata  36\n"
+                  "head.test: 36 problem file(s)\n.gitattributes: missing\n")
+    UNVERIFIED = ("1\nHosts: 1 host(s) (--hosts)\n"
+                  "HOST       STATUS      LEVEL     FILES  DETAIL\n"
+                  "head.test  unverified  metadata  0      no saved manifest; resolve or import"
+                  " authoritative inventory first\n")
+    UNAVAILABLE = ("2\nHosts: 1 host(s) (--hosts)\n"
+                   "HOST       STATUS     LEVEL     FILES  DETAIL\n"
+                   "head.test  unavailable  metadata  0    ssh: connect to host head.test failed\n")
+    RESOLVE_OFFLINE = "1\nHTTPError: 503 Service Unavailable\n"
+
+    def block(self):
+        return block_region(read_tool(), CI_START, CI_END)
+
+    def run_gate(self, files=None, prelude=None, env_extra=None):
+        return self.run_block(
+            (self.PRELUDE if prelude is None else prelude) + self.block() + "\necho NEXT",
+            files=files or {"cache-inspect.txt": self.COMPLETE},
+            env_extra=env_extra,
+        )
+
+    def test_an_incomplete_body_refuses_at_16_and_names_the_pin(self):
+        rc, out, receipt, _ = self.run_gate({"cache-inspect.txt": self.INCOMPLETE})
+        self.assertEqual(rc, 16, out)
+        self.assertIn("ARM REFUSED", out)
+        self.assertIn("incomplete", out)
+        self.assertIn("deepseek-ai/DeepSeek-V4.1-Flash-1017", out)
+        self.assertIn("1bae0e1088993b9b82de08f59de5be5a34e42170", out)
+        self.assertIn("checked=36", out)
+        self.assertIn("missing=36", out)
+        self.assertIn("nothing was launched", out)
+        self.assertNotIn("NEXT", out, "the arm continued past the refusal")
+        self.assertIn("status=incomplete", receipt["cache-inspect.txt"])
+        self.assertIn("36 problem file(s)", receipt["cache-inspect.txt"])
+
+    def test_an_unavailable_observation_also_refuses(self):
+        rc, out, _, _ = self.run_gate({"cache-inspect.txt": self.UNAVAILABLE})
+        self.assertEqual(rc, 16, out)
+        self.assertIn("unavailable", out)
+        self.assertNotIn("NEXT", out)
+
+    def test_a_complete_body_proceeds_and_logs_the_file_count(self):
+        rc, out, receipt, _ = self.run_gate()
+        self.assertEqual(rc, 0, out)
+        self.assertIn("NEXT", out, "a complete body did not reach the launch")
+        self.assertIn("cache-inspect: complete", out)
+        self.assertIn("checked=84", out)
+        self.assertIn("status=complete", receipt["cache-inspect.txt"])
+
+    def test_unverified_resolves_once_and_proceeds_when_it_becomes_complete(self):
+        rc, out, receipt, _ = self.run_gate(
+            {"cache-inspect.1.txt": self.UNVERIFIED, "cache-inspect.2.txt": self.COMPLETE})
+        self.assertEqual(rc, 0, out)
+        self.assertIn("NEXT", out)
+        self.assertIn("after resolve", out)
+        log = receipt["cache-inspect.txt"]
+        self.assertIn("### resolve", log)
+        self.assertIn("status=unverified", log)
+        self.assertIn("status=complete", log)
+
+    def test_unverified_that_stays_unverified_warns_and_proceeds(self):
+        rc, out, receipt, _ = self.run_gate(
+            {"cache-inspect.txt": self.UNVERIFIED, "resolve.txt": self.RESOLVE_OFFLINE})
+        self.assertEqual(rc, 0, out)
+        self.assertIn("NEXT", out, "a manifest-less body must not block the boot")
+        self.assertIn("WARN", out)
+        self.assertIn("ARM_REQUIRE_COMPLETE_BODY=1", out, "the escape is not named")
+        log = receipt["cache-inspect.txt"]
+        self.assertIn("no saved manifest", log)
+        self.assertIn("proceeding unverified", log)
+
+    def test_the_escape_makes_unverified_a_refusal(self):
+        rc, out, _, _ = self.run_gate(
+            {"cache-inspect.txt": self.UNVERIFIED, "resolve.txt": self.RESOLVE_OFFLINE},
+            env_extra={"ARM_REQUIRE_COMPLETE_BODY": "1"})
+        self.assertEqual(rc, 16, out)
+        self.assertIn("unverified", out)
+        self.assertIn("nothing was launched", out)
+        self.assertNotIn("NEXT", out)
+
+    def test_no_revision_pin_skips_the_gate_rather_than_reading_main(self):
+        rc, out, receipt, _ = self.run_gate(
+            prelude=self.PRELUDE.replace(
+                "MP_REV=1bae0e1088993b9b82de08f59de5be5a34e42170", "MP_REV="))
+        self.assertEqual(rc, 0, out)
+        self.assertIn("NEXT", out)
+        self.assertIn("status=skipped", receipt["cache-inspect.txt"])
+
+    def test_the_gate_precedes_the_capture_and_the_launch(self):
+        text = read_tool()
+        at = text.index(CI_START)
+        self.assertLess(text.index(MP_END), at, "the inspect gate must follow the model path gate")
+        self.assertLess(at, text.index("CAPTURE_DIR="), "the capture is armed before the gate")
+        self.assertLess(at, text.index("\nlaunch_arm\n"), "the launch precedes the gate")
+
+    def test_negative_control_without_the_block_an_incomplete_body_proceeds(self):
+        self.assertIn(CI_START, read_tool(), "the gate is gone; this control would be vacuous")
+        rc, out, _, _ = self.run_block(self.PRELUDE + "\necho NEXT",
+                                       files={"cache-inspect.txt": self.INCOMPLETE})
+        self.assertEqual(rc, 0, out)
+        self.assertIn("NEXT", out)
 
 
 class OomWatchdog(ExecutedBlock):
