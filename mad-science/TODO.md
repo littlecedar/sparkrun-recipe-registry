@@ -902,6 +902,22 @@ stable question ids — the round raised one numbered register question, `#84`.
  rows `campaign-six-node-claim`, `campaign-ignores-declared-window`; `AGENTS.md` §"Node hygiene" (amended
  2026-11-11); owner 2026-11-11.
 
+## Owner directive 2026-11-11 — TP1/TP2 parked until production returns
+- **Owner directive, 2026-11-11:** **TP1/TP2 arms stay parked until the production serve returns.** The owner's
+ reason: a TP>=4 session requires taking the production serve down, which forces the agents onto expensive
+ external inference APIs; the savings come from running TP<=2 research while production is up, because two nodes
+ are spare and the production serve then provides a free, unlimited inference API. A TP>=4 session starts when
+ the TP4 queue is large enough or a new model needs research, and the fleet then switches to external APIs for
+ its duration.
+- **It supersedes nothing.** The 2026-11-09 gate — TP4 work and anything that unblocks TP4 work is permitted,
+ TP1 and TP2 only when they unblock TP4 — still governs *within* a TP4 session; this directive is the scheduling
+ rule *outside* one. The four rows the 2026-11-09 note parked (`kimi-superexpert-ref-probe`,
+ `ripple-65b-nvfp4-tp1`, `ripple-65b-nvfp4-dflash2-tp1`, `ripple-65b-bf16-tp2`) recite this directive and none of
+ them is thereby unblocked. `media-idol-3dgs-boot` is not among them: its blocker is the declined dinov3 licence
+ (`#81`), not this gate.
+— provenance: owner 2026-11-11 (thread answer after the TP>=4 survey round); `mad-science/queue.json` rows named
+above; `mad-science/QUEUE.md` §Session protocol; `mad-science/SESSION-RECORD.md` 2026-11-11 00:24 ET entry.
+
 # TODO list
 
 **Standing rules (owner decisions 2026-10-15/18/19, condensed 2026-10-24 — the full original

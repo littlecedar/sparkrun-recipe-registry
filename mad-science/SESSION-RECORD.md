@@ -9852,4 +9852,10 @@ only where it was folded.
   115.02 GiB baseline is stale against 117.2–117.4; the dummy-load row's "recipe uncommitted" story is dead
   (the arm landed in `72dfa0c`); and the ERNIE freeze is no longer attributed to the multimem line that also
   appears in a healthy boot. `kimi-pruned75-tp4-boot` and its drafter row keep their notes as history.
+- **A scheduling directive landed after the round.** TP1/TP2 arms stay parked until the production serve
+  returns, for the owner's stated reason: a TP>=4 session takes production down and forces the agents onto
+  expensive external APIs, while TP<=2 research runs beside production on the two spare nodes and gets a free,
+  unlimited inference API. It is `TODO.md` §"Settled questions" `## Owner directive 2026-11-11 — TP1/TP2 parked
+  until production returns`, supersedes nothing (the 2026-11-09 gate still governs inside a TP4 session), and
+  the four parked rows recite it without changing state.
 
