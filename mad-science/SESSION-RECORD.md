@@ -9661,3 +9661,41 @@ Two corrections to the 20:26 pass, landed as `04e346e`.
   filesystems. That is the clause class `board-publish-accepts-weaker-replacement`
   (registered by the 20:23 tick) exists for: publish, lint and push-gate compare bytes,
   so a fresher composition can silently drop a witness line.
+
+## 2026-11-10 23:20 ET — tick: nothing live for 2 h 50 min, and the pool's writer still unnamed
+
+Read-only census over three whole-fleet reads (04:06:50Z / 04:08:03Z / 04:13:32Z), board published
+over the 20:34 board, `lint` printed `ok: 1 markdown file(s) render`, `tools/push-gate.py` green.
+
+- **Nothing ran after 20:55 ET.** All six nodes answered. `docker ps -aq` read 9 / 0 / 0 / 0 / 0 / 0 on
+  every capture, `docker ps -q` and `docker volume ls -q` read 0 on every node every capture, and
+  `.30`'s nine are `Created` leftovers. No production serve is live, so the census is research-only by
+  construction and no readiness probe applies.
+- **The pool grew 996,147,200 B over 2 h 50 min while the six node roots fell 996,208,640 B over the same
+  span (100.0 %)**, quoted as LIKELY the shared chunk store and only in the pool cell. The writer stays
+  unnamed: no file under `/mnt/beegfs/huggingface` changed in 45 min, no `hf`/`huggingface-cli` process
+  was alive, and the hub's entry count is unchanged at 102. Within the tick the two consecutive 60 s
+  `df` pairs were each exactly +9,437,184 B, so the rate is steady rather than a burst.
+- **Boot E had no git record.** `head:~/benchmarks/tp4-20261110b/arm5-fi073-autotune-off`, task
+  `b25f340cc3fc6854_3d02cc994c5f` on four ranks, died dead at t=256 s. Its engine fatal is
+  `AssertionError: SM12x sparse MLA needs a BF16 query, got torch.float8_e4m3fn` at
+  `deepseek_v4_trtllm_backend.py:361`, reached through `deepseek_v4_dspark.py:323`; the launcher's own
+  `RuntimeError('Server failed to become healthy')` closes the log ten lines later, so the watchdog's
+  `cause='RuntimeError'` names the launcher, not the engine. Folded as a landed row; no floor, no cell.
+- **Register moved to 172 tasks / 51 open** (121 done, 37 queued, 14 blocked, 0 claims, 0 questions),
+  sha `b9b9029d…`, byte-identical in worktree, HEAD and `origin/main`. Graph and table were rendered from
+  a snapshot of it, and the tool's counts line — `14 blocked, 3 edges, 11 prose-gated, 0 question-gated,
+  0 question, 45 rows not drawn (--all)` — reconciles with 51 open rows (6 drawn + 45 not drawn).
+- **Campaign unit inactive since 17:57:02 EST and its one lease is 5 h 12 min expired.**
+  `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4@5` on `.30`–`.33`, issued 22:54:41Z, heartbeat 22:57:01Z,
+  `expires_at` 23:02:01Z. Only a running director calls `expire()`, so the object stays and
+  `campaign-leases-tp4-onto-30` stays open. `director status --root` reads 1 pending / 1 leased /
+  10 measured / 11 blocked over 9 state roots. No `.local/fleet-window.lock` on the head or in this clone.
+- **A capture that loses its node lines is not an empty fleet.** The first two attempts fed each node
+  script through `ssh -n … 'bash -s' < node_probe.sh`; `-n` redirects stdin from /dev/null, so `bash -s`
+  read nothing and the "capture" held only the head's own lines — which reads exactly like a fleet with
+  nothing to report. The probe now runs every hop without `-n`, and each capture is checked for six
+  `N<node>` blocks before any number from it is quoted.
+- **Style disclosed:** the board keeps the `publication` row the previous tick restored, and the
+  `## Work queue` blocks were replaced wholesale from the snapshot (`render --board` plus
+  `graph --file`), not hand-edited.
