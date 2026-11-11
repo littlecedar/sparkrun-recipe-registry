@@ -92,7 +92,7 @@ mods:
   # the mounted runtime cache, so the reown runs after it (register row
   # `runtime-cache-flashinfer-root-owned-subtree`).
   - "mods/dsv41-sglang-overlay"
-  - "mods/reown-runtime-cache"
+  - "@littlecedar/mods/reown-runtime-cache"
 executor_config:
   entrypoint: ""
   shm_size: 32gb

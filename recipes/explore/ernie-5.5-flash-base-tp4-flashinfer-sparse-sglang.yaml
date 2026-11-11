@@ -39,7 +39,7 @@ mods:
   # root as root, so the reown runs after it and fails the launch if the repair
   # does not stick (register row `runtime-cache-flashinfer-root-owned-subtree`).
   - "mods/ernie55-flashinfer-sparse-sglang"
-  - "mods/reown-runtime-cache"
+  - "@littlecedar/mods/reown-runtime-cache"
 
 description: >-
   ERNIE-5.5-Flash-Base TP=4 via FlashInfer's SM120/121 sparse-MLA kernel — the

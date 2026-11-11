@@ -38,6 +38,20 @@ writes the cache root (list it last), because its repair is a check of what
 that hook just did. It also repairs leftover root-owned trees from an earlier
 boot, which is the failure the row measured.
 
+## Reference form and the clone you boot from
+
+A shared mod is `mods/<name>` inside the registry's **top-level** `mods/`, so a
+recipe references it as `@littlecedar/mods/reown-runtime-cache` — the scoped
+form, never `mods/reown-runtime-cache` (an unscoped `mods/…` ref resolves only
+next to the recipe, `core/mods.py` rule 2, so a file-path launch cannot see it;
+measured on the arm-5 verify-route boot, which only ran because it launched by
+registry name). AGENTS.md states the rule in its mods section and, in the same
+place, the consequence for booleans: a `@littlecedar/mods/<name>` ref is served
+from the registry's per-host clone, that clone pins **no commit**, so a changed
+shared mod — this one included — must have the clone refreshed
+(`sparkrun registry update littlecedar`) before the boot that relies on the
+change. Boot a stale clone and the launch runs the old mod with no warning.
+
 ## What it does not cover
 
 - The host-side HuggingFace cache (`~/.cache/huggingface`).
