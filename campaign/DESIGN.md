@@ -403,7 +403,9 @@ disagreement is auditable (`status` beside `ladder`).
 - **Taken exit codes.** `exit 1` usage / no container / no chdir, `rc=2` ladder, `rc=3` instrument,
   `rc=4` readiness ceiling, `rc=5` and `exit 5` missing artefact and failed launch, `rc=6` leftover
   survivor, `rc=7` and `exit 7` replayed state, `exit 8` slot-limited; 9 (inactive) and 10
-  (unverifiable) are reserved here.
+  (unverifiable) the daemon verdicts; `exit 11` pool-unhealthy or unresolved model path, `exit 12`
+  model snapshot missing, `exit 13` pool reconnecting, `exit 14` not a launch host, `exit 15`
+  window guard not armed.
 - **Tests** (`tests/test_run_arm_tool.py`, a fake `ssh` on `PATH` returning each case): one host
   inactive → exit 9, that host named, nothing launched; all active → the next step runs; ssh
   non-zero, or a status with no `running` field → exit 10 with no "not running" claim; negative

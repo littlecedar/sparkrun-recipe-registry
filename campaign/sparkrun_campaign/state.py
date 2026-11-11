@@ -301,6 +301,10 @@ class Campaign:
         nodes = int(record.get("nodes") or record["tp"])
         # Everything the worker needs to run the arm travels in the lease: the recipe path is what
         # the executor is invoked with, and `env` carries per-arm overrides (`ARM_OPTS`, `ARM_TAG`).
+        # A declared window is the executor's guard-arming opt-in, so it travels as ARM_WINDOW.
+        env = dict(record["env"])
+        if record.get("window"):
+            env["ARM_WINDOW"] = record["window"]
         lease = {
             "id": f"{arm}@{record['attempts'] + 1}",
             "arm": arm,
@@ -308,7 +312,7 @@ class Campaign:
             "tp": record["tp"],
             "pp": int(record.get("pp", 1)),
             "nodes": nodes,
-            "env": dict(record["env"]),
+            "env": env,
             "worker": worker,
             "hosts": list(hosts),
             "ledger": ledger,

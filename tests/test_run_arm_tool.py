@@ -1503,6 +1503,15 @@ def image_slice(text: str) -> str:
     return text[start : text.index(IMAGE_END, start) + len(IMAGE_END)]
 
 
+GUARD_START = "# guard-arm: start"
+GUARD_END = "# guard-arm: end"
+
+
+def guard_slice(text: str) -> str:
+    start = text.index(GUARD_START)
+    return text[start : text.index(GUARD_END, start) + len(GUARD_END)]
+
+
 def clean_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     """The harness environment without the knobs under test, so a developer's shell cannot leak them."""
     env = {k: v for k, v in os.environ.items()
@@ -2557,6 +2566,149 @@ class WatchdogVerdict(ExecutedBlock):
         _rc, out, _files, _ = self.run_verdict(
             "WATCHDOG t=2532s verdict=stalled endpoint=down\n", block=mutated)
         self.assertIn("serve dead", out, "the mutation did not reproduce the defect")
+
+
+GOOD_GUARD = (
+    "#!/bin/sh\n"
+    'printf "%s\\n" "$*" >> "$GUARD_ARGV"\n'
+    'printf "%s\\n" "guard start tid=$1 start_epoch=$(date +%s)" >> "$TP4_DIR/mem-guard.log"\n'
+    "exec sleep 30\n"
+)
+STALE_GUARD = (
+    "#!/bin/sh\n"
+    'printf "%s\\n" "$*" >> "$GUARD_ARGV"\n'
+    'printf "%s\\n" "guard start tid=task_older start_epoch=$(date +%s)" >> "$TP4_DIR/mem-guard.log"\n'
+    "exec sleep 30\n"
+)
+
+
+class WindowGuard(unittest.TestCase):
+    """A declared window arms its mem-guard and samplers before the first readiness sample.
+
+    The guard, not a measured sampler, is what stops a risky boot (owner ruling 2026-11-11), so
+    the executor proves it started the window's own script for the task id it resolved. These run
+    the real block against stub `ssh`/`sparkrun` and a stub guard; no fleet, no boot.
+    """
+
+    def run_guard(self, *, window: str = "win", body: str | None = GOOD_GUARD,
+                  executable: bool = True, wait: str = "3"):
+        """Execute the arming block with a fake window; return rc, output, receipt, logs."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            home = tmp / "home"
+            window_dir = home / "benchmarks" / "win"
+            window_dir.mkdir(parents=True)
+            if body is not None:
+                guard = window_dir / "mem-guard.sh"
+                guard.write_text(body)
+                guard.chmod(0o755 if executable else 0o644)
+            receipt = tmp / "receipt"
+            receipt.mkdir()
+            bins = tmp / "bin"
+            bins.mkdir()
+            sparkrun = bins / "sparkrun"
+            sparkrun.write_text(f'#!/bin/sh\nprintf "%s\\n" "$*" >> "$SPARKRUN_LOG"\n')
+            sparkrun.chmod(0o755)
+            ssh = bins / "ssh"
+            ssh.write_text(
+                '#!/bin/sh\nprintf "%s\\n" "$*" >> "$SSH_LOG"\ncat >> "$SSH_STDIN"\n'
+                'printf "node pid=999 rows=0 last_avail_kB=100\\n"\n'
+            )
+            ssh.chmod(0o755)
+            script = tmp / "guard.sh"
+            script.write_text(
+                "#!/usr/bin/env bash\nset -uo pipefail\n"
+                f"HOME={home}\nL={receipt}\nHOSTS=node-a,node-b\nTID=task_123\nNAME=test\n"
+                f"ARM_WINDOW={window!r}\nARM_GUARD_WAIT={wait!r}\n"
+                f"PATH={bins}:$PATH\nexport PATH\n"
+                + guard_slice(read_tool()) + "\n"
+                'echo "guard_pid=${GUARD_PID:-}"\nstop_guard\n'
+            )
+            env = {
+                **os.environ,
+                "GUARD_ARGV": str(tmp / "guard-argv"),
+                "SSH_LOG": str(tmp / "ssh.log"),
+                "SSH_STDIN": str(tmp / "ssh.stdin"),
+                "SPARKRUN_LOG": str(tmp / "sparkrun.log"),
+            }
+            out = subprocess.run(["bash", str(script)], capture_output=True, text=True,
+                                 check=False, env=env, timeout=60)
+            match = re.search(r"^guard_pid=(\d*)$", out.stdout, re.M)
+            pid = int(match.group(1)) if match and match.group(1) else 0
+            files = {path.name: path.read_text(errors="replace") for path in receipt.iterdir()}
+            logs = {}
+            for key, name in (("guard_argv", "guard-argv"), ("ssh", "ssh.log"),
+                              ("ssh_stdin", "ssh.stdin"), ("sparkrun", "sparkrun.log")):
+                path = tmp / name
+                logs[key] = path.read_text(errors="replace") if path.exists() else ""
+        # The stub guard sleeps 30 s; a live pid after the script exited means teardown missed it.
+        logs["pid"] = str(pid)
+        logs["alive"] = str(bool(pid) and Path(f"/proc/{pid}").exists())
+        return out.returncode, out.stdout + out.stderr, files, logs
+
+    def test_the_declared_window_arms_its_guard_with_the_resolved_task_id(self):
+        rc, out, files, logs = self.run_guard()
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(logs["guard_argv"].split(), ["task_123"],
+                         "the guard must be invoked with the task id, not a recipe or node")
+        cell = files["guard-armed.txt"]
+        self.assertIn("state=armed", cell)
+        self.assertIn("tid=task_123", cell)
+        self.assertIn("guard_line=guard start tid=task_123", cell,
+                      "the guard's own line is the proof, not the pid alone")
+        self.assertRegex(cell, r"(?m)^start_utc=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+        self.assertTrue(files["mem-guard.pid"].split()[0].isdigit())
+        self.assertIn('TP4_TID="$TID"', logs["ssh_stdin"],
+                      "the sampler must get the window's env names")
+        self.assertIn("mem-sampler.sh", logs["ssh_stdin"])
+        self.assertIn("task_123", logs["ssh"], "a sampler was armed without the task id")
+        self.assertEqual(logs["alive"], "False", "teardown left the guard running")
+
+    def test_a_missing_script_refuses_with_exit_15_and_stops_the_task_by_name(self):
+        rc, out, files, logs = self.run_guard(body=None)
+        self.assertEqual(rc, 15, out)
+        self.assertIn("stop task_123", logs["sparkrun"])
+        self.assertIn("state=not-armed", files["guard-armed.txt"])
+        self.assertIn("script missing or not executable", files["guard-armed.txt"])
+        self.assertIn("no readiness or benchmark step", out)
+
+    def test_a_non_executable_script_is_not_armed(self):
+        rc, out, files, logs = self.run_guard(executable=False)
+        self.assertEqual(rc, 15, out)
+        self.assertIn("stop task_123", logs["sparkrun"])
+        self.assertIn("state=not-armed", files["guard-armed.txt"])
+
+    def test_a_guard_line_for_another_task_is_not_proof(self):
+        rc, out, files, _ = self.run_guard(body=STALE_GUARD)
+        self.assertEqual(rc, 15, out)
+        self.assertIn("no guard start line for tid=task_123", files["guard-armed.txt"])
+
+    def test_a_spawn_that_dies_before_its_line_refuses(self):
+        rc, out, files, _ = self.run_guard(body="#!/bin/sh\nexit 1\n")
+        self.assertEqual(rc, 15, out)
+        self.assertIn("state=not-armed", files["guard-armed.txt"])
+
+    def test_an_arm_without_a_window_is_exactly_the_old_executor(self):
+        rc, out, files, logs = self.run_guard(window="")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(files, {}, "an undeclared window must write no guard cell")
+        self.assertEqual(logs["ssh"], "")
+        self.assertEqual(logs["sparkrun"], "")
+
+    def test_arming_sits_between_the_task_id_and_the_readiness_loop(self):
+        text = read_tool()
+        tid_at = text.index("printf '%s\\n' \"$TID\" > \"$L/task-id.txt\"")
+        guard_at = text.index(GUARD_START)
+        self.assertLess(tid_at, guard_at, "the guard is armed before the task id exists")
+        self.assertLess(guard_at, text.index(LOOP_START),
+                        "a readiness sample taken before the guard is armed")
+
+    def test_the_exit_trap_kills_the_guard_after_the_task_stop(self):
+        trap = TRAP_RE.search(read_tool())
+        self.assertIsNotNone(trap)
+        body = trap.group(0)
+        self.assertLess(body.index('sparkrun stop "$TID"'), body.index('kill "$GUARD_PID"'),
+                        "a guard can outlive the task it was armed for")
 
 
 if __name__ == "__main__":

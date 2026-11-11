@@ -302,6 +302,18 @@ class SingleClaim(DirectorCase):
             leases.Ledger(self.repo / leases.LEDGER, clock=self.clock).acquire(
                 "another-session", ["node-a", "node-b"], ttl=600)
 
+    def test_a_declared_window_travels_to_the_executor_as_the_arming_opt_in(self) -> None:
+        campaign = state.Campaign.open(self.root / "state2.json", campaign="test",
+                                       hosts=("node-a", "node-b"), max_parallel=1)
+        self.addCleanup(campaign.close)
+        campaign.add("pair", "recipes/lane/pair.yaml", tp=2, window="kimi-six-20261112")
+        lease = campaign.assign("pair", "w1", ["node-a", "node-b"], self.clock.now)
+        self.assertEqual(lease["env"]["ARM_WINDOW"], "kimi-six-20261112",
+                         "the executor would never arm a guard for the declared window")
+        campaign.add("solo", "recipes/lane/solo.yaml", tp=1)
+        plain = campaign.assign("solo", "w1", ["node-a"], self.clock.now)
+        self.assertNotIn("ARM_WINDOW", plain["env"], "an undeclared window must stay no-op")
+
     def test_a_single_rank_boot_does_not_write_a_lease(self) -> None:
         leader, _ = self.build([self.arm("solo", tp=1)])
         self.assertEqual(leader.handle(protocol.poll("w1"))["lease"]["hosts"], ["node-a"])

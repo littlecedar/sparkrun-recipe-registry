@@ -579,7 +579,7 @@ fi
 # outlive the executor and leave unowned containers (measured 2026-11-08: a pair boot was
 # called failed while its serve went on to answer). TID is empty until a container resolves
 # and `$LAUNCH` is the launcher itself, so every reference is guarded.
-trap 'oom_watchdog_check; stop_capture; [ -n "${TID:-}" ] && sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${LAUNCH:-}" ] && kill "$LAUNCH" 2>/dev/null; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; [ -n "${EXTRA_PID:-}" ] && kill "$EXTRA_PID" 2>/dev/null; exit' EXIT INT TERM
+trap 'oom_watchdog_check; stop_capture; [ -n "${TID:-}" ] && sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${GUARD_PID:-}" ] && kill "$GUARD_PID" 2>/dev/null; declare -F stop_samplers >/dev/null 2>&1 && stop_samplers; [ -n "${LAUNCH:-}" ] && kill "$LAUNCH" 2>/dev/null; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; [ -n "${EXTRA_PID:-}" ] && kill "$EXTRA_PID" 2>/dev/null; exit' EXIT INT TERM
 
 # How long a container may take to appear follows the LAUNCHER's progress, not a fixed clock.
 # A 129.6 GB pair distribution took 340 s to produce a container, and the old 300 s window
@@ -626,6 +626,104 @@ TID=${N#sparkrun_}; TID=${TID%_node_*}; TID=${TID%_solo}
 # resolves, and a client armed before it must not invent one.
 printf '%s\n' "$TID" > "$L/task-id.txt"
 echo "arm=$NAME container=$N task=$TID port=$PORT"
+
+# guard-arm: start
+# The window's memory guard and its per-rank trigger writers, armed only for an arm that declared
+# a window (the campaign exports the row's `window` as ARM_WINDOW). This is the executor half of
+# the stop rule ratified 2026-11-11: a guard, not a measured sampler, stops a risky boot. It is
+# armed here -- after the task id resolves, before the first readiness sample -- because a boot
+# that dies in load never reaches a readiness verdict and no readiness-cell instrument sees it.
+GUARD_PID=""
+GUARD_DIR=""
+GUARD_CELL="$L/guard-armed.txt"
+GUARD_SAMPLERS_ARMED=0
+
+guard_fail() {
+  { printf 'state=not-armed\nreason=%s\ntid=%s\nscript=%s\n' \
+      "$1" "$TID" "$GUARD_DIR/mem-guard.sh"; } > "$GUARD_CELL"
+  # Stop by the literal id resolved above: the exit trap's stop is not the only stop, and a
+  # stale guard must never keep triggering against a task that is already gone.
+  sparkrun stop "$TID" >/dev/null 2>&1 || true
+  [ -n "$GUARD_PID" ] && kill "$GUARD_PID" 2>/dev/null
+  [ "$GUARD_SAMPLERS_ARMED" = 1 ] && stop_samplers
+  echo "ARM FAIL $NAME: window guard not armed ($1); task $TID stopped, no readiness or benchmark step"
+  exit 15
+}
+
+stop_samplers() {
+  # The sampler loops forever by design; leaving one behind leaks exactly as the guard did.
+  # Scoped to this window's path so a peer arm on a shared rank keeps its own sampler.
+  [ -n "${GUARD_DIR:-}" ] || return 0
+  for hn in $(echo "$HOSTS" | tr ',' ' '); do
+    ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+      "pkill -f '$GUARD_DIR/mem-sampler.sh' 2>/dev/null; rm -f '$GUARD_DIR/sampler.pid'" \
+      >/dev/null 2>&1 || true
+  done
+}
+
+arm_guard() {
+  [ -n "${ARM_WINDOW:-}" ] || return 0
+  GUARD_DIR="$HOME/benchmarks/$ARM_WINDOW"
+  local script="$GUARD_DIR/mem-guard.sh" ranks sampler_out samplers="" guard_line="" waited=0
+  if [ ! -x "$script" ]; then
+    guard_fail "script missing or not executable: $script"
+  fi
+  ranks=$(echo "$HOSTS" | tr ',' ' ')
+  # The guard runs on this host (the head), its own session so a later stop cannot reap it, and
+  # reads every rank's trigger over ssh. TP4_DIR/TP4_RANKS are the names its own script requires.
+  setsid nohup env TP4_DIR="$GUARD_DIR" TP4_RANKS="$ranks" \
+    bash "$script" "$TID" > "$L/mem-guard.out" 2>&1 < /dev/null &
+  GUARD_PID=$!
+  printf '%s %s\n' "$GUARD_PID" "$(date -u +%FT%TZ)" > "$L/mem-guard.pid"
+  # The guard's own startup line is the proof it is running the task it was given; a live pid
+  # alone can be a shell that died right after fork. Bounded, then refuse rather than proceed.
+  while [ "$waited" -lt "${ARM_GUARD_WAIT:-10}" ]; do
+    if ! kill -0 "$GUARD_PID" 2>/dev/null; then
+      guard_fail "guard $GUARD_PID died before its start line"
+    fi
+    guard_line=$(grep -h "guard start tid=$TID " "$GUARD_DIR/mem-guard.log" 2>/dev/null | tail -1 || true)
+    [ -n "$guard_line" ] && break
+    sleep 1
+    waited=$((waited + 1))
+  done
+  if [ -z "$guard_line" ]; then
+    guard_fail "no guard start line for tid=$TID in $GUARD_DIR/mem-guard.log after ${ARM_GUARD_WAIT:-10}s"
+  fi
+  # Per-rank trigger writers, the window's own sampler with the arguments its launcher uses:
+  # TP4_DIR/TP4_TID/TP4_RANK/TP4_FLOOR_KB/TP4_SLEEP. The pkill is scoped to this window's path.
+  for hn in $ranks; do
+    sampler_out=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+      "bash -s -- '$TID' '$hn' '$GUARD_DIR' '${TP4_FLOOR_KB:-6291456}' '${TP4_SLEEP:-1}'" <<'EOS' 2>&1
+TID=$1; IP=$2; D=$3; FLOOR=$4; SLOW=$5
+pkill -f "$D/mem-sampler.sh" 2>/dev/null
+sleep 1
+setsid nohup env TP4_DIR="$D" TP4_TID="$TID" TP4_RANK="$IP" TP4_FLOOR_KB="$FLOOR" TP4_SLEEP="$SLOW" \
+  bash "$D/mem-sampler.sh" > "$D/sampler-$IP.log" 2>&1 < /dev/null &
+echo $! > "$D/sampler.pid"
+sleep 2
+echo "$IP pid=$(cat "$D/sampler.pid" 2>/dev/null) rows=$(wc -l < "$D/mem-series-$IP.csv" 2>/dev/null) last_avail_kB=$(awk -F, 'END{print $4}' "$D/mem-series-$IP.csv" 2>/dev/null)"
+EOS
+)
+    case "$sampler_out" in
+      *"pid="*) GUARD_SAMPLERS_ARMED=1; samplers="${samplers:+$samplers }$sampler_out" ;;
+      *) guard_fail "sampler did not start on $hn: ${sampler_out:-(no output)}" ;;
+    esac
+  done
+  if ! kill -0 "$GUARD_PID" 2>/dev/null; then
+    guard_fail "guard $GUARD_PID died before the first readiness sample"
+  fi
+  { printf 'state=armed\ntid=%s\npid=%s\nstart_utc=%s\nscript=%s\nranks=%s\nsamplers=%s\nguard_line=%s\n' \
+      "$TID" "$GUARD_PID" "$(date -u +%FT%TZ)" "$script" "$ranks" "$samplers" "$guard_line"; } \
+    > "$GUARD_CELL"
+  echo "guard=armed pid=$GUARD_PID script=$script ranks=$ranks"
+}
+
+stop_guard() {
+  [ -n "${GUARD_PID:-}" ] && kill "$GUARD_PID" 2>/dev/null
+  stop_samplers
+}
+arm_guard
+# guard-arm: end
 
 # The stop path is already installed, above the appearance loop.
 

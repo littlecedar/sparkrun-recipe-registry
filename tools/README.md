@@ -236,6 +236,26 @@ to `<root>/<arm>` (a campaign owns its measurements); unset keeps `~/benchmarks/
 rc recording, timeout
 bound, no fabricated marker).
 
+**A declared window arms its memory guard (`ARM_WINDOW`).** The campaign exports a row's
+`window` as `ARM_WINDOW` in the lease env; an arm with no declared window behaves exactly as
+before. When it is set, the executor starts `~/benchmarks/<window>/mem-guard.sh <task-id>` in its
+own session, then the per-rank trigger writers (`mem-sampler.sh`) on every lease host with the
+window's own names: `TP4_DIR`, `TP4_TID`, `TP4_RANK`, `TP4_FLOOR_KB` (6291456) and `TP4_SLEEP`
+(1). The arming sits immediately after `<receipt>/task-id.txt` and before the first readiness
+sample, because a boot that dies in load never reaches a readiness verdict. Proof is
+`<receipt>/guard-armed.txt`: `state=armed`, `tid=`, `pid=`, `start_utc=`, `script=`, `ranks=`,
+`samplers=` and the guard's own `guard_line=guard start tid=<task-id> …`; `<receipt>/mem-guard.pid`
+carries the pid and UTC start, and the executor checks `kill -0`. A live pid alone is not proof:
+the line must name the task id the executor resolved. A missing or non-executable script, a spawn
+that dies, a sampler that does not start, or no line for *this* task id within `ARM_GUARD_WAIT`
+(default 10 s) stops `sparkrun stop <task-id>`, writes `state=not-armed` with the reason, and
+exits **15** (11–14 already name preflight verdicts) before any readiness or benchmark cell. The
+EXIT trap kills the guard pid after the task stop and reaps the samplers, so neither outlives its
+arm. The `mem-guard-outlives-its-task` row stays open with this evidence: `WindowGuard` in
+`tests/test_run_arm_tool.py` proves the teardown against a stub guard that sleeps (its pid is gone
+after the script), and closing the row needs a live armed boot whose stop leaves no guard process
+beside the stopped task.
+
 **Three consumers read this, and only one of them lives in the repo.** The tracked planner
 (`tools/next-arms.py`) reads the fields: `ladder: ok` beside a ladder that parses with cells counts
 as measured, `ladder: failed (rc=N)` does not, and a truncated or cell-less ladder never counts
