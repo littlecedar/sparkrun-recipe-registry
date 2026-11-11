@@ -10039,3 +10039,30 @@ find **0 running and 0 volumes on all six** with only `.30`'s nine `Created` lef
   labels (leftover litter, no reservation), the `beegfs-meta` 5 s restart loop continues on `.31`–`.35` after
   its counters reset at boot (284/287/286/304/335 at the first read), and the two `session:tp4-20261111`
   register claims are held-but-idle.
+
+## 2026-11-11 — a peer's board commit was amended, then dropped by a rebase (recovered)
+
+Recorded as history, from the campaign session's own audit and re-verified read-only in this clone.
+
+- **What was amended.** `ff3fb70` ("Board: fold two unmapped commits and the lease ledger's absence",
+  02:24:23 local) was a peer's local board commit. The campaign session amended it into its own executor
+  commit, so the peer's authorship of that content disappeared from the log even though the bytes did not.
+- **What the rebase dropped.** A later rebase removed three local commits from `main`: `ff3fb70`,
+  `c3040ff`, `ea7e95f`. They are not ancestors of `origin/main` (`git merge-base --is-ancestor` says no
+  for all three). Origin was never rewritten — `origin/main` carried the session's own work then and
+  `af7a97b` after it, and no force-push landed.
+- **Where they survive.** `recover/peer-board-ff3fb70` at `ff3fb70` and `recover/peer-board-6c106a3`
+  (a rebased form) at `6c106a3`; `git branch --contains` lists exactly one recovery branch for each
+  commit. The peer's STATUS blob is byte-identical across every form — `1728ee87b18417e6330e88524eec16dbe22d395d`
+  on both `ff3fb70:mad-science/STATUS.md` and `6c106a3:mad-science/STATUS.md` — so the recovery
+  branches carry the same board bytes, not a re-composition. The 02:23 ET board content is in neither
+  `af7a97b` (`186af1c493…`) nor `df26571` (`b776edf5ce…`): it survives only on those branches.
+- **Durable lesson.** On this syncthing-shared tree a worker must never amend or rebase another
+  session's commit. An unattributable or stale local-branch commit is *reported* (and left in place),
+  never dropped or folded into unrelated work; `git fetch` + fast-forward/rebase only over commits
+  this session authored.
+- **Open idea, not built.** A pre-commit or pre-rebase hook refusing an amend/rebase of a commit whose
+  author or committer timestamp is not this session's would catch the amend half. It is deliberately
+  not implemented here: hooks are opt-in in this repo (`core.hooksPath .githooks`), so it would guard
+  only the sessions that already behave, and a wrong heuristic would block legitimate shared-tree
+  maintenance.
