@@ -3060,6 +3060,22 @@
       "evidence": "`.scratch/kimi-six-engine-verdict-20261111.md`: the pinned image's engine `v0.33.0rc1.dev1016+g06129ab02` (boot6 rank-1 log), #66037 merged as `4088c283` 2026-11-09T04:31Z and absent from the pinned tree and from every release, GHCR tags ending at `2026110702` both resolving to the pinned digest, Docker Hub `eugr/spark-vllm` latest 2026-11-07, and the knob audit that leaves only the rebuild; the row stays queued on an image built from main ≥ `4088c283`",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "fleet-boot-without-lease-record",
+      "title": "A four-rank boot serves with no lease in either ledger and no window lock",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "Measured 2026-11-11 19:15:59Z-19:31Z, read-only: task `b020d2dd178343a5_55dafcf24cde` runs one rank each on `.31`-`.34` (image `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5`, id `3f4480818acb`, `Up` and healthy, `/v1/models` 200 serving `deepseek-ai/DeepSeek-V4.1-Flash-1017`) while `.local/fleet-leases.json` is `{\"leases\":[],\"version\":1}` (33 B, sha `57247219`, same bytes and mtime on the head copy), `director lease --list` reports 0 live leases, and no `.local/fleet-window.lock` exists. It is not the campaign arm: `state.json` has no `leases` key and reads 10 measured / 13 blocked of 23 with mtime `01:38:06 ET`, and the head clone at `0a6e4b6` carries the lease code (`aa54000`, `ebf5c8e`, `298098d`, `08ff156`). So the claim path the register names as the only one for a multi-machine boot has no record of a live quartet. Acceptance: identify the launching session from its own evidence (argv, receipt dir, sparkrun task owner), then either make that path write a lease or refuse the boot, and show one boot that records and releases it. Not bootable: this row is the audit, not an arm.",
+      "provenance": "mad-science/STATUS.md window row 2026-11-11 14:31 ET; mad-science/SESSION-RECORD.md 2026-11-11 14:31 ET; task `b020d2dd178343a5_55dafcf24cde` on `.31`-`.34`",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": "",
+      "memory_risky": false
     }
   ],
   "questions": []

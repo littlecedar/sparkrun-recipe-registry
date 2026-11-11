@@ -11009,3 +11009,34 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   was the one commit the earlier reasoning definitely should have taken. Also dropped the `queue` and
   `window` cells' verbatim repeat of their own owner cell, and restated the queue row as a `notes` edit on
   an already-done task rather than a worktree-only state move.
+## 2026-11-11 14:31 ET hourly board tick: a live four-rank quartet that holds no lease
+- **The finding is a claim gap, not an idle fleet.** The 14:26 board read nothing running and
+  closed the c16 window clean (lease `arm5-c16` released `14:07:57 ET`). A second four-rank serve
+  then started at `19:15:59Z` on the same `.31`–`.34`: task
+  `b020d2dd178343a5_55dafcf24cde`, image `littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5`
+  (id `3f4480818acb`), `/v1/models` 200 serving `deepseek-ai/DeepSeek-V4.1-Flash-1017`, `Up` and
+  healthy on all four ranks through publish. **No lease covers it:** `.local/fleet-leases.json` is
+  33 B sha `57247219` with the same bytes and mtime on the head's copy, `director lease --list`
+  reports 0 live, and neither `.local/fleet-window.lock` path exists. It is not the campaign's arm
+  either — `state.json` carries no `leases` key and reads 10 measured / 13 blocked of 23, mtime
+  still `01:38:06 ET`, and the head's clone is at `0a6e4b6`, i.e. it has the lease code. The board's
+  window row states the quartet as live-with-no-lease rather than as free capacity.
+- **Census re-derived, not carried:** `19:25:50Z`–`19:25:52Z` sweep on all six — `.31`–`.34` one
+  running rank each, `.30` nine `Created` leftovers and running 0, `.35` empty, volumes 0
+  everywhere; root avail net **-43,765,760 B** against the base board's `19:08:30Z` read; no node
+  rebooted (`uptime -s` `01:33:31`–`01:38:00`); `kho=off` 1, `CmaTotal/CmaFree` 0/0,
+  `nr_free_cma` 0 on all six. `MemAvailable` 18.7–20.0 GiB on the four ranks, 116.4 GiB on `.30`,
+  117.3 GiB on `.35`.
+- **Pool and register re-read:** head units active/success/0 restarts at `19:25:50Z`, the other
+  five still on the known `beegfs-meta` 5 s loop (`NRestarts` 8809–8861); `df -B1 /mnt/beegfs`
+  `19:31:41Z` used 13,984,641,581,056 B (58 %), hub 102 entries, `stat -L` on the 1017 index
+  7,470,294 B. Register sha `a3b48217` equals the live file and `origin/main`; 189 tasks
+  (148 done / 32 queued / 9 blocked, 0 claims, **41 open**), `check` rc=0, graph counts
+  `9 blocked, 1 edges, 8 prose-gated, 0 question-gated, 0 question, 39 rows not drawn (--all)`.
+- **Two intervening board commits folded, not skipped:** `0a6e4b6` and `d04eb9c` are the sibling's
+  own corrections to the same cycle; a later tick anchors on this tip, so leaving them out would
+  drop them permanently. Nothing else landed between `bd9ad5b` and this push.
+- **Publish:** board `a3630aea…` (after `d04eb9c`, title 14:26) as both the `--base` copy and the
+  `--expect-sha` / `--expect-remote-sha` value, so a peer write on either side is refused; publish
+  wrote 14:31 ET (disk was 14:26), `lint` ok, `push-gate` ok on `d04eb9cc`, commit `bfef80c`, and
+  the CI gate for it was still `in_progress` when this line was written.
