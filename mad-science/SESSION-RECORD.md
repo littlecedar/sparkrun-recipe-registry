@@ -11040,3 +11040,17 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   `--expect-sha` / `--expect-remote-sha` value, so a peer write on either side is refused; publish
   wrote 14:31 ET (disk was 14:26), `lint` ok, `push-gate` ok on `d04eb9cc`, commit `bfef80c`, and
   the CI gate for it was still `in_progress` when this line was written.
+- **Correction at 14:38 ET, same tick, after that first publish.** The paragraphs above were written
+  before this tick registered its own finding: `fleet-boot-without-lease-record` is now a register row,
+  so the register is `74ce1fae…` — **190 tasks: 148 done / 33 queued / 9 blocked, 0 claims, 42 open**,
+  graph `9 blocked, 1 edges, 8 prose-gated, 0 question-gated, 0 question, 40 rows not drawn (--all)` —
+  and the board was republished at 14:38 ET over `bfef80c`'s blob `9695cb27`, landing as blob
+  `3b0aeb0` in `9ab9ff7`. Only the queue cell, the title and the publication row were re-derived; the
+  census, pool and node cells are carried from the `19:25:50Z` read, where the quartet was still up.
+  The `a3b48217…` / 41-open figures above are the pre-registration state, not the handoff.
+- **The fold range is `bd9ad5b`→`d04eb9c`, not "this push".** That sentence in the paragraph above
+  reads wrong twice: `0fa3a68`, `d774ce8`, `5e3a044`, `d793844`, `28f0ae8`, `7bcb0cb`, `c991486`,
+  `138254b` and `7a8713e` all landed inside the range (peers folded most of them; this tick added
+  `0a6e4b6` and `d04eb9c`), and `bfef80c` / `9ab9ff7` are this tick's own two commits, so nothing
+  peer-authored landed after `d04eb9c`. Both pushes are green — `gh run list` reads `bfef80c`
+  success and `9ab9ff7` success — which also settles the `in_progress` line above.
