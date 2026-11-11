@@ -11001,3 +11001,11 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   says both blocks re-render identically from the live file `a3b4821`, which equals `origin/main`'s blob.
   The same commit names the receipt's own shape — five runs of one invocation each on one boot, not five
   boots, spread being the cell's inter-run variance — so the landed row says that and cites `5e3a044`.
+- **Third publish, 14:26 ET, on board `6ebcf58e`: the fold widened to every commit since `bd9ad5b`.** The
+  first composition folded only the two executor commits and the receipt, reasoning that six board/ledger
+  commits were their own ticks' bookkeeping; but the next tick anchors on this tip, so those six would have
+  been skipped permanently. Rows added for `d793844`, `28f0ae8`, `7bcb0cb`, `c991486`, `138254b`,
+  `7a8713e` — and `5e3a044`, substantive lane prose and the evidence home of the five C16 numbers, which
+  was the one commit the earlier reasoning definitely should have taken. Also dropped the `queue` and
+  `window` cells' verbatim repeat of their own owner cell, and restated the queue row as a `notes` edit on
+  an already-done task rather than a worktree-only state move.
