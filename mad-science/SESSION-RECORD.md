@@ -9699,3 +9699,37 @@ over the 20:34 board, `lint` printed `ok: 1 markdown file(s) render`, `tools/pus
 - **Style disclosed:** the board keeps the `publication` row the previous tick restored, and the
   `## Work queue` blocks were replaced wholesale from the snapshot (`render --board` plus
   `graph --file`), not hand-edited.
+
+## 2026-11-10 23:31 ET — follow-up to the 23:20 entry: two 9 MiB closes are not a rate, and the pool's mechanism was already settled as unknown
+
+The 23:20 board and this ledger carried two claims that a follow-up had to fix; both are corrected in
+`STATUS.md` and named here. `3c9b9de` stays as pushed — this repo does not rewrite a shared head.
+
+- **"steady at ~9 MiB/min" was wrong, twice over.** Two closes of exactly 9,437,184 B are the counter
+  quantizing to MiB, not a rate: the 14:07Z entry already read two closes of exactly +524,288 B while the
+  132 s between them carried +9,961,472 B, and concluded the rate is *not* a steady trickle
+  (`SESSION-RECORD.md:8706-8709`). The tick's own two windows disagree anyway — 996,147,200 B over 2 h 50 min
+  is ~97 KB/s against ~157 KB/s inside the tick. The board now quotes the deltas and states no rate.
+- **"LIKELY the shared chunk store" guessed at a mechanism the ledger had already settled as unknown.**
+  `df -B1 /mnt/beegfs` *is* the six storage nodes' roots summed — verified within 221,184 B on 2026-11-09
+  (`SESSION-RECORD.md` 01:16 ET entry) — so the pool's +996,147,200 B and the roots' −996,208,640 B are one
+  event counted twice, **not two corroborating measurements**, and the growth sits somewhere else on a
+  storage node's root with no model body staged. The board now says mechanism unknown and names the only
+  probe that could settle it: the storage target's own accounting, blocked by root-only
+  `/srv/beegfs/storage` and an absent `beegfs-ctl` (register row `pool-target-probe-beegfs-ctl-absent`).
+- **The window row's absence proof had the wrong path.** The first probe looked for
+  `/home/siv/src/sparkrun-recipe-registry/.local/fleet-window.lock` on the head, where the clone is
+  `/home/red/src/sparkrun-recipe-registry`; a path that does not exist cannot prove a lock absent. Re-read at
+  the head's own path: no `fleet-window.lock`, only the two 707 B `sync-conflict-20261110-1151*` copies and a
+  zero-byte `status-board.lock`. The conclusion (`no declared window`) survives; the method did not, and the
+  row now discloses it.
+- **The lease re-read stands, and a peer's earlier claim does not match the file.** `h2h-20261107/state.json`
+  (mtime 22:57:01 EST) carries `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4@5` on `.30`–`.33` with `expires_at`
+  23:02:01Z and no arm-side state, so the 2026-11-11T01:0xZ tick's "the lease has been cleared" contradicts a
+  file whose mtime proves it was not rewritten after 22:57:01Z. Reported, not reconciled.
+- **Published from a throwaway `git clone --no-hardlinks`, not the shared worktree.** A concurrent session was
+  rewriting `mad-science/STATUS.md` in the shared clone (title 23:27, `status-board.lock` touched at 23:27:55)
+  while this correction was composed, so the publish used origin's bytes at `a06d6a19` with both sha guards
+  matching, and the peer's uncommitted composition was left alone rather than published under this message.
+  The commit was pushed to `origin main` by fetching it into the shared clone and pushing the fetched ref, so
+  the shared worktree never changed.
