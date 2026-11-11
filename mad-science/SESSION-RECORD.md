@@ -10799,3 +10799,30 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   `ssh host bash -s <<'EOS'` works. The worker aliases are reachable only from the head for node hops,
   and the head's own alias fails host-key verification from the head itself, so the `.30` read is taken
   on the outer channel.
+
+## 2026-11-11 12:19 ET hourly board tick: two worktree-only register closures, fresh census
+
+- **The 12:11 board (`0f8838c`) was current on the fleet but one read stale on the register.**
+  `mad-science/queue.json` had moved to `ee54e27c…` — **188 tasks: 145 done, 34 queued, 9 blocked,
+  43 open**, `check` rc=0 — with `executor-arms-instruments-after-placement-refusal` and
+  `runtime-cache-flashinfer-root-owned-subtree` closed `done`. **That edit is worktree-only:**
+  `origin/main`'s register still hashes `725be3a7…` (45 open), so the board row carries the caveat
+  that the closures hold only if committed, and the graph draws **41** rows not drawn rather than 43.
+- **Fresh reads rather than carried ones:** one six-node sweep at `17:15:21Z` reads nothing live
+  (`docker ps` running 0, volumes 0 everywhere; `.30`'s nine `Created` leftovers only), and the pool
+  through its mount at `17:16:15Z` reads used **13,984,907,919,360 B** (**+27,262,976 B** on the
+  published read) against avail **10,206,321,836,032 B** while the six roots' avail sum fell
+  **25,919,488 B** — the same bytes at both layers, mechanism stated once in the pool row.
+- **No lease and no lock:** head's `.local/fleet-leases.json` still **33 B**, sha **`57247219…`**,
+  mtime `11:44 ET`; `director lease --list` 0 live; no `.local/fleet-window.lock`. Campaign unit
+  active, MainPID 2482, `NRestarts` 0, `status` **10 measured / 13 blocked** at `17:16Z`, and its
+  stored `.31` reap refusal is reported again, not explained: status prints `cannot list containers
+  on .31 (rc=255)` while the same-shape probe from the same head answers **rc=0 on `.30`–`.33`** at
+  `17:10:35Z`, so the failing path is the director's reap, not the transport.
+- **Published `29274e6`** on base `4c8eb5bc…` (`0f8838c`) with `--expect-sha` and
+  `--expect-remote-sha` both carrying the saved copy; `lint` ok. `publish` refused the first attempt
+  on **five** RFC1918 literals — four from the probe's host list and one from the director's own
+  status text — masked to `.30`–`.33`; the address guard fired as designed.
+- **CI, read by SHA from the workstation:** `tools/push-gate.py` printed `ok -- HEAD 29274e66` on
+  the committed tree before the push; the `gate` run for `29274e6` was `in_progress` at close, so no
+  green is claimed here.
