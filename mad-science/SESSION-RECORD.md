@@ -10066,3 +10066,45 @@ Recorded as history, from the campaign session's own audit and re-verified read-
   not implemented here: hooks are opt-in in this repo (`core.hooksPath .githooks`), so it would guard
   only the sessions that already behave, and a wrong heuristic would block legitimate shared-tree
   maintenance.
+
+## 2026-11-11 — 02:03 tick: kernel question settled, pool df retired as a rate, and a gate that was only red in someone's worktree
+
+Tick scope: read-only census, pool and claim reads, board publish; no boot, no stop, no window claimed.
+
+- **The reboot moved no kernel, and the dmesg says so.** `journalctl -b -1 -k` on the head reads
+  `Linux version 7.0.0-1025-nvidia` for the boot that ended at 01:37:25, and `.35`'s previous boot
+  (began 2026-11-09 16:59:22) reads the same, so the 06:33–06:38Z fleet reboot crossed **no** kernel
+  boundary. The KHO/RDMA notes' `7.0.0-1019-nvidia` is the *installed-package* history (apt autoremove
+  on 11-08 removed the 1019 set; `vmlinuz-7.0.0-1025` dates from 11-03), not what the fleet ran before
+  this reboot. An earlier draft of this tick's census row claimed "1025, not the 1024 they left" — the
+  falsifier above killed it before publication, and `kho=off` + `CmaTotal`/`CmaFree`/`nr_free_cma` = 0
+  on all six is what actually carries forward.
+- **The pool's `df` series is accounting, not bytes — retire it as a source of rates.** A peer's six
+  same-minute client reads spread 419 MB (`13,947,094,695,936` … `13,947,514,126,336`), while three
+  96 s head reads moved only `+3,670,016 B`; this tick's own pair (`07:05:04Z` `13,928,130,674,688` →
+  `07:07:58Z` `13,928,133,820,416`, +3,145,728 B) is consistent with the head but cannot be promoted to
+  a fleet rate. What the pool *can* be read for: 102 hub entries, through-mount `stat -L` on Kromoss
+  `README.md` = 7685 B, and **32 `*.incomplete` blobs, all `models--baidu--ERNIE-5.5-Flash-Base` with
+  mtime 2026-11-10T03:48–03:49**, i.e. that staging's leftovers, no live writer.
+- **No multi-rank claim exists, on any of the three surfaces.** `.local/fleet-window.lock` absent on the
+  head and in this clone (2 conflict copies each), `.local/fleet-leases.json` — the ledger `65426e3`
+  taught `queue-drip` to read — **absent on the head**, and 0 `arms[*].lease` objects across the nine
+  `state.json` roots while the campaign unit is active. The two `session:tp4-20261111` register claims
+  are held-but-idle: no container ran at either census read.
+- **The "NO TESTS RAN" red was a peer's worktree, not the committed gate.** `tools/push-gate.py` is ` M`
+  here with an untracked `tests/test_executable_modes.py` beside it; the draft gate runs discovery on
+  that module against `git archive HEAD`, where it does not exist, so it exits 5 and calls the tree red.
+  The committed gate carries no such check. Verified instead on the committed-tree checks: doc hygiene,
+  `test_tracked_address_hygiene`, `bash -n` and the 223-test campaign suite all green, then
+  `gh run watch` on the pushed `af7a97b` reported run 42980046650 **success**.
+- **`cmd | tail; echo rc=$?` reports `tail`'s status, not the command's.** It printed `gate rc=0` twice
+  over a gate that had just failed. Green claims this tick rest on the run id (`gh run watch
+  --exit-status`), never on a piped exit code.
+- **Board collision, resolved additively.** The 02:23 composition published as `7aca2982` and its commit
+  was later amended/dropped by concurrent sessions (recorded in the section above). The final land is
+  `af7a97b`, folded onto the peer's published `df26571` board (`69758556…`): two landed rows
+  (`ff5eb72`, `2691cba`) and the publication cell, nothing else. The peer's `ed62541`, `0ea5900` and
+  `65426e3` rows stand as it wrote them.
+- **Left behind on purpose.** A later peer commit `011a9577` reddens `test_push_gate` on
+  `push-gate: POSIX shells (bash-ism lint)`; it is their shell file, not board content, and this tick
+  does not touch it.
