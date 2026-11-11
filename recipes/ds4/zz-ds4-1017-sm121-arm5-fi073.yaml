@@ -16,23 +16,29 @@ runtime: sglang
 # BF16 query (SM12x rejects FP8 Q) on both the target and the DSpark draft Q
 # buffers, the 528-byte fp8_dsv41_inline KV pool, and the DSpark draft's
 # combined window+block table passed whole as the SWA segment (0.7.x has no
-# combined-length tail split), and (seventh, `:fi073d`) row-packed prefill
+# combined-length tail split), (seventh, `:fi073d`) row-packed prefill
 # index tables: 0.7.3 builds call metadata from the tensors' strides and
 # refuses a column slice of the combined table as "no matching decode
 # instantiation" (`_sparse_mla_sm120/_prepared.py:175`) -- measured on the GB10
 # at 193 and 16,384 rows, packed admitted / sliced refused, on both the
-# functional call and the wrapper's `run`. Built by
+# functional call and the wrapper's `run`; and (eighth, `:fi073e`) the same
+# repack on the target-verify decode split when `bs > 64`, where 0.7.x routes
+# the call to its prefill variant: a 16-request verify batch (16 x 6 = 96 rows)
+# is admitted, and SM12x visibility is the per-token indices alone (that route
+# forwards no `seq_lens`/`cum_seq_lens_q`, `mla/_core.py:2413`), so the <=64-row
+# decode path stays byte-identical. Built by
 # recipes/ds4/Dockerfile.dsv41-fi073.
 # Image ID (local, byte-identifies the artifact; nothing pushed), rebuild
-# 2026-11-11 on .35. Predecessors: 3f33790c79… (six deltas; died on the prefill
+# 2026-11-11 on .35. Predecessors: c684c90b41… (seven deltas; died on the
+# 96-row target-verify call), 3f33790c79… (six deltas; died on the prefill
 # row envelope), the five-delta 1d47404119… (draft path still refused) and the
 # three-delta 7752ccd68….
-#   sha256:c684c90b41ee94b98cc263afbd4d5db2845984c9a6406023dfbd5123aadc112d
+#   sha256:e65f943bf7da72b21678aca502a2b01442ae6a3ea7ca05b41d010ecf88ec1104
 # It exists only on the build host; carry it with the command in
 # recipes/ds4/README.md "SM121 survey arms" before a boot. distribution_config
 # disables sparkrun's image distribution, which would try to pull this local
 # tag from a registry.
-container: dsv41-sm121-dg:0.2.1-fi073d
+container: dsv41-sm121-dg:0.2.1-fi073e
 distribution_config:
   containers:
     enabled: false
@@ -44,24 +50,29 @@ description: >-
   `zz-ds4-1017-sm121-arm3-control.yaml`): this image's only delta is FlashInfer
   plus the adapter deltas, so a booted cell would compare against that
   digest, not against `:0.2.0`.
-  STATUS (2026-11-11T07:05Z): rebuilt with seven deltas (id in the header).
-  The six-delta image boot 3/4 story: after the fleet reboot sparkrun's own
-  detected NCCL env is sufficient (`RoCEnante ready: world=4
-  hcas=roceP2p1s0f0,rocep1s0f0 gid_index=3`, `Init parallel ends. elapsed=47.27
-  s`), and both boots then died on the prefill row envelope
-  (`num_tokens=193 ... no matching decode instantiation`) because the 0.7.x
-  metadata check admits only row-packed index tables and the port passed
-  column slices of the combined table. Delta 7 repacks them; measured on the
-  GB10 in-image (packed admitted and executed at 193 and 16,384 rows, sliced
-  refused, both entries). GPU-less build gates green (patch anchors applied
-  once, fail-closed on a second run, `py_compile` of all six files, backend
-  import). The canary answer comparison in
-  mad-science/SM121-SPARSE-MLA-PORT.md section "Acceptance ladder" remains the
-  only acceptance; the target decode call is byte-identical to the six-delta
-  image. Batching: the served line stays at the launcher's
-  `MAX_RUNNING_REQUESTS=16`, but verifying a 16-request line is 96 decode rows
-  against the 64-row envelope, so it needs the verify route (register row
-  `ds4-arm5-verify-route-batch-cap`), not a raised capture cap.
+  STATUS (2026-11-11): rebuilt with eight deltas (id in the header). The
+  six-delta boot 3/4 history stands: both died on the prefill row envelope
+  (`num_tokens=193 ... no matching decode instantiation`) because 0.7.x admits
+  only row-packed index tables; delta 7/8 repacked them (packed admitted and
+  executed at 193 and 16,384 rows in-image, sliced refused, both entries), and
+  the canary answered `4183` on the seven-delta image.
+  Delta 9 is the verify route: the target-verify call (16 requests x 6 draft
+  tokens = 96 rows) is above the 64-row decode envelope, so 0.7.3 executes
+  its prefill variant, and `_forward_trtllm_decode` handed that variant the
+  combined table's column slices. Delta 9 packs them only when `bs > 64`; the
+  <=64-row decode keeps the sliced tables the measured pair served on. In-image
+  and GPU-only, with the engine's argument shape (96 rows, 16 per-request
+  `seq_lens`, no `cum_seq_lens_q`), the packed tables are admitted and executed
+  (resolved plan variant 1) while the sliced control is refused with boot 5's
+  message; 128 packed rows are admitted. SM12x visibility is the per-token
+  table alone (`mla/_core.py:2413-2434` forwards no `seq_lens`/`cum_seq_lens_q`,
+  and probe outputs are bitwise identical with and without both).
+  NOT MEASURED: the engine falsifier. The first serve on this image hung in
+  FlashInfer autotune -- this recipe's own `EXTRA_SGLANG_ARGS` omits the
+  `--disable-flashinfer-autotune` gate the measured pair passed -- and the
+  relaunch found all six nodes taken by another boot under the same lease
+  holder. Next serve must pass that gate, then compare 16 concurrent canary
+  answers to `4183` before trusting the row.
 metadata:
   model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>

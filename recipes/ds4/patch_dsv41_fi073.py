@@ -37,7 +37,14 @@ Port A and its stop verdict:
   instantiation" (``_sparse_mla_sm120/_prepared.py:175``). Measured on the GB10
   at 193 and 16,384 rows: packed admitted and executed, sliced refused -- on
   both the functional call and the wrapper's ``run``. Decode keeps its sliced
-  tables: its rows are inside the decode envelope and it already served.
+  tables up to the 64-row envelope.
+* the target-verify decode batch (16 requests x 6 draft tokens = 96 rows)
+  re-runs that route from ``_forward_trtllm_decode``: its split tables are
+  packed ``.contiguous()`` only when ``bs > 64``, above the decode envelope.
+  The routed prefill variant consumes the same per-token indices and lengths
+  and drops ``seq_lens``/``cum_seq_lens_q`` (``mla/_core.py:2413``), so a
+  verify batch keeps its per-token visibility; the served <=64-row decode is
+  byte-identical to before.
 
 SM100/103 keeps the FP8 Q path and the 512-byte pool byte-for-byte: every
 change below is gated on ``is_sm120_supported()`` (capability major 12).
@@ -299,8 +306,8 @@ PREFILL_CALL_NEW = (
 # (receipt `arm5-fi073c-20261111/probe_prefill_stride_matrix.py`): 193 and
 # 16,384 rows are admitted and executed with packed tables, refused with the
 # sliced ones, on both the functional call and the wrapper's `run`. Decode is
-# untouched: its sliced tables are inside the decode envelope and were already
-# serving.
+# untouched up to the 64-row envelope; delta 9 repacks it above that, where
+# the target-verify batch lands.
 PREFILL_SPLIT_OLD = (
     '        extra_sparse_indices = None\n'
     '        extra_sparse_topk_lens = None\n'
@@ -318,6 +325,34 @@ PREFILL_SPLIT_NEW = (
     '            extra_sparse_indices = sparse_indices[:, SWA_WINDOW:].contiguous()\n'
     '            extra_sparse_topk_lens = sparse_topk_lens - SWA_WINDOW\n'
     '            sparse_indices = sparse_indices[:, :SWA_WINDOW].contiguous()\n'
+)
+
+# --- delta 9: row-packed decode split above the 64-row envelope -------------
+# The target-verify call runs `_forward_trtllm_decode` with one row per draft
+# token (16 requests x 6 = 96), above FlashInfer's 64-row decode envelope, so
+# the library executes its prefill variant -- which refuses the decode path's
+# column slices exactly as delta 8's prefill call did. SM12x visibility is the
+# per-token sparse table alone (the routed call forwards no seq_lens /
+# cum_seq_lens_q, `mla/_core.py:2413`), so the same tables keep a verify
+# batch's math. Only rows above 64 pay the repack; <=64-row decode is
+# byte-identical to the served path.
+DECODE_SPLIT_OLD = (
+    '        if compress_ratio != 0 and sparse_indices.shape[1] > SWA_WINDOW:\n'
+    '            extra_sparse_indices = sparse_indices[:, SWA_WINDOW:]\n'
+    '            extra_sparse_topk_lens = sparse_topk_lens - SWA_WINDOW\n'
+    '            sparse_indices = sparse_indices[:, :SWA_WINDOW]\n'
+)
+DECODE_SPLIT_NEW = (
+    '        if compress_ratio != 0 and sparse_indices.shape[1] > SWA_WINDOW:\n'
+    '            extra_sparse_indices = sparse_indices[:, SWA_WINDOW:]\n'
+    '            extra_sparse_topk_lens = sparse_topk_lens - SWA_WINDOW\n'
+    '            sparse_indices = sparse_indices[:, :SWA_WINDOW]\n'
+    '            if bs > 64:\n'
+    '                # Above the 64-row decode envelope this call runs the\n'
+    '                # prefill variant, which refuses the column slices above\n'
+    '                # for their wider row stride.\n'
+    '                extra_sparse_indices = extra_sparse_indices.contiguous()\n'
+    '                sparse_indices = sparse_indices.contiguous()\n'
 )
 
 # --- delta 4b: BF16 query buffer in the model -------------------------------
@@ -682,6 +717,7 @@ patch(BACKEND, VIEWS_OLD, VIEWS_NEW)
 patch(BACKEND, DECODE_CALL, DECODE_CALL_NEW)
 patch(BACKEND, PREFILL_CALL, PREFILL_CALL_NEW)
 patch(BACKEND, PREFILL_SPLIT_OLD, PREFILL_SPLIT_NEW)
+patch(BACKEND, DECODE_SPLIT_OLD, DECODE_SPLIT_NEW)
 
 patch(MODEL, MODEL_IMPORT_OLD, MODEL_IMPORT_NEW)
 patch(MODEL, MODEL_Q_OLD, MODEL_Q_NEW)
@@ -724,15 +760,25 @@ assert (
 assert backend_text.count("if sparse_indices.shape[1] > SWA_WINDOW:") == 1, (
     "a decode split survived beside the prefill one"
 )
-# delta 8: the prefill split must hand the route row-packed tables, and only
-# that one site may be repacked (decode's sliced tables are in-envelope).
+# delta 8: the prefill split must hand the route row-packed tables.
 assert backend_text.count(
     "extra_sparse_indices = sparse_indices[:, SWA_WINDOW:].contiguous()"
 ) == 1, "the prefill tail table is not row-packed"
 assert backend_text.count(
     "sparse_indices = sparse_indices[:, :SWA_WINDOW].contiguous()"
 ) == 1, "the prefill SWA table is not row-packed"
-assert backend_text.count(".contiguous()") == 2, backend_text.count(".contiguous()")
+# delta 9: the decode split repacks only above the 64-row envelope, so the
+# served <=64-row decode keeps the slices it was measured on.
+assert backend_text.count("if bs > 64:") == 1, (
+    "the >64-row decode repack gate is missing"
+)
+assert backend_text.count(
+    "extra_sparse_indices = extra_sparse_indices.contiguous()"
+) == 1, "the decode tail table is not row-packed above 64 rows"
+assert backend_text.count("sparse_indices = sparse_indices.contiguous()") == 1, (
+    "the decode SWA table is not row-packed above 64 rows"
+)
+assert backend_text.count(".contiguous()") == 4, backend_text.count(".contiguous()")
 
 model_text = MODEL.read_text()
 assert "from sglang.srt.utils.common import is_sm120_supported" in model_text

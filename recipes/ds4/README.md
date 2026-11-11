@@ -1934,13 +1934,31 @@ Measured pair, one window, symmetric shaping (`MEM_FRACTION_STATIC=0.75`,
 - **TTR and floors**: arm 5 **194.6 s** to port and **198.5 s** to HTTP; control 249.0 / 253.9 s.
   `MemAvailable` minima for arm 5 **12.01 / 12.68 / 12.38 / 12.00 GiB** on `.31/.32/.33/.35`,
   control 13.50 / 12.22 / 12.18 / 13.64 GiB. The 6.0 GiB guard was never approached.
-- **Reachability**: C10 runs under the 10-request cap (10 × 6 = 60 rows, inside the 64-row decode
-  envelope). C16 and above cannot: 16 × 6 = 96 rows is exactly the shape that killed boot 5
-  (`SM120 sparse-MLA has no decode kernel shape: num_tokens=96 … (num_tokens <= 64)`). That is
-  verify-route work, not a cap raise — register row `ds4-arm5-verify-route-batch-cap`.
+- **Reachability (before delta 9)**: C10 runs under the 10-request cap (10 × 6 = 60 rows, inside
+  the 64-row decode envelope). C16 and above could not: 16 × 6 = 96 rows is exactly the shape that
+  killed boot 5 (`SM120 sparse-MLA has no decode kernel shape: num_tokens=96 … (num_tokens <= 64)`).
+  That is verify-route work, not a cap raise — register row `ds4-arm5-verify-route-batch-cap`.
+- **Verify route (eighth delta, `:fi073e`)**: the same rule as delta 8 governs the target-verify
+  call. Above 64 rows 0.7.3 routes the call to its prefill variant, which admits only row-packed
+  metadata tables, and `_forward_trtllm_decode` passed the combined table's column slices. Delta 9
+  packs those two slices `.contiguous()` only when `bs > 64`, so the served ≤64-row decode keeps the
+  sliced tables it was measured on. In-image and GPU-only (no serve), with the engine's own argument
+  shape — 96 rows, 16 per-request `seq_lens`, no `cum_seq_lens_q` — the packed tables are **admitted
+  and executed** (resolved plan variant 1, the prefill route) and the sliced control is refused with
+  the boot-5 message; 128 packed rows are admitted too. SM12x visibility is the per-token sparse
+  table alone: the SM120 dispatch (`mla/_core.py:2413-2434`) forwards neither `seq_lens` nor
+  `cum_seq_lens_q`, and probe outputs are bitwise identical with and without both. Artifact
+  `probe_verify_route.fi073e.json`; the decision is stated in `patch_dsv41_fi073.py` delta 9.
+  **Not measured:** the engine-level numerics falsifier (16 concurrent canary answers still `4183`)
+  and a C16 line. The first serve attempt on `:fi073e` hung in FlashInfer autotune because the
+  recipe's own `EXTRA_SGLANG_ARGS` omits the `--disable-flashinfer-autotune` gate the measured pair
+  used, and the relaunch lost the quartet to another boot under the same lease holder. Record that
+  as an open measurement — not as a property of the route.
 
 Receipts: `head:~/benchmarks/arm5-fi073c-20261111/` — `RECEIPT-canary-fi073d.md` §§10–11,
-`boot5b-fi073d/`, `boot6-arm3-canary/`, `boot7-arm5-ladder/`, `boot8-arm3-ladder/`.
+`boot5b-fi073d/`, `boot6-arm3-canary/`, `boot7-arm5-ladder/`, `boot8-arm3-ladder/`;
+verify-route build/probe and the blocked-serve record in
+`head:~/benchmarks/arm5-verify-route-20261111/`.
 
 ## External stack: spark-ds41f (survey, 2026-11-08)
 
