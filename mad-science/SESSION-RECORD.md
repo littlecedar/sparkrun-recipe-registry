@@ -10643,3 +10643,42 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   resolve`/`import`, row `model-cache-inspect-for-pool-bodies`); the hand-rolled `docker logs` capture
   and the symlink walk were both standing in for them.
 
+## 2026-11-11 10:28 ET hourly board tick: the idle reading superseded by a live six-node boot
+
+- **Board published on two sweeps that bracket a boot.** Four bases in one hour — `2cd9af9b`
+  (title 09:08), `d0a040a5` (10:13), `85d5af9b` (10:21) and the peer tick's uncommitted `efa339fc`
+  (10:26) — so the last composition ran on `efa339fc` with `--expect-sha` on the disk copy and
+  `--expect-remote-sha` on `85d5af9b`: `publish` printed `disk was 2026-11-11 10:26:00 ET` and `lint`
+  ok. The earlier bases were superseded, never merged; the peer tick's landed rows are kept verbatim
+  and its receipt rows are the ones that carry boot 1 and the harness clock defect.
+- **The fleet is not idle, and the previous board's reading was true only at its instant.** Sweep A
+  `10:04:48`–`10:06:35 ET`: all six `docker ps -aq` 0 running, 0 volumes, `.30` on its nine
+  never-started `Created` leftovers, `ps -eo args | grep -c '^/usr/bin/python.*sglang.launch_server'`
+  0 on every node. Sweep B `10:13:01`–`10:13:03 ET`: **one container per node**, the same task id
+  `sparkrun_270298e57de6b5bb_7b621ddf2963_node_0…5`, image id `e5fcda3386c8`, volumes 0 — the
+  six-node TP=2×PP=3 Kimi arm's second boot, `.30` included as `node_5`. `MemAvailable` read 31.3–33.2
+  GB on the ranks, i.e. weights loading.
+- **Lease, and boot 1's stop.** `.local/fleet-leases.json` on the head holds one record, 478 B,
+  sha256 `921078c0…`: holder `session:tp4-20261111`, arm
+  `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp2-pp3`, all six hosts, window `tp4-20261111`, issued
+  `09:43:40 ET`, expires `13:43:40 ET`; `director lease --list` reads 1 live lease. Boot 1 launched
+  `14:52:55Z` and the 6.0 GiB `mem-guard` **TRIGGERED** at `15:02:17Z` on `.32` (`MemAvailable`
+  4,970,252 kB; `.31` 5,173,300 kB), `Workload stopped on 6 host(s)` at `15:02:37Z`,
+  `containers_left_after_stop=0`.
+- **Pool read under load, and the pair agrees.** Paired read `10:13:50 ET`: pool `used`
+  **13,982,262,362,112 B** (+772,800,512 B on the base board's read), `avail` 10,208,967,393,280 B;
+  the six node roots' own used sum moved **+774,565,888 B** over ~9.5 minutes, so with a six-rank
+  weight load running the two now move together and the attribution is the boot's writes, not a
+  chunk-store mystery. Hub 97 `models--` + 1 `datasets--` + 5 non-cache entries = 103; `hf cache ls`
+  90 repos / 129 revisions / 7.7 T, `10 cache inconsistencies`, 32 incomplete totalling 20.7 G, 1
+  unreferenced blob 7.0 G; `stat -L` on a shipped Ornith shard reads 10,002,042,136 B.
+- **Register and campaign unchanged.** `queue.json` sha `948ae915…`, 186 tasks, 141 done / 36 queued /
+  9 blocked, 45 open, 0 claims, `check` rc=0 and the live sha re-read identical after rendering. The
+  campaign unit is active on `MainPID 2482`, `director status` 10 measured / 13 blocked across 23
+  arms, **0 campaign leases**; its stored reap refusal (`cannot list containers on .31 (rc=255)`,
+  now printed with addresses) still does not reproduce — `.31` answers rc=0 by address and by name
+  in consecutive seconds from the same head.
+- **Two procedure traps worth keeping.** `publish` refuses board text carrying cluster addresses
+  *and* node hostname literals (`stdin:14: cluster-address: spark-01`), so rows quote `.30`–`.35`
+  shorthand and say so; and a compose script's `KEY=value` parser needs `-` inside the key class, or
+  `U_beegfs-meta=…` unit lines parse as nothing and every restart counter reads `KeyError`.
