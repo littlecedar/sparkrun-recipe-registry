@@ -96,7 +96,7 @@ class Director:
         once: bool = False,
         exclude_hosts: tuple[str, ...] = plan.MEMORY_RISKY_EXCLUDED_HOSTS,
         ledger: leases.Ledger | None = None,
-        head_proof: Callable[[str], list[str]] = guardrails.prove,
+        head_proof: Callable[..., list[str]] = guardrails.prove,
     ):
         self.campaign = campaign
         self.entries = entries
@@ -549,10 +549,11 @@ class Director:
         # the silent placement the owner ruling forbids.
         proof: list[str] = []
         waived = tuple(self.campaign.arm(arm).get("allow_hosts") or ())
+        window = str(self.campaign.arm(arm).get("window") or "")
         for host in [item for item in hosts
                      if plan.barred(item, self.exclude_hosts) and plan.barred(item, waived)]:
             try:
-                lines = self.head_proof(host)
+                lines = self.head_proof(host, window=window)
             except plan.PlanError as exc:
                 reason = f"lease refused: {exc}"
                 self.campaign.block(arm, reason)

@@ -67,6 +67,15 @@ class LedgerCase(unittest.TestCase):
             self.ledger.acquire("session-b", ["n1"], ttl=600)
         self.assertIn("declared window", str(ctx.exception))
 
+    def test_a_syncthing_conflict_copy_is_not_a_declared_window(self) -> None:
+        # The real .local/ today: no fleet-window.lock, two sync-conflict copies. A conflict copy
+        # blocking every lease would be its own outage, so only the canonical name is read.
+        write(self.repo / ".local" / "fleet-window.sync-conflict-20261110-115128-Y5KSV46.lock",
+              "session ds4-kimi-fit .31-.34\n")
+        self.assertEqual(self.ledger.held_hosts(["n1", "n2"]), {})
+        record = self.ledger.acquire("session-a", ["n1", "n2"], ttl=600)
+        self.assertEqual(record["hosts"], ["n1", "n2"])
+
     def test_renew_keeps_a_live_claim_and_release_drops_it(self) -> None:
         record = self.ledger.acquire("session-a", ["n1"], ttl=10)
         self.clock.now += 8
@@ -103,6 +112,11 @@ class LeaseCommand(unittest.TestCase):
         self.assertEqual(refused, 3, "a refused claim exits non-zero and writes nothing")
         self.assertEqual(len(ledger.leases()), 1)
 
+    def test_list_reads_a_missing_ledger_and_creates_none(self) -> None:
+        code = director_module.main(["lease", "--list", "--repo-root", str(self.repo)])
+        self.assertEqual(code, 0)
+        self.assertFalse((self.repo / leases.LEDGER).exists())
+
     def test_a_lease_without_an_expiry_is_refused(self) -> None:
         code = director_module.main(["lease", "--hosts", "n1", "--holder", "manual-a",
                                      "--repo-root", str(self.repo)])
@@ -111,8 +125,22 @@ class LeaseCommand(unittest.TestCase):
 
 
 class GuardrailProof(unittest.TestCase):
-    ARGV = "4242 /usr/bin/earlyoom -m 4,1 -s 100,95 -r 3600"
-    SAMPLER = "777 bash /home/red/benchmarks/tp4-x/mem-guard.sh 6.0"
+    """Fixtures are the 2026-11-11 read-only capture from `.30` and `.33`, verbatim."""
+
+    #: `.30`: the daemon plus two `--dryrun` processes, which have no thresholds.
+    EARLYOOM = ("453964 /usr/bin/earlyoom -m 4,1 -s 100,95 --prefer (vllm|VLLM|sglang) "
+                "--avoid (beegfs|mgmtd|meta|storage|systemd|sshd)\n"
+                "1930915 earlyoom --dryrun\n3796314 earlyoom --dryrun")
+    #: `.30`: a dozen guards from the finished `tp4-20261110b` window.
+    SAMPLER_30 = ("1779397 bash /home/red/benchmarks/tp4-20261110b/mem-guard.sh "
+                  "1c0dffa45afa6e47_c2a904b5d322\n"
+                  "1975132 bash /home/red/benchmarks/tp4-20261110b/mem-guard.sh "
+                  "e59088ba4d0f3858_ece77f8fb371")
+    #: `.33`: no guard at all -- and the probe's own ssh shell, which contains the pattern.
+    SELF_33 = ('2217895 bash -c echo "-- pgrep -a earlyoom --"; pgrep -a earlyoom; echo "rc=$?"; '
+               'for u in ssh.service; do systemctl show -p OOMScoreAdjust --value "$u"; done; '
+               'echo "-- pgrep -af mem-guard --"; pgrep -af mem-guard; echo "rc=$?"')
+    WINDOW = "tp4-20261110b"
 
     def runner(self, calls: list[tuple[str, str]], *, units: dict[str, str] | None = None,
                earlyoom: str = "", sampler: str = "") -> object:
@@ -128,39 +156,75 @@ class GuardrailProof(unittest.TestCase):
 
         return run
 
+    def prove(self, run, *, window: str = WINDOW) -> list[str]:
+        return guardrails.prove("host-a", window=window, run=run)  # type: ignore[arg-type]
+
     def test_every_guardrail_is_quoted_from_the_running_host(self) -> None:
         calls: list[tuple[str, str]] = []
-        proof = guardrails.prove("host-a", run=self.runner(  # type: ignore[arg-type]
-            calls, earlyoom=self.ARGV, sampler=self.SAMPLER))
-        self.assertIn(f"earlyoom argv: {self.ARGV}", proof)
+        proof = self.prove(self.runner(calls, earlyoom=self.EARLYOOM, sampler=self.SAMPLER_30))
+        self.assertIn("earlyoom argv: 453964 /usr/bin/earlyoom -m 4,1 -s 100,95", proof[0])
         self.assertIn("OOMScoreAdjust ssh.service = -900", proof)
         self.assertIn("OOMScoreAdjust beegfs-storage.service = -900", proof)
-        self.assertIn(f"memory sampler: {self.SAMPLER}", proof)
+        self.assertIn(f"memory sampler: 1779397 bash /home/red/benchmarks/{self.WINDOW}/"
+                      "mem-guard.sh 1c0dffa45afa6e47_c2a904b5d322", proof)
         self.assertEqual(len(calls), 1 + len(guardrails.UNITS) + 1)
+        self.assertEqual(calls[-1][1], guardrails.SAMPLER_SCRIPT,
+                         "the sampler probe must not match its own ssh shell")
+
+    def test_a_dryrun_line_first_does_not_fool_the_earlyoom_read(self) -> None:
+        # pgrep prints PID order, so a surviving `--dryrun` can precede the daemon.
+        lines = "\n".join(reversed(self.EARLYOOM.splitlines()))
+        proof = self.prove(self.runner([], earlyoom=lines, sampler=self.SAMPLER_30))
+        self.assertIn("earlyoom argv: 453964", proof[0])
+        self.assertNotIn("dryrun", proof[0])
+
+    def test_no_running_earlyoom_quotes_both_thresholds(self) -> None:
+        with self.assertRaises(plan.PlanError) as ctx:
+            self.prove(self.runner([], earlyoom="1 earlyoom --dryrun",
+                                    sampler=self.SAMPLER_30))
+        self.assertIn("no running earlyoom quotes both thresholds", str(ctx.exception))
 
     def test_a_non_negative_oom_score_refuses_naming_the_unit(self) -> None:
-        run = self.runner([], earlyoom=self.ARGV, sampler=self.SAMPLER,
+        run = self.runner([], earlyoom=self.EARLYOOM, sampler=self.SAMPLER_30,
                           units={"NetworkManager.service": "0"})
         with self.assertRaises(plan.PlanError) as ctx:
-            guardrails.prove("host-a", run=run)  # type: ignore[arg-type]
+            self.prove(run)
         self.assertIn("host-a", str(ctx.exception))
         self.assertIn("NetworkManager.service", str(ctx.exception))
         self.assertIn("0, not negative", str(ctx.exception))
 
     def test_a_missing_earlyoom_or_sampler_refuses_rather_than_defaulting_clean(self) -> None:
         with self.assertRaises(plan.PlanError) as ctx:
-            guardrails.prove("host-a", run=self.runner(  # type: ignore[arg-type]
-                [], sampler=self.SAMPLER))
+            self.prove(self.runner([], sampler=self.SAMPLER_30))
         self.assertIn("earlyoom is not running", str(ctx.exception))
         with self.assertRaises(plan.PlanError) as ctx:
-            guardrails.prove("host-a", run=self.runner([], earlyoom=self.ARGV))  # type: ignore[arg-type]
+            self.prove(self.runner([], earlyoom=self.EARLYOOM))
         self.assertIn("memory sampler", str(ctx.exception))
 
     def test_a_disabled_threshold_is_not_a_guard(self) -> None:
         with self.assertRaises(plan.PlanError) as ctx:
-            guardrails.prove("host-a", run=self.runner(  # type: ignore[arg-type]
-                [], earlyoom="1 earlyoom -m 0 -s 100,95", sampler=self.SAMPLER))
+            self.prove(self.runner([], earlyoom="1 earlyoom -m 0 -s 100,95",
+                                    sampler=self.SAMPLER_30))
         self.assertIn("disables the kill", str(ctx.exception))
+
+    def test_the_probes_own_shell_is_not_a_sampler(self) -> None:
+        # `.33`'s capture: the only line containing `mem-guard` is the ssh wrapper itself.
+        with self.assertRaises(plan.PlanError) as ctx:
+            self.prove(self.runner([], earlyoom=self.EARLYOOM, sampler=self.SELF_33))
+        self.assertIn("is not armed", str(ctx.exception))
+
+    def test_a_guard_from_another_window_does_not_count(self) -> None:
+        run = self.runner([], earlyoom=self.EARLYOOM, sampler=self.SAMPLER_30)
+        with self.assertRaises(plan.PlanError) as ctx:
+            self.prove(run, window="kimi-six-node-20261112")
+        self.assertIn("kimi-six-node-20261112", str(ctx.exception))
+        self.assertIn("is not armed", str(ctx.exception))
+
+    def test_no_window_name_cannot_bind_a_sampler(self) -> None:
+        with self.assertRaises(plan.PlanError) as ctx:
+            self.prove(self.runner([], earlyoom=self.EARLYOOM, sampler=self.SAMPLER_30),
+                       window="")
+        self.assertIn("cannot be bound", str(ctx.exception))
 
 
 class DirectorCase(unittest.TestCase):
@@ -272,7 +336,7 @@ class HeadWaiver(DirectorCase):
                         window="kimi-six-node-20261112", **extra)
 
     def test_a_missing_guardrail_blocks_the_arm_naming_host_and_check(self) -> None:
-        def proof(host: str) -> list[str]:
+        def proof(host: str, window: str = "") -> list[str]:
             raise plan.PlanError(f"{host}: OOMScoreAdjust on ssh.service is 0, not negative")
 
         leader, campaign = self.build([self.waived()], hosts=self.HOSTS, head_proof=proof)
@@ -284,17 +348,18 @@ class HeadWaiver(DirectorCase):
         self.assertIn("ssh.service", reason)
 
     def test_a_proven_waiver_places_the_head_last_and_records_the_quote(self) -> None:
-        seen: list[str] = []
+        seen: list[tuple[str, str]] = []
 
-        def proof(host: str) -> list[str]:
-            seen.append(host)
-            return [f"earlyoom argv: 4242 earlyoom -m 4,1 -s 100,95",
-                    f"OOMScoreAdjust ssh.service = -900",
-                    f"memory sampler: 777 mem-guard.sh 6.0"]
+        def proof(host: str, window: str = "") -> list[str]:
+            seen.append((host, window))
+            return ["earlyoom argv: 4242 earlyoom -m 4,1 -s 100,95",
+                    "OOMScoreAdjust ssh.service = -900",
+                    "memory sampler: 777 mem-guard.sh 6.0"]
 
         leader, _ = self.build([self.waived()], hosts=self.HOSTS, head_proof=proof)
         lease = leader.handle(protocol.poll("w1"))["lease"]
-        self.assertEqual(seen, ["node.30"], "the proof is taken before the lease")
+        self.assertEqual(seen, [("node.30", "kimi-six-node-20261112")],
+                         "the proof is taken for the declared window, before the lease")
         self.assertEqual(lease["hosts"], ["node.31", "node.30"], "the safe rank comes first")
         self.assertIn("lease-proof: node.30 OOMScoreAdjust ssh.service = -900",
                       self.out.getvalue())

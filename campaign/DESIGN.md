@@ -106,10 +106,16 @@ this boot may take — together with `window`, the window's name; one without th
 `allow_hosts` on a shape not marked memory-risky, refuses the plan (`PlanError`, named). Even then
 every safe host is tried first and a waived host takes only the ranks that do not fit (the head
 stays last), and before the lease record exists the director proves the host's guardrails
-(`guardrails.prove`): earlyoom's running argv quoting a non-zero memory and swap threshold,
-`OOMScoreAdjust` negative on `ssh.service`, `NetworkManager.service`, `user@1000.service`,
-`beegfs-mgmtd.service`, `beegfs-meta.service` and `beegfs-storage.service`, and the window's
-`mem-guard` memory sampler armed. A missing probe refuses with `PlanError` naming the host and the
+(`guardrails.prove`): a **running** earlyoom whose argv quotes a non-zero memory and swap threshold
+(`--dryrun` processes are skipped — `.30` carries two, measured 2026-11-11), `OOMScoreAdjust`
+negative on `ssh.service`, `NetworkManager.service`, `user@1000.service`,
+`beegfs-mgmtd.service`, `beegfs-meta.service` and `beegfs-storage.service` (`-900` and `-1000`
+measured), and the **window's own** `mem-guard.sh` sampler armed — the guard's argv must carry this
+boot's declared window name, because a guard left by another window watches that window's trigger
+files, not this one's (`.30` carries a dozen `tp4-20261110b` guards and `.33` none, measured
+2026-11-11; the sampler probe's `[m]` pattern keeps its own ssh shell from matching). A window name
+is therefore per boot: reusing a finished window's name would count its stale guards. A missing
+probe refuses with `PlanError` naming the host and the
 check, and the arm is blocked: it is never placed silently and never retried onto another host.
 Absent a declaration the exclusion is unchanged — `.30` is never chosen for a risky shape, and a
 risky shape short on safe ranks waits.
@@ -184,7 +190,9 @@ waits; a claim that appears between placement and the write refuses that arm's b
 ruling is about multi-machine boots — but they still do not land on a leased rank. The legacy
 `.local/fleet-window.lock` is still read, as a blanket hold for every declared host, because a
 session that wrote one has not moved to a lease yet; the lease command refuses while one exists,
-and the director never writes it. A worker's beat renews the record, a report releases it, and an
+and the director never writes it. Only the canonical `.local/fleet-window.lock` and its legacy
+`.scratch/` twin are read: a `fleet-window.sync-conflict-*.lock` copy (two existed on 2026-11-11) is
+a syncthing artefact, and treating it as a declaration would block every lease — its own outage. A worker's beat renews the record, a report releases it, and an
 expired record holds nothing, so a lost director stops holding the fleet after one TTL. Ledger
 ranks match a declared host exactly (the `.30` tail is placement's shorthand, not the ledger's),
 so a manual session leases the spelling `--hosts` uses.
@@ -479,7 +487,10 @@ trusts the state file re-boots a live arm, and a rank-0-only leftover check repo
 `campaign/tests/test_leases.py` pins the 2026-11-11 rulings: a multi-rank boot writes its fleet
 lease before assignment and another holder's lease (or declared window) is honoured, `.30` is
 waivable only with a named window plus the guardrail proof and otherwise refuses naming the host
-and check, and TP=2 × PP=3 leases six named ranks and refuses when one is held.
+and check, and TP=2 × PP=3 leases six named ranks and refuses when one is held. The guardrail
+fixtures are the 2026-11-11 read-only capture from the head and one rank (the `--dryrun` lines, the
+dozen stale `tp4-20261110b` guards, and `.33`'s own probe shell), so a parser regression fails on
+the real output rather than on an invented one.
 
 Counting the root suite from a committed tree needs **the repository's own interpreter**: archive the
 tree, then count it with that clone's `.venv/bin/python -B -c
