@@ -9603,3 +9603,40 @@ catch it today.
 
 **CI**: gate for `e4bea70` completed success (read from `gh run list`, 01:28:21Z), and
 `tools/push-gate.py` ran green on that commit before the push.
+
+## 2026-11-10 20:26 ET — hourly tick: post-stop captures, and the pool's 1.17 GB step is a burst not a rate
+
+Read-only on the fleet: booted nothing, stopped nothing, claimed no window. The 20:08 and
+20:23 facts belong to the entries above; this tick re-read live state and added the two
+measurements below.
+
+- **Three captures** `2026-11-11T01:19:42Z` / `01:21:28Z` / `01:23:15Z`: `docker ps -aq`
+  **9 / 0 / 0 / 0 / 0 / 0** identical at all three, `docker ps -q` **0 / 0 / 0 / 0 / 0 / 0**,
+  **0 volumes on every node**, so the four ranks boot C held are free and `.30` keeps its nine
+  `Created` leftovers. No readiness probe applies — nothing is served anywhere.
+- **Pool**, three head reads `01:19:46Z` / `01:21:32Z` / `01:23:19Z`: used
+  `13,926,991,921,152` → `+19,922,944 B / 106 s` → `+3,670,016 B / 107 s`. Measured from the
+  previous tick's fourth read (`13,926,968,328,192` at `01:16:49Z`) the three add
+  `23,592,960 B / 177 s`, then 19.9 MB, then 3.7 MB: the **`1,170,735,104 B` step that read saw
+  was a transient burst and not a sustained write rate**, which is the discriminator a later
+  tick would otherwise have had to re-derive. The rate falls to ~34 KB/s, the trickle the
+  earlier ticks measured. Writer still unnamed; `HUB_RECENT60` reads **0**, so nothing in the
+  hub tree wrote it, and `beegfs-ctl` is still the only probe that could settle it.
+- **Campaign**: 9 `state.json` roots, **1** `arms[*].lease` — the
+  `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4` record on `.30`-`.33`, `expires_at` 23:02:01Z, expired
+  2 h 21 min. `h2h-20261107/state.json` mtime is still `22:57:01Z`, untouched since the unit
+  exited, so nothing cleared it: the 20:08 row's `0 leases … cleared` is the
+  absence-from-output trap, the 20:23 tick had already corrected it, and this tick's independent
+  enumeration agrees with the correction.
+- **Register**: blob unchanged at `3d9a822e…` — 170 tasks, 49 open, 0 claims, `check` ok, and
+  byte-identical in worktree, HEAD and `origin/main` — so the `## Work queue` blocks were left
+  as the previous tick rendered them rather than re-rendered from the same bytes.
+- **Board**: composed over the published `1b49151d` (the 20:23 board) with only the In-flight
+  section replaced, one landed row appended and the title restamped; published through
+  `task-queue.py publish --expect-sha`/`--expect-remote-sha` (both `1b49151d`), `lint` ok, one
+  pathspec commit `4e0fdbf`, `tools/push-gate.py` green, then pushed. **Style divergence
+  disclosed**: the 20:23 board dropped the `flight` row; this one restores it, because with four
+  free hosts a reader needs to see that a boot came and went — the row names the `01:13:36Z`
+  stop and points at the floor's landed row rather than restating its numbers.
+- **CI**: gate run `42939166293` for `4e0fdbf` was still in progress at close-out; the commit's
+  own `tools/push-gate.py` ran green on it before the push.
