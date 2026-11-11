@@ -112,7 +112,7 @@ negative on `ssh.service`, `NetworkManager.service`, `user@1000.service`,
 `beegfs-mgmtd.service`, `beegfs-meta.service` and `beegfs-storage.service` (`-900` and `-1000`
 measured), and the **window's own** `mem-guard.sh` sampler armed — the guard's argv must carry this
 boot's declared window name, because a guard left by another window watches that window's trigger
-files, not this one's (`.30` carries a dozen `tp4-20261110b` guards and `.33` none, measured
+files, not this one's (`.30` carries eleven `tp4-20261110b` guards and `.33` none, measured
 2026-11-11; the sampler probe's `[m]` pattern keeps its own ssh shell from matching). A window name
 is therefore per boot: reusing a finished window's name would count its stale guards. A missing
 probe refuses with `PlanError` naming the host and the
@@ -489,7 +489,7 @@ lease before assignment and another holder's lease (or declared window) is honou
 waivable only with a named window plus the guardrail proof and otherwise refuses naming the host
 and check, and TP=2 × PP=3 leases six named ranks and refuses when one is held. The guardrail
 fixtures are the 2026-11-11 read-only capture from the head and one rank (the `--dryrun` lines, the
-dozen stale `tp4-20261110b` guards, and `.33`'s own probe shell), so a parser regression fails on
+eleven stale `tp4-20261110b` guards, and `.33`'s own probe shell), so a parser regression fails on
 the real output rather than on an invented one.
 
 Counting the root suite from a committed tree needs **the repository's own interpreter**: archive the

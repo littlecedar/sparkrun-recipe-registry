@@ -131,7 +131,7 @@ class GuardrailProof(unittest.TestCase):
     EARLYOOM = ("453964 /usr/bin/earlyoom -m 4,1 -s 100,95 --prefer (vllm|VLLM|sglang) "
                 "--avoid (beegfs|mgmtd|meta|storage|systemd|sshd)\n"
                 "1930915 earlyoom --dryrun\n3796314 earlyoom --dryrun")
-    #: `.30`: a dozen guards from the finished `tp4-20261110b` window.
+    #: `.30`: eleven guards from the finished `tp4-20261110b` window (first two quoted).
     SAMPLER_30 = ("1779397 bash /home/red/benchmarks/tp4-20261110b/mem-guard.sh "
                   "1c0dffa45afa6e47_c2a904b5d322\n"
                   "1975132 bash /home/red/benchmarks/tp4-20261110b/mem-guard.sh "

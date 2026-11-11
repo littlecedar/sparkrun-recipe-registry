@@ -13,7 +13,7 @@ read-only probes of the host, taken by the director before the lease record is w
 * the **host memory sampler** is the window's own guard: a running `mem-guard.sh` whose argv
   carries this boot's declared window name (the guard lives under the window's directory). A guard
   left by another window does not count -- it watches that window's trigger files, not this one's
-  (measured 2026-11-11: `.30` carries a dozen guards from `tp4-20261110b` and `.33` none).
+  (measured 2026-11-11: `.30` carries eleven guards from `tp4-20261110b` and `.33` none).
 
 No check is inferred from another: a single missing probe raises `plan.PlanError` naming the host
 and the check, and the director blocks the arm instead of placing it somewhere else.
