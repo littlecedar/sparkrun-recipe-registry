@@ -2456,7 +2456,10 @@ class OomWatchdog(ExecutedBlock):
             {"ARM_CONTAINER_APPEAR_TIMEOUT": "900", "ARM_APPEAR_POLL": "0"},
             launch="LAUNCH=999999")
         self.assertEqual(rc, 5, out)
-        self.assertIn("launcher exited with no container after 0s (ceiling 900s)", out)
+        # Seconds come from `$SECONDS`; overhead in the harness can cross a boundary and read 1.
+        # The contract is "at once" (no wait), so bound it rather than pin one wall-clock value.
+        self.assertRegex(out, r"launcher exited with no container after [01]s \(ceiling 900s\)",
+                         "a refused launch must fail at once, not after a wait")
 
     def test_a_container_that_appears_ends_the_wait(self):
         rc, out, _, _ = self.run_appear(
@@ -2591,7 +2594,8 @@ class WindowGuard(unittest.TestCase):
     """
 
     def run_guard(self, *, window: str = "win", body: str | None = GOOD_GUARD,
-                  executable: bool = True, wait: str = "3"):
+                  executable: bool = True, wait: str = "3",
+                  trailer: str = "stop_guard"):
         """Execute the arming block with a fake window; return rc, output, receipt, logs."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
@@ -2622,7 +2626,7 @@ class WindowGuard(unittest.TestCase):
                 f"ARM_WINDOW={window!r}\nARM_GUARD_WAIT={wait!r}\n"
                 f"PATH={bins}:$PATH\nexport PATH\n"
                 + guard_slice(read_tool()) + "\n"
-                'echo "guard_pid=${GUARD_PID:-}"\nstop_guard\n'
+                'echo "guard_pid=${GUARD_PID:-}"\n' + trailer + "\n"
             )
             env = {
                 **os.environ,
@@ -2704,11 +2708,47 @@ class WindowGuard(unittest.TestCase):
                         "a readiness sample taken before the guard is armed")
 
     def test_the_exit_trap_kills_the_guard_after_the_task_stop(self):
-        trap = TRAP_RE.search(read_tool())
-        self.assertIsNotNone(trap)
-        body = trap.group(0)
-        self.assertLess(body.index('sparkrun stop "$TID"'), body.index('kill "$GUARD_PID"'),
+        text = read_tool()
+        body = TRAP_RE.search(text).group(0)
+        self.assertLess(body.index('sparkrun stop "$TID"'), body.index("stop_guard"),
                         "a guard can outlive the task it was armed for")
+        # The trap calls the helper, so the teardown it names is the teardown that runs.
+        start = text.index("stop_guard() {")
+        helper = text[start:text.index("\n}\n", start)]
+        self.assertLess(helper.index('kill "$GUARD_PID"'), helper.index("stop_samplers"),
+                        "the guard stops reading before its samplers do, so a stale trigger has no reader")
+
+    def test_a_guard_that_dies_after_arming_is_caught(self):
+        trailer = (
+            'kill "$GUARD_PID" 2>/dev/null || true; n=0; '
+            'while [ "$n" -lt 50 ]; do '
+            'state=$(ps -o stat= -p "$GUARD_PID" 2>/dev/null || true); '
+            'case "$state" in Z*) break ;; esac; sleep 0.05; n=$((n + 1)); done; '
+            "guard_lost; echo survived"
+        )
+        rc, out, files, logs = self.run_guard(trailer=trailer)
+        self.assertEqual(rc, 15, out)
+        self.assertIn("gone mid-arm", out)
+        self.assertNotIn("survived", out, "a lost guard let the arm continue")
+        self.assertIn("state=lost", files["guard-lost.txt"])
+        self.assertIn("tid=task_123", files["guard-lost.txt"])
+        self.assertIn("stop task_123", logs["sparkrun"])
+
+    def test_a_live_guard_passes_its_liveness_check(self):
+        rc, out, files, _ = self.run_guard(trailer="guard_lost; echo survived")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("survived", out)
+        self.assertNotIn("guard-lost.txt", files)
+
+    def test_the_readiness_loop_and_the_cell_gate_both_check_the_guard(self):
+        text = read_tool()
+        loop = text[text.index(LOOP_START):text.index(LOOP_END)]
+        self.assertIn("guard_lost", loop, "the readiness loop cannot see a dead guard")
+        self.assertLess(loop.index("guard_lost"), loop.index('sleep "$POLL_SLEEP"'),
+                        "the guard is checked after the poll that the loop then trusts")
+        cell = text[text.index('if [ "$ready" = yes ]; then'):]
+        self.assertIn("guard_lost", cell[:cell.index("case \"$RECIPE\" in")],
+                      "a benchmark cell can run under a window whose guard is gone")
 
 
 if __name__ == "__main__":

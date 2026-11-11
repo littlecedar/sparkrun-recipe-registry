@@ -579,7 +579,7 @@ fi
 # outlive the executor and leave unowned containers (measured 2026-11-08: a pair boot was
 # called failed while its serve went on to answer). TID is empty until a container resolves
 # and `$LAUNCH` is the launcher itself, so every reference is guarded.
-trap 'oom_watchdog_check; stop_capture; [ -n "${TID:-}" ] && sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${GUARD_PID:-}" ] && kill "$GUARD_PID" 2>/dev/null; declare -F stop_samplers >/dev/null 2>&1 && stop_samplers; [ -n "${LAUNCH:-}" ] && kill "$LAUNCH" 2>/dev/null; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; [ -n "${EXTRA_PID:-}" ] && kill "$EXTRA_PID" 2>/dev/null; exit' EXIT INT TERM
+trap 'oom_watchdog_check; stop_capture; [ -n "${TID:-}" ] && sparkrun stop "$TID" >/dev/null 2>&1; declare -F stop_guard >/dev/null 2>&1 && stop_guard; [ -n "${LAUNCH:-}" ] && kill "$LAUNCH" 2>/dev/null; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; [ -n "${EXTRA_PID:-}" ] && kill "$EXTRA_PID" 2>/dev/null; exit' EXIT INT TERM
 
 # How long a container may take to appear follows the LAUNCHER's progress, not a fixed clock.
 # A 129.6 GB pair distribution took 340 s to produce a container, and the old 300 s window
@@ -647,6 +647,31 @@ guard_fail() {
   [ -n "$GUARD_PID" ] && kill "$GUARD_PID" 2>/dev/null
   [ "$GUARD_SAMPLERS_ARMED" = 1 ] && stop_samplers
   echo "ARM FAIL $NAME: window guard not armed ($1); task $TID stopped, no readiness or benchmark step"
+  exit 15
+}
+
+# A guard that dies after arming leaves the window with no stop rule. `kill -0` cannot see it:
+# the guard is this shell's child, so its exit leaves a zombie that keeps `kill -0` succeeding
+# until reaped. The process state is the evidence.
+guard_alive() {
+  [ -n "${GUARD_PID:-}" ] || return 0
+  local state
+  state=$(ps -o stat= -p "$GUARD_PID" 2>/dev/null || true)
+  case "$state" in
+    "" | Z*) return 1 ;;   # gone, or exited and not yet reaped
+  esac
+  return 0
+}
+
+# Called from the readiness loop and before the first benchmark cell: a lost guard fails the arm
+# instead of letting it measure under a receipt that says `state=armed`.
+guard_lost() {
+  guard_alive && return 0
+  { printf 'state=lost\ntid=%s\npid=%s\nat_s=%s\n' \
+      "$TID" "${GUARD_PID:-?}" "$SECONDS"; } > "$L/guard-lost.txt"
+  sparkrun stop "$TID" >/dev/null 2>&1 || true
+  stop_samplers
+  echo "ARM FAIL $NAME: window guard ${GUARD_PID:-?} is gone mid-arm; task $TID stopped, readiness and benchmark steps refused"
   exit 15
 }
 
@@ -840,6 +865,8 @@ for _ in $(seq 1 "$POLLS"); do
     esac
     [ "$ready" = yes ] && break
   fi
+  # The guard is the window's stop rule; a boot it no longer covers may not read as ready.
+  guard_lost
   sleep "$POLL_SLEEP"
 done
 echo "readiness=$ready"
@@ -854,6 +881,7 @@ SERVED=$(curl -s -m 10 "http://$NODE:$PORT/v1/models" \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"][0]["id"])' 2>/dev/null)
 
 if [ "$ready" = yes ]; then
+  guard_lost
   case "$RECIPE" in
     */decision/*)
       api=${ARM_LADDER_API:-systemone}
