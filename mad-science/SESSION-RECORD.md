@@ -9505,3 +9505,34 @@ measurement unless the bullet cites another session; receipts are under `head:~/
   there takes `ssh`, `NetworkManager` and the BeeGFS units with it.
 - All boots tonight were topped by id, `ctn=0` verified on every rank, samplers stopped, lock removed;
   the campaign was left **inactive** and no director was started by this session after the owner’s stop.
+
+## 2026-11-10 20:08 ET — hourly tick: arm-5 boot C live across the whole hour, and the pool grows with no writer in view
+
+Read-only on the fleet: booted nothing, stopped nothing, claimed no window. The board was published on
+three census captures `2026-11-11T01:01:54Z`–`01:03:56Z` plus a fourth liveness read `01:08:32Z`.
+
+- **One research quartet held four nodes for the whole tick**: `b25f340cc3fc6854_2361a4d63d56`,
+  `tp4-20261110b/arm5-fi073-bootC`, image `dsv41-sm121-dg:0.2.1-fi073`, ranks on
+  `.31`/`.32`/`.33`/`.35` — `.30` excluded, so the memory-risk placement rule held. It is the canary
+  re-run with `SGLANG_FLASHINFER_AUTOTUNE_CACHE=0`, and the receipt's FACT 1 kills the
+  stale-tactic-replay hypothesis: `find … -name rank_tp0_pp0_dp0.json` returns nothing on all four
+  ranks, and the only `0.7.3` autotune tree is empty. At `01:08:32Z` the watchdog read t=580 s
+  `verdict=loading log_delta=0` and the engine's last line was `01:01:36Z`, so `stack-dump.sh` at
+  600 s of no growth runs `py-spy --native` on `.31`/`.32` — that dump, not another boot, is the next
+  evidence.
+- **The pool's growth still has no named writer, and this tick adds a negative**: used rose
+  13,925,765,611,520 → 13,925,797,593,088 B (+31,981,568 B / 122 s) while `find` at depth 4 over
+  `…/hub` with `-newermt '-25 minutes'` returned 0 files and depth 5 returned 0 dirs, and the ten
+  newest top-level mtimes read 23:58 or older. `/srv/beegfs/storage` stays root-only and `beegfs-ctl`
+  is absent on `.30`, so the storage target's own accounting is still the only probe that could
+  settle it — register row `pool-target-probe-beegfs-ctl-absent`, not a new question. The board
+  labels the mechanism unknown rather than guessing one.
+- **No lease, no lock, no campaign**: user unit `sparkrun-campaign` inactive (`Result=success`, exit
+  17:57:02 EST), and all nine `arms[*].lease` sets across the nine `state.json` roots on the head read
+  empty — the `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4` lease that expired at 23:02:01Z has been
+  cleared. `.local/fleet-window.lock` absent on the head and in this clone; the two stale
+  `sync-conflict` copies remain.
+- Register unmoved at sha256 `3d9a822e…` (170 tasks / 121 done / 35 queued / 14 blocked / 49 open /
+  0 claims / 0 questions, `check` ok), rendered from the snapshot rather than re-quoted.
+- The landed table folded the eleven commits since the last recorded SHA (`ef73eff` … `381d33d`)
+  instead of carrying them silently.
