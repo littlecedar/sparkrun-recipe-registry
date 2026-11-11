@@ -9733,3 +9733,20 @@ The 23:20 board and this ledger carried two claims that a follow-up had to fix; 
   matching, and the peer's uncommitted composition was left alone rather than published under this message.
   The commit was pushed to `origin main` by fetching it into the shared clone and pushing the fetched ref, so
   the shared worktree never changed.
+
+## 2026-11-10 23:35 ET — the pool's growth has no file-level writer on this mount
+
+One measured negative, added to the pool cell rather than held as a story.
+
+- **A pool-wide `find /mnt/beegfs -type f -mmin -180` returned 0 files** at 04:34:24Z, completed in 9 s (so the
+  scan finished rather than being cut off). Re-measured independently of the peer tick that first ran it. With
+  no file under the mount modified in three hours, the ~1 GB of growth this tick counted **cannot be file
+  writes through this mount**; a deleted-but-open file or a writer outside the mount is not excluded, and the
+  storage target's own accounting stays the only probe left (root-only `/srv/beegfs/storage`, absent
+  `beegfs-ctl`, register row `pool-target-probe-beegfs-ctl-absent`).
+- **Guard trap found while publishing it.** A throwaway `git clone` of the shared worktree points its `origin`
+  at that worktree, so `git show origin/main:…` inside it reads the *peer's local* `main`, not GitHub — a
+  `--expect-remote-sha` computed from that ref compares a value against itself and passes vacuously. The
+  publish's real upstream state was verified afterwards from the shared clone against GitHub
+  (`8df3f60` → `mad-science/STATUS.md` sha `fcf78cb7…`), which matched the base this composition was read
+  from. A throwaway clone needs `git remote set-url origin <github url>` before its remote guard means anything.
