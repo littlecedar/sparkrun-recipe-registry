@@ -9491,7 +9491,10 @@ measurement unless the bullet cites another session; receipts are under `head:~/
   tonight that held on 89/89 samples between the 0.78 dummy and the ERNIE gate.
 - **`longctx-cell.py --completions`** (`5b11940`) and **`run_benchmarks.py --completions`** (`2435ff4`)
   are both on trunk with stated counts `bd34d77`/`dd0273f`; the async-client follow-up and `task-queue`
-  placement fields came from other sessions (`3620460`). Suite total after tonight: **1586**.
+  placement fields came from other sessions (`3620460`). The stated total in `AGENTS.md` is the only
+  authority; this section's figure matched the tree at the time of writing (it read 1586 on the base
+  this window rebased onto, and `1b93c4f` added three `run_arm_tool` tests inside the same window —
+  the tree's stated total is now 1589, derived by discovery and guard-checked there).
 
 ### Fleet facts worth carrying
 
