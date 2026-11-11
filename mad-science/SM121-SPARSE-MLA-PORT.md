@@ -211,8 +211,12 @@ files, `py_compile`, backend import). Booted once as a quartet (2026-11-11, `.31
 the engine selects the ported route and **no ABI rejection or patch assert appears**, so deltas 4 and
 5 pass the engine's checks — but the boot then sits in `FlashInfer autotune`'s dummy forward for ~28
 min and was stopped, so the canary answer, the battery and every trough are unmeasured and `0x7F`
-stays LIKELY. Receipt `head:~/benchmarks/tp4-20261110b/arm5-fi073-canary/RECEIPT.md`; the blocker is
-written up in `recipes/ds4/README.md` (arm-5 section).
+stays LIKELY. A second boot with `SGLANG_FLASHINFER_AUTOTUNE_CACHE=0` completed the autotune in
+~10 min and then aborted on a TP `all_reduce` (600 s timeout, `SeqNum=2`, `NumelIn=2`) inside the
+autotune's dummy forward, in the adapter's lazy `replicated_split._build` — so the blocker is a
+rank-asymmetric collective in the adapter, not the tactic search and not this port's ABI. Receipts
+`head:~/benchmarks/tp4-20261110b/arm5-fi073-canary/` and `…/arm5-fi073-bootC/`; both are written up in
+`recipes/ds4/README.md` (arm-5 section).
 
 ## Port B — `ernie-flashinfer-sparse-sink-port`
 

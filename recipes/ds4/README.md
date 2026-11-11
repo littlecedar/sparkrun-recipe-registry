@@ -1545,6 +1545,23 @@ Autotune is not skippable in this tree (`flashinfer_autotune.py:251` wraps a dum
 unconditionally), so the next step is a diagnosis — `SGLANG_FLASHINFER_AUTOTUNE_CACHE=0` to name the
 fresh cache path, and `py-spy` on the scheduler with `SYS_PTRACE` added — not another blind boot.
 Receipt `head:~/benchmarks/tp4-20261110b/arm5-fi073-canary/RECEIPT.md`.
+
+**Boot C (same night) names it: the hang is a TP all_reduce in the autotune dummy forward, not the
+tactic search.** Run with `-o env.SGLANG_FLASHINFER_AUTOTUNE_CACHE=0`, the autotune **finished** in
+~10 min (log 230 → 364 lines, `Running FlashInfer autotune (cache reuse DISABLED …)` at `01:00:36`)
+and then rank 0 aborted at `01:10:38` on
+`WorkNCCL(SeqNum=2, OpType=ALLREDUCE, NumelIn=2, Timeout(ms)=600000) ran 600003 milliseconds before
+timing out`, whose engine-side stack is
+`flashinfer_autotune.py:308 → base_runner._dummy_run → deepseek_v4.py:1842 _forward_prepare →
+/opt/dsv41/adapter/replicated_split.py:298 _build → dist.all_reduce` (`Fatal Python error: Aborted`).
+So the search is finite and the failure is a **rank-asymmetric 2-element collective in the adapter's
+lazy replicated-split rebuild**, which the repeated dummy invocations can enter on different
+iterations per rank (SPECULATIVE mechanism; the timeout itself is VERIFIED). Two hypotheses die with
+it: no tactic file existed on any rank before the boot, and the 0.6.18 tactic tables for this model
+are empty (`["_metadata","_generation"]`), so nothing was being replayed. The ported ABI still shows
+no rejection, and Boot C's host floor was **14.80 / 11.89 / 11.70 / 16.33 GiB** over 866 one-Hz
+samples per rank with `ctns=0` after the stop. The next step is the adapter fix, not another boot.
+Receipt `head:~/benchmarks/tp4-20261110b/arm5-fi073-bootC/RECEIPT.md`.
 The paired control
 (`zz-ds4-1017-sm121-arm3-control.yaml`) passed every boot gate on the same digest —
 `[moe_b12x_next] armed`, no ÷128, `Load weight end 167.24 s`, `/v1/models` 200 at
