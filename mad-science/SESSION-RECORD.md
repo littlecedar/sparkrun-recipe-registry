@@ -9931,3 +9931,50 @@ register `3be5701c…` (the blob `459cf70` committed, one blob across worktree, 
 `boot` cell gained the two-device discrimination and lost a stale "uncommitted register" phrase its own
 `queue` cell already contradicted, and one landed row records the probe. Lint printed
 `ok: 1 markdown file(s) render`.
+
+## 2026-11-11 01:31 ET — hourly board tick (a quartet booted and died inside the hour, and the port now fails on its own decode shape)
+
+Five whole-fleet reads, 06:07:23Z → 06:19:54Z, on a fleet that had been empty for three hours before
+them. `.31`/`.32`/`.33`/`.35` each carried one container from 06:11:31Z: task
+`2e6a421a0c86c8b0_3ab61bad944b`, image `dsv41-sm121-dg:0.2.1-fi073c`, the arm-5 session's boot 3 on
+NCCL GID index 4. It was loading at the 06:12 read (`/v1/models` `000` on every rank, watchdog
+`verdict=loading` t=71 s, `ranks=4 unprobeable=0`) and dead at 06:16:51Z (t=304 s,
+`cause='RuntimeError'`, 69,063 B serve log captured, watchdog issued `sparkrun stop`), so both later reads
+find **0 running and 0 volumes on all six** with only `.30`'s nine `Created` leftovers.
+
+- **The GID workaround works and the port's own shape is next.** The engine reached load and CUDA-graph
+  capture, then raised `ValueError: SM120 sparse-MLA has no decode kernel for this shape:
+  num_tokens=193, num_heads=16, topk=128, d_qk=512, page_block_size=256, model_type=dsv4_1_inline,
+  extra_topk=512` from `/opt/sglang` while `DSpark markov_w2 vocab gather` ran. So the 01:20 entry's
+  device-selection reading stands and the blocker has moved one layer down: this is a row-count and
+  extra-topk combination, not `ibv_modify_qp`. No cell, throughput or floor number exists for the arm.
+- **Pool: 32 `*.incomplete` blobs, 20,691,837,857 B (19.27 GiB), with no writer alive.** 16 under
+  `models--MiniMaxAI--MiniMax-H3` (18.18 GiB), 8 under `models--baidu--ERNIE-5.5-Flash-Base` (0.76 GiB),
+  8 under `models--Comfy-Org--MiniMax-H3` (0.33 GiB), no `hf download`/`huggingface-cli` process and no
+  hub directory modified in 2 h — stale partials on the shared pool, and a fact the register's
+  `hf-cache-20261110-pool-fetch-gaps` row does not carry.
+- **Pool bytes: deltas, not a rate.** `df -B1` used 13,927,978,106,880 → 13,927,979,155,456 →
+  13,927,989,116,928 over 06:07:23Z→06:09:32Z, i.e. +1,048,576 B then +9,961,472 B — the same
+  quantization shape `8df3b60` settled, so the cell quotes no rate. The node roots fell 24,088,576 B over
+  the tick's own first-to-third read, a different window, so no mechanism is claimed; the standing
+  negative (`14d7b58`: a pool-wide `find -mmin -180` returns no file) is carried forward because peer
+  regenerations had dropped it.
+- **Guard leak keeps growing**: ten `mem-guard.sh` processes alive while nothing runs on the fleet, against
+  the register row's three at 17:24:30Z and the board's six at 15:41 ET; oldest started 2026-11-10
+  13:47:43 ET.
+- **Register `3be5701c…`** (worktree = HEAD = `origin/main`), `check` ok: 176 tasks / 122 done / 40
+  queued / 12 blocked / 2 running / 2 claims / 54 open. Graph: 12 blocked, 8 edges, 8 prose-gated, 41
+  rows not drawn (`--all`). Both claims are `session:tp4-20261111` and the quartet above was the
+  first of them.
+- **Campaign**: unit inactive, 9 `state.json` roots, exactly one lease object —
+  `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4@5` on `.30`–`.33`, expired 7 h 08 min, unreleased because only a
+  running director calls `expire()`. No declared window in either clone (2 conflict copies each).
+- **Publication**: the tick's first publish was refused by the sha guard — `origin/main` moved from
+  `2484a35e` (01:17) to `ad12888a` (01:20) while this tick was measuring — so the composition was redone
+  over `ad12888a` in a throwaway clone (`/tmp/tick0100`), because the shared worktree holds a peer's
+  uncommitted board. Only the In-flight body and the two derived work-queue blocks are the tick's; every
+  landed row earlier ticks wrote is untouched, and three of them were dropped from this tick's draft as
+  duplicates of rows already present.
+- **Still open**: the RoCE/`NCCL_IB_HCA` pin the 01:20 entry proposes, the decode-shape ceiling this
+  boot measured, `campaign-leases-tp4-onto-30` (host order still starts at `.30`), the expired `h2h`
+  lease, and the ten orphan guards.
