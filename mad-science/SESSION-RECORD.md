@@ -10086,6 +10086,10 @@ Tick scope: read-only census, pool and claim reads, board publish; no boot, no s
   a fleet rate. What the pool *can* be read for: 102 hub entries, through-mount `stat -L` on Kromoss
   `README.md` = 7685 B, and **32 `*.incomplete` blobs, all `models--baidu--ERNIE-5.5-Flash-Base` with
   mtime 2026-11-10T03:48–03:49**, i.e. that staging's leftovers, no live writer.
+  **Mechanism corrected by `1a5590a`**: the mount figure is real bytes of the six node root
+  filesystems — 376,832 B apart from those roots' own `used` sum at 07:42:18Z — not target
+  free-space accounting, so anything written to any node root moves it. The rate caveat stands;
+  only the mechanism in this bullet is retired.
 - **No multi-rank claim exists, on any of the three surfaces.** `.local/fleet-window.lock` absent on the
   head and in this clone (2 conflict copies each), `.local/fleet-leases.json` — the ledger `65426e3`
   taught `queue-drip` to read — **absent on the head**, and 0 `arms[*].lease` objects across the nine
