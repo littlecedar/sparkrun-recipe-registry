@@ -1950,10 +1950,11 @@ Measured pair, one window, symmetric shaping (`MEM_FRACTION_STATIC=0.75`,
   `cum_seq_lens_q`, and probe outputs are bitwise identical with and without both. Artifact
   `probe_verify_route.fi073e.json`; the decision is stated in `patch_dsv41_fi073.py` delta 9.
   **Not measured:** the engine-level numerics falsifier (16 concurrent canary answers still `4183`)
-  and a C16 line. The first serve attempt on `:fi073e` hung in FlashInfer autotune because the
-  recipe's own `EXTRA_SGLANG_ARGS` omits the `--disable-flashinfer-autotune` gate the measured pair
-  used, and the relaunch lost the quartet to another boot under the same lease holder. Record that
-  as an open measurement — not as a property of the route.
+  and a C16 line. The first serve attempt on `:fi073e` hung in FlashInfer autotune before the recipe
+  carried the `--disable-flashinfer-autotune` gate (it does now, with the reason in `env:`); the
+  relaunch then lost the quartet to another boot under the same lease holder. A later claim with a
+  workstream-unique holder was refused while that lease stayed live, so no serve ran. Record that as
+  an open measurement — not as a property of the route.
 
 Receipts: `head:~/benchmarks/arm5-fi073c-20261111/` — `RECEIPT-canary-fi073d.md` §§10–11,
 `boot5b-fi073d/`, `boot6-arm3-canary/`, `boot7-arm5-ladder/`, `boot8-arm3-ladder/`;

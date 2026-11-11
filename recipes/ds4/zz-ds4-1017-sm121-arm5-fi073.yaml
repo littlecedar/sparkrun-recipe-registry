@@ -68,11 +68,12 @@ description: >-
   table alone (`mla/_core.py:2413-2434` forwards no `seq_lens`/`cum_seq_lens_q`,
   and probe outputs are bitwise identical with and without both).
   NOT MEASURED: the engine falsifier. The first serve on this image hung in
-  FlashInfer autotune -- this recipe's own `EXTRA_SGLANG_ARGS` omits the
-  `--disable-flashinfer-autotune` gate the measured pair passed -- and the
+  FlashInfer autotune -- `env:` now carries `--disable-flashinfer-autotune`
+  (reason on the line above it), which the measured pair passed -- and the
   relaunch found all six nodes taken by another boot under the same lease
-  holder. Next serve must pass that gate, then compare 16 concurrent canary
-  answers to `4183` before trusting the row.
+  holder. A claim with the unique holder `session:tp4-20261111:arm5-verify`
+  is refused while that lease is live, so no serve has run. Next serve must
+  compare 16 concurrent canary answers to `4183` before trusting the row.
 metadata:
   model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
@@ -107,10 +108,13 @@ env:
   # incompatible with the base's torch 2.13.0+cu130; this arm holds the shipped
   # kernel (0.4.7) and skips the gate.
   SGLANG_SKIP_SGL_KERNEL_VERSION_CHECK: "1"
-  # The treatment.
-  EXTRA_SGLANG_ARGS: "--dsv4-attn-backend trtllm --enable-metrics --enable-cache-report"
+  # The treatment. `--disable-flashinfer-autotune` is required: the autotune
+  # stage hung the serve on 2026-11-11 (last log 14:47:35Z), and every measured
+  # fi073d boot passed it with this flag.
+  EXTRA_SGLANG_ARGS: "--dsv4-attn-backend trtllm --enable-metrics --enable-cache-report --disable-flashinfer-autotune"
   # The port's sparse-decode capture refuses more than 10 rows (10 x 6 = 60,
-  # inside the 64-row envelope); the measured boots passed this as `-o env.…`.
+  # inside the 64-row envelope); the measured boots passed the same value as
+  # `-o env.…`, the recipe now carries it.
   CUDA_GRAPH_MAX_BS_DECODE: "10"
   # Section 10.7's control design: replay OFF in both arms. The launcher turns
   # this into --no-enable-decoder-swa-bounded-replay, which wins because boot.py
