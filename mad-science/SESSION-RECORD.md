@@ -9640,3 +9640,24 @@ measurements below.
   stop and points at the floor's landed row rather than restating its numbers.
 - **CI**: gate run `42939166293` for `4e0fdbf` was still in progress at close-out; the commit's
   own `tools/push-gate.py` ran green on it before the push.
+
+## 2026-11-10 20:36 ET — follow-up to the 20:26 entry: the flight row comes back out, and `.34` is re-proved rather than re-cited
+
+Two corrections to the 20:26 pass, landed as `04e346e`.
+
+- **The `flight` row was history, not state.** The 20:26 board restored a row the
+  20:23 board had dropped, titled "boot C ended inside the previous tick; nothing live
+  now". The board's In-flight set is census, pool, campaign, queue, window and one row
+  per lease, and a boot that ends leaves the table once its measurement is a landed row
+  — boot C's stop is already in the census row and in its landed rows — so the row
+  restated the past in the live table. Removed; the In-flight table now runs census,
+  pool, `.30`-`.35`, queue, window, campaign, publication.
+- **The wholesale In-flight replacement dropped the previous board's `.34` proof, and
+  the repair re-measures it instead of re-citing it.** `01:33:32Z` on `.34`, read
+  through the head: `df -B1 --output=used,avail,size` total **24,191,229,755,392 B to
+  the byte**, **102** hub entries, `stat -L` **3921 B** on the same Kolibri
+  `config.json`, `findmnt` naming `/mnt/beegfs` — and the head read **8,388,608 B more
+  `used` in the same wall second**, which is one pool under a live writer and not two
+  filesystems. That is the clause class `board-publish-accepts-weaker-replacement`
+  (registered by the 20:23 tick) exists for: publish, lint and push-gate compare bytes,
+  so a fresher composition can silently drop a witness line.
