@@ -10969,3 +10969,29 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
 - **Capture crossed directories:** `.scratch/tick-1300-2116005/census.txt` was rewritten in another
   tick's format at `18:05:40Z`, so this tick re-captured into `mktemp -d`
   (`.scratch/tick-1300-lu0XiH`) instead of trusting a file it had just written.
+## 2026-11-11 14:14 ET hourly board tick: a live four-rank c16 serve crossed the sweep, and five C16 lines landed
+- **The census caught a boot in flight, then its teardown.** The `19:03:22Z` read found four running
+  containers and not the expected idle fleet: `sparkrun_eebf614384a7cc78_318f41293768_node_0..3` on
+  `.31`–`.34`, image `dsv41-sm121-dg:0.2.1-fi073e`, `Up 6 minutes (healthy)`, `/v1/models` 200 serving
+  `deepseek-ai/DeepSeek-V4.1-Flash-1017`. The second sweep `19:08:29Z`–`19:08:31Z` found nothing live, so
+  the board carries both reads and the node rows say which rank each host carried rather than calling
+  the fleet idle on one sample.
+- **A measurement crossed the board with it:** `~/benchmarks/arm5-c16-20261111/` holds five independent
+  C16 lines on that one serve — tg128 **94.14 / 77.78 / 81.99 / 71.31 / 103.13** t/s, every run `rc=0`,
+  0 serve errors, canary `matches_expected`, TTR 214 s. The 71.3–103.1 spread on one unchanged serve is
+  the number worth keeping: a single C16 line cannot stand in for the cell.
+- **Ledger and window re-read, not inherited:** `.local/fleet-leases.json` carried one lease at
+  `19:03:22Z` (`session:tp4-20261111:c16`, window `tp4-20261111-c16`, `.31`–`.34`, issued 13:56:14 ET)
+  and `{"leases":[],"version":1}` by `19:08:32Z`; `director lease --list` 0 live; no
+  `.local/fleet-window.lock`. Unit `sparkrun-campaign` active, MainPID **2482**, `NRestarts` 0, 23 arms
+  at **10 measured / 13 blocked**, 0 leases of its own, `state.json` mtime still `01:38:06 ET`.
+- **Register:** snapshot sha `640a7618…` equals the live file; **189 tasks: 148 done, 32 queued,
+  9 blocked, 0 claims — 41 open**, `check` rc=0. The `executor-preflight-model-cache-inspect` closure the
+  13:26 board called worktree-only is now on `origin/main` (`0551e94c…`, same 41 open), and the one
+  remaining worktree-vs-origin difference is a note line on a done row that no rendering reads.
+  `graph --file <snap>` printed `9 blocked, 1 edges, 8 prose-gated, 0 question-gated, 0 question, 39 rows
+  not drawn (--all)`.
+- **Deliberately not folded:** the six board/ledger commits between `bd9ad5b` and this tip are the
+  intervening ticks' own bookkeeping, not work; landed rows were added for the two executor commits
+  (`0fa3a68`, `d774ce8`) and the c16 receipt. The board's 804-row landed table was left intact rather than
+  retired: no SHA in it is cited by this ledger, so retiring it would lose facts rather than tidy them.
