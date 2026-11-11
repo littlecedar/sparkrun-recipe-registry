@@ -2970,6 +2970,21 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "campaign-state-copy-re-nests",
+      "title": "The director's receipts root copies state.json back into a window subdir, so one campaign now holds 40 nested copies",
+      "estimate_h": 1.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "Measured 2026-11-11 05:1x ET, read-only on the head: `h2h-20261107/state.json` and 40 byte-identical copies at `h2h-20261107/tp12-window/state.json`, `.../tp12-window/tp12-window/state.json` and so on, one level deeper per run under that window (all sha `1c52f82b`, 23 arms, `created_at` 1794109635). The unit runs with `--root` and `--receipts-root` both set to the campaign root, so an arm whose receipt dir is `tp12-window` receives the campaign state inside it, and the next run nests again. No stale state is readable today: the copies are byte-identical to the root and the director reads only its own `--root` file. The hazard is the next divergence, plus any reader that globs `**/state.json` to enumerate campaigns — this tick's census did, and counted 49 files where there are 9 campaign dirs. Acceptance: state.json is written only at the root, an existing nested copy is not re-copied, and a test covers a second run not nesting again.",
+      "provenance": "mad-science/STATUS.md In flight campaign cell, 2026-11-11 05:12 ET",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
