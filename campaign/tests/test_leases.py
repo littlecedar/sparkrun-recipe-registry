@@ -127,33 +127,31 @@ class LeaseCommand(unittest.TestCase):
 
 
 class GuardrailProof(unittest.TestCase):
-    """Fixtures are the 2026-11-11 read-only capture from `.30` and `.33`, verbatim."""
+    """Earlyoom fixtures are the 2026-11-11 capture; the guard is now a mechanism check.
+
+    The capture's eleven stale `mem-guard.sh` processes are the control: there is no process scan
+    any more, so they cannot satisfy anything. Only an executable script under the declared
+    window's directory does, because that is what the executor will arm after the launch.
+    """
 
     #: `.30`: the daemon plus two `--dryrun` processes, which have no thresholds.
     EARLYOOM = ("453964 /usr/bin/earlyoom -m 4,1 -s 100,95 --prefer (vllm|VLLM|sglang) "
                 "--avoid (beegfs|mgmtd|meta|storage|systemd|sshd)\n"
                 "1930915 earlyoom --dryrun\n3796314 earlyoom --dryrun")
-    #: `.30`: eleven guards from the finished `tp4-20261110b` window (first two quoted).
-    SAMPLER_30 = ("1779397 bash /home/red/benchmarks/tp4-20261110b/mem-guard.sh "
-                  "1c0dffa45afa6e47_c2a904b5d322\n"
-                  "1975132 bash /home/red/benchmarks/tp4-20261110b/mem-guard.sh "
-                  "e59088ba4d0f3858_ece77f8fb371")
-    #: `.33`: no guard at all -- and the probe's own ssh shell, which contains the pattern.
-    SELF_33 = ('2217895 bash -c echo "-- pgrep -a earlyoom --"; pgrep -a earlyoom; echo "rc=$?"; '
-               'for u in ssh.service; do systemctl show -p OOMScoreAdjust --value "$u"; done; '
-               'echo "-- pgrep -af mem-guard --"; pgrep -af mem-guard; echo "rc=$?"')
     WINDOW = "tp4-20261110b"
+    GUARD_OK = f"/home/red/benchmarks/{WINDOW}/mem-guard.sh"
+    GUARD_MISSING = f"missing /home/red/benchmarks/{WINDOW}/mem-guard.sh"
 
     def runner(self, calls: list[tuple[str, str]], *, units: dict[str, str] | None = None,
-               earlyoom: str = "", sampler: str = "") -> object:
+               earlyoom: str = "", guard: tuple[int, str] | None = None) -> object:
         def run(host: str, script: str) -> tuple[int, str]:
             calls.append((host, script))
             if script == "pgrep -a earlyoom":
                 return (0, earlyoom) if earlyoom else (1, "")
             if script.startswith("systemctl show"):
                 return 0, (units or {}).get(script.split()[-1], "-900")
-            if script.startswith("pgrep -af"):
-                return (0, sampler) if sampler else (1, "")
+            if "mem-guard.sh" in script:
+                return guard if guard is not None else (1, self.GUARD_MISSING)
             return 1, ""
 
         return run
@@ -163,31 +161,32 @@ class GuardrailProof(unittest.TestCase):
 
     def test_every_guardrail_is_quoted_from_the_running_host(self) -> None:
         calls: list[tuple[str, str]] = []
-        proof = self.prove(self.runner(calls, earlyoom=self.EARLYOOM, sampler=self.SAMPLER_30))
+        proof = self.prove(self.runner(calls, earlyoom=self.EARLYOOM,
+                                       guard=(0, self.GUARD_OK)))
         self.assertIn("earlyoom argv: 453964 /usr/bin/earlyoom -m 4,1 -s 100,95", proof[0])
         self.assertIn("OOMScoreAdjust ssh.service = -900", proof)
         self.assertIn("OOMScoreAdjust beegfs-storage.service = -900", proof)
-        self.assertIn(f"memory sampler: 1779397 bash /home/red/benchmarks/{self.WINDOW}/"
-                      "mem-guard.sh 1c0dffa45afa6e47_c2a904b5d322", proof)
+        self.assertIn(f"guard script: {self.GUARD_OK}", proof)
         self.assertEqual(len(calls), 1 + len(guardrails.UNITS) + 1)
-        self.assertEqual(calls[-1][1], guardrails.SAMPLER_SCRIPT,
-                         "the sampler probe must not match its own ssh shell")
+        guard_script = next(script for _, script in calls if "mem-guard.sh" in script)
+        self.assertIn(f"/{self.WINDOW}/mem-guard.sh", guard_script)
+        self.assertNotIn("pgrep", guard_script, "the guard check is not a process scan")
 
     def test_a_dryrun_line_first_does_not_fool_the_earlyoom_read(self) -> None:
         # pgrep prints PID order, so a surviving `--dryrun` can precede the daemon.
         lines = "\n".join(reversed(self.EARLYOOM.splitlines()))
-        proof = self.prove(self.runner([], earlyoom=lines, sampler=self.SAMPLER_30))
+        proof = self.prove(self.runner([], earlyoom=lines, guard=(0, self.GUARD_OK)))
         self.assertIn("earlyoom argv: 453964", proof[0])
         self.assertNotIn("dryrun", proof[0])
 
     def test_no_running_earlyoom_quotes_both_thresholds(self) -> None:
         with self.assertRaises(plan.PlanError) as ctx:
             self.prove(self.runner([], earlyoom="1 earlyoom --dryrun",
-                                    sampler=self.SAMPLER_30))
+                                    guard=(0, self.GUARD_OK)))
         self.assertIn("no running earlyoom quotes both thresholds", str(ctx.exception))
 
     def test_a_non_negative_oom_score_refuses_naming_the_unit(self) -> None:
-        run = self.runner([], earlyoom=self.EARLYOOM, sampler=self.SAMPLER_30,
+        run = self.runner([], earlyoom=self.EARLYOOM, guard=(0, self.GUARD_OK),
                           units={"NetworkManager.service": "0"})
         with self.assertRaises(plan.PlanError) as ctx:
             self.prove(run)
@@ -195,38 +194,57 @@ class GuardrailProof(unittest.TestCase):
         self.assertIn("NetworkManager.service", str(ctx.exception))
         self.assertIn("0, not negative", str(ctx.exception))
 
-    def test_a_missing_earlyoom_or_sampler_refuses_rather_than_defaulting_clean(self) -> None:
+    def test_a_missing_earlyoom_refuses_rather_than_defaulting_clean(self) -> None:
         with self.assertRaises(plan.PlanError) as ctx:
-            self.prove(self.runner([], sampler=self.SAMPLER_30))
+            self.prove(self.runner([], guard=(0, self.GUARD_OK)))
         self.assertIn("earlyoom is not running", str(ctx.exception))
-        with self.assertRaises(plan.PlanError) as ctx:
-            self.prove(self.runner([], earlyoom=self.EARLYOOM))
-        self.assertIn("memory sampler", str(ctx.exception))
 
     def test_a_disabled_threshold_is_not_a_guard(self) -> None:
         with self.assertRaises(plan.PlanError) as ctx:
             self.prove(self.runner([], earlyoom="1 earlyoom -m 0 -s 100,95",
-                                    sampler=self.SAMPLER_30))
+                                    guard=(0, self.GUARD_OK)))
         self.assertIn("disables the kill", str(ctx.exception))
 
-    def test_the_probes_own_shell_is_not_a_sampler(self) -> None:
-        # `.33`'s capture: the only line containing `mem-guard` is the ssh wrapper itself.
+    def test_a_missing_or_non_executable_guard_script_refuses(self) -> None:
         with self.assertRaises(plan.PlanError) as ctx:
-            self.prove(self.runner([], earlyoom=self.EARLYOOM, sampler=self.SELF_33))
-        self.assertIn("is not armed", str(ctx.exception))
+            self.prove(self.runner([], earlyoom=self.EARLYOOM, guard=(1, self.GUARD_MISSING)))
+        message = str(ctx.exception)
+        self.assertIn("host-a", message)
+        self.assertIn(f"{self.WINDOW!r}", message)
+        self.assertIn(f"~/benchmarks/{self.WINDOW}/mem-guard.sh", message)
+        self.assertIn(self.GUARD_MISSING, message)
 
-    def test_a_guard_from_another_window_does_not_count(self) -> None:
-        run = self.runner([], earlyoom=self.EARLYOOM, sampler=self.SAMPLER_30)
+    def test_a_stale_or_foreign_guard_no_longer_satisfies_anything(self) -> None:
+        # The control: the probe carries no process scan, so the eleven dead-window guards on
+        # `.30` cannot pass it. The same host passes only when the script is executable.
+        calls: list[tuple[str, str]] = []
         with self.assertRaises(plan.PlanError) as ctx:
-            self.prove(run, window="kimi-six-node-20261112")
-        self.assertIn("kimi-six-node-20261112", str(ctx.exception))
-        self.assertIn("is not armed", str(ctx.exception))
+            self.prove(self.runner(calls, earlyoom=self.EARLYOOM, guard=(1, self.GUARD_MISSING)))
+        self.assertIn("has no executable guard script", str(ctx.exception))
+        guard_script = next(script for _, script in calls if "mem-guard.sh" in script)
+        self.assertNotIn("pgrep", guard_script)
+        self.assertNotIn("ps ", guard_script)
+        proof = self.prove(self.runner([], earlyoom=self.EARLYOOM, guard=(0, self.GUARD_OK)))
+        self.assertIn(f"guard script: {self.GUARD_OK}", proof)
 
-    def test_no_window_name_cannot_bind_a_sampler(self) -> None:
+    def test_the_window_name_selects_the_script_path(self) -> None:
+        for window in ("window-one", "window-two"):
+            calls: list[tuple[str, str]] = []
+            _ = self.prove(self.runner(calls, earlyoom=self.EARLYOOM,
+                                       guard=(0, f"/home/red/benchmarks/{window}/mem-guard.sh")),
+                           window=window)
+            guard_script = next(script for _, script in calls if "mem-guard.sh" in script)
+            self.assertIn(window, guard_script)
+
+    def test_no_window_name_cannot_resolve_a_guard_script(self) -> None:
         with self.assertRaises(plan.PlanError) as ctx:
-            self.prove(self.runner([], earlyoom=self.EARLYOOM, sampler=self.SAMPLER_30),
-                       window="")
-        self.assertIn("cannot be bound", str(ctx.exception))
+            self.prove(self.runner([], earlyoom=self.EARLYOOM), window="")
+        self.assertIn("no declared window name", str(ctx.exception))
+
+    def test_a_path_like_window_is_not_a_directory_name(self) -> None:
+        with self.assertRaises(plan.PlanError) as ctx:
+            self.prove(self.runner([], earlyoom=self.EARLYOOM), window="../escape")
+        self.assertIn("is not a directory name", str(ctx.exception))
 
 
 class DirectorCase(unittest.TestCase):

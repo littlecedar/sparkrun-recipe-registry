@@ -10,10 +10,11 @@ read-only probes of the host, taken by the director before the lease record is w
 * **`OOMScoreAdjust`** is negative on every unit whose death costs the head its access or the pool
   its server: `ssh`, `NetworkManager`, `user@1000`, and the BeeGFS mgmtd/meta/storage units. A
   non-negative value is the default, not a guard, so it is a refusal.
-* the **host memory sampler** is the window's own guard: a running `mem-guard.sh` whose argv
-  carries this boot's declared window name (the guard lives under the window's directory). A guard
-  left by another window does not count -- it watches that window's trigger files, not this one's
-  (measured 2026-11-11: `.30` carries eleven guards from `tp4-20261110b` and `.33` none).
+* the **window can arm its guard** at the only moment arming is possible: `mem-guard.sh` exists and
+  is executable under the window's own directory (`~/benchmarks/<window>/`). The guard must carry
+  the boot's own task id, so the executor arms it after the launch resolves that id and before
+  readiness; lease time cannot see a process that does not exist yet, and a running stale or foreign
+  guard proves nothing (measured 2026-11-11: eleven dead-window guards on `.30`).
 
 No check is inferred from another: a single missing probe raises `plan.PlanError` naming the host
 and the check, and the director blocks the arm instead of placing it somewhere else.
@@ -21,8 +22,9 @@ and the check, and the director blocks the arm instead of placing it somewhere e
 
 from __future__ import annotations
 
+import re
+import shlex
 from collections.abc import Callable
-from pathlib import Path
 
 from . import fleet
 from .plan import PlanError
@@ -31,10 +33,10 @@ from .plan import PlanError
 #: the BeeGFS trio is what `.30` runs for the whole fleet.
 UNITS = ("ssh.service", "NetworkManager.service", "user@1000.service",
          "beegfs-mgmtd.service", "beegfs-meta.service", "beegfs-storage.service")
-#: The window's `MemAvailable` guard. `[m]` keeps the pattern out of its own ssh shell's argv,
-#: which is otherwise a false positive: pgrep matches that wrapper's full command line.
-SAMPLER = "mem-guard.sh"
-SAMPLER_SCRIPT = "pgrep -af '[m]em-guard\\.sh'"
+#: The guard script the window's executor arms after the launch resolves its task id.
+GUARD = "mem-guard.sh"
+#: A window is a single directory name, never a path: it becomes `~/benchmarks/<window>/`.
+WINDOW_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 
 Runner = Callable[[str, str], tuple[int, str]]
 
@@ -55,20 +57,6 @@ def _threshold(tokens: list[str], short: str, long: str) -> str:
 def _enabled(value: str) -> bool:
     """earlyoom treats a zero term as disabled; a disabled term is not a guard."""
     return int(value.split(",")[0]) > 0
-
-
-def _sampler_line(text: str, window: str) -> str:
-    """The first argv running `mem-guard.sh` under the declared window, or "".
-
-    The script's own probe shell is not a sampler, so the argv must actually execute the script
-    (`Path(...).name`), and the window name binds the guard to this boot's trigger directory.
-    """
-    for raw in text.splitlines():
-        tokens = raw.strip().split()
-        if len(tokens) > 1 and any(Path(token).name == SAMPLER for token in tokens[1:]) \
-                and window in raw:
-            return raw.strip()
-    return ""
 
 
 def prove(host: str, *, window: str = "", run: Runner = fleet.ssh) -> list[str]:
@@ -117,13 +105,20 @@ def prove(host: str, *, window: str = "", run: Runner = fleet.ssh) -> list[str]:
 
     window = window.strip()
     if not window:
-        raise PlanError(f"{host}: no declared window name; the sampler cannot be bound to this "
-                        "boot's own trigger directory")
-    code, text = _probe(host, SAMPLER_SCRIPT, run)
-    sampler = _sampler_line(text, window)
-    if not sampler:
-        raise PlanError(f"{host}: host memory sampler for window {window!r} is not armed "
-                        f"({SAMPLER_SCRIPT} rc={code}); arm the window's own guard first")
-    proof.append(f"memory sampler: {sampler}")
+        raise PlanError(f"{host}: no declared window name; the guard script path cannot be "
+                        "resolved")
+    if WINDOW_NAME.fullmatch(window) is None:
+        raise PlanError(f"{host}: window {window!r} is not a directory name; declare the "
+                        "window's own directory (letters, digits, dot, underscore, dash)")
+    script = (f'p="$HOME/benchmarks"/{shlex.quote(window)}/{GUARD}; '
+              'if [ -x "$p" ]; then printf "%s\\n" "$p"; '
+              'else printf "missing %s\\n" "$p"; exit 1; fi')
+    code, text = _probe(host, script, run)
+    found = text.splitlines()[0] if text else ""
+    if code != 0 or not found:
+        raise PlanError(f"{host}: window {window!r} has no executable guard script at "
+                        f"~/benchmarks/{window}/{GUARD} (probe rc={code}, "
+                        f"output {found or 'empty'})")
+    proof.append(f"guard script: {found}")
 
     return proof

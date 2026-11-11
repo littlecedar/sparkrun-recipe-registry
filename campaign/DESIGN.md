@@ -25,7 +25,7 @@ the scheduling mechanism rather than the thing being scheduled, and this tree al
 | `plan.py` | The two plan sources (manifest and register), plan order, the register client that claims and closes rows through the tool, and the pure placement function | Talking to a worker |
 | `fleet.py` | Docker facts: which containers a recipe left on which hosts, and removal of only those | Knowing why it was asked |
 | `leases.py` | The fleet lease ledger: one record per multi-rank claim (holder, every rank, expiry, proof), the legacy declared window read as a blanket hold, renewal and release | Deciding what to boot (that is `plan.py`) |
-| `guardrails.py` | The head's lease-time proof: earlyoom's running argv, `OOMScoreAdjust` on ssh/NetworkManager/user@1000/BeeGFS, the armed memory sampler | Placement (that is `plan.py`) |
+| `guardrails.py` | The head's lease-time proof: earlyoom's running argv, `OOMScoreAdjust` on ssh/NetworkManager/user@1000/BeeGFS, and the window's executable guard script (a mechanism check, not a process scan) | Placement (that is `plan.py`) |
 | `director.py` | The service: prints the exclusions, claims the arm in the register before its lease, hands out leases, decides "measured" from receipts, reclaims dead leases, spawns workers, writes per-arm receipts | Running an arm |
 | `worker.py` | One slot: poll, run `tools/run-arm.sh`, heartbeat the lease, report the return code | Interpreting the return code |
 | `systemd/sparkrun-campaign.service` | Supervision on the head | Anything about a specific campaign |
@@ -110,21 +110,13 @@ stays last), and before the lease record exists the director proves the host's g
 (`--dryrun` processes are skipped — `.30` carries two, measured 2026-11-11), `OOMScoreAdjust`
 negative on `ssh.service`, `NetworkManager.service`, `user@1000.service`,
 `beegfs-mgmtd.service`, `beegfs-meta.service` and `beegfs-storage.service` (`-900` and `-1000`
-measured), and the **window's own** `mem-guard.sh` sampler armed — the guard's argv must carry this
-boot's declared window name, because a guard left by another window watches that window's trigger
-files, not this one's (`.30` carries eleven `tp4-20261110b` guards and `.33` none, measured
-2026-11-11; the sampler probe's `[m]` pattern keeps its own ssh shell from matching). A window name
-is therefore per boot: reusing a finished window's name would count its stale guards. A missing
-probe refuses with `PlanError` naming the host and the
+measured), and the window's guard script (`~/benchmarks/<window>/mem-guard.sh`) exists and is
+executable. The guard must carry the boot's own task id, so it is armed by the executor after the
+launch resolves the id and before readiness; lease-time proof therefore checks that the window can
+arm one. A missing probe refuses with `PlanError` naming the host and the
 check, and the arm is blocked: it is never placed silently and never retried onto another host.
 Absent a declaration the exclusion is unchanged — `.30` is never chosen for a risky shape, and a
-risky shape short on safe ranks waits. **Nothing in this package arms the sampler**: the window's
-runner starts `mem-guard.sh <task-id>` with `TP4_DIR=~/benchmarks/<window>` and `TP4_RANKS` exported,
-which is why the gate reads the window name out of the running guard's path. The script stops only
-the TID in its own argv, so a guard for an unborn boot cannot exist before the launch; the pre-lease
-proof is therefore satisfied by a guard already running in the same window (measured 2026-11-11:
-`.30`'s live guard ran from `tp4-20261110b/mem-guard.sh`), and a fresh window refuses until its own
-sampler is running.
+risky shape short on safe ranks waits.
 
 **A manifest arm may declare `pp`.** Its rank count is `tp * pp`, so TP=2 × PP=3 is one six-rank
 lease: the record carries `tp`=2, `pp`=3, `nodes`=6 and all six hosts, and `next_assignment` refuses
@@ -494,11 +486,11 @@ trusts the state file re-boots a live arm, and a rank-0-only leftover check repo
 lease before assignment and another holder's lease (or declared window) is honoured, `.30` is
 waivable only with a named window plus the guardrail proof and otherwise refuses naming the host
 and check, and TP=2 × PP=3 leases six named ranks and refuses when one is held. The guardrail
-fixtures are the 2026-11-11 read-only capture from the head and one rank (the `--dryrun` lines, the
-eleven stale `tp4-20261110b` guards, and `.33`'s own probe shell), so a parser regression fails on
-the real output rather than on an invented one; `plan` is pinned to print a six-rank placement with
-the head last, refuse a missing sampler, place a quartet without touching the head, and write no
-state or ledger.
+fixtures are the 2026-11-11 earlyoom capture (including the `--dryrun` lines) and the stale-guard
+control: a process scan is gone, so the eleven dead-window guards cannot pass anything and only an
+executable script under the declared window does; `plan` is pinned to print a six-rank placement
+with the head last, refuse a missing guard script, place a quartet without touching the head, and
+write no state or ledger.
 
 Counting the root suite from a committed tree needs **the repository's own interpreter**: archive the
 tree, then count it with that clone's `.venv/bin/python -B -c
