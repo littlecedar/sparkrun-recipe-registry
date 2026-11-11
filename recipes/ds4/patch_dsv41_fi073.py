@@ -31,6 +31,13 @@ Port A and its stop verdict:
   written once at allocation. The fused c1/c2 compressor store is compiled for
   the 512-byte rows, so it is bypassed to the torch path that ends in the
   pool's ``set_key_buffer_fused``.
+* the prefill split hands the route row-packed index tables
+  (``.contiguous()``): 0.7.3 builds call metadata from the tensors' own strides
+  and refuses a column slice of the combined table as "no matching decode
+  instantiation" (``_sparse_mla_sm120/_prepared.py:175``). Measured on the GB10
+  at 193 and 16,384 rows: packed admitted and executed, sliced refused -- on
+  both the functional call and the wrapper's ``run``. Decode keeps its sliced
+  tables: its rows are inside the decode envelope and it already served.
 
 SM100/103 keeps the FP8 Q path and the 512-byte pool byte-for-byte: every
 change below is gated on ``is_sm120_supported()`` (capability major 12).
@@ -280,6 +287,37 @@ PREFILL_CALL_NEW = (
     '            cum_seq_lens_q=cum_seq_lens_q,\n'
     '            max_q_len=max_q_len,\n'
     '        )\n'
+)
+
+# --- delta 8: row-packed prefill index tables -------------------------------
+# 0.7.3 prepares call metadata from the tensors themselves, and its prefill
+# (and every call above `_DECODE_MAX_TOKENS`) is admitted only when the index
+# tables are row-packed: a column slice of the combined table keeps the wider
+# row stride and comes back as "no decode kernel for this shape: ...
+# Mismatch: no matching decode instantiation" at
+# `_sparse_mla_sm120/_prepared.py:175`. Measured on the GB10 with this image
+# (receipt `arm5-fi073c-20261111/probe_prefill_stride_matrix.py`): 193 and
+# 16,384 rows are admitted and executed with packed tables, refused with the
+# sliced ones, on both the functional call and the wrapper's `run`. Decode is
+# untouched: its sliced tables are inside the decode envelope and were already
+# serving.
+PREFILL_SPLIT_OLD = (
+    '        extra_sparse_indices = None\n'
+    '        extra_sparse_topk_lens = None\n'
+    '        if sparse_indices.shape[1] > SWA_WINDOW:\n'
+    '            extra_sparse_indices = sparse_indices[:, SWA_WINDOW:]\n'
+    '            extra_sparse_topk_lens = sparse_topk_lens - SWA_WINDOW\n'
+    '            sparse_indices = sparse_indices[:, :SWA_WINDOW]\n'
+)
+PREFILL_SPLIT_NEW = (
+    '        extra_sparse_indices = None\n'
+    '        extra_sparse_topk_lens = None\n'
+    '        if sparse_indices.shape[1] > SWA_WINDOW:\n'
+    '            # Packed rows only: the metadata check reads the tensors\' own\n'
+    '            # strides, and a column slice of the combined table is refused.\n'
+    '            extra_sparse_indices = sparse_indices[:, SWA_WINDOW:].contiguous()\n'
+    '            extra_sparse_topk_lens = sparse_topk_lens - SWA_WINDOW\n'
+    '            sparse_indices = sparse_indices[:, :SWA_WINDOW].contiguous()\n'
 )
 
 # --- delta 4b: BF16 query buffer in the model -------------------------------
@@ -643,6 +681,7 @@ patch(BACKEND, PREFILL_Q_OLD, PREFILL_Q_NEW)
 patch(BACKEND, VIEWS_OLD, VIEWS_NEW)
 patch(BACKEND, DECODE_CALL, DECODE_CALL_NEW)
 patch(BACKEND, PREFILL_CALL, PREFILL_CALL_NEW)
+patch(BACKEND, PREFILL_SPLIT_OLD, PREFILL_SPLIT_NEW)
 
 patch(MODEL, MODEL_IMPORT_OLD, MODEL_IMPORT_NEW)
 patch(MODEL, MODEL_Q_OLD, MODEL_Q_NEW)
@@ -685,6 +724,15 @@ assert (
 assert backend_text.count("if sparse_indices.shape[1] > SWA_WINDOW:") == 1, (
     "a decode split survived beside the prefill one"
 )
+# delta 8: the prefill split must hand the route row-packed tables, and only
+# that one site may be repacked (decode's sliced tables are in-envelope).
+assert backend_text.count(
+    "extra_sparse_indices = sparse_indices[:, SWA_WINDOW:].contiguous()"
+) == 1, "the prefill tail table is not row-packed"
+assert backend_text.count(
+    "sparse_indices = sparse_indices[:, :SWA_WINDOW].contiguous()"
+) == 1, "the prefill SWA table is not row-packed"
+assert backend_text.count(".contiguous()") == 2, backend_text.count(".contiguous()")
 
 model_text = MODEL.read_text()
 assert "from sglang.srt.utils.common import is_sm120_supported" in model_text

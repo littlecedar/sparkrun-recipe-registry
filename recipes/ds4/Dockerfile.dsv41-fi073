@@ -1,5 +1,5 @@
 # FlashInfer 0.7.3 + the sm121a AOT provider over the SM121 knapcio image,
-# with the adapter's five 0.7.x deltas (recipes/ds4/patch_dsv41_fi073.py).
+# with the adapter's 0.7.x deltas (recipes/ds4/patch_dsv41_fi073.py).
 # Port A probe for the ds4 arm-5 sparse-MLA route; see
 # mad-science/SM121-SPARSE-MLA-PORT.md section Port A and its stop verdict.
 #
