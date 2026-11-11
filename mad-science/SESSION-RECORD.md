@@ -10424,3 +10424,29 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   session did not make: a concurrent session had already deleted a 38-line `tick 05:00–05:22`
   section from this file in both index and worktree, `17d131b` took worktree content, and the text
   is recoverable at the parent (`git show 17d131b^:mad-science/SESSION-RECORD.md`).
+
+## 2026-11-11 06:10 ET — hourly board tick: idle fleet, and the campaign's "40 copies" is one symlink
+
+- **Board published** on this tick's own census, two file-backed sweeps `2026-11-11T11:06:55Z`–`11:06:58Z`
+  and `11:07:43Z`–`11:07:45Z`, workstation-direct. `publish` reported `disk was 2026-11-11 05:22:00 ET`
+  and was given both the composed copy's sha256 and `origin/main`'s blob sha, so a peer publish inside the
+  window would have been refused rather than overwritten.
+- **The fleet is idle and nothing was measured.** `.31`–`.35` read 0 containers, 0 running, 0 volumes in
+  both sweeps; `.30` reads 0 running with its nine never-started `Created` leftovers unchanged; the head's
+  `sparkrun status` at `11:04:07Z` names all six idle. Root avail fell on all six (56,553,472 B total
+  against the base's quoted read), the pool's mount `used` rose **52,953,088 B** over the same interval
+  and its six roots' own `used` sum rose with it, so the interval's write is fleet-spread — **LIKELY** the
+  shared chunk store, with no process named.
+- **Correction, and the reason it earns a paragraph: the campaign does not re-nest `state.json`.**
+  Register row `campaign-state-copy-re-nests` (filed by `8678ac5`) says `h2h-20261107` holds 40
+  byte-identical copies "one level deeper per run". The discriminator: `~/benchmarks/h2h-20261107/tp12-window`
+  is a **symlink to `.`** (`readlink` → `.`), created **2026-11-07 23:06:09**, i.e. before the measurement
+  that indicted it, so a recursive `**/state.json` glob descends the link and returns **41 matches whose
+  `realpath` set has size 1**; `find -type f` in that root finds three `state.json*` entries — the state,
+  its lock, and a `bak-pre-nohost30-20261109`. A reader quoting the row's 40 copies is quoting the glob,
+  not the filesystem. The row's other half stands: the director still records a reap refusal,
+  `cannot list containers on .31 (rc=255)` on `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4`.
+- **Unchanged this hour:** campaign unit active since 01:37:57 EST (MainPID 2482, 0 restarts), 10 measured /
+  13 blocked across 23 arms, 0 leases in all nine campaign dirs; no window file in either location and
+  `fleet-leases.json` still `{"leases":[],"version":1}` at mtime 04:50; register `15944dab…`, 184 tasks /
+  36 queued / 9 blocked / 45 open / 0 claims, `check` rc=0.
