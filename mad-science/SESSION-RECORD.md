@@ -10687,3 +10687,8 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   carried a node hostname in the trap note above and CI's address guard failed `f94df50`. Fixed in
   `d236ce4` with the gate run *after* that commit, which printed `ok -- HEAD d236ce42`. The rule the
   repo already states is the one that was violated: commit first, then gate, then push.
+  CI verdicts read by SHA from this workstation (`gh run list`, `gh run view 43049084085`):
+  `f94df50` `gate` = **failure**, and the failing step is `Suite on the runner's python3` — the
+  address guard, exactly what the local gate had printed; `d236ce4`, `6362db5` and `838c621` were
+  still `in_progress` at that read, while `tools/push-gate.py` printed `ok -- HEAD d236ce42` and
+  `ok -- HEAD 838c6213` here.
