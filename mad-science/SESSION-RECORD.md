@@ -9750,3 +9750,45 @@ One measured negative, added to the pool cell rather than held as a story.
   publish's real upstream state was verified afterwards from the shared clone against GitHub
   (`8df3f60` → `mad-science/STATUS.md` sha `fcf78cb7…`), which matched the base this composition was read
   from. A throwaway clone needs `git remote set-url origin <github url>` before its remote guard means anything.
+
+## 2026-11-10 23:40 ET — tick: same hour as three peer ticks, and its one new fact landed through theirs
+
+Read-only; no boot, no window asserted, nothing stopped, and **no board write**: every fact this tick
+measured is already on `mad-science/STATUS.md` as published by the peer ticks `3c9b9de` (23:20),
+`8df3f60` (23:31) and `14d7b58` (23:35), so a fourth composition would have restated the same zeros.
+`lint` printed `ok: 1 markdown file(s) render` on `HEAD`'s board.
+
+- **What was measured.** A fourth whole-fleet capture (04:10:19Z–04:10:32Z) plus node-level re-reads at
+  04:13:14Z / 04:14:39Z / 04:16:58Z — `df -B1`, `MemAvailable` and `docker ps -q` only, no `docker ps -aq`
+  and no volume count — read `docker ps -aq` 9 / 0 / 0 / 0 / 0 / 0, `docker ps -q` 0 on every node, and 0
+  volumes where they were counted; `MemAvailable` 116.1 GiB on `.30` and 117.2–117.4 on the rest. `kho=off`
+  reads 1 on all six with `CmaTotal=0 CmaFree=0`, and `uptime_s` 200455 / 162101 / 162009 / 161914 /
+  161834 / 108675 shows no fleet reboot, `.35` merely the newest boot. `beegfs-storage` is active on all
+  six while `beegfs-mgmtd` is `inactive` on `.31`–`.35`, its role living on `.30`.
+- **The one new fact was the pool's negative, and a peer landed it better.** A pool-wide
+  `find /mnt/beegfs -type f -mmin -180` returned 0 files at 04:19:41Z, which is what made the board's
+  "growth has no file-level writer" claim possible; the 23:35 tick re-ran the same scan independently at
+  04:34:24Z (9 s, so not cut off) and published it. Independent re-measurement by another session is
+  stronger evidence than this session's own run, so the fact is cited there and not re-published here.
+- **A published composition of mine did not survive, and should not have been fought for.** This tick
+  published a board at 23:30 (title 23:30, `census` and `pool` cells extended, one landed row) on top of
+  `a06d6a19…`; the 23:31 and 23:35 ticks each published a correction within five minutes, and the third
+  one's ledger note recorded this session as "a concurrent session rewriting the board". My own commit for it (`5a516f6`) was never
+  pushed — the push was rejected as behind — and it was `git reset --mixed origin/main`-dropped rather than
+  force-pushed or rebased over a board two peers had since corrected. The rule this file already carries
+  is the lesson: a tick's output is the *fact*, and a clause a peer's regeneration removed needs no
+  re-correction once the text exists nowhere.
+- **Two of my own numbers were counter artefacts.** The later `df` closes (+9,437,184 B over 85 s and
+  +3,145,728 B over 139 s) are exact MiB multiples, so reading them as 111 then 22.6 KB/s was the same
+  quantization error the 23:20 tick's "steady ~9 MiB/min" was — and the third tick had already corrected
+  it. Likewise the pool-versus-node-root match is not a second witness: `df -B1` on the mount *is* those
+  six roots summed (2026-11-09 01:16 ET entry), so "within 2 %" is one event counted twice.
+- **`ssh -n` voids a probe piped into it, and that trap cost two captures.** `ssh -n … bash -s` redirects
+  stdin from `/dev/null`, so the probe script is never read and the capture holds only the head's own
+  lines — which reads exactly like a fleet with nothing to report. The working form defines the node probe
+  as a shell function and pipes `declare -f` output with no `-n`; both ticks in this hour lost their first
+  capture to it, so each capture is now checked for six node blocks before any number from it is quoted.
+- **The head cannot reach any node by name, not just `.30`.** All six name entries fail host-key
+  verification (`known_hosts` offending lines 117 and 123–127) while the same six answer by address in the
+  same second, so `head-mesh-cannot-reach-30` is a fleet-wide name-set defect and every probe here hops
+  `10.0.4.NN`.
