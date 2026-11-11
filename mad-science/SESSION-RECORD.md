@@ -9556,3 +9556,50 @@ invocations.
   inside the tick, and the window row now states the gap this hour exposed rather than reading the
   missing lock as freedom: no lock existed while `tp4-runner` held a live quartet on
   `.31`/`.32`/`.33`/`.35`, so a session trusting only the lock would have booted onto serving ranks.
+
+## 2026-11-10 20:23 ET — hourly tick: a fresh composition replaced better-grounded rows and no guard noticed
+
+Read-only on the fleet: booted nothing, stopped nothing, claimed no window. The board's facts for the
+arm-5 boot C hour belong to the 20:08 ET tick above (its fourth capture `01:16:49Z`, the `01:13Z`
+teardown, and the `ALLREDUCE` abort); this tick re-read the live state and did not re-derive them.
+
+- **Three captures** `2026-11-11T01:02:40Z` / `01:05:55Z` / `01:06:58Z`: `docker ps -aq`
+  9/1/1/1/0/1 and `docker ps -q` 0/1/1/1/0/1 identical at all three, the quartet
+  `b25f340cc3fc6854_2361a4d63d56` live on `.31`/`.32`/`.33`/`.35` and answering `000` on every rank,
+  `.30` carrying only its nine `Created` leftovers, 0 volumes fleet-wide.
+- **Pool series** `01:03:40Z`/`01:04:36Z`/`01:05:32Z`: used `13,925,797,068,800` →
+  `+1,048,576 B / 56 s` → `+1,572,864 B / 56 s`; no writer named. `.34` was re-probed through
+  `ssh … "bash -s"` with the **raw** `df -B1 --output=avail,used,size` line and returned the head's
+  identical triple plus 102 hub entries, so the mount is the same pool per host. An earlier `.34`
+  read taken through nested quoting printed `used 1,392,576,097,280 / total 2,419,129,755,392`,
+  which cannot sum against its own avail — that was a parse artifact of the quoting, discarded, not
+  a second filesystem.
+- **Campaign**: nine `state.json` roots, 37 arms, **one** `arms[*].lease` object — the
+  `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4` record on `.30`-`.33` with `expires_at` 2026-11-10T23:02:01Z,
+  i.e. expired ~2 h 10 min and not a live lease. The 20:08 row read it as cleared because it counted
+  unexpired leases; both statements hold, and the board says "one expired lease object".
+- **Register**: re-rendered from snapshot `3d9a822e…` (170 tasks / 121 done / 35 queued / 14 blocked /
+  49 open / 0 claims / 0 questions, `check` ok). The live file still hashed to the snapshot at
+  compose time.
+
+### The defect this tick produced, and the correction
+
+The first publish (`f76ca48`) composed over the peer's **unpublished worktree copy** (sha256
+`146c8396`) while they then published different bytes; the copy turned out byte-identical to the
+published `0586df7`, so `dropped_peer_lines` had nothing to catch and the guards were not bypassed.
+The defect is narrower and real: this tick's `## In flight` **replacement was weaker than the rows it
+replaced** — three captures instead of four ending `01:16:49Z`, node rows reading
+`rank container live, loading` where the published board said `nothing live (no reservation) — rank N
+until the quartet's teardown at 01:13Z`, and a floor row saying the boot was stopped "still inside
+autotune" where the receipt names the `ALLREDUCE` abort. `e4bea70` restores the published In-flight
+rows and retires only this session's own superseded rows; two additions survive — the `.34` pool
+identity read and one landed row describing this tick's captures. `f76ca48` had already been pushed
+by the peer session's own `git push`, so it stays in history unamended.
+
+**Residual gap registered**: `board-publish-accepts-weaker-replacement` — publish, lint and the
+push-gate all compare bytes, so a fresher composition that drops a capture series, downgrades state
+labels or loses a teardown clause passes silently. Only a reviewer of the replacement's content can
+catch it today.
+
+**CI**: gate for `e4bea70` completed success (read from `gh run list`, 01:28:21Z), and
+`tools/push-gate.py` ran green on that commit before the push.

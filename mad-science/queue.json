@@ -2759,6 +2759,21 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "board-publish-accepts-weaker-replacement",
+      "title": "publish replaces a better-grounded In-flight composition with a fresher byte-compatible one, and no guard notices",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "The publish guards compare BYTES, so they cannot see that a replacement carried FEWER facts than the rows it removed. Measured 2026-11-11 20:18 ET on mad-science/STATUS.md: this tick's composition was accepted (publish rc=0, lint ok) while replacing the peer's In-flight set — 4 captures ending 2026-11-11T01:16:49Z, node rows labelled 'nothing live (no reservation) — rank N until the quartet's teardown at 01:13Z', and a teardown timeline — with 3 captures ending 01:06:58Z and node rows still reading 'rank container live, loading'. dropped_peer_lines stayed quiet for the correct reason: the composition base was the peer's worktree copy, byte-identical (sha256 146c8396) to what they then published as 0586df7, so every surviving line was a base line and every dropped line was one this session had written itself. The tool is not defective here — retirement is legitimate by design — but nothing in publish, lint or the push-gate asks whether the incoming board still carries the facts (capture count, state labels, timeline) of the board it replaces. Acceptance: a pre-publish check that diffs the In flight row set it is about to write against the disk board and refuses (or warns by name) when a where-key loses its capture series length, its state labels downgrade (nothing live -> live/loading), or a teardown clause disappears; plus a negative control on a board whose rows are legitimately retired.",
+      "provenance": "tools/task-queue.py:821-833 dropped_peer_lines, :900-930 sha guards",
+      "evidence": "mad-science/STATUS.md@e4bea70",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
