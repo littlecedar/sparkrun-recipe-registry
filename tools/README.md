@@ -1721,12 +1721,20 @@ uv run python -B tools/task-queue.py lint       # markdown that will not render 
     # to third parties and `tests/test_tracked_address_hygiene.py` reds the pushed tip for one.
     # Write the `.30`-`.35` shorthand instead. Two such leaks reached main on 2026-11-08; publish
     # refuses them too, and the mirrored patterns are pinned by `tests/test_task_queue_tool.py`.
+    # A board (`# Board — generated … ET`) must also carry every `## In flight` state row —
+    # `census`, `pool`, `queue`, `window`, `campaign`, `publication` — because the table is state:
+    # on 2026-11-11 the 03:14 board had a `| queue |` row, the 03:17 board did not, and the tick
+    # that kept that body verbatim published without it through `publish` rc=0, `lint` ok and a
+    # green gate. Every other guard compares bytes against a base, and a base already missing the
+    # row looks exactly like a good one, so the row set is the only witness. Nodes and the quartet
+    # row are parsed but not required: their set is the census's, not the format's.
 uv run python -B tools/task-queue.py publish < new-board  # write the board, refusing a stale one
     # compares the incoming board's `| census |` stamp (title as fallback) against the copy on
     # disk, under `.local/status-board.lock`, and exits 1 without touching it when the disk copy
     # is newer: `flock` serializes writers but cannot stop a slow one that read the census early
     # and wrote late (2026-11-06, a 13:56 ET census landing over a 15:15 ET board). `lint` runs
-    # first, so a board that will not render — or carries a raw address — is never published.
+    # first, so a board that will not render, carries a raw address, or is missing an In flight
+    # state row (see `lint` above) is never published.
     # --expect-sha <hex> closes the window the stamp cannot: an in-place peer edit keeps the
     # title, so an equal stamp passes both ways and the whole file is replaced (2026-11-08
     # 11:13, bytes no commit held). Pass the sha the composition was read from and publish

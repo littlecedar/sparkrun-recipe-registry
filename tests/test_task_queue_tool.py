@@ -475,6 +475,8 @@ class TitleMonotonicity(unittest.TestCase):
         "# Board — generated {stamp} ET\n\n"
         "## In flight\n\n"
         "| where | owner | what |\n|---|---|---|\n| census | tick | 0 containers |\n"
+        "| pool | — | serving |\n| queue | — | 0 open |\n| window | — | none |\n"
+        "| campaign | — | idle |\n| publication | tick | base |\n"
     )
 
     def _repo(self, tmp, stamp):
@@ -997,12 +999,65 @@ class AddressLint(unittest.TestCase):
                 self.assertFalse(hygiene.ADDRESS.search(allowed) or hygiene.HOST.search(allowed))
 
 
+class InflightRows(unittest.TestCase):
+    """`lint`/`publish` refuse a board whose `## In flight` table lost a state row.
+
+    Measured 2026-11-11 03:14-03:25 ET: the 03:14 board carried a `| queue |` row, the 03:17 board
+    did not, and the next tick — which keeps its base's body verbatim — published without it through
+    `publish` rc=0, `lint` ok and a green push gate. Every guard compares bytes against that base, so
+    a base already missing the row is indistinguishable from a good one; the row set is the witness.
+    """
+
+    ROWS = ("| census | tick | read |\n| pool | — | serving |\n| queue | — | 50 open |\n"
+            "| window | — | none |\n| campaign | — | idle |\n| publication | tick | base |\n")
+
+    def board(self, rows):
+        return ("# Board — generated 2026-11-11 03:21 ET\n\n## In flight\n\n"
+                "| where | owner | what |\n|---|---|---|\n" + rows)
+
+    def test_the_full_row_set_passes(self):
+        self.assertEqual(tq.inflight_problems(self.board(self.ROWS)), [])
+
+    def test_a_dropped_row_is_named(self):
+        # Negative control: the shrunken table must be flagged, or the guard proves nothing.
+        problems = tq.inflight_problems(self.board(self.ROWS.replace("| queue | — | 50 open |\n", "")))
+        self.assertEqual([rule for _line, rule, _detail in problems], ["inflight-row-missing"])
+        self.assertIn("`queue`", problems[0][2])
+        self.assertNotIn("`pool`", problems[0][2])
+
+    def test_nodes_and_the_quartet_row_are_parsed_as_keys(self):
+        """The parser must read the real table shape, or every check above passes vacuously."""
+        keys = tq.inflight_keys(self.board(
+            self.ROWS + "| .31 | rank node_0 | 1 container |\n"
+                        "| quartet `1ca17b467dcda1cc` | peer session | booting |\n"))
+        self.assertIn(".31", keys)
+        self.assertIn("quartet", keys)
+
+    def test_a_board_without_the_section_is_not_reported(self):
+        """This rule reports a loss, not a shape: any other markdown file stays lintable."""
+        self.assertEqual(tq.inflight_problems("# Notes\n\n| a | b |\n|---|---|\n"), [])
+
+    def test_lint_refuses_the_shrunken_board(self):
+        target = Path(tempfile.mkdtemp()) / "STATUS.md"
+        target.write_text(self.board(self.ROWS.replace("| queue | — | 50 open |\n", "")),
+                          encoding="utf-8")
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(tq.main(["lint", str(target)]), 1)
+        target.write_text(self.board(self.ROWS), encoding="utf-8")
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(tq.main(["lint", str(target)]), 0)
+
+
 def board_text(census, title=None):
     """Minimal board carrying one census stamp — the only part `publish` reads."""
     title = title or census[:16]
+    # Every `_INFLIGHT_REQUIRED` row, because a board that lost one is exactly what publish refuses:
+    # a fixture carrying only `census` would test a shape no real board has ever had.
     return (f"# Board — generated {title} ET\n\n"
             "## In flight\n\n| where | owner | what |\n|---|---|---|\n"
-            f"| census | this tick | **{census} ET** measured |\n\n"
+            f"| census | this tick | **{census} ET** measured |\n"
+            "| pool | — | serving |\n| queue | — | 0 open |\n| window | — | none |\n"
+            "| campaign | — | idle |\n| publication | tick | base sha |\n\n"
             "## Work queue\n\n| job | node cost | holds | state |\n|---|---|---|---|\n\n"
             "## Landed session\n\n| time ET | commit | one clause |\n|---|---|---|\n")
 
@@ -1086,6 +1141,19 @@ class BoardPublish(unittest.TestCase):
         composed = self._commit_board(board_text(self.OLD))
         self.assertEqual(self.publish(board_text(self.NEW), expect_sha=composed,
                                       remote_sha=composed), 0)
+        self.assertIn(self.NEW, self.board.read_text(encoding="utf-8"))
+
+    def test_a_board_missing_an_in_flight_row_is_refused(self):
+        """The 2026-11-11 loss: a body kept from a shrunken base passed every byte guard."""
+        self.board.write_text(board_text(self.OLD), encoding="utf-8")
+        before = self.board.read_bytes()
+        shrunken = board_text(self.NEW).replace("| queue | — | 0 open |\n", "")
+        self.assertEqual(self.publish(shrunken), 1)
+        self.assertEqual(self.board.read_bytes(), before)
+
+    def test_negative_control_the_same_publish_with_every_row_succeeds(self):
+        self.board.write_text(board_text(self.OLD), encoding="utf-8")
+        self.assertEqual(self.publish(board_text(self.NEW)), 0)
         self.assertIn(self.NEW, self.board.read_text(encoding="utf-8"))
 
     def test_newer_census_replaces_the_board(self):

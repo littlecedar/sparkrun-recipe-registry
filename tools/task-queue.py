@@ -741,6 +741,52 @@ def lint_addresses(text: str) -> list[tuple[int, str, str]]:
             for line, hit in address_problems(text)]
 
 
+_INFLIGHT_REQUIRED = ("census", "pool", "queue", "window", "campaign", "publication")
+
+
+def inflight_keys(text: str) -> set[str]:
+    """First-cell keys of the board's `## In flight` table; empty when the section is absent.
+
+    Nodes and the quartet row are keys too (`.30`, `quartet`), but only `_INFLIGHT_REQUIRED` is
+    checked: that set is the format's, while which nodes carry a rank belongs to the census.
+    """
+    lines = text.split("\n")
+    start = next((i for i, line in enumerate(lines) if line.strip() == "## In flight"), None)
+    if start is None:
+        return set()
+    keys: set[str] = set()
+    for line in lines[start + 1:]:
+        if line.startswith("## "):
+            break
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = _table_cells(line)
+        if cells and cells[0].strip():
+            keys.add(cells[0].strip().strip("`").split()[0].lower())
+    return keys
+
+
+def inflight_problems(text: str) -> list[tuple[int, str, str]]:
+    """`(line, rule, detail)` for a board whose `## In flight` table is missing a state row.
+
+    Measured 2026-11-11 03:14-03:25 ET: the 03:14 board carried a `| queue |` row, the 03:17 board
+    did not, and the next tick — which keeps its base's body verbatim — published without it through
+    `publish` rc=0, `lint` ok and a green push gate. Every other guard compares bytes against a base
+    that was itself missing the row, so a fixed key set is the only way to notice an absence. A
+    board with no `## In flight` section returns nothing: this rule reports a loss, not a shape.
+    """
+    keys = inflight_keys(text)
+    if not keys:
+        return []
+    missing = [key for key in _INFLIGHT_REQUIRED if key not in keys]
+    if not missing:
+        return []
+    return [(1, "inflight-row-missing",
+             "In flight lacks " + ", ".join(f"`{key}`" for key in missing) +
+             ": the table is state, and a row absent from the base is inherited by any tick that "
+             "keeps that body verbatim")]
+
+
 def _emit(lines: list[str], what: str) -> None:
     """Print generated markdown, refusing it if it will not render."""
     problems = lint_markdown("\n".join(lines))
@@ -822,6 +868,13 @@ def cmd_lint(args, path: Path) -> None:
         for line, rule, detail in addresses:
             print(f"{target}:{line}: {rule}: {detail}")
         total += len(addresses)
+        # A board's In flight table is state: a missing row is a lost fact, and publish cannot see it
+        # when the base it composed from was already missing it (measured 2026-11-11 03:17).
+        if board_title(text):
+            rows = inflight_problems(text)
+            for line, rule, detail in rows:
+                print(f"{target}:{line}: {rule}: {detail}")
+            total += len(rows)
     if total:
         raise QueueError(f"{total} markdown problem(s) in {len(paths)} file(s)")
     print(f"ok: {len(paths)} markdown file(s) render")
@@ -915,6 +968,11 @@ def cmd_publish(args, path: Path) -> None:
         raise QueueError(
             f"refusing publish: {len(leaks)} cluster address(es) in board text — mask to "
             "`.30`–`.33`-style shorthand")
+    rows = inflight_problems(text)
+    for line, rule, detail in rows:
+        print(f"stdin:{line}: {rule}: {detail}", file=sys.stderr)
+    if rows:
+        raise QueueError(f"refusing publish: {len(rows)} In flight problem(s) above")
     use_base = bool(getattr(args, "base", ""))
     if not use_base and not args.expect_sha:
         # Fail closed: with neither the sha nor the bytes it read, no check can catch a peer write.
