@@ -10450,3 +10450,45 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   13 blocked across 23 arms, 0 leases in all nine campaign dirs; no window file in either location and
   `fleet-leases.json` still `{"leases":[],"version":1}` at mtime 04:50; register `15944dab…`, 184 tasks /
   36 queued / 9 blocked / 45 open / 0 claims, `check` rc=0.
+
+## 2026-11-11 07:21 ET hourly board tick: idle fleet, OOM `-1000`, and `.30`'s name fault is a stale pin
+
+- **Board published, then corrected.** `449eeb0` on this tick's own census — one file-backed
+  six-node sweep `2026-11-11T12:02:14Z`–`12:02:17Z`, workstation-direct; `publish` reported
+  `disk was 2026-11-11 06:18:00 ET` and was given both the composed copy's sha256 and
+  `origin/main`'s blob sha; lint ok, gate run success. The `.30` cell in it carried a **wrong
+  mechanism**, so the board was republished over the tick's own base rather than left standing,
+  and the landed correction row now names what it replaced.
+- **Fleet idle, nothing measured.** `.31`–`.35` read 0 containers, 0 running, 0 volumes; `.30`
+  reads 0 running with its nine never-started `Created` leftovers unchanged; no serve process on
+  any node. The pool served at 58 % (used **+47,185,920 B**, node roots' own used sum
+  **+47,095,808 B** over the same interval, movers named), proved through the mount by `stat -L`
+  (3,921 B / 8 blocks) and 102 hub entries.
+- **OOM policy is `-1000`, not `-900`.** The 06:18 board wrote `-900`. The drop-in bytes
+  (`/etc/systemd/system/beegfs-meta.service.d/oom.conf`, mtime `.30` 2026-11-08 16:03:58, `.31`–`.35`
+  16:05:0x–11), each unit's `OOMScoreAdjust` property, and `/proc/<pid>/oom_score_adj` for every
+  live beegfs process all read `-1000` on all six. Nothing moved under the fleet; the figure was a
+  misread, so it is corrected rather than re-stated.
+- **`.30` name fault: the pinned key, not the name.** Probe chain that falsified the first reading:
+  `getent hosts spark-41e1` on the head returns **loopback first** (`/etc/hosts:1` aliases the short
+  name to `127.0.0.1` while line 2 carries the address), and `ssh -v` shows
+  `Connecting to spark-41e1 [127.0.0.1]`, which reads like a misroute. It is not one: the head **is**
+  `.30`, so loopback reaches the same sshd and the alias explains no failure. `ssh-keygen -F
+  spark-41e1` matches a **hashed** entry at `known_hosts:117` pinning ed25519 `…AJgeR7…`, while
+  `ssh-keyscan` returns `…IMTiKi…` for every form (`SHA256:yY06…`, the head's own key, i.e. `.30`'s);
+  `ssh-keygen -F spark-41e1.dhcp.littlecedar.net` matches **nothing**, so `BatchMode=yes` fails that
+  form as unpinned; and the `.30` address is pinned correctly at lines 128/129, which is exactly why
+  the address answers `rc=0` while both name forms fail. Fix is `ssh-keygen -R spark-41e1` plus a
+  re-pin from the address and an entry for the FQDN; a hosts edit fixes nothing. Register row
+  `head-mesh-cannot-reach-30` is half right ("the name entries are present but mismatched, not
+  absent"): the short name's entry is present and stale, the FQDN's is absent.
+- **Campaign's `.31` reap refusal is stored, not live**, and the unit triples were re-derived per
+  unit rather than copied from the base board: `.31`/`.35` read `beegfs-meta` `activating` /
+  `auto-restart` (pid 0), `beegfs-mgmtd` `inactive` / `dead`, `beegfs-storage` `active` / `running`,
+  which is the order `is-active` prints in argument order; `.30` reads all three `active` / `running`
+  with live pids. `NRestarts` on `.31`–`.35` 3737–3789, last exit `07:04:2x EST`. Campaign unit
+  active since 01:37:57 EST (MainPID 2482, 0 restarts), 10 measured / 13 blocked over 23 arms, **0
+  lease records** across nine roots; no window file in either location; `fleet-leases.json` still
+  `{"leases":[],"version":1}`; register `15944dab`, 184 tasks / 45 open / 0 claims, `check` rc=0.
+- **Not done:** no register row was edited (the tick is read-only on the register), so this
+  mechanism and the two half-right register claims stay here and on the board for their owners.
