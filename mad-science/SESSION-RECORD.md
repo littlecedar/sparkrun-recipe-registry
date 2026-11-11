@@ -10995,3 +10995,9 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   intervening ticks' own bookkeeping, not work; landed rows were added for the two executor commits
   (`0fa3a68`, `d774ce8`) and the c16 receipt. The board's 804-row landed table was left intact rather than
   retired: no SHA in it is cited by this ledger, so retiring it would lose facts rather than tidy them.
+- **Correction at 14:19 ET, second publish on board `5a5fb119`.** Lane commit `5e3a044` landed between this
+  tick's publish and its commit and carried the register's last worktree-only line with it, so the queue
+  cell's "still differs from origin by one note line" went stale minutes after it was written: the cell now
+  says both blocks re-render identically from the live file `a3b4821`, which equals `origin/main`'s blob.
+  The same commit names the receipt's own shape — five runs of one invocation each on one boot, not five
+  boots, spread being the cell's inter-run variance — so the landed row says that and cites `5e3a044`.
