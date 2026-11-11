@@ -1956,8 +1956,16 @@ Measured pair, one window, symmetric shaping (`MEM_FRACTION_STATIC=0.75`,
   the canary: 16/16 `4183`, 0 errors**, 2.091 s and a clean rerun 1.145 s. Those batches run
   target-verify at 96 rows (16 × 6), i.e. the routed prefill variant; the scheduler admitted
   1 + 15 new sequences in one step and decoded above the 10-request graph cap (`cuda graph:
-  False`). **One C16 line** (depth 0, pp 2048, tg 128, one run): **tg 68.89 t/s aggregate,
-  pp 1691.7 t/s, TTFR 16.98 s, 82 s wall**. Host floor min `MemAvailable` **10.83 / 10.46 /
+  False`). **C16 line** (depth 0, pp 2048, tg 128, one run per invocation): the first line from
+  this serve — **tg 68.89 t/s aggregate, pp 1691.7 t/s, TTFR 16.98 s, 82 s wall** — was taken while
+  the 35 GB `:fi073e` carry ran from `.35` to `.34` (16:42:22Z–16:47:13Z) and `.35` was one of its
+  ranks, so it is **contaminated and not quoted**; the 16/16 canary falsifier is a text-identity
+  test and stands, and the fi073d ladder (measured before the carry) is unaffected. Clean fleet,
+  five runs on one boot (same recipe env, `MEM_FRACTION_STATIC=0.78`, `MAX_RUNNING_REQUESTS=16`):
+  **tg 85.67 ± 12.83 t/s, pp 2030.16 ± 455.10 t/s, TTFR 14.46 ± 3.95 s, 67.4 ± 8.6 s wall**, all
+  rc=0, 0 serve-log errors per run (per-run tg 94.14 / 77.78 / 81.99 / 71.31 / 103.13 t/s). One
+  boot's line, not a ladder cell: no cross-image claim and **not comparable to the fi073d
+  `0.75` ladder** (different shaping). Host floor min `MemAvailable` **10.83 / 10.46 /
   11.36 / 10.05 GiB** on `.31/.32/.33/.35`; the 6.0 GiB guard never fired, the
   serve log showed no `ValueError`/`Traceback` after the concurrent runs, and the C16 benchmark
   returned rc=0. One run is a line, not a ladder cell: no cross-image
@@ -1967,7 +1975,8 @@ Measured pair, one window, symmetric shaping (`MEM_FRACTION_STATIC=0.75`,
 Receipts: `head:~/benchmarks/arm5-fi073c-20261111/` — `RECEIPT-canary-fi073d.md` §§10–11,
 `boot5b-fi073d/`, `boot6-arm3-canary/`, `boot7-arm5-ladder/`, `boot8-arm3-ladder/`;
 verify-route build/probe and the blocked-serve record in
-`head:~/benchmarks/arm5-verify-route-20261111/`.
+`head:~/benchmarks/arm5-verify-route-20261111/`; the clean-fleet five-run C16 line in
+`head:~/benchmarks/arm5-c16-20261111/README.md`.
 
 ## External stack: spark-ds41f (survey, 2026-11-08)
 
