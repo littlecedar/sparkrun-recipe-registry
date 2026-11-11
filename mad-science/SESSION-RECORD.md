@@ -10748,3 +10748,54 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   (run 43056428786); `986b8db` (43057863127), peer `99d7d2e` (43057174954) and `7833247`
   (43058390572) were still `in_progress` at this read, so this tick claims no green for them beyond
   `tools/push-gate.py`'s `ok -- HEAD 986b8db6` on the committed tree.
+
+## 2026-11-11 12:11 ET hourly board tick: idle fleet on a released lease, and a red tip closed
+
+- **Census `2026-11-11T17:05:25Z`–`17:05:27Z`: nothing live anywhere.** `docker ps -aq` reads
+  **9 / 0 / 0 / 0 / 0 / 0** on `.30`–`.35` (the nine are `.30`'s `Created` leftovers), running **0**
+  and volumes **0** on all six; `sparkrun status` on the head answers `No sparkrun containers running`.
+  Roots fell on every node, **−3,131,596,800 B** net on the base board's `16:27Z` read, movers `.30`
+  **−1,532,186,624** and `.34` **−1,527,291,904**, the rest 13–22 MB.
+- **The `arm5-verify` lease was released, not expired.** `.local/fleet-leases.json` 403 B → **33 B**
+  (sha `29b27ed9…` → **`57247219…`**), mtime `11:44 ET`, `director lease --list` **0 live**, no
+  `.local/fleet-window.lock` — so the board's window row flips to nothing-live and no lease, window or
+  claim is outstanding. Its holder's receipt line says the same: `lease released by id (0 live leases)`.
+- **Pool serving, and its used bytes rose while the roots fell.** Used **13,984,880,656,384 B**
+  (**+3,132,096,512 B**, 2.92 GiB) against avail **10,206,349,099,008 B**, total
+  24,191,229,755,392 B (`df` 58 %); the six root avail sum moved **−3,131,596,800 B** over the same
+  span — the same 2.92 GiB. **LIKELY** chunk-store traffic on the node roots; the mechanism is named
+  once, in the pool row, and the census row does not repeat it. Hub entries **102**.
+- **Campaign re-read, unchanged and lease-free:** user unit active, MainPID **2482**, `NRestarts` **0**,
+  since `01:37:57 EST`; `director status --root ~/benchmarks/h2h-20261107` = **10 measured, 13 blocked**
+  across 23 arms. The blocked list still carries `cannot reap …: cannot list containers on .31
+  (rc=255)` — the stored refusal that does not reproduce by hand, reported, not explained.
+- **Register snapshot `725be3a7…`, 188 tasks / 45 open / 0 claims / 0 questions, `check` rc=0**; the
+  live file still hashed the same when the row was written. Two rows closed `done` —
+  `kimi-tp2-pp3-six-node` (six-node receipts, `4cf0879`) and `ds4-arm5-verify-route-batch-cap` (the
+  verify-route pass) — and `kimi-k31-indexer-block-vs-blhnc-layout` opened `queued`, which is why the
+  graph carries **1** edge where the base carried two (`%% 9 blocked, 1 edges, 8 prose-gated,
+  0 question-gated, 0 question, 43 rows not drawn`).
+- **Published `0f8838c`** through `publish` with `--expect-sha` and `--expect-remote-sha` both set to the
+  saved base copy's sha256 `a7a88fad…` (equal to worktree, `HEAD` and `origin/main` at read, commit
+  `4cf0879`), `lint` ok, one landed row per commit since the base plus the `11:44` ledger measurement.
+  `publish` refused the first attempt on three RFC1918 literals carried by the director's own status
+  line — masked to `.30`–`.33` shorthand, which is the guard working as designed.
+- **The tip was red and is now fixed at the mechanism.** `4cf0879`'s gate (run 43063194705) failed
+  **2** cases, both in `test_reown_runtime_cache_mod`: `6a063e3` moved both recipes to the scoped
+  `@littlecedar/mods/reown-runtime-cache` (correct for a two-lane mod), while the guard's filter
+  collected only lines beginning `- "mods/`, so the scoped entry never entered `entries`. `98c6c53`
+  compares the mod's last path segment and skips whole-line comments and non-list lines — without that
+  skip the recipe's own `# recipes/explore/mods/…/README.md` line would enter as a bogus entry.
+  Negative controls on temp copies: mods lines swapped → ordering assertion fires; reown line removed →
+  not-found assertion fires; real file passes; module 4/4 here.
+- **CI, read by SHA from this workstation:** `4cf0879` `gate` = **failure** (43063194705); `6a063e3`
+  (43062958533), `0f8838c` (43065951567) and `98c6c53` (43066765749) were **in_progress** at this
+  close-out, so no green is claimed for any of them beyond `tools/push-gate.py`'s `ok -- HEAD 98c6c538`
+  on the committed tree.
+- **Probe lesson kept: `ssh -n` and a heredoc cannot both feed the remote bash.** `ssh -n` redirects the
+  local stdin to `/dev/null`, so `ssh -n host bash -s <<'EOS'` runs an empty script and returns rc=0 with
+  no output — the first census of this tick came back with six end markers and no data. Dropping `-n`
+  when the script travels on stdin is the fix; outer `ssh head bash -s < script` plus inner
+  `ssh host bash -s <<'EOS'` works. The worker aliases (`spark-head`, `spark-01`…`spark-05`) are only
+  reachable from the head for node hops, and `spark-head` from the head itself fails host-key
+  verification, so the `.30` read is taken on the outer channel.
