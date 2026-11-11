@@ -138,13 +138,17 @@ class Ledger:
 
     def acquire(self, holder: str, hosts: list[str] | tuple[str, ...], *, ttl: float,
                 arm: str = "", window: str = "", proof: list[str] | tuple[str, ...] = (),
-                lease_id: str = "", takeover: bool = False) -> dict[str, Any]:
+                lease_id: str = "", takeover: bool = False,
+                record_risk: str = "") -> dict[str, Any]:
         """Write one claim for `hosts`, or refuse naming every live lease it would replace.
 
         An identical (holder, hosts, window) re-write refreshes that record -- a restart or a
         renewing worker is not a conflict. Any other live record overlapping the requested hosts is
         a different claim, whoever holds it: the write refuses, naming each holder, host set and
         expiry, unless `takeover` says the operator means to supersede it (`note` records which).
+        `record_risk` is the operator's declared acceptance of a rank on the host holding the
+        campaign record root: the refusal rule is the caller's (`director lease`, the director's
+        own gate), and the fact is stored here so `--list` shows it beside the claim.
         """
         hosts = [str(host) for host in hosts]
         if not hosts or len(set(hosts)) != len(hosts):
@@ -163,6 +167,8 @@ class Ledger:
                                  "proof": list(proof)})
                 if arm:
                     existing["arm"] = arm
+                if record_risk:
+                    existing["record_risk"] = record_risk
                 return existing
             conflicts = [lease for lease in data["leases"]
                          if set(lease.get("hosts") or ()) & wanted]
@@ -194,6 +200,8 @@ class Ledger:
             }
             if superseded:
                 record["note"] = f"takeover of {superseded}"
+            if record_risk:
+                record["record_risk"] = record_risk
             data["leases"].append(record)
             return record
 

@@ -244,6 +244,63 @@ class LeaseCommand(unittest.TestCase):
         self.assertNotIn("holder=session:a", text)
         self.assertIn("note=takeover of ", text)
 
+    def test_a_lease_on_the_record_host_refuses_without_the_declaration(self) -> None:
+        err = io.StringIO()
+        with mock.patch.object(plan, "local_identities", return_value={"node.30"}), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            code = director_module.main(["lease", "--hosts", "node.31,node.30", "--holder",
+                                         "manual-a", "--ttl", "600",
+                                         "--repo-root", str(self.repo)])
+        self.assertEqual(code, 3)
+        text = err.getvalue()
+        self.assertIn("node.30", text)
+        self.assertIn("--accept-record-risk", text)
+        self.assertIn("Lease the remaining ranks", text, "the other way out is named")
+        self.assertEqual(leases.Ledger(self.repo / leases.LEDGER).leases(), [])
+
+    def test_the_six_host_declaration_is_stored_and_listed(self) -> None:
+        hosts = "node.31,node.32,node.33,node.34,node.35,node.30"
+        reason = "owner accepted a rank on the record host"
+        out = io.StringIO()
+        with mock.patch.object(plan, "local_identities", return_value={"node.30"}), \
+                contextlib.redirect_stdout(out):
+            code = director_module.main([
+                "lease", "--hosts", hosts, "--holder", "session:tp4-20261111", "--ttl", "14400",
+                "--arm", "kimi-six", "--window", "tp4-20261111",
+                "--accept-record-risk", reason, "--repo-root", str(self.repo)])
+        self.assertEqual(code, 0, out.getvalue())
+        self.assertIn("record-risk-accepted:", out.getvalue())
+        record = leases.Ledger(self.repo / leases.LEDGER).leases()[0]
+        self.assertEqual(record["hosts"], hosts.split(","))
+        self.assertEqual(record["window"], "tp4-20261111")
+        self.assertEqual(record["record_risk"], reason)
+        listed = io.StringIO()
+        with contextlib.redirect_stdout(listed):
+            self.assertEqual(director_module.main(["lease", "--list", "--repo-root",
+                                                   str(self.repo)]), 0)
+        self.assertIn(f"record-risk={reason}", listed.getvalue())
+
+    def test_a_lease_away_from_the_record_host_ignores_the_flag(self) -> None:
+        with mock.patch.object(plan, "local_identities", return_value={"node.30"}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            code = director_module.main(["lease", "--hosts", "node.31,node.32", "--holder",
+                                         "manual-a", "--ttl", "600",
+                                         "--accept-record-risk", "not needed here",
+                                         "--repo-root", str(self.repo)])
+        self.assertEqual(code, 0)
+        self.assertNotIn("record_risk",
+                         leases.Ledger(self.repo / leases.LEDGER).leases()[0])
+
+    def test_an_empty_acceptance_is_refused(self) -> None:
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = director_module.main(["lease", "--hosts", "node.31", "--holder", "manual-a",
+                                         "--ttl", "600", "--accept-record-risk", "",
+                                         "--repo-root", str(self.repo)])
+        self.assertEqual(code, 2)
+        self.assertIn("needs the acceptance text", err.getvalue())
+        self.assertEqual(leases.Ledger(self.repo / leases.LEDGER).leases(), [])
+
     def test_list_prints_two_records_from_one_holder_with_their_fields(self) -> None:
         root = str(self.repo)
         director_module.main(["lease", "--hosts", "n1", "--holder", "session:x", "--ttl", "600",
@@ -649,6 +706,8 @@ class RecordRoot(DirectorCase):
         self.assertIn(f"record-risk-accepted: node.30 ({reason})", self.out.getvalue())
         lease = leader.handle(protocol.poll("w1"))["lease"]
         self.assertEqual(sorted(lease["hosts"]), sorted(self.HOSTS))
+        self.assertEqual(self.ledger.leases()[0]["record_risk"], reason,
+                         "the campaign's claim carries the same acceptance the manual path does")
         written = json.loads((self.root / "state.json").read_text(encoding="utf-8"))
         self.assertEqual(written["record_risk"]["hosts"], ["node.30"])
         self.assertEqual(written["record_risk"]["reason"], reason)

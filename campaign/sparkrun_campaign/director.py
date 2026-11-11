@@ -593,7 +593,9 @@ class Director:
             try:
                 claim = self.ledger.acquire(
                     self.holder, list(hosts), ttl=self.campaign.lease_ttl, arm=arm,
-                    window=str(self.campaign.arm(arm).get("window") or ""), proof=proof)
+                    window=str(self.campaign.arm(arm).get("window") or ""), proof=proof,
+                    record_risk=(self.record_risk
+                                 if any(host in self.record_hosts for host in hosts) else ""))
                 ledger_id = str(claim["id"])
             except (leases.LeaseError, plan.PlanError) as exc:
                 print(f"lease-refused: {arm} on {','.join(hosts)} ({exc}); not attempted",
@@ -1076,16 +1078,38 @@ def lease_command(args: argparse.Namespace) -> int:
                       f"window={record.get('window') or '-'} "
                       f"until={float(record.get('expires_at') or 0):.0f}"
                       + (f" arm={record['arm']}" if record.get("arm") else "")
+                      + (f" record-risk={record['record_risk']}"
+                         if record.get("record_risk") else "")
                       + (f" note={record['note']}" if record.get("note") else ""))
             print(f"{len(live)} live lease(s) in {ledger.path}")
             return 0
         if not args.holder or args.ttl is None:
             print("cannot lease: --holder and --ttl are required to write a lease", file=sys.stderr)
             return 2
-        record = ledger.acquire(args.holder, _host_list(args.hosts), ttl=args.ttl,
-                                arm=args.arm, window=args.window, takeover=args.takeover)
+        accept = args.accept_record_risk
+        if accept is not None and not accept.strip():
+            print("cannot lease: --accept-record-risk needs the acceptance text, not an empty "
+                  "string", file=sys.stderr)
+            return 2
+        hosts = _host_list(args.hosts)
+        # The same rule the plan applies: a rank on the host holding the campaign record root loses
+        # the record with the node. The manual claim states its ranks outright, so any included
+        # record host is the risk; the plan additionally refuses shapes that cannot avoid one.
+        record_here = [host for host in plan.record_hosts(hosts) if host in hosts]
+        if record_here and not accept:
+            print(f"cannot lease: {','.join(record_here)} holds the campaign record root "
+                  f"(state.json, its lock, the socket and the lease ledger's checkout): a rank "
+                  f"there loses the record with the node. Lease the remaining ranks, or declare "
+                  f"the risk with --accept-record-risk \"<why>\"", file=sys.stderr)
+            return 3
+        record = ledger.acquire(args.holder, hosts, ttl=args.ttl,
+                                arm=args.arm, window=args.window, takeover=args.takeover,
+                                record_risk=(accept or "").strip() if record_here else "")
         print(f"leased {record['id']} to {record['holder']} on {','.join(record['hosts'])}"
               f" until {record['expires_at']:.0f}")
+        if record.get("record_risk"):
+            print(f"record-risk-accepted: {','.join(record['hosts'])} "
+                  f"({record['record_risk']})")
         if args.takeover:
             print(f"lease-takeover: {record['id']} "
                   f"{record.get('note') or 'replaced nothing live'}")
@@ -1171,6 +1195,9 @@ def main(argv: list[str] | None = None) -> int:
     claim.add_argument("--takeover", action="store_true",
                        help="supersede a live claim on overlapping ranks; the note records it "
                             "(never needed to release your own record)")
+    claim.add_argument("--accept-record-risk", default=None, metavar="TEXT",
+                       help="required to lease a rank on the host holding the campaign record "
+                            "root; the text is stored on the record and printed by --list")
     claim.add_argument("--list", action="store_true", help="print every live lease")
     claim.add_argument("--repo-root", default=fleet.default_repo_root(),
                        help="registry checkout holding .local/fleet-leases.json")

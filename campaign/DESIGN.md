@@ -203,7 +203,12 @@ first (measured 2026-11-11, `session:tp4-20261111`). A write never replaces a li
 not create — overlapping ranks refuse with the holder, hosts and expiry, an identical re-write
 refreshes its own record, and only an explicit `--takeover` supersedes, naming the replaced ids in
 the new record's `note`; `--release` takes the record's id or the same holder and hosts and refuses
-an ambiguous match by naming the candidates. The director
+an ambiguous match by naming the candidates. The manual `director lease` path and the plan path
+share one record-root rule: a lease whose ranks include the host holding the campaign record root
+is refused unless `--accept-record-risk "<why>"` declares it, since the manual claim states its
+ranks outright instead of being placed. The declaration is stored on the ledger record and shown
+as `record-risk=` in `--list`, the same acceptance `state.json` carries under `record_risk` for a
+campaign. The director
 is the writer for campaign boots — the record exists, and any rank is checked again, before the
 state lease a worker can launch from — and a manual session uses the same code path:
 
