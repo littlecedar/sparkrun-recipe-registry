@@ -36,10 +36,12 @@ STUB = """#!/usr/bin/env bash
 case "$1" in
   events)
     printf '%s\\n' "$@" > "$STUB_ARGV"
+    [ -n "${STUB_PID:-}" ] && printf '%s\\n' "$$" > "$STUB_PID"
     if [ -n "${STUB_EVENTS_ERROR:-}" ]; then
       printf '%s\\n' "$STUB_EVENTS_ERROR" >&2
       exit 1
     fi
+    sleep "${STUB_CREATE_DELAY:-0}"
     cat "${STUB_EVENTS:-/dev/null}"
     exec sleep "${STUB_HOLD:-30}"
     ;;
@@ -77,36 +79,38 @@ class Harness(unittest.TestCase):
         env_extra: dict[str, str] | None = None,
     ) -> tuple[dict[str, str], str, str]:
         """Run the capture against the stub docker; return (capture files, argv, output)."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmp = Path(tmpdir)
-            bins = tmp / "bin"
-            bins.mkdir()
-            stub = bins / "docker"
-            stub.write_text(STUB)
-            stub.chmod(0o755)
-            events_file = tmp / "events.txt"
-            events_file.write_text(events)
-            argv_file = tmp / "argv.txt"
-            tool = tmp / "capture.sh"
-            tool.write_text(script if script is not None else TOOL.read_text())
-            cap = tmp / "cap"
-            env = {
-                **os.environ,
-                "PATH": f"{bins}:{os.environ['PATH']}",
-                "STUB_EVENTS": str(events_file),
-                "STUB_ARGV": str(argv_file),
-                "CAPTURE_IDLE_EXIT": "1",
-            }
-            env.pop("STUB_EVENTS_ERROR", None)
-            env.update(env_extra or {})
-            args = ["bash", str(tool), str(cap), max_seconds]
-            if label:
-                args.append(label)
-            out = subprocess.run(args, capture_output=True, text=True, timeout=60,
-                                 check=False, env=env)
-            files = {p.name: p.read_text() for p in cap.glob("*")} if cap.is_dir() else {}
-            argv = argv_file.read_text() if argv_file.is_file() else ""
-            return files, argv, out.stdout + out.stderr
+        tmpdir = tempfile.TemporaryDirectory(prefix="exitcap-")
+        self.addCleanup(tmpdir.cleanup)
+        tmp = Path(tmpdir.name)
+        self.tmp = tmp
+        bins = tmp / "bin"
+        bins.mkdir()
+        stub = bins / "docker"
+        stub.write_text(STUB)
+        stub.chmod(0o755)
+        events_file = tmp / "events.txt"
+        events_file.write_text(events)
+        argv_file = tmp / "argv.txt"
+        tool = tmp / "capture.sh"
+        tool.write_text(script if script is not None else TOOL.read_text())
+        cap = tmp / "cap"
+        env = {
+            **os.environ,
+            "PATH": f"{bins}:{os.environ['PATH']}",
+            "STUB_EVENTS": str(events_file),
+            "STUB_ARGV": str(argv_file),
+            "CAPTURE_IDLE_EXIT": "1",
+        }
+        env.pop("STUB_EVENTS_ERROR", None)
+        env.update(env_extra or {})
+        args = ["bash", str(tool), str(cap), max_seconds]
+        if label:
+            args.append(label)
+        out = subprocess.run(args, capture_output=True, text=True, timeout=60,
+                             check=False, env=env)
+        files = {p.name: p.read_text() for p in cap.glob("*")} if cap.is_dir() else {}
+        argv = argv_file.read_text() if argv_file.is_file() else ""
+        return files, argv, out.stdout + out.stderr
 
 
 class CaptureOnDie(Harness):
@@ -194,6 +198,53 @@ class FailClosed(Harness):
         self.assertTrue(marker.startswith("# capture failed:"), f"no marker: {files}")
         self.assertIn("Cannot connect to the Docker daemon", marker,
                       f"the artifact does not name the reason: {marker!r}")
+
+
+class LateAppearance(Harness):
+    """A four-rank distribution creates its containers minutes apart, not inside one poll.
+
+    Measured 2026-11-08 on the marlin arm: four rank containers were Up at 12:12:10 and the relay
+    container that carries the engine's stdout only appeared at 12:12:45 -- 35 s after arming, and
+    longer than the old five-second window. The capture must follow the container's actual
+    appearance (its `create` event), not a fixed sleep, and a ceiling must bound the wait without
+    leaving a docker client behind.
+    """
+
+    def test_a_container_created_after_the_first_poll_is_still_attached(self):
+        files, argv, out = self.run_capture(events=EVENTS, max_seconds="25",
+                                            env_extra={"STUB_CREATE_DELAY": "6"})
+        self.assertIn("event=create", argv, f"the capture never armed a create subscription: {out}")
+        log = files.get("sparkrun_t1_node_0.log", "")
+        self.assertIn("boom", log,
+                      f"a container that appeared after the first poll left no stream: {files} / {out}")
+        self.assertIn("die exit=137", files.get("sparkrun_t1_node_0.die", ""))
+        self.assertNotIn("no-capture.txt", files)
+
+    def test_the_same_delay_behind_a_short_window_loses_the_text(self):
+        """Negative control: a fixed five-second window would have reported a clean failure."""
+        files, _argv, _out = self.run_capture(events=EVENTS, max_seconds="2",
+                                              env_extra={"STUB_CREATE_DELAY": "6"})
+        self.assertNotIn("boom", files.get("sparkrun_t1_node_0.log", ""),
+                         "the control ran long enough to have captured the late container")
+        self.assertIn("# capture failed:", files.get("no-capture.txt", ""))
+
+    def test_a_bounded_failure_leaves_no_docker_client_behind(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pid_file = Path(tmpdir) / "events.pid"
+            started = time.monotonic()
+            files, _argv, out = self.run_capture(
+                events="", max_seconds="3",
+                env_extra={"STUB_PID": str(pid_file), "STUB_HOLD": "60"},
+            )
+            elapsed = time.monotonic() - started
+            pid = int(pid_file.read_text().strip())
+        self.assertLess(elapsed, 20, f"the ceiling did not bound the wait: {out}")
+        marker = files.get("no-capture.txt", "")
+        self.assertIn("# capture failed:", marker)
+        self.assertIn("no container", marker)
+        with self.assertRaises(ProcessLookupError,
+                               msg=f"docker events pid {pid} outlived the capture"):
+            os.kill(pid, 0)
 
 
 class NegativeControls(Harness):

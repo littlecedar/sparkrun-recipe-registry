@@ -24,6 +24,12 @@
 #
 # Exits on: its deadline, an idle window after every created container died, the event
 # stream ending, or SIGTERM (the caller kills it at teardown via <dir>/pid).
+#
+# The container is followed by its own `create` event, never by a sleep: a four-rank
+# distribution creates its ranks minutes apart (2026-11-08: four ranks at 12:12:10, the relay
+# carrying the engine's stdout at 12:12:45), so the wait is events-driven and bounded only by
+# `MAX`. `tests/test_engine_exit_capture.py::LateAppearance` pins a container created six
+# seconds after arming and the bounded no-container failure beside its negative control.
 set -uo pipefail
 
 CAP=${1:?usage: engine-exit-capture.sh <capture-dir> <max-seconds> [label-filter]}
