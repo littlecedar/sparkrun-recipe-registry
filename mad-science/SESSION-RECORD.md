@@ -10160,3 +10160,47 @@ Tick scope: read-only census, pool and claim reads, board publish; no boot, no s
 - **`f1f5d2f` (the 02:03 close-out) has a red gate run, 42980903014, for that fixture reason only** —
   the ledger bytes are prose and the failure predates `589200a`. Recorded by run id so a later reader
   does not have to infer whether the commit or its parent carried the defect.
+
+## 2026-11-11 03:00 ET — hourly board tick (boot 8 outlives boot 7, and a board row this tick dropped)
+
+- **Published `8e160b2` (title 03:17 ET), then repaired in place at 03:25 ET.** The first
+  composition was **refused by `publish`**, not shipped: `refusing publish: mad-science/STATUS.md on
+  disk is sha256 2249062c…, not the 6a9bb6c9… this board was composed from`. The disk board had moved
+  because a peer tick stopped arm-5 boot 7 and launched the arm-3 control while I was composing, so my
+  rows described a boot that no longer existed. It was rebuilt on the peer's bytes (`2249062c`) rather
+  than forced over them, and the owner of that refusal is `publish`'s `--expect-sha` guard.
+- **Two peer boards landed in this one hour** — `8d84e95` (03:09 ET) and `b8fa9d2` (03:14 ET) — plus a
+  third after mine (`bc2cc38`, 03:21 ET). A tick that assumes one board per hour is wrong on this
+  clone; the guard is the sha, never the clock.
+- **This tick dropped the `queue` In-flight row and then repaired it.** The 03:17 composition emitted
+  12 rows where the peer had 13, because my compose lists its rows explicitly and the `queue` key was
+  not in that list — while the same board's `publication` cell claimed it had "replaced" the queue row.
+  `grep '^| queue |'` on the published blob found nothing, and the peer's 03:21 board inherited the
+  gap. The repair re-inserts the row (register `ca309917…`, 178 tasks, 50 open, both
+  `session:tp4-20261111` claims, table exactly 50 rows) and says so in the publication cell. The
+  durable lesson: a compose that names its rows cannot "replace" a row it does not name, and the
+  publication cell must be written from the emitted row list, not from intent.
+- **Boot 7 → boot 8 handover, with the memory floors that are worth keeping.** Arm-5 boot 7
+  (`…_0e1f2d1ca7c9`, `dsv41-sm121-dg:0.2.1-fi073d`) reached `ready=1 ttr_s=193` at `08:05:43Z`, served
+  its ladder and wrote `ladder.yaml/json/csv`; the arm-3 control boot 8 (`…_139d98e83d62`,
+  `dsv41-sm121-dg:0.2.1`) launched `08:10:26Z`, read `ready=1 ttr_s=250` at `08:14:48Z`, watchdog
+  `verdict=healthy` t=259 s with `ranks=4 unprobeable=0`, and answered in-container `/v1/models` 200 at
+  `08:16:24Z`. **Boot 7's four rank nodes held 12.1/12.7/12.4/12.2 GiB `MemAvailable`; boot 8's hold
+  23.2/24.4/24.3/24.3 GiB**, both against ~116 GiB before any load — ~104 GiB resident per rank node for
+  the port against ~93 GiB for the control, which is the headroom a cell from either arm must be read
+  against.
+- **The census figure is derived, not counted from memory.** Four sweeps over four groups of captures:
+  A `08:02:15Z` (`.35` alone) plus `08:02:59Z`–`08:03:01Z`, B `08:03:40Z`–`08:03:42Z`, C
+  `08:08:19Z`–`08:08:23Z`, D `08:15:18Z`–`08:15:21Z` — 1 + 5 + 6 + 6 + 6 = **24 node reads**, and A is
+  one sweep sampled in two moments 45 s apart, which is why `.35` reads 0 containers at `08:02:15Z` and
+  1 at `08:03:42Z`.
+- **The head's `NameError: name 'socket' is not defined` was a transient, not a live defect**, and the
+  campaign row says so with a discriminator: the worktree and head copies of `tools/task-queue.py` are
+  byte-identical (`sha256 3955a0de…`, import at `:85`, `HOST` at `:105`) while the 02:05:44 ET
+  traceback names line 104, and from the head at `08:06:32Z` both `queue --json` and `check` return
+  rc=0 on the same register. The service reads the syncthing-shared worktree, so a peer's mid-edit was
+  visible to it for one poll.
+- **Left behind on purpose.** The fleet was read only: no boot, no claim, no lock, no stop. `.30` still
+  carries its 9 never-started `Created` containers, `.34` is idle, and the register claim on the
+  quartet remains the peer session's. The in-repo snapshot dir `.scratch/tick-0300-790723/` was removed
+  after publishing.
