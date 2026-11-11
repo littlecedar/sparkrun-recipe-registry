@@ -10557,8 +10557,8 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
 - **Board published on this tick's own census.** `publish` reported `disk was 2026-11-11 08:01:53 ET`,
   was given the composed copy's sha256 and `origin/main`'s board sha256, so a peer publish inside the
   window would have been refused rather than overwritten; `lint` ok. One whole-fleet sweep
-  `2026-11-11T14:01:38Z`–`14:02:0xZ`, workstation-direct plus a direct `.30` hop because the head's
-  own `.30` name entry still fails.
+  `2026-11-11T14:01:38Z`–`14:02:0xZ`: `.31`–`.35` over nested `ssh -n` legs from the head, and `.30`
+  read from this workstation directly because the head's own `.30` name entry still fails.
 - **Fleet idle and nothing measured.** `.31`–`.35` read 0 containers, 0 running, 0 volumes; `.30`
   reads 0 running its nine never-started `Created` leftovers unchanged; no serve process on any node.
   Root avail fell on all six (`-43,028,480 B` total), pool's mount `used` rose **+40,894,464 B** over
