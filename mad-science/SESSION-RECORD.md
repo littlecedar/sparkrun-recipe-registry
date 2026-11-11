@@ -10943,3 +10943,29 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   `ok: 1 markdown file(s) render`.
 - **Cleaned:** `/tmp/nodeprobe-1300.sh` removed from the head (this tick's only node-side artefact);
   node containers untouched, nothing stopped.
+## 2026-11-11 13:23 ET (pid 2116005) hourly board tick: a second tick in the minute, publishing its own census
+- **Published twice, the second time as a correction.** The 13:15 board (blob `bba18ba0`) carried a
+  census computed against the sibling's `18:05:33Z` read and a node-row pair of "largest movers" that
+  was hardcoded to `.31`/`.34` instead of the measured extremes; the 13:23 board (blob `41231d6c`) fixes
+  both, bases on the former as its copy, and re-measures every cell against a fresh
+  `2026-11-11T18:22:14Z` sweep.
+- **Census `18:22:14Z`, all six nodes idle.** `docker ps -aq` 9 / 0 / 0 / 0 / 0 / 0 (`.30`'s nine
+  `Created` leftovers, same names), running 0 and volumes 0 everywhere; root avail fell on all six,
+  largest movers `.30` **-9,637,888 B** and `.34` **-9,056,256 B**, net **-29,782,016 B** on the
+  previous board's `18:14:51Z` read; pool `df -B1` `18:22:17Z` used **+29,884,416 B** on its
+  `18:14:54Z` read, mechanism stated once in the board's own pool cell; `MemAvailable`
+  116.6–117.4 GiB, no reboot, `kho=off` 1 and `CmaTotal/CmaFree` 0/0 on all six.
+- **Register, window and campaign:** 189 tasks (146 done / 34 queued / 9 blocked, 0 claims, 43 open)
+  at sha `8ef73753`, which is `origin/main`'s blob, `check` rc=0; the live worktree register has since
+  moved to `06bc7c5b` (a peer edit in flight), so the board names the published counts. 0 live leases
+  and no `.local/fleet-window.lock`; unit active since 01:37:57 EST, 23 arms at 10 measured / 13
+  blocked, 0 leases of its own.
+- **One pre-existing duplicate landed row left alone:** the table the sibling published carries the
+  11:10 `serve-reaped-…_3383f2c899d7_node_0.log` row twice; landed rows are append-only, so the tick
+  reports it rather than rewriting history.
+- **Correction to the section above:** pid 2116005 did publish. The "published nothing" line was
+  written by the sibling's tick before this one's first publish, and the byte CAS then arbitrated
+  which composition landed.
+- **Capture crossed directories:** `.scratch/tick-1300-2116005/census.txt` was rewritten in another
+  tick's format at `18:05:40Z`, so this tick re-captured into `mktemp -d`
+  (`.scratch/tick-1300-lu0XiH`) instead of trusting a file it had just written.
