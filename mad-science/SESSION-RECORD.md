@@ -10691,4 +10691,6 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   `f94df50` `gate` = **failure**, and the failing step is `Suite on the runner's python3` — the
   address guard, exactly what the local gate had printed; `d236ce4`, `6362db5` and `838c621` were
   still `in_progress` at that read, while `tools/push-gate.py` printed `ok -- HEAD d236ce42` and
-  `ok -- HEAD 838c6213` here.
+  `ok -- HEAD 838c6213` here. The red/green pair is closed on CI: `d236ce4` completed **success**
+ at the second read, so the red commit and its fix are one failing and one passing run; `6362db5`,
+ `838c621` and `777a915` were still `in_progress` then.
