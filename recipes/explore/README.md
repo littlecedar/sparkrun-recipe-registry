@@ -1519,6 +1519,33 @@ packed row is 656 B/layer/token (512 fp8 + 16 B scale + 128 B bf16
 RoPE tail), so the shipped-dtype KV is 24 × (656 + 132) = **18,912 B/token**, not 30,816; the
 table above is kept as the 2026-11-08 bf16 envelope.
 
+**Measured 2026-11-11 — the parameter set alone floors at five to nine GiB/rank, so the 2026-11-10
+sub-4 GiB trough was not parameter allocation.** A `--load-format dummy` probe over `.31`–`.35`
+(25 rounds at 5 s, `MEM_FRACTION_STATIC=0.75`, image
+`sha256:e5fcda3386c8b498e6cdd011792c0d83e71f93cdcbda21f66119b2fbefec8651`) reads its verdict as
+**`measured`**: the parameter-set dive is **112.05 / 109.84 / 108.20 / 109.46 GiB**, inside the
+pre-registered 110.7 ± 10 % sanity gate, and the floors after it are **5.012 / 7.565 / 9.170 /
+7.856 GiB** on those four ranks, with ~117 GiB free at the first sample. The pre-registered
+falsifier (≥6 GiB on all four) is **not met** — one rank reached 5.012 — so the reading is "the
+parameter set alone sits at five to nine GiB per rank", not "every rank clears six". Engine-core
+init failed at t=174 s and earlyoom took the remaining rank: the floor is a measurement, not a
+failed boot. That number is what the six-node shape's 73.80 GiB/rank had to clear, and it leaves
+roughly 64–69 GiB of the 121.69 GiB pool for KV there. Receipt
+`head:~/benchmarks/tp4-20261111/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4/`
+(`mem-floor.json`).
+
+**The answer form decides, not the distance (ERNIE control pair, 2026-11-11).** On the same control
+boot (`/v1/completions` only — the checkpoint ships no chat template; 128-shard load; `Ready`
+2026-11-11T09:48:25Z) the QA form **passes at 4,005 and 26,547 prompt tokens** (code `ZX81-4321`
+present, 37.7 s / 17.4 s), while the imperative form **fails at 4,264 and 17,940 tokens** (2.6 s /
+9.3 s, output `1.` and a repeated instruction). Distance is not the variable: the shorter imperative
+prompt fails and the longer QA prompt answers. The window-append port answers the QA form beyond
+both the 128-token window and the 2,048-token top-k cap, which is the port's own acceptance shape.
+The imperative failure is recorded verbatim as a finding, not explained away. Receipts
+`head:~/benchmarks/tp4-20261110b/ernie-gate2/trio_c2.json` (beside `trio.json`),
+`head:~/benchmarks/tp4-20261111/zz-ernie-…-bare.3/`, and
+`.scratch/tp4-20261111/RECEIPT-boot-a-and-pool-census-20261111.md`.
+
 **Boot safety, not just fit.** The recut makes this arm arithmetically bootable, not safe to boot:
 a quartet attempt that overruns the unified pool takes the **host** down — the 2026-11-08 11:27
 kernel OOM killed `ssh`, NetworkManager, syncthing and a dashboard service on a loading node while

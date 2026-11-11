@@ -10362,3 +10362,45 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   writes this tick made are the board commit and this entry. Captures, the register snapshot
   (`7732cc17…`, 180 tasks / 48 open) and the composed board lived in
   `.scratch/tick-0401-926422/`, removed after publish.
+
+## 2026-11-11 — window close-out: the floor probe, the ERNIE control, and three faults
+
+- **The parameter set alone floors at five to nine GiB per rank.** The `--load-format dummy` probe
+  (25 rounds @5 s, `.31`–`.35`, image `sha256:e5fcda33…`) ends `measured`: dives 112.05 / 109.84 /
+  108.20 / 109.46 GiB inside the 110.7 ± 10 % gate, floors 5.012 / 7.565 / 9.170 / 7.856 GiB, ~117
+  GiB free at the first sample. The pre-registered ≥6 GiB-on-all-four falsifier is not met (one rank
+  reached 5.012), so the 2026-11-10 sub-4 GiB trough is shown to be something other than parameter
+  allocation; engine-core init then failed at t=174 s and earlyoom took the remaining rank, which
+  makes the floor a measurement, not a failed boot. That is the number the Kimi six-node shape's
+  73.80 GiB/rank had to clear. Receipt
+  `head:~/benchmarks/tp4-20261111/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4/`
+  (`mem-floor.json`); lane doc `recipes/explore/README.md` §"Fit arithmetic inside one GB10".
+- **ERNIE's control pair says the answer form decides, not the distance.** QA form passes at 4,005
+  and 26,547 prompt tokens (code `ZX81-4321`, 37.7 s / 17.4 s); the imperative form fails at 4,264
+  and 17,940 tokens (2.6 s / 9.3 s, output `1.` and a repeated instruction). The window-append port
+  answers the QA form beyond both the 128-token window and the 2,048-token top-k cap. Receipts
+  `head:~/benchmarks/tp4-20261110b/ernie-gate2/trio_c2.json`, `…/zz-ernie-…-bare.3/`,
+  `.scratch/tp4-20261111/RECEIPT-boot-a-and-pool-census-20261111.md`; the imperative failure is
+  recorded verbatim rather than explained.
+- **Fault 1, the one that will kill future boots: the watchdog reads a mod hook as the serve.**
+  `boot-watchdog.py`'s pattern includes `python3`, so ERNIE attempt 1's python pre_exec hook matched,
+  was watched alive, exited (rc=137 on `.35`), and the crash-edge rule stopped a healthy boot before
+  the engine started. Row `watchdog-mistakes-a-mod-hook-for-the-serve`.
+- **Fault 2: a root-owned runtime-cache subtree breaks a rank.** The `.35` runtime-cache
+  `flashinfer` subtree was `0:0` (created 2026-11-11 04:04 EST) while the rest was `1000:1000`;
+  rank 3's serve died on `PermissionError` and a `chown -R 1000:1000` fixed it. Row
+  `runtime-cache-flashinfer-root-owned-subtree`.
+- **Fault 3, a coverage gap rather than a bug: bare `sparkrun run` has no per-rank capture.** Engine
+  stdout stays in the container's `/tmp/sparkrun_serve.log`, which `--rm` takes with the container;
+  only the executor path (`run-arm.sh`) arms `engine-exit-capture.sh` per rank. Noted on the closed
+  capture row.
+- **Pool census, in the register and in this receipt.** `LibertAIDAI/1017-EXL3-2.9bpw`'s body is a
+  0.01 GiB stub against 196.25 GiB declared (row
+  `hf-cache-libertai-1017-exl3-body-stub`), while the ds4 1017 body's index double-counts — 475.26
+  GiB present against 950.48 declared — and still boots, so a declared total is not evidence of
+  bytes. Census note added to `hf-cache-20261110-pool-fetch-gaps`.
+- **Remaining queued.** `watchdog-mistakes-a-mod-hook-for-the-serve` (fixed in the commit that
+  follows this entry, if the same turn allows), `runtime-cache-flashinfer-root-owned-subtree`,
+  `hf-cache-libertai-1017-exl3-body-stub`, `ds4-arm5-verify-route-batch-cap`,
+  `sparkrun-single-gid-index-for-two-hcas`, the campaign lease/placement rows (mechanism landed, no
+  live lease yet), `mem-guard-outlives-its-task`, and the earlyoom policy row's last item.
