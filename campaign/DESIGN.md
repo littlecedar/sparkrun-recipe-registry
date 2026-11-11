@@ -83,7 +83,11 @@ Exclusions are named, never truncated:
 **Placement keeps the head available, never a rank.** `--exclude-host` (default `.30`; a placement
 decision of the run, never a node role) sorts excluded hosts last in the free list, so a shape with
 room on the safe hosts never takes the head whatever its `tp`, while a single-rank arm still uses
-`.30` when it is the only host free. A **memory-risky** shape is declared by its row
+the head when it is the only host free. A hostname-declared set names the head through
+`--exclude-host` / `$CAMPAIGN_EXCLUDE_HOSTS`, because a tracked default may not carry the head's
+hostname (the address-hygiene gate); a risky row whose exclusion set matches **no** declared host
+refuses the plan rather than sorting as if the head were absent — the guard must not look installed
+while matching nothing. A **memory-risky** shape is declared by its row
 (`memory_risky: true`, or `exclude_hosts` naming hosts for that arm) and, absent a declaration, by
 `node_cost: quartet` — the class that has overrun the pool. `tp` alone is the wrong lever in both
 directions: a TP=2 x PP=3 six-node shape overruns while a ~20 GiB/rank quartet does not. A risky
@@ -283,6 +287,11 @@ the lock) is the second gate for a hold written after the last reconcile.
 - a `ladder.json` that parses must contain a cell (`benchmarks` / `cells` / `runs` non-empty);
 - a `ladder.yaml` proves nothing — `run-arm.sh` writes it the moment a benchmark starts, so it is
   exactly the artefact an arm that died before its first cell leaves behind;
+- `quality.json` is the executor's normalised client cell: `producer` names the
+  `ARM_EXTRA_CLIENT` command, `client` maps each file the successful hook wrote to its parsed JSON.
+  It must carry at least one non-empty cell or score object; a truncated or empty envelope is not a
+  measurement, and the executor writes none at all for a failed hook or one that wrote no JSON, so
+  the client's own output is the only source of its values;
 - `accuracy_status` is carried into the receipt beside the score's log, not copied as a number.
 
 The worker reports a return code; the director decides the status. `rc=0` with a partial ladder is
@@ -293,9 +302,9 @@ disagreement is auditable (`status` beside `ladder`).
 
 | Thing | Decision | Why |
 |---|---|---|
-| `tools/run-arm.sh` | **Reused as a subprocess**, unchanged | It is the measured executor: readiness loop that also polls the watchdog, serve-log harvest before teardown, all-rank removal by name, `rc=6` leftover gate, `rc=7` replayed-state gate. |
+| `tools/run-arm.sh` | **Reused as a subprocess**, extended with the client-cell normalisation | It is the measured executor: readiness loop that also polls the watchdog, serve-log harvest before teardown, all-rank removal by name, `rc=6` leftover gate, `rc=7` replayed-state gate. Its `ARM_EXTRA_CLIENT` block now also writes `quality.json` (the hook's own JSON plus a `producer`) for a successful hook, the fixed name the receipt predicate reads. |
 | `tools/boot-watchdog.py` | **Reused as a subprocess**, spawned by `run-arm.sh` | Items 3 and 4 are its behavior (two observed absences, serve log captured before the stop). The director deliberately has no serve liveness logic. |
-| `tools/next-arms.py` skip reader | **Reimplemented** (`evidence.skips`) | Importing a dash-named script from another project is a hack, and its CLI is fleet-shaped (it ssh-probes nodes), so importing it would drag a probe into the decision path. A parity test compares both implementations over the whole tracked tree and over shaped receipts, so drift fails the suite rather than the campaign. |
+| `tools/next-arms.py` skip reader and receipt predicate | **Reimplemented** (`evidence.skips`, `evidence.done`) | Importing a dash-named script from another project is a hack, and its CLI is fleet-shaped (it ssh-probes nodes), so importing it would drag a probe into the decision path. The measured-artefact set (`quality.json` included) and its content checks are mirrored, and a parity test compares both implementations over the whole tracked tree and over shaped receipts — including a valid and a truncated client cell — so drift fails the suite rather than the campaign. |
 | `tools/next-arms.py` manifest/placement | **Reimplemented** (`plan.py`) | Its placement copies node lists out of a live probe and prints launch lines; the campaign needs a queue and leases. Same manifest shape is accepted. |
 | `tools/task-queue.py` register | **Shelled out to** (plan source and claim writer) | It owns the register: the ordering (`queue --json`, so the weight arithmetic has one implementation), and every write (claim, done, note) through its own atomic save. Editing the JSON here would race that save. A manifest campaign never touches it. |
 | `sparkrun` CLI | **Shelled out to**, never imported | `AGENTS.md` keeps `plugins/` as the one tree that imports sparkrun. The executor already shells out, and a subprocess keeps the suite runnable with no sparkrun and no GPU. |

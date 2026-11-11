@@ -135,7 +135,8 @@ class QueueCase(unittest.TestCase):
         self.out = io.StringIO()
 
     def build(self, hosts=("node-a", "node-b"), once: bool = False,
-              retries: int | None = None):
+              retries: int | None = None,
+              exclude_hosts: tuple[str, ...] | None = None):
         campaign = state.Campaign.open(self.root / "state.json", campaign="test",
                                         hosts=hosts, max_parallel=2, retries=retries)
         self.addCleanup(campaign.close)
@@ -153,6 +154,8 @@ class QueueCase(unittest.TestCase):
             register=plan.Register(self.repo / "tools" / "task-queue.py", self.queue, SESSION,
                                    run=self.shell),
             once=once,
+            exclude_hosts=(plan.MEMORY_RISKY_EXCLUDED_HOSTS if exclude_hosts is None
+                           else exclude_hosts),
         )
         return leader, campaign
 
@@ -258,7 +261,9 @@ class PlanFromTheRegister(QueueCase):
 
     def test_a_quartet_row_runs_when_four_hosts_are_declared(self) -> None:
         self.shell.rows = [row("quartet-task", "recipes/lane/one.yaml", 4, node_cost="quartet")]
-        leader, campaign = self.build(hosts=("n1", "n2", "n3", "n4"))
+        # The placement guard is disabled here on purpose: this test is quartet admission, and a
+        # four-node set that names none of its exclusions is refused (see MemoryRiskyRows).
+        leader, campaign = self.build(hosts=("n1", "n2", "n3", "n4"), exclude_hosts=())
         leader.prepare()
         self.assertEqual(campaign.order, ["one"])
         self.assertEqual(leader.handle(protocol.poll("w1"))["lease"]["hosts"],
@@ -312,6 +317,30 @@ class MemoryRiskyRows(QueueCase):
         self.assertEqual(campaign.order, ["one"])
         self.assertEqual(leader.handle(protocol.poll("w1"))["lease"]["hosts"],
                          ["node.31", "node.32", "node.33", "node.34"])
+
+    def test_a_hostname_declared_set_matches_the_head_when_it_is_named(self) -> None:
+        # A tracked default cannot carry the head's hostname, so a hostname-declared set names it
+        # in --exclude-host / $CAMPAIGN_EXCLUDE_HOSTS; the guard then keeps the head last.
+        risky = row("probe-task", "recipes/lane/one.yaml", 1)
+        risky["memory_risky"] = True
+        self.shell.rows = [risky]
+        leader, _ = self.build(hosts=("head-node", "rank-1"), exclude_hosts=("head-node",))
+        leader.prepare()
+
+        self.assertEqual(leader.handle(protocol.poll("w1"))["lease"]["hosts"], ["rank-1"])
+
+    def test_an_exclusion_that_matches_no_declared_host_refuses_the_plan(self) -> None:
+        # Without the configured name `.30` matches nothing on a hostname-declared set; ordering
+        # would put the head first while the guard looked installed, so the plan fails closed.
+        risky = row("probe-task", "recipes/lane/one.yaml", 1)
+        risky["memory_risky"] = True
+        self.shell.rows = [risky]
+        leader, _ = self.build(hosts=("head-node", "rank-1"))
+
+        with self.assertRaises(plan.PlanError) as ctx:
+            leader.prepare()
+        self.assertIn("matched no declared host", str(ctx.exception))
+        self.assertIn("exclude-host", str(ctx.exception))
 
 
 class Claims(QueueCase):

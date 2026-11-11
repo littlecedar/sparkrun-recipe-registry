@@ -36,11 +36,14 @@ from .state import FAILED, LEASED, PENDING, SKIPPED
 TP_VALUES = (1, 2)
 #: The register, relative to `--repo-root`, when `--queue` is given without a path.
 DEFAULT_QUEUE = "mad-science/queue.json"
-#: Hosts a memory-risky shape may not take. The head (`.30` in this fleet) carries ssh,
-#: NetworkManager and BeeGFS; a global pool overrun there takes those units with it, so the
-#: memory-overrunning shapes run on the other five and `.30` stays an ordinary worker for the
-#: rest. Shorthand on purpose: tracked files may not carry cluster addresses, and a host matches
-#: an entry exactly or by that tail (an address ending in `.30` matches `.30`).
+#: Hosts a memory-risky shape may not take. `.30` is the head: it carries ssh, NetworkManager and
+#: BeeGFS, and a global pool overrun there takes those units with it, so the memory-overrunning
+#: shapes run on the other five while `.30` stays an ordinary worker for the rest. Shorthand on
+#: purpose: tracked files may not carry cluster addresses or the head's hostname (the hygiene
+#: gate), so a hostname-declared set names the head through `--exclude-host` /
+#: `$CAMPAIGN_EXCLUDE_HOSTS`. A host matches an entry exactly or by the `.30` tail (an address
+#: ending in `.30` matches `.30`), and a risky row whose exclusion set matches no declared host
+#: refuses the plan rather than ordering as if the head were absent.
 MEMORY_RISKY_EXCLUDED_HOSTS = (".30",)
 
 
@@ -231,6 +234,12 @@ def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
             # A shape that cannot be placed without an excluded host is refused by name, never
             # narrowed onto that host: the row stays queued for a human to reshape.
             barred_for_arm = tuple(excluded_hosts) + per_arm
+            if barred_for_arm and not any(barred(host, barred_for_arm) for host in hosts):
+                # Fail closed: a hostname-declared set that matches no exclusion would sort as if
+                # the head were not in it and take the head first -- the guard installed on paper.
+                raise PlanError(
+                    f"{task}: exclusion {', '.join(barred_for_arm)} matched no declared host "
+                    f"{hosts!r}; declare the head under one of those names or pass --exclude-host")
             safe = [host for host in hosts if not barred(host, barred_for_arm)]
             if tp > len(safe):
                 hit = [host for host in hosts if barred(host, barred_for_arm)]

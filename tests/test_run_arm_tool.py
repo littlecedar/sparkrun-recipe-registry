@@ -39,6 +39,7 @@ happy path and every test here would still pass.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -1354,7 +1355,8 @@ class ExtraClientHook(BashArmHarness):
             out = subprocess.run(["bash", str(script)], capture_output=True, text=True,
                                  check=False, env=env, timeout=120)
             files = {path.name: path.read_text(errors="replace")
-                     for path in sorted(receipt.iterdir()) if path.name != "hook.sh"}
+                     for path in sorted(receipt.iterdir())
+                     if path.is_file() and path.name != "hook.sh"}
             return files, out.stdout + out.stderr
 
     def test_the_hook_gets_launch_facts_and_no_node_is_in_the_row(self):
@@ -1398,6 +1400,31 @@ class ExtraClientHook(BashArmHarness):
         self.assertNotIn("house.yaml", files,
                          "a house.yaml from the client would read as a finished arm")
         self.assertIn("extra-client: rc=0", files["extra-client.log"])
+
+    def test_a_successful_client_result_is_normalised_into_quality_json(self):
+        # The ERNIE gate: run_benchmarks.py writes `<outdir>/<stem>.json`, which the campaign's
+        # measured set did not know, so a 190/200 run filed "no machine-readable artefact".
+        files, _ = self.run_hook({
+            "ARM_EXTRA_CLIENT":
+                "mkdir -p \"$L/client\" && printf '{\"correct\": 190, \"items\": 200}' "
+                "> \"$L/client/house.json\""})
+        quality = json.loads(files["quality.json"])
+        self.assertEqual(quality["client"]["client/house.json"],
+                         {"correct": 190, "items": 200})
+        self.assertEqual(quality["producer"]["component"], "ARM_EXTRA_CLIENT")
+        self.assertEqual(quality["producer"]["rc"], 0)
+        self.assertIn("mkdir", quality["producer"]["command"])
+
+    def test_a_failed_client_writes_no_measured_artefact(self):
+        files, _ = self.run_hook({
+            "ARM_EXTRA_CLIENT":
+                "printf '{\"correct\": 1}' > \"$L/client.json\"; false"})
+        self.assertNotIn("quality.json", files,
+                         "a failed hook's partial JSON was promoted to a measurement")
+
+    def test_a_client_that_writes_no_json_writes_no_measured_artefact(self):
+        files, _ = self.run_hook({"ARM_EXTRA_CLIENT": "true"})
+        self.assertNotIn("quality.json", files, "a marker was manufactured for an empty hook")
 
 
 # ---------------------------------------------------------------------------

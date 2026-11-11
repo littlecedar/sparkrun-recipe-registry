@@ -11,7 +11,8 @@ free node:
 
   * which nodes are free      — container count 0 on each, over ssh
   * what is already measured  — a receipt carrying `ladder.json`, `ladder.transcribed.json`,
-                                `house.json` or `house.transcribed.txt`
+                                `house.json`, `house.transcribed.txt` or `quality.json` (the
+                                normalised `ARM_EXTRA_CLIENT` cell, content-checked)
                                 under `~/benchmarks/tp12-*/<arm>/`
   * what is runnable now     — the campaign manifest, filtered by `tp` (a TP=2 arm needs two
                                 free nodes) and by an explicit `--skip` list for arms that are
@@ -65,7 +66,10 @@ CITATION = re.compile(r"^(\d{4}-\d{2}-\d{2}) — (.+?) \(([^()\s]+):(\d+)\)$")
 #: that died before its first cell could mark itself measured and never be retried (no receipt
 #: carried a yaml-only artefact when this was tightened on 2026-10-30, on either the workstation
 #: or the head).
-MEASURED_ARTEFACTS = ("ladder.json", "ladder.transcribed.json", "house.json", "house.transcribed.txt")
+MEASURED_ARTEFACTS = ("ladder.json", "ladder.transcribed.json", "house.json",
+                      "house.transcribed.txt", "quality.json")
+#: The executor's normalised client cell (`ARM_EXTRA_CLIENT`); see `quality_failure`.
+QUALITY = "quality.json"
 #: The marker `run-arm.sh` appends to: top-level `ladder:` / `accuracy_status:` fields whose value
 #: carries the outcome. It is also a full benchmark document for the chat suite, so only the
 #: unindented keys are outcome -- nested `ladder` keys are payload.
@@ -180,6 +184,32 @@ def ladder_failure(arm_dir: str) -> str | None:
     return None
 
 
+def quality_failure(arm_dir: str) -> str | None:
+    """Why the executor's client cell is not a measurement, or None when it carries one.
+
+    Mirrors the campaign's `evidence.quality_problem`: presence alone was the ladder's defect and
+    is this file's too. A hook killed mid-battery leaves a truncated JSON, and a client that wrote
+    `{}` proves only that it started; the envelope needs at least one of the hook's own files to
+    parse to a non-empty cell table or score object.
+    """
+    path = os.path.join(arm_dir, QUALITY)
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError) as exc:
+        return f"{QUALITY} does not parse ({exc.__class__.__name__})"
+    if not isinstance(data, dict):
+        return f"{QUALITY} parses to a {type(data).__name__}, not an object"
+    client = data.get("client")
+    if not isinstance(client, dict) or not client:
+        return f"{QUALITY} carries no client file"
+    if not any(isinstance(value, (dict, list)) and value for value in client.values()):
+        return f"{QUALITY} carries no cell or score"
+    return None
+
+
 def arm_measured(arm_dir: str) -> tuple[bool, str]:
     """(done, reason). A reason is always printed, so a non-receipt is visible in the plan log."""
     arm = os.path.basename(arm_dir.rstrip("/"))
@@ -203,7 +233,15 @@ def arm_measured(arm_dir: str) -> tuple[bool, str]:
         return True, ""
     if ladder:
         return False, f"{arm}: {ladder}; not measured"
-    if any(os.path.exists(os.path.join(arm_dir, f)) for f in MEASURED_ARTEFACTS):
+    present = [name for name in MEASURED_ARTEFACTS
+               if os.path.exists(os.path.join(arm_dir, name))]
+    quality = quality_failure(arm_dir) if QUALITY in present else None
+    if quality:
+        # A truncated client file loses to any other artefact; on its own it is not a measurement.
+        present = [name for name in present if name != QUALITY]
+        if not present:
+            return False, f"{arm}: {quality}; not measured"
+    if present:
         return True, ""
     return False, ""
 

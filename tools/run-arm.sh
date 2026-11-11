@@ -888,6 +888,46 @@ artifacts "$L/ladder.yaml" "$L/house.yaml"
     # Bound a wedged client so it cannot hold a TP4 boot; `-k 30` kills one that ignores TERM.
     eval "timeout -k 30 $extra_timeout $ARM_EXTRA_CLIENT" > "$L/extra-client.log" 2>&1 || extra_rc=$?
     echo "extra-client: rc=$extra_rc — $ARM_EXTRA_CLIENT" >> "$L/extra-client.log"
+    # The campaign reads fixed receipt-root names, and a quality client writes its own
+    # (`run_benchmarks.py`'s `<stem>.json`, `h2h-client`'s `client/house.json`): a scored arm then
+    # files as "no machine-readable artefact" and is re-booted. Normalise the JSON this successful
+    # hook wrote (newer than its own log, anywhere under the receipt root) into one `quality.json`
+    # -- values unchanged, producer naming the command. A failed hook or one that wrote no JSON
+    # gets nothing here: this normalises a client cell, it never manufactures one.
+    if [ "$extra_rc" = 0 ] && [ ! -e "$L/quality.json" ]; then
+      timeout 30 python3 -B - "$L" "$L/extra-client.log" "$ARM_EXTRA_CLIENT" <<'PY'
+import json, os, sys
+
+root, log, command = sys.argv[1:4]
+stamp = os.path.getmtime(log)
+skip = {"quality.json", "house.json", "ladder.json", "ladder.transcribed.json"}
+found = {}
+for dirpath, dirnames, filenames in os.walk(root):
+    dirnames[:] = [name for name in dirnames if name != "_raw"]
+    for name in filenames:
+        rel = os.path.relpath(os.path.join(dirpath, name), root)
+        if not name.endswith(".json") or rel in skip:
+            continue
+        path = os.path.join(root, rel)
+        try:
+            if os.path.getmtime(path) < stamp:
+                continue
+            with open(path, encoding="utf-8") as fh:
+                found[rel] = json.load(fh)
+        except (OSError, ValueError):
+            continue          # an unparseable client file is not a cell; it must not measure
+if found:
+    payload = {"producer": {"component": "ARM_EXTRA_CLIENT", "command": command, "rc": 0,
+                            "source": "run-arm.sh", "files": sorted(found)},
+               "client": found}
+    tmp = os.path.join(root, "quality.json.tmp")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, indent=1, sort_keys=True)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, os.path.join(root, "quality.json"))
+PY
+    fi
     # Never manufactures house.yaml: an absent one is "unfinished" to the receipt consumer.
     if [ -e "$L/house.yaml" ]; then
       echo "extra-client: rc=$extra_rc — output in extra-client.log" >> "$L/house.yaml"

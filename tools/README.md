@@ -190,8 +190,13 @@ arm launched on), `ARM_RECIPE` (its tracked path) and `ARM_RECEIPT_DIR` (`$L`) �
 derives the rank-0 base URL itself and a tracked row never has to carry a node address. Its
 stdout/stderr land in `<receipt>/extra-client.log` with a closing `extra-client: rc=N` line, and the
 same rc is appended to `house.yaml` when that marker exists — never manufactured, because an absent
-`house.yaml` is what a receipt consumer reads as unfinished. `ARM_EXTRA_TIMEOUT` (default 1800 s)
-bounds a wedged client so it cannot hold a TP4 boot. A nonzero client rc is recorded as the client's
+`house.yaml` is what a receipt consumer reads as unfinished. For a **successful** hook the executor
+also writes one `<receipt>/quality.json`: a `producer` block naming the `ARM_EXTRA_CLIENT` command
+and a `client` mapping from each JSON file the hook wrote (its own `<outdir>/<stem>.json`,
+`client/house.json`, …) to that file's parsed values. That is the fixed name the campaign and
+`tools/next-arms.py` read as a client measurement; a failed hook, or one that left no parseable
+JSON, writes none, and a truncated or empty envelope fails the content check. `ARM_EXTRA_TIMEOUT`
+(default 1800 s) bounds a wedged client so it cannot hold a TP4 boot. A nonzero client rc is recorded as the client's
 result and never changes the arm's own status or cells. The hook receipt also carries `image.txt`
 (the resolved container image id, from `docker inspect` on rank 0) — a local-only survey tag is not a
 digest, so the receipt names what ran. `arm_opts.txt` beside it holds the effective `ARM_OPTS`

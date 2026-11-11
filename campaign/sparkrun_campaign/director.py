@@ -878,9 +878,10 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--hosts", required=True, help="comma-separated hosts the campaign may use")
     serve.add_argument("--exclude-host", action="append", metavar="HOST",
                        help="host a memory-risky shape may not take (repeatable, comma-separated; "
-                            "default: "
+                            "default: $CAMPAIGN_EXCLUDE_HOSTS, else "
                             f"{','.join(plan.MEMORY_RISKY_EXCLUDED_HOSTS)}; pass an empty value to "
-                            "disable)")
+                            "disable). A hostname-declared set names the head here, because a "
+                            "tracked default may not carry its name")
     serve.add_argument("--root", required=True,
                        help="campaign directory: state, receipts, logs and the socket")
     serve.add_argument("--name", default="", help="campaign id (default: the root's name)")
@@ -912,8 +913,14 @@ def main(argv: list[str] | None = None) -> int:
     if len(set(hosts)) != len(hosts):
         print(f"cannot start: duplicate hosts in {hosts!r}", file=sys.stderr)
         return 2
-    excluded = (plan.MEMORY_RISKY_EXCLUDED_HOSTS if args.exclude_host is None else
-                tuple(host.strip() for value in args.exclude_host
+    excluded_flag = args.exclude_host
+    if excluded_flag is None:
+        # The head's hostname may not ride in tracked code (address hygiene), so a hostname-declared
+        # set names it in the untracked EnvironmentFile this unit already sources.
+        from_env = os.environ.get("CAMPAIGN_EXCLUDE_HOSTS", "")
+        excluded_flag = [from_env] if from_env.strip() else None
+    excluded = (plan.MEMORY_RISKY_EXCLUDED_HOSTS if excluded_flag is None else
+                tuple(host.strip() for value in excluded_flag
                       for host in value.split(",") if host.strip()))
     if args.once and args.queue is None:
         print("cannot start: --once is a queue-mode flag; a manifest campaign drains and exits",

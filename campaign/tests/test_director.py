@@ -223,6 +223,27 @@ class CompletionIsReadFromReceipts(CampaignCase):
         self.assertEqual(fields["marker_shape"], "run-arm")
         self.assertEqual(fields["client"], {})
 
+    def test_a_client_cell_is_measured_and_the_receipt_names_it(self) -> None:
+        # The ERNIE gate case: the hook wrote its own GSM8K stem JSON and no arm-root artefact, so
+        # the director filed "no machine-readable artefact" and re-booted. The executor normalises
+        # it to quality.json, and the receipt must name that file.
+        leader, _ = self.build()
+        leader.prepare()
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        arm_dir = self.receipts / "tp12-fixture" / lease["arm"]
+        arm_dir.mkdir(parents=True)
+        (arm_dir / "quality.json").write_text(json.dumps({
+            "producer": {"component": "ARM_EXTRA_CLIENT", "rc": 0},
+            "client": {"baidu_ERNIE-5.5-Flash-Base.gsm8k.none.json":
+                       {"bench": "gsm8k", "correct": 190, "items": 200, "pct": 95.0}},
+        }), encoding="utf-8")
+        reply = leader.handle(protocol.report(lease["id"], 0, "log run.log"))
+
+        self.assertEqual(reply["status"], "measured")
+        fields = self.receipt_fields("arm-one")
+        self.assertTrue(fields["measured"])
+        self.assertEqual(fields["artefacts"], ["quality.json"])
+
     def test_a_sidecar_receipt_names_the_ladder_it_was_measured_from(self) -> None:
         # 2026-11-08: this arm's receipt said measured with ladder "" while the artefact held
         # seven rows; the sidecar has no ladder field, so the field is read from the artefact.

@@ -399,6 +399,56 @@ class OomWatchdogField(unittest.TestCase):
         self.assertEqual(evidence.oom_watchdog(arm_dir)["state"], "earlyoom-terminated")
 
 
+class ClientArtefact(unittest.TestCase):
+    """`quality.json` is the executor's client cell; a truncated or empty one is not evidence.
+
+    The measured set used to carry only ladder/house names, so a hook that wrote
+    `run_benchmarks.py`'s `<stem>.json` satisfied nothing and a 190/200 GSM8K run filed "no
+    machine-readable artefact" and was re-booted. Presence alone was the ladder's defect, so the
+    file's content decides: it needs one of the client's own JSON documents as a cell or score.
+    """
+
+    def setUp(self) -> None:
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+
+    def client(self, payload: object) -> Path:
+        arm_dir = self.root / "arm"
+        arm_dir.mkdir()
+        text = payload if isinstance(payload, str) else json.dumps(payload, indent=1)
+        write(arm_dir / "quality.json", text)
+        return arm_dir
+
+    def test_a_client_cell_is_measured(self) -> None:
+        arm_dir = self.client({
+            "producer": {"component": "ARM_EXTRA_CLIENT", "rc": 0,
+                         "command": "python3 run_benchmarks.py --bench gsm8k"},
+            "client": {"baidu_ERNIE-5.5-Flash-Base.gsm8k.none.json":
+                       {"bench": "gsm8k", "correct": 190, "items": 200, "pct": 95.0}},
+        })
+        self.assertEqual(evidence.done(arm_dir), (True, ""))
+
+    def test_a_truncated_client_file_is_not_measured(self) -> None:
+        arm_dir = self.client('{"producer": {"rc": 0}, "client": {"gsm8k.json": {"corr')
+        measured, reason = evidence.done(arm_dir)
+        self.assertFalse(measured)
+        self.assertIn("quality.json does not parse", reason)
+
+    def test_an_empty_client_envelope_is_not_measured(self) -> None:
+        arm_dir = self.client({"producer": {"rc": 0}, "client": {}})
+        measured, reason = evidence.done(arm_dir)
+        self.assertFalse(measured)
+        self.assertIn("quality.json carries no client file", reason)
+
+    def test_the_control_without_the_artefact_names_no_machine_readable_artefact(self) -> None:
+        arm_dir = self.root / "arm"
+        arm_dir.mkdir()
+        write(arm_dir / "extra-client.log", "extra-client: rc=1 — python3 client.py\n")
+        measured, reason = evidence.done(arm_dir)
+        self.assertFalse(measured)
+        self.assertIn("no marker and no machine-readable artefact", reason)
+
+
 class NegativeControls(unittest.TestCase):
     """The predicates tonight's driver used. Each must fail on the input the campaign refuses."""
 
@@ -440,6 +490,18 @@ class ParityWithThePlannerTool(unittest.TestCase):
         empty = receipt(root, "empty", ladder="")
         (empty / "ladder.json").unlink()
         shapes["empty"] = empty
+        client = root / "client"
+        client.mkdir()
+        (client / "quality.json").write_text(json.dumps({
+            "producer": {"component": "ARM_EXTRA_CLIENT", "rc": 0},
+            "client": {"gsm8k.json": {"bench": "gsm8k", "correct": 190}},
+        }), encoding="utf-8")
+        shapes["client"] = client
+        partial = root / "client-partial"
+        partial.mkdir()
+        (partial / "quality.json").write_text(
+            '{"producer": {"rc": 0}, "client": {"gsm8k.json": {"corr', encoding="utf-8")
+        shapes["client-partial"] = partial
         for name, arm_dir in shapes.items():
             with self.subTest(shape=name):
                 self.assertEqual(

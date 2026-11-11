@@ -33,8 +33,15 @@ VERDICT = "measured-rejected"
 CITATION = re.compile(r"^(\d{4}-\d{2}-\d{2}) \u2014 (.+?) \(([^()\s]+):(\d+)\)$")
 
 #: Machine-readable artefacts only: `run-arm.sh` writes `ladder.yaml` as soon as a benchmark
-#: starts, so a yaml-only receipt is an arm that may have died before its first cell.
-MEASURED_ARTEFACTS = ("ladder.json", "ladder.transcribed.json", "house.json", "house.transcribed.txt")
+#: starts, so a yaml-only receipt is an arm that may have died before its first cell. `quality.json`
+#: is the executor's normalised client cell (`ARM_EXTRA_CLIENT`): the client's own JSON by relative
+#: path plus a `producer` block, written only for a successful hook, so presence there is a client
+#: result rather than a command that started.
+MEASURED_ARTEFACTS = ("ladder.json", "ladder.transcribed.json", "house.json", "house.transcribed.txt",
+                      "quality.json")
+#: The client cell's fixed name and its envelope: `producer` names the hook, `client` maps each
+#: file the hook wrote to its parsed JSON.
+QUALITY = "quality.json"
 #: The marker `run-arm.sh` appends outcome fields to; nested `ladder` keys are payload, so only the
 #: unindented keys are read.
 MARKER = "house.yaml"
@@ -280,6 +287,31 @@ def client_receipt(arm_dir: str | Path) -> dict[str, object] | None:
     }
 
 
+def quality_problem(arm_dir: str | Path) -> str | None:
+    """Why ``quality.json`` is not a client cell, or None when it carries one.
+
+    Presence alone was the ladder's defect and is this file's too: a hook that dies mid-battery
+    leaves a truncated JSON, and a client that writes ``{}`` proves only that it started. The
+    envelope is the executor's (``producer`` + ``client``); a measurement needs at least one of
+    the hook's own files to parse to a non-empty cell table or score object.
+    """
+    path = Path(arm_dir) / QUALITY
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return f"{QUALITY} does not parse ({exc.__class__.__name__})"
+    if not isinstance(data, dict):
+        return f"{QUALITY} parses to a {type(data).__name__}, not an object"
+    client = data.get("client")
+    if not isinstance(client, dict) or not client:
+        return f"{QUALITY} carries no client file"
+    if not any(isinstance(value, (dict, list)) and value for value in client.values()):
+        return f"{QUALITY} carries no cell or score"
+    return None
+
+
 def measurement_problem(arm_dir: str | Path) -> str | None:
     """Why the ladder artefact is not a measurement, or None when it parses with content."""
     for name in LADDERS:
@@ -488,7 +520,9 @@ def done(arm_dir: str | Path) -> tuple[bool, str]:
         # which shape it read.
         if problem:
             return False, f"{arm}: {SIDECAR} sidecar, but the ladder artefact is not a measurement: {problem}"
-        if any((Path(arm_dir) / name).exists() for name in LADDERS) or (fields or {}).get("house_score"):
+        client = (Path(arm_dir) / QUALITY).exists() and quality_problem(arm_dir) is None
+        if (any((Path(arm_dir) / name).exists() for name in LADDERS)
+                or (fields or {}).get("house_score") or client):
             return True, ""
         return False, f"{arm}: {SIDECAR} sidecar carries no house score and no ladder cell; not measured"
     verdict = (fields or {}).get("ladder", "")
@@ -506,7 +540,15 @@ def done(arm_dir: str | Path) -> tuple[bool, str]:
         return True, ""
     if problem:
         return False, f"{arm}: {problem}; not measured"
-    if any((Path(arm_dir) / name).exists() for name in MEASURED_ARTEFACTS):
+    present = [name for name in MEASURED_ARTEFACTS if (Path(arm_dir) / name).exists()]
+    client_problem = quality_problem(arm_dir) if QUALITY in present else None
+    if client_problem:
+        # A truncated or empty client file must never read as measured; it loses to any other
+        # artefact beside it, because the arm's own cell can measure without the client.
+        present = [name for name in present if name != QUALITY]
+        if not present:
+            return False, f"{arm}: {client_problem}; not measured"
+    if present:
         return True, ""
     return False, f"{arm}: no marker and no machine-readable artefact"
 
