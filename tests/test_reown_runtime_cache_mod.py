@@ -98,22 +98,26 @@ class RecipesOrderTheModAfterTheWriter(unittest.TestCase):
         REPO_ROOT / "recipes" / "ds4" / "zz-ds4-1017-sm121-arm5-fi073.yaml",
     )
     WRITER = {
-        MODS[0]: "mods/ernie55-flashinfer-sparse-sglang",
-        MODS[1]: "mods/dsv41-sglang-overlay",
+        MODS[0]: "ernie55-flashinfer-sparse-sglang",
+        MODS[1]: "dsv41-sglang-overlay",
     }
 
     def test_each_recipe_lists_reown_after_the_hook_that_writes_the_cache(self) -> None:
         for recipe in self.MODS:
             with self.subTest(recipe=recipe.name):
-                entries = [
-                    line.strip().lstrip("- ").strip().strip('"')
-                    for line in recipe.read_text(encoding="utf-8").splitlines()
-                    if line.strip().startswith("- \"mods/")
-                ]
-                self.assertIn("mods/reown-runtime-cache", entries)
+                entries = []
+                for line in recipe.read_text(encoding="utf-8").splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith("#") or not stripped.startswith("- "):
+                        continue
+                    entry = stripped[2:].strip().strip('"').strip("'")
+                    # scoped `@littlecedar/mods/x` and lane-local `mods/x` name the same mod
+                    if "mods/" in entry:
+                        entries.append(entry.rsplit("/", 1)[-1])
+                self.assertIn("reown-runtime-cache", entries)
                 self.assertLess(
                     entries.index(self.WRITER[recipe]),
-                    entries.index("mods/reown-runtime-cache"),
+                    entries.index("reown-runtime-cache"),
                     "reown must run after the mod whose root writes it repairs",
                 )
 
