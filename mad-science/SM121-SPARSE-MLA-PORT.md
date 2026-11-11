@@ -214,7 +214,12 @@ min and was stopped, so the canary answer, the battery and every trough are unme
 stays LIKELY. A second boot with `SGLANG_FLASHINFER_AUTOTUNE_CACHE=0` completed the autotune in
 ~10 min and then aborted on a TP `all_reduce` (600 s timeout, `SeqNum=2`, `NumelIn=2`) inside the
 autotune's dummy forward, in the adapter's lazy `replicated_split._build` — so the blocker is a
-rank-asymmetric collective in the adapter, not the tactic search and not this port's ABI. Receipts
+rank-asymmetric collective in the adapter, not the tactic search and not this port's ABI. A third boot
+disabled the autotuner outright (`--disable-flashinfer-autotune`, a real ServerArgs field:
+`flashinfer_autotune.py:59-63` gates on it) and reached CUDA-graph capture, where the SM120 sparse
+decode kernel refused the captured shape: `num_tokens=96 … (num_tokens <= 64)` with
+`model_type=dsv4_1_inline` named correctly — a row-count envelope (16 bs x 6 DSpark tokens), not the
+528-byte ABI. Receipts
 `head:~/benchmarks/tp4-20261110b/arm5-fi073-canary/` and `…/arm5-fi073-bootC/`; both are written up in
 `recipes/ds4/README.md` (arm-5 section).
 

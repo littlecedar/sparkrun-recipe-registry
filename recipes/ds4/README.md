@@ -1541,9 +1541,15 @@ rejection (BF16 query, packed 528-byte caches) does not happen. **The boot then 
 `FlashInfer autotune` for ~28 min** (dummy forward at a frozen log line, GPU 96 %, no tactic cache
 written) and was stopped by literal id; `ctns=0` and 0 volumes on all four ranks after. Not measured:
 the canary answer, the easy-tier battery, throughput, and any host floor (no sampler summary).
-Autotune is not skippable in this tree (`flashinfer_autotune.py:251` wraps a dummy forward
-unconditionally), so the next step is a diagnosis — `SGLANG_FLASHINFER_AUTOTUNE_CACHE=0` to name the
-fresh cache path, and `py-spy` on the scheduler with `SYS_PTRACE` added — not another blind boot.
+Autotune *is* skippable — this paragraph's first version said otherwise and is corrected here:
+`flashinfer_autotune.py:59-63` returns False when `get_exec().kernel.disable_flashinfer_autotune` is
+set, a real ServerArgs field (`arg_groups/fields/exec_.py:301`), so `--disable-flashinfer-autotune`
+skips the dummy forward entirely. The registry's other `--no-enable-flashinfer-autotune` lines are
+vLLM's flag for a different engine, which is why the first search missed this one; and
+`DSV41_AUTOTUNE_KEEP=1` (the overlay launcher default) is tactic-cache *reuse* keyed by a launch
+fingerprint, not a switch, so it was not a recipe defect. The next step was a diagnosis —
+`SGLANG_FLASHINFER_AUTOTUNE_CACHE=0` names the fresh cache path and `py-spy` works as
+`docker exec -u root` — not another blind boot.
 Receipt `head:~/benchmarks/tp4-20261110b/arm5-fi073-canary/RECEIPT.md`.
 
 **Boot C (same night) names it: the hang is a TP all_reduce in the autotune dummy forward, not the
@@ -1562,6 +1568,23 @@ are empty (`["_metadata","_generation"]`), so nothing was being replayed. The po
 no rejection, and Boot C's host floor was **14.80 / 11.89 / 11.70 / 16.33 GiB** over 866 one-Hz
 samples per rank with `ctns=0` after the stop. The next step is the adapter fix, not another boot.
 Receipt `head:~/benchmarks/tp4-20261110b/arm5-fi073-bootC/RECEIPT.md`.
+
+**Boot D disables the autotuner (the gate exists) and lands on a kernel-envelope limit.** With
+`-o env.EXTRA_SGLANG_ARGS="… --disable-flashinfer-autotune"` the engine logged
+`'disable_flashinfer_autotune': True`, the asymmetric `replicated_split._build` collective never ran
+during a tune pass, and the real path's own split line (`… engram.wkv 25600x6144: split ON, window
+GEMMs (no pad)`) prints only after its all_reduce returns — so that collective is symmetric when it
+runs for real. The boot then reached CUDA-graph capture and the scheduler raised
+`ValueError: SM120 sparse-MLA has no decode kernel for this shape: num_tokens=96, num_heads=16,
+topk=128, d_qk=512, page_block_size=256, model_type=dsv4_1_inline, extra_topk=512 … (num_tokens <=
+64)`: the 528-byte inline ABI is named correctly in that message, and what fails is the **row count
+per call** — `cuda_graph_max_bs_decode 16` × 6 tokens per DSpark step = 96, above the kernel's 64-row
+decode instantiations. `sparkrun` then reported the serve unhealthy at 250.0 s; `ctns=0` and 0
+volumes after. No host floor for this boot (the sampler was not started on the ranks — the wrapper
+copied `mem-sampler2.sh` from a directory only the head has; it is now installed on all four ranks
+with a per-boot CSV name so a receipt cannot be clobbered by the next run). Next lap is a
+capture-shape decision (10 × 6 = 60 rows, or split the >64-row verify calls), not a kernel patch.
+Receipt `head:~/benchmarks/tp4-20261110b/arm5-fi073-bootD/RECEIPT.md`.
 The paired control
 (`zz-ds4-1017-sm121-arm3-control.yaml`) passed every boot gate on the same digest —
 `[moe_b12x_next] armed`, no ÷128, `Load weight end 167.24 s`, `/v1/models` 200 at
