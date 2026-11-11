@@ -10862,5 +10862,13 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
 - **Not touched, on purpose:** the register reads **188 tasks / 43 open / 0 claims** on
   `ee54e27c…` and its two closures are still worktree-only (`git status` `M`), the campaign holds
   **0 leases** across all nine `state.json` roots, and the ledger is still `{"leases":[],"version":1}`.
+- **A false live claim still sits in the register's notes — for the owning session, not this tick.**
+  Four rows (`campaign-ignores-declared-window`, `campaign-leases-tp4-onto-30`,
+  `campaign-does-not-honour-the-.30-exclusion`, `campaign-six-node-claim`) share the sentence
+  "Live state: the Kimi six-rank claim … holds `.30`-`.35` until 2026-11-11T18:43:40Z
+  (`.local/fleet-leases.json`)". That source now reads `{"leases":[],"version":1}` (33 B, mtime
+  `11:44:48 ET`), so the sentence contradicts the file it cites; its own expiry is `13:43:40 ET`.
+  Not edited here: the register is another session's live file (`git status` `M`), and the harm
+  window is one hour. Board discipline holds — the queue row quotes the ledger, not that prose.
 - **CI:** `tools/push-gate.py` printed `ok -- HEAD 24fcf076` on the committed tree before the push;
   the `gate` run for `24fcf07` was `in_progress` at close, so no green is claimed here.
