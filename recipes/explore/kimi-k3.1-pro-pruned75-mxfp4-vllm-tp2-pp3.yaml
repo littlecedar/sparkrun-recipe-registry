@@ -1,0 +1,103 @@
+recipe_version: "2"
+model: vllm-project/Kimi-K3.1-Pro-pruned75
+model_revision: fc72e5a1dd8819cf722fee249bb166c4cbc8ba38
+runtime: vllm
+# Same engineered pin as `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4.yaml`: the
+# nightly eugr build whose own filesystem maps KimiK31ForConditionalGeneration
+# to vllm.models.kimi_k3. No engine, quantization or model change here -- only
+# the rank shape.
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:98a2535b5fa227e529f25ed376751b41d8f707200c81fac82d327a9deee93b15
+min_nodes: 6
+max_nodes: 6
+description: >-
+  Six GB10 nodes, TP=2 x PP=3: the six-rank answer to the TP=4 fit failure. The
+  442.85 GiB body is 73.80 GiB/rank across six instead of 110.71 GiB across four,
+  which a 121.69 GiB pool at util 0.945 (115.00 GiB budget) holds with ~41 GiB
+  left for KV, graphs and engine init. Measured basis for the shape, not
+  arithmetic: at TP=4 the weight-tensor allocation alone drove host MemAvailable
+  to 0.79-4.07 GiB (receipt `head:~/benchmarks/fit-kimi-eager-20261110/`), while
+  a `--load-format dummy` probe reads the parameter-set dive at 108.2-112.1 GiB
+  and the post-dive floors at 5.0-9.2 GiB/rank (`kimi-param-floor-dummy-load`,
+  recipe `zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4.yaml`). The
+  falsifier for this arm is the rank's own reported weights memory: far above
+  73.6 GiB means PP did not split the parameter set as declared, and the fit
+  answer is then a body-size answer, not a rank-count one. Register row
+  `kimi-tp2-pp3-six-node`. TP=6 is not the route: vLLM's fused-MoE TP floor
+  (`fused_moe/config.py:1398`) and the model's 96 heads make TP=2 the widest
+  admissible degree here, so the extra ranks come from pipeline parallelism.
+  The pipeline degree is a declared key, not a command-only default: sparkrun
+  sizes the world from `tensor_parallel x pipeline_parallel` and the node range,
+  appends the rendezvous flags itself (`--nnodes/--node-rank/--master-addr/
+  --master-port`, `--headless` on ranks 1-5), and the flag is spelled in
+  `command:` so the rendered line is auditable. No chat template ships with the
+  checkpoint, so acceptance counters come off `/v1/completions`; see the sibling
+  arm's caveats for the licence, `--trust-remote-code`, parser pins and the
+  staged-wheelhouse template.
+metadata:
+  model_url: https://huggingface.co/vllm-project/Kimi-K3.1-Pro-pruned75
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "737B"
+  model_dtype: mxfp4
+  kv_dtype: fp8_ds_mla
+  tags: large_context
+  # Not instrumented: the engine pin is absent from the fleet's 2026-11-08
+  # metrics rollout, so its metrics flags are unverified for this digest.
+  instrumented: false
+  caveats: >
+    License `other` / `kimi-k3.1-pro`, inherited from moonshotai/Kimi-K3.1-Pro
+    and not Apache-2.0. Pruning is calibration-free and expert-level: 224
+    routed experts per layer remain, selected by signed router-row sum; the
+    card reports 43.7 % GSM8K against 14.4 % for its L1 default but still a
+    large regression from source. The pinned image's registry maps
+    `KimiK31ForConditionalGeneration` to `vllm.models.kimi_k3` (verified
+    against the arm64 image filesystem 2026-11-08); the newest release tag,
+    v0.33.0rc3, does not carry the class. Serving needs
+    `--trust-remote-code` (config auto_map) and the card's `kimi_k3`
+    tool-call/reasoning parsers. No `chat_template.jinja` and no
+    `chat_template` key: chat formatting lives in Python methods, so
+    `/v1/chat/completions` is expected to fail until a template file exists --
+    run the ladder on `/v1/completions` and probe the chat endpoint once as a
+    diagnostic.
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 2
+  pipeline_parallel: 3
+  # Never {model}: on a real launch sparkrun rebinds the prepared snapshot
+  # path, so the advertised id would be a cache path (`-n` does not show it).
+  served_model_name: vllm-project/Kimi-K3.1-Pro-pruned75
+  # 73.80 GiB/rank of shards + the measured 2.0-4.3 GiB engine host-side init:
+  # 0.945 x 121.69 = 115.00 GiB leaves ~41 GiB for KV, graphs and prefill, so
+  # the TP=4 envelope's 16k point is kept unchanged and is no longer the
+  # binding term.
+  gpu_memory_utilization: 0.945
+  max_model_len: 16384
+  max_num_seqs: 4
+  max_num_batched_tokens: 2048
+  quantization: compressed-tensors
+  # SM121 sparse-MLA backend (FLASHINFER_MLA_SPARSE_SM120) requires the packed
+  # fp8_ds_mla layout (656 B/layer/token); bfloat16 selects no backend
+  # (measured 2026-11-10).
+  kv_cache_dtype: fp8_ds_mla
+  tool_call_parser: kimi_k3
+  reasoning_parser: kimi_k3
+  extra_args: ""
+command: >
+  taskset -c 5-9,15-19 vllm serve {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --pipeline-parallel-size {pipeline_parallel}
+  --trust-remote-code
+  --quantization {quantization}
+  --kv-cache-dtype {kv_cache_dtype}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --reasoning-parser {reasoning_parser}
+  --tool-call-parser {tool_call_parser}
+  --enable-auto-tool-choice
+  {extra_args}
