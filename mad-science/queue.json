@@ -2744,6 +2744,21 @@
       "evidence": "3620460 + 02b7021 + 1b93c4f",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "arm5-adapter-replicated-split-asymmetric-collective",
+      "title": "arm5 fi073 never reaches /health: a rank-asymmetric 2-element all-reduce in replicated_split during the autotune dummy forward times out at 600 s",
+      "estimate_h": 3.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "python-runtime",
+      "node_cost": "",
+      "notes": "The arm5 fi073 canary boot never reached `/health` because of a **rank-asymmetric 2-element TP all-reduce inside the autotune dummy forward**. `NCCL` on rank 0: `Watchdog caught collective operation timeout: WorkNCCL(SeqNum=2, OpType=ALLREDUCE, NumelIn=2, NumelOut=2, Timeout(ms)=600000) ran 600003 milliseconds before timing out`, then `Fatal Python error: Aborted`. The engine's own stack names the frames: `all_reduce distributed_c10d.py:3245` <- `_build /opt/dsv41/adapter/replicated_split.py:298` <- `forward replicated_split.py:338` <- `_forward_prepare deepseek_v4.py:1842` <- `forward deepseek_v4.py:2396/4398` <- `l2_prefetch.py:635` <- `verify_cap.py:203` <- `_dummy_run base_runner.py:750` <- `run_flashinfer_autotune_forward flashinfer_autotune.py:308` <- `capture_cuda_graphs cuda_graph_setup.py:391`.\n\nMechanism (SPECULATIVE, the timeout and frames are VERIFIED): a lazy rebuild keyed on local state gives repeated dummy invocations a different iteration per rank, so one rank enters the collective while its peers do not. The tactic cache was ruled out first, and cheaply — the `.../flashinfer/autotune/0.7.3/sm121/c6258882a5fa03fd/` directory was **empty on all four ranks** (no `rank_tp0_pp0_dp0.json` ever existed), and the older `0.6.18` table for this model parses to `{'_metadata','_generation'}` — zero tuned ops, so there was no precedent to inherit. The first canary boot's 28-minute stall hit the same collective but produced no NCCL timeout inside that window; that residual is unmeasured.\n\nFix, either shape: compute the rebuild decision once and broadcast it **before** the tune loop, or skip the lazy rebuild while the autotune dummy runs. Constraints that must ride in the row: patch through `recipes/ds4/patch_dsv41_fi073.py` (anchored, fail-closed, Dockerfile compile gate), and **the fix must not alter the non-autotune serving path** — that file is on the steady-state path, so a numerics change there would invalidate every number measured tonight.\n\nPY-SPY GOTCHA (same 20-minute tax, recorded so nobody pays it again): sparkrun already grants `SYS_PTRACE` (`runtimes/_util.py:20-41`), so no recipe change is needed; the documented path is `docker exec -u root <container> py-spy dump`, and an exec as the workload user fails on permissions.",
+      "provenance": "head:~/benchmarks/tp4-20261110b/arm5-fi073-bootC/RECEIPT.md and arm5-fi073-canary/RECEIPT.md; commit 82d715f; stack: distributed_c10d.py:3245, replicated_split.py:298/338, deepseek_v4.py:1842/2396/4398, l2_prefetch.py:635, verify_cap.py:203, base_runner.py:750, flashinfer_autotune.py:308, cuda_graph_setup.py:391; flashinfer autotune 0.7.3/sm121/c6258882a5fa03fd empty on all four ranks; 0.6.18 table = {_metadata,_generation}",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
