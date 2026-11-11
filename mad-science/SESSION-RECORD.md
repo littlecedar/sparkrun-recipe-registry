@@ -10316,3 +10316,42 @@ Tick scope: read-only census, pool and claim reads, board publish; no boot, no s
   `.30`'s nine never-started `Created` containers and `.34`'s emptiness are found, not created.
   Captures, the register snapshot and the composed board stay in `.scratch/tick-0400-77k2/`
   (git-ignored, not synced) as the evidence behind every figure above.
+
+## 2026-11-11 04:07 ET board tick: four sweeps crossed a boot, and the clone's ledger caught up
+
+Read-only tick. It found the 04:11 board already published (`affbf2d`) and appended only what
+that board could not carry, rather than re-emitting another session's state rows; `publish`
+accepted the composition, `lint` prints ok and `push-gate` passed on the committed tree
+(`6e6ced7`).
+
+- **The served set turned over inside the census window.** Four whole-fleet sweeps from this
+  workstation, every node addressed by IP: `09:02:39Z`–`09:02:41Z` read every node idle apart
+  from `.30`'s nine never-started `Created` leftovers; `09:05:08Z`–`09:05:10Z` read a quartet on
+  `.31`/`.32`/`.33`/`.35` (`Up 2 minutes`, task `e59088ba4d0f3858_3b07fe04d353`) with both prior
+  boots gone — `1c0dffa45afa6e47_139d98e83d62` and the arm-5 `1ca17b467dcda1cc`;
+  `09:06:33Z`–`09:06:36Z` and `09:07:27Z`–`09:07:29Z` read that same state while the roots moved
+  under it. Four containers, zero volumes fleet-wide at the last two sweeps.
+- **Image attribution needs the launch log, not the container.** `docker inspect .Config.Image`
+  on the rank containers reports a bare digest, `sha256:97de25b16e73ac64…`, whose only local tag
+  is a relay's `oci-relay/pinned:7fd8d966…`; the reference it launched from is in
+  `launch.log:4`, `lmsysorg/sglang:nightly-dev-cu13-20261110-4a5c6b8f@sha256:59197db6…`, beside
+  the relay's own `already verified on all 4 receiver(s); no transfer`. A board that pairs a
+  container id with a tag nobody read is guessing, and the previous board's
+  `dsv41-sm121-dg:0.2.1` pairing belonged to a different arm's boot.
+- **The clone's lease-ledger copy is no longer stale.** The 04:11 entry recorded this clone 26
+  minutes behind and still carrying the earlier `kimi-param-floor-dummy-load` `boot-a` lease.
+  Re-read at `04:14 ET`: mtime `04:03:48`, sha256 `c1003d36…` — the same single
+  `ernie-window-control-receipt` `boot-b` lease the head holds, so the sync trap closed itself
+  and the board's window cell now says so instead of repeating the older claim. The general form
+  stands: `.local/` sync lags, so a lease question is answered from the head, not from whichever
+  copy happens to be nearest.
+- **Pool pair, own reads.** Mount `used` 13,980,957,933,568 B at `09:07:37Z` against the six
+  roots' own `df -B1 --output=used /` sum 13,980,957,732,864 B at `09:07:24Z`–`09:07:26Z` —
+  **200,704 B apart** — with 102 hub entries and Kromoss `README.md` 7685 B through the mount,
+  and the roots up 450,560 B from the preceding sweep. Both sides rose together, so the residual
+  is the read offset at this cadence, not pool-only movement. This does not settle the
+  cross-cycle level question the 04:11 entry raised; that still wants a per-node `used` series.
+- **Nothing on the fleet was touched.** No boot, claim, lock, lease, stop or delete; the only
+  writes this tick made are the board commit and this entry. Captures, the register snapshot
+  (`7732cc17…`, 180 tasks / 48 open) and the composed board lived in
+  `.scratch/tick-0401-926422/`, removed after publish.
