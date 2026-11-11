@@ -1391,6 +1391,74 @@ echo "metrics: $M_AGG ($M_CAPTURED captured, $M_ABSENT absent, $M_WRONG wrong_po
 # investigation needed. A zero count is printed because a silent no-op reads as success.
 harvested=0
 captured=0
+# native-logs: start
+# `sparkrun logs <cluster-id> -a` is the workload's own reader: it reads
+# `/tmp/sparkrun_serve.log` on the head and on every rank (`core/log_source.py:35`), so the receipt
+# no longer depends on the hand-rolled `docker cp`/`scp` copy below for the serve text. It runs
+# BEFORE the stop, while the containers still exist. Fail-soft: the arm's rc is not this gate's to
+# change, so a failed read is recorded with the fallback the receipt already holds (the
+# exit-capture `docker-<rank>.log` and any `serve-<rank>.log`) and never blocks teardown.
+# `tools/engine-exit-capture.sh` stays: the `--rm` die-event race and the OOM/kernel attribution are
+# facts no log reader can answer.
+NATIVE_DIR="$L/logs"
+mkdir -p "$NATIVE_DIR"
+NATIVE_CMD="sparkrun logs $TID -a -H $HOSTS --cluster WOPR"
+NATIVE_VER=$(sparkrun --version 2>/dev/null | awk '{print $NF}')
+printf 'command=%s\nversion=%s\n' "$NATIVE_CMD" "${NATIVE_VER:-unknown}" > "$L/native-logs-command.txt"
+if sparkrun logs "$TID" -a -H "$HOSTS" --cluster WOPR \
+     > "$L/native-logs.raw" 2> "$L/native-logs.err"; then
+  native_rc=0
+else
+  native_rc=$?
+fi
+printf 'rc=%s\n' "$native_rc" >> "$L/native-logs-command.txt"
+: > "$L/native-logs-status.txt"
+# One file per host: with more than one source the CLI prefixes every line `[host/role] `
+# (`cli/_stop_logs.py` `_render_logs`), and that prefix is the only per-host split it offers.
+if [ "$native_rc" -eq 0 ]; then
+  awk -v dir="$NATIVE_DIR" '
+    match($0, /^\[[^\/]+\/[^]]*\] /) {
+      head = substr($0, 1, RLENGTH - 2)
+      host = substr(head, 2); sub(/\/.*/, "", host)
+      print substr($0, RLENGTH + 1) >> (dir "/" host "-serve.log")
+      next
+    }
+    { print >> (dir "/native-unattributed.log") }
+  ' "$L/native-logs.raw"
+fi
+if [ "$native_rc" -ne 0 ]; then
+  printf 'failed rc=%s stderr=%s\n' "$native_rc" \
+    "$(head -1 "$L/native-logs.err" 2>/dev/null | cut -c1-160)" >> "$L/native-logs-status.txt"
+  echo "native logs: sparkrun logs failed (rc=$native_rc); see native-logs.err"
+fi
+native_missing=()
+for hn in $(echo "$HOSTS" | tr ',' ' '); do
+  nf="$NATIVE_DIR/$hn-serve.log"
+  if [ -s "$nf" ]; then
+    printf '%s lines=%s bytes=%s\n' "$hn" "$(wc -l < "$nf")" "$(wc -c < "$nf")" \
+      >> "$L/native-logs-status.txt"
+  else
+    native_missing+=("$hn")
+    printf 'missing-rank %s bytes=0\n' "$hn" >> "$L/native-logs-status.txt"
+    echo "native logs: rank on $hn produced no serve log (named, not silently skipped)"
+  fi
+done
+if [ ${#native_missing[@]} -gt 0 ] || [ "$native_rc" -ne 0 ]; then
+  # Name the fallback that is actually in the receipt, so a reader is never left guessing which
+  # copy of the serve text exists.
+  fallback=
+  for f in "$L"/docker-*.log "$L"/serve-*.log; do
+    [ -e "$f" ] && { fallback=$f; break; }
+  done
+  if [ -n "$fallback" ]; then
+    printf 'fallback=%s\n' "${fallback##*/}" >> "$L/native-logs-status.txt"
+    echo "native logs: falling back to ${fallback##*/}"
+  else
+    printf 'fallback=none\n' >> "$L/native-logs-status.txt"
+    echo "native logs: no fallback copy in the receipt"
+  fi
+fi
+# native-logs: end
 for hn in $(echo "$HOSTS" | tr ',' ' '); do
   # The engine's own stdout comes from the capture armed before the launch, not from a read taken
   # here: a boot that died is gone from the node (`--rm`), and a reaped one answers `docker logs`

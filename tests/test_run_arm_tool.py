@@ -156,7 +156,7 @@ class RunArmContract(unittest.TestCase):
         text = read_tool()
         self.assertIn('HOSTS=${2:-${ARM_NODE:-}}', text)
         self.assertIn("NODE=${HOSTS%%,*}", text)
-        self.assertEqual(text.count('-H "$HOSTS"'), 4, "every sparkrun call site must pass the pair")
+        self.assertEqual(text.count('-H "$HOSTS"'), 5, "every sparkrun call site must pass the pair")
         self.assertEqual(text.count('-H "$NODE"'), 0, "a leftover single-host site breaks TP=2")
 
     def test_serve_port_comes_from_the_recipe(self):
@@ -1689,6 +1689,8 @@ MP_START = "# model-path: start"
 MP_END = "# model-path: end"
 CI_START = "# cache-inspect: start"
 CI_END = "# cache-inspect: end"
+NL_START = "# native-logs: start"
+NL_END = "# native-logs: end"
 OOM_START = "# oom-watchdog: start"
 OOM_END = "# oom-watchdog: end"
 M_START = "# metrics-scrape: start"
@@ -1726,6 +1728,14 @@ printf '%s\\n%s' "$body" "$code"
 # counter like the `ls` probe (`cache-inspect.<n>.txt`, falling back to `cache-inspect.txt`) and a
 # `resolve.txt` for its own status and output.
 NODE_SPARKRUN_STUB = """#!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then
+  echo "sparkrun, version 0.4.3-alpha+gstub"; exit 0
+fi
+if [ "${1:-}" = "logs" ]; then
+  f="$NODES/logs.txt"
+  [ -f "$f" ] || { echo "sparkrun: no logs fixture" >&2; exit 1; }
+  ex=$(sed -n 1p "$f"); sed -n '2,$p' "$f"; exit "${ex:-0}"
+fi
 if [ "${1:-}" = "model-cache" ]; then
   case "${2:-}" in
     inspect)
@@ -1873,7 +1883,9 @@ class ExecutedBlock(unittest.TestCase):
                 env=run_env,
             )
             receipt_files = {p.name: p.read_text(errors="replace")
-                             for p in sorted(receipt.iterdir())}
+                             for p in sorted(receipt.iterdir()) if p.is_file()}
+            for sub in sorted(receipt.glob("logs/*")):
+                receipt_files[f"logs/{sub.name}"] = sub.read_text(errors="replace")
             return out.returncode, out.stdout + out.stderr, receipt_files, calls.read_text().split()
 
 
@@ -2415,6 +2427,104 @@ class CacheInspectGate(ExecutedBlock):
                                        files={"cache-inspect.txt": self.INCOMPLETE})
         self.assertEqual(rc, 0, out)
         self.assertIn("NEXT", out)
+
+
+class NativePerRankLogs(ExecutedBlock):
+    """The receipt gets the workload's own per-rank serve logs, split one file per host.
+
+    `sparkrun logs <cluster-id> -a` reads `/tmp/sparkrun_serve.log` on the head and every rank
+    (`core/log_source.py:35`) and prefixes each line `[host/role] `, which is the only per-host
+    split the CLI offers. Retrieval must never change the arm's rc: an `ssh` or reader failure is
+    recorded with the fallback the receipt already holds.
+    """
+
+    HOSTS = ("node-a", "node-b", "node-c", "node-d")
+    FOUR = ("0\n"
+            "[node-a/solo] engine started\n[node-a/solo] ready in 273 s\n"
+            "[node-b/node_1] rank 1 loading\n[node-b/node_1] rank 1 ready\n"
+            "[node-c/node_2] rank 2 loading\n"
+            "[node-d/node_3] rank 3 loading\n")
+    THREE = ("0\n"
+             "[node-a/solo] engine started\n"
+             "[node-b/node_1] rank 1 loading\n"
+             "[node-c/node_2] rank 2 loading\n")
+    FAILED = "1\nError: No running workload found for cluster 'abc123'\n"
+
+    def block(self):
+        return block_region(read_tool(), NL_START, NL_END)
+
+    def run_logs(self, fixture, receipt_extra=None, hosts=None):
+        return self.run_block(
+            "rc=0\n" + self.block() + "\necho AFTER rc=$rc",
+            hosts=hosts or self.HOSTS,
+            files={"logs.txt": fixture},
+            receipt_extra=receipt_extra,
+        )
+
+    def test_every_rank_writes_its_own_file_with_the_prefix_stripped(self):
+        rc, out, receipt, _ = self.run_logs(self.FOUR)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("AFTER rc=0", out)
+        self.assertEqual(receipt["logs/node-a-serve.log"], "engine started\nready in 273 s\n")
+        self.assertEqual(receipt["logs/node-b-serve.log"], "rank 1 loading\nrank 1 ready\n")
+        self.assertIn("rank 2 loading", receipt["logs/node-c-serve.log"])
+        self.assertNotIn("[node-c/node_2]", receipt["logs/node-c-serve.log"],
+                         "the label prefix leaked into the per-rank file")
+        status = receipt["native-logs-status.txt"]
+        for host in self.HOSTS:
+            self.assertRegex(status, rf"{host} lines=[1-9][0-9]* bytes=[1-9][0-9]*")
+        self.assertNotIn("missing-rank", status)
+
+    def test_the_receipt_records_the_command_and_its_version(self):
+        _, _, receipt, _ = self.run_logs(self.FOUR)
+        cmd = receipt["native-logs-command.txt"]
+        self.assertIn("command=sparkrun logs abc123 -a -H node-a,node-b,node-c,node-d", cmd)
+        self.assertIn("--cluster WOPR", cmd)
+        self.assertIn("version=0.4.3-alpha+gstub", cmd)
+        self.assertIn("rc=0", cmd)
+
+    def test_a_missing_rank_is_named_and_the_rc_is_untouched(self):
+        rc, out, receipt, _ = self.run_logs(
+            self.THREE, receipt_extra={"docker-node_3.log": "# capture: die exit=1\n"})
+        self.assertEqual(rc, 0, out)
+        self.assertIn("AFTER rc=0", out, "a missing rank changed the arm's status")
+        self.assertIn("node-d", out, "the missing rank is not named in the output")
+        self.assertIn("missing-rank node-d", receipt["native-logs-status.txt"])
+        self.assertIn("fallback=docker-node_3.log", receipt["native-logs-status.txt"])
+
+    def test_a_failed_reader_is_recorded_with_its_fallback_and_never_refuses(self):
+        rc, out, receipt, _ = self.run_logs(self.FAILED)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("AFTER rc=0", out, "a failed log read blocked the arm")
+        status = receipt["native-logs-status.txt"]
+        self.assertIn("failed rc=1", status)
+        self.assertIn("No running workload", receipt["native-logs.raw"],
+                      "the reader's own output is not kept beside the failure")
+        self.assertIn("fallback=none", status)
+        self.assertNotIn("logs/native-unattributed.log", receipt,
+                         "an error line was filed as serve output")
+
+    def test_the_exit_capture_is_still_the_stdout_and_oom_mechanism(self):
+        text = read_tool()
+        self.assertIn("tools/engine-exit-capture.sh", text)
+        self.assertIn('docker-$rank.log', text, "the capture merge was removed")
+
+    def test_the_native_harvest_runs_before_the_stop(self):
+        text = read_tool()
+        at = text.index(NL_START)
+        self.assertLess(at, text.index("\nstop_capture\n"), "the containers are gone before the read")
+        self.assertLess(at, text.index('\nsparkrun stop "$TID"'), "the read runs after the stop")
+        self.assertGreater(at, text.index("CAPTURE_DIR="), "the capture must be armed first")
+
+    def test_negative_control_without_the_block_no_rank_files_appear(self):
+        self.assertIn(NL_START, read_tool(), "the block is gone; this control would be vacuous")
+        rc, out, receipt, _ = self.run_block("rc=0\necho AFTER rc=$rc",
+                                             hosts=self.HOSTS,
+                                             files={"logs.txt": self.FOUR})
+        self.assertEqual(rc, 0, out)
+        self.assertIn("AFTER rc=0", out)
+        self.assertFalse(any(name.startswith("logs/") for name in receipt),
+                         "the prelude wrote a rank log without the block")
 
 
 class OomWatchdog(ExecutedBlock):
