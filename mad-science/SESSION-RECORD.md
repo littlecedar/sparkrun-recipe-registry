@@ -9924,6 +9924,10 @@ fabric: `show_gids` prints a complete table on both Up ports, and the recipes se
 `NCCL_IB_GID_INDEX` nor `NCCL_IB_HCA`, so NCCL's default index 3 lands on the one empty entry
 (LIKELY, from the two tables plus the launch's own failure line). The lane stays blocked; the fix direction
 is a GID index or `NCCL_IB_HCA` pin, not fabric repair.
+**Superseded later this night:** the pin was a per-boot workaround, not the fix — the 06:33–06:38Z
+reboot restored contiguous tables and post-reboot boots pass on sparkrun's injected index, and the
+durable defect is register row `sparkrun-single-gid-index-for-two-hcas` (one derived index, two
+HCAs), which no recipe env line can fix.
 
 Board: published 01:20 ET over base `2484a35e…` (the peer's 01:17 board). Every In-flight cell except
 `queue`, `boot` and `publication`, and every landed row, was kept verbatim; `queue` re-rendered from
@@ -9987,11 +9991,13 @@ find **0 running and 0 volumes on all six** with only `.30`'s nine `Created` lef
 ## 2026-11-11 — the fleet reboot between two arm-5 boots, and what earlyoom's file really said
 
 - **The reboot was the whole fleet, in parallel, on owner authorization.** All six nodes rebooted
-  06:33–06:38Z and came back on kernel 7.0.0-1025 from 1024. The boot it was ordered for is the
-  evidence it worked: boots 2 and 3 had both died in `ncclCommInitRank` (`ibv_modify_qp 61`, empty
-  GID) — including the unmodified arm-3 control, which is what made it fleet state rather than the
-  port — and boot 4, first boot after the reboot, passed `Init parallel` (49.35 s) on sparkrun's own
-  injected env, loaded target and draft, and went on to die on its own prefill stopper. Canary NOT
+  06:33–06:38Z and came back on kernel 7.0.0-1025 from 1024, and the boot ordered on that
+  evidence is what showed it worked: boot 2 and the unmodified arm-3 control had both died in `ncclCommInitRank`
+  (`ibv_modify_qp 61`, empty GID) — which is what made it fleet state rather than the port — while
+  boot 3, carrying the explicit `NCCL_IB_GID_INDEX=4` override, had passed `Init parallel`
+  (49.35 s) before the reboot, with the rail tables still disagreeing. Boot 4, the first boot after
+  the reboot, passed the same phase in 47.27 s on sparkrun's own injected env with no override.
+  Both loaded target and draft and went on to die on their own prefill stopper. Canary NOT
   measured. Receipts: `head:~/benchmarks/arm5-fi073c-20261111/`; boot-by-boot history in register row
   `ds4-arm5-flashinfer-073-port`.
 - **Before/after GID tables.** A carrier flap on the plane at 2026-11-11T02:44:36Z left plane A's GID
