@@ -10204,3 +10204,46 @@ Tick scope: read-only census, pool and claim reads, board publish; no boot, no s
   carries its 9 never-started `Created` containers, `.34` is idle, and the register claim on the
   quartet remains the peer session's. The in-repo snapshot dir `.scratch/tick-0300-790723/` was removed
   after publishing.
+
+## 2026-11-11 — close-out of the TP4 survey stretch
+
+- **Arm 5 measured end to end, and the port is accepted.** FlashInfer 0.7.3's SM121 `sparse` backend
+  now serves DSV4.1's sparse MLA on the local image chain `fi073` → `fi073c` → `fi073d`
+  (`sha256:c684c90b41ee…aadc112d`, seven deltas, the last row-packing both prefill split tables with
+  `.contiguous()` because 0.7.3 refuses a column slice as "no matching decode instantiation"). Canary
+  `4183` on arm 5 and on the arm-3 control, same answer text as the flashmla route, so the
+  silent-wrong-logits falsifier did not fire. The ladder shows no decode regression (C1 +4.5 %, C2
+  +14.4 %, C5 +3.0 %, C10 +15.4 %, prefill C1 −2.4 %), TTR 194.6 s vs control 249.0 s, floors
+  12.0–12.7 GiB against the control's 12.2–13.6. Receipts
+  `head:~/benchmarks/arm5-fi073c-20261111/` (`RECEIPT-canary-fi073d.md` §§10–11, `boot5b-fi073d/`,
+  `boot6-arm3-canary/`, `boot7-arm5-ladder/`, `boot8-arm3-ladder/`); lane doc section "Arm 5 measured
+  end to end".
+- **The fabric regression that shadowed the port.** A carrier flap on the plane at
+  2026-11-11T02:44:36Z vacated plane A's GID index 3 while plane B stayed contiguous; sparkrun's one
+  derived `NCCL_IB_GID_INDEX` applied to both rails, so two boots and the arm-3 control died in
+  `ncclCommInitRank` (`ibv_modify_qp 61`) for fleet reasons, not the port. An explicit per-plane
+  override carried boot 3 past NCCL, and the owner-authorized parallel reboot (06:33–06:38Z, kernel
+  7.0.0-1024 → 1025) restored contiguous tables, after which boot 4 passed NCCL on sparkrun's own
+  injected env. The defect is register row `sparkrun-single-gid-index-for-two-hcas`.
+- **Campaign placement became one mechanism.** A single flocked ledger
+  (`.local/fleet-leases.json`) now holds multi-rank claims, written by the director and by
+  `director lease --hosts/--holder/--ttl/--window`; `.30` is waivable only by a boot record naming
+  `allow_hosts` + `window` after lease-time guardrail proof, and the six-node shape is `tp 2 x pp 3`
+  in manifest mode. queue-drip now reads that ledger, so a manual claim is refused with the holder's
+  name instead of being invisible.
+- **Executor and gate hardening.** The readiness verdict now names the watchdog's own
+  `dead`/`stalled` word instead of always "serve dead"; the container appearance window follows the
+  launcher's progress (900 s default, not 300 s) and fails only when the launcher is gone and no
+  container exists; the harvest counts reaped serve logs; the window's guard is checked through
+  readiness and before the first benchmark cell (exit 15 on loss, with `guard-lost.txt`); the exit
+  capture is pinned by a test that a container appearing after the first poll is still attached;
+  `task-queue.py` now refuses a stale whole-file write; and the gate's recipe-validate skip applies
+  only to a genuinely absent `sparkrun`, while a present-but-broken install reddens with its own
+  message.
+- **Not established, and carried as such.** The ladder is "no regression, C2 a lead", not a speed
+  claim: the profile's own noise floor is 7–25 % inter-boot. C16 and above cannot run — 16 × 6 = 96
+  rows lands on the prefill variant, the shape that killed boot 5 — so a verify route with its own
+  numerics is queued (`ds4-arm5-verify-route-batch-cap`), not a request-cap raise.
+- **Remaining in the register.** `ds4-arm5-verify-route-batch-cap`, `sparkrun-single-gid-index-for-two-hcas`,
+  the four campaign lease/placement rows (mechanism landed, no live lease or six-node boot yet),
+  `mem-guard-outlives-its-task` (lifetime fix), and the earlyoom policy row's last open item.

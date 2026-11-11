@@ -2436,12 +2436,12 @@
       "blocked_by": [
         "ds4-arm5-flashinfer-073-port"
       ],
-      "state": "blocked",
+      "state": "done",
       "model": "",
       "node_cost": "quartet",
       "notes": "OWNER 2026-11-11 (#7): recipe now points the arm the work rides — recipes/ds4/zz-ds4-1017-sm121-arm5-fi073.yaml — not the stale :0.2.1-trtllm-mla file. The older \"hang\" story in this row bypassed two flags this arm already carries (backend=\"auto\" and the widened deepseek_v4_hook.py gate), so it is history, not the current stopper; today's stopper is the draft-path BF16 assert recorded in ds4-arm5-flashinfer-073-port. Provenance: mad-science/TODO.md §\"Settled questions\" ## Owner round 2026-11-11 — TP>=4 survey S7; .scratch/tp4-survey/evidence.md §1. | BLOCKED on `ds4-arm5-flashinfer-073-port`, and on an image that carries BOTH the knapcio adapter\n(`/opt/dsv41`) and FlashInfer >= 0.7.0 — see mad-science/SM121-SPARSE-MLA-PORT.md, section 'Port A'.\nCorrected 2026-11-10 against the image set: the earlier shape of this row — run on the nightly image\nwith a mod changing `deepseek_v4_trtllm_backend.py:369,517` `backend=\"trtllm-gen\"` -> `\"auto\"` and\nwidening `deepseek_v4_hook.py:187` — cannot boot. The nightly\n(`lmsysorg/sglang:nightly-dev-cu13-20261110-4a5c6b8f`, flashinfer 0.7.3 + `sm121a` cubins) has no\n`/opt/dsv41`, so the overlay launcher refuses (rc=2); and on this arm's own image (`:0.2.1`) the\nanchors are `:366,506`, not `:369,517`, with the hook gate already widened at\n`deepseek_v4_hook.py:58`. The mod is also insufficient on its own: 0.7.x's SM12x route splits the\npools (`swa_kv_cache` + `swa_topk_lens`, compressed via `extra_sparse_indices` /\n`extra_sparse_topk_lens`, `kv_cache_format` naming the storage form) where the fork passes one\n`sparse_indices` / `sparse_topk_lens` pair, and\n`_fi_core._get_trtllm_gen_multi_ctas_kv_counter_buffer` (`:102`) is gone in 0.7.3 — an ABI\nmigration, not a two-token edit. WHAT THIS ROW OWES once unblocked: the gate passes, the log names\nthe sparse backend on the first decode step, then a C1/C2 cell in the same window as\n`arm3-control` (`:0.2.1`, replay off). FALSIFIER for the silent-wrong-logits class: the shipped\nproduction canary's own prompt, greedy, compared as ANSWER TEXT (same checkpoint, same hardware via\n`flashmla`) — not a throughput cell. estimate: provisional. | BARRIER: not a fit rejection — the route needs an adapter rebuild whose image carries SM121 cubins (the nightly `flashinfer 0.7.3 + sm121a` ships none for this path), so it waits on code, not on ranks; the hunt continues in `ds4-arm5-flashinfer-073-port`.",
       "provenance": "deepseek_v4_trtllm_backend.py:369,517; deepseek_v4_hook.py:187; FlashInfer 0.7.3 _sparse_mla_sm120; arm image :0.2.1 carries FlashInfer 0.6.18",
-      "evidence": "",
+      "evidence": "head:~/benchmarks/arm5-fi073c-20261111/ -- RECEIPT-canary-fi073d.md §§10-11 (canary 4183 on both arms; 128K C5 309.798 s vs 333.618 s; ladder boot7/boot8; TTR and floors)",
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/ds4/zz-ds4-1017-sm121-arm5-fi073.yaml",
@@ -2514,14 +2514,14 @@
         "ds4-arm5-dspark-bf16-query-delta",
         "ds4-arm5-prefill-route-delta8"
       ],
-      "state": "running",
+      "state": "done",
       "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
       "node_cost": "quartet",
       "notes": "BOOT HISTORY 2026-11-11 (arm 5, receipts `head:~/benchmarks/arm5-fi073c-20261111/`, recipe `recipes/ds4/zz-ds4-1017-sm121-arm5-fi073.yaml`, quartet tp 4; row and claim stay). Boot 1 was engine-impossible target-only: `deepseek_v4_hook.py:108` admits only EAGLE/DSPARK, so `SPEC_ALGO` never reaches it and the launcher's own `RECIPE_ENV` silently clobbers `-o env.SPEC_ALGO=off`; the only working disable is the last `--speculative-algorithm` in `EXTRA_SGLANG_ARGS`, and the engine refused rather than run target-only. Boots 2 and the unmodified arm-3 control died identically in `ncclCommInitRank` (`ibv_modify_qp 61`, empty GID), which is fleet state, not the port. Boot 3, with an explicit `NCCL_IB_GID_INDEX` override, passed `Init parallel` (49.35 s), loaded target (130.41 s) and draft (4.00 s), captured all nine target graphs, and died at t~307 s on the prefill envelope. Boot 4, after the 06:33-06:38Z full parallel fleet reboot (kernel 7.0.0-1024 -> 1025) restored contiguous GID tables, passed NCCL on sparkrun's own injected env and died on the same stopper. Canary NOT measured. STOPPER: `ValueError: SM120 sparse-MLA has no decode kernel for this shape: num_tokens=193 ... (num_tokens <= 64)` from `_forward_trtllm_prefill` -- the port drives the decode kernel one table row per token and FlashInfer's decode instantiation caps at 64. Chunking cannot fix it: `chunked_prefill_size % page_size == 0` with page size forced to 256, and disabling chunking is refused by the trtllm backend. Root cause of boots 2-3: a fleet-wide carrier flap at 2026-11-11T02:44:36Z left plane A's GID index 3 vacated while plane B stayed contiguous; sparkrun injects one `NCCL_IB_GID_INDEX` derived from the first active HCA and applies it to both rails (`scripts/ib_detect.sh:44-45`, `infiniband.py:246,268`), so index 3 is invalid on plane A. Recorded as `sparkrun-single-gid-index-for-two-hcas`; repair belongs in sparkrun or cluster config, never a recipe env line. Next route is `ds4-arm5-prefill-route-delta8`, which blocks this row.\n\nOWNER 2026-11-11 (#1/#4): this session's first work, and the build half is paid — rebuild the image on the build node, carry it to four ranks, boot the canary. The port is now SIX deltas: the sixth is the DSpark draft path, which hands the ported decode call an FP8 query and trips the port's own BF16 assert (latest boot 2026-11-11T01:50:58Z: AssertionError: SM12x sparse MLA needs BF16 query, got torch.float8_e4m3fn at deepseek_v4_trtllm_backend.py:361 via dspark_worker_v2.py:515 init_cuda_graphs -> deepseek_v4_dspark.py:760), and patch_dsv41_fi073.py still writes only models/deepseek_v4.py, touching nothing in models/deepseek_v4_dspark.py. The 96-row envelope is already bypassed: that same boot ran with CUDA_GRAPH_MAX_BS_DECODE=10 and captured bs 10..4 before the assert, so the row-limit error is no longer the stopper. Made machine-runnable on the arm that actually measures — recipe recipes/ds4/zz-ds4-1017-sm121-arm5-fi073.yaml, quartet, tp 4. The three machine-runnable fields were silently dropped once by a stale-snapshot write in the fold that recorded this round; re-applied through `update` and verified in `queue --json` 2026-11-11. Provenance: mad-science/TODO.md §\"Settled questions\" ## Owner round 2026-11-11 — TP>=4 survey S1/S4; .scratch/tp4-survey/evidence.md §1. Claimed 2026-11-11 as this session's in-flight work (`session:tp4-20261111`) — a director session, not a campaign lease, so no campaign may lease and boot this arm before the sixth delta lands under `ds4-arm5-dspark-bf16-query-delta`. | PORT PLAN (design note: mad-science/SM121-SPARSE-MLA-PORT.md, section 'Port A'). Not blocked on hardware: FlashInfer ships the SM121 kernel, the fork calls a different one. Three deltas, all verified against image `:0.2.1` (sha256:85c1ffc3...): (1) deepseek_v4_trtllm_backend.py:366,506 hardcode backend=\"trtllm-gen\", which is SM100/103-only in every release through v0.7.4rc2 (flashinfer/mla/_core.py:1241-1244; :1062 at v0.6.18 is the recorded error verbatim); SM12x has its own backend, is_sm120_family = cc in ((12,0),(12,1)) -> \"auto\" resolves \"sparse\" (_core.py:1226-1255, since v0.7.0). (2) the fork passes the pre-0.7 single sparse_indices / sparse_topk_lens pair; 0.7.x SM12x splits the pools (swa_kv_cache + swa_topk_lens, compressed via extra_sparse_indices / extra_sparse_topk_lens) with kv_cache_format naming the storage form - both call sites (:354, :493) need re-plumbing, not a rename. (3) the monkeypatch target _fi_core._get_trtllm_gen_multi_ctas_kv_counter_buffer (:102) is gone in 0.7.3; both call sites already pass multi_ctas_kv_counter_buffer= (a 0.7.3 kwarg), so guard the install path instead of letting it raise AttributeError at first decode. IMAGE GATE: needs one image with BOTH the knapcio adapter (/opt/dsv41/boot.py + adapter sitecustomize + b12x) AND FlashInfer >= 0.7.0 with the sm121a provider; none exists locally - :0.2.1, canary-roce-aff52fa5, canary-roce-20261022, c3-reconciled:103ad321 are all 0.6.18, and the only 0.7.3 image (nightly-dev-cu13-20261110-4a5c6b8f) has no /opt/dsv41. BUILD SHAPE: rebuild :0.2.1's Dockerfile (base ~/builds/deepgemm-sm121/ctx/Dockerfile.sm121) with FlashInfer 0.7.3 + flashinfer_jit_cache_sm121a 0.7.3; .35 is free for builds (2026-11-10). pip overlay exists (79.8 MB python wheel sha256 548a3ea1..., 234 MB sm121a provider sha256 e5059124...b01ed) but fixes none of (2)-(3) - do not prefer it. node_cost is the build host; ACCEPTANCE needs a quartet: (a) flashinfer.__version__ == 0.7.3 in-image, (b) --dsv4-attn-backend trtllm admitted (hook gate already widened at deepseek_v4_hook.py:58), (c) first decode step clean and the log names the sparse backend, (d) C1/C2 cell same-window vs arm-3-control (:0.2.1, replay off). FALSIFIER for the silent-wrong-logits class: not a throughput cell - send the shipped production canary's own prompt (same checkpoint, same hardware, flashmla route) and compare the greedy answer TEXT; a backend that skipped the compressed segment or mis-ordered SWA indices still passes every gate and only this comparison catches it. estimate: provisional.",
       "provenance": "desk audit 2026-11-10: deepseek-ai/FlashMLA@395cb3af setup.py:29 + csrc/api/common.h:97-98; sgl-project/FlashMLA@46b6727a csrc_legacy/api/{common.h:94-96,sparse_decode.cpp:386}; FlashMLA@ba89a3466 csrc/kernels/sm100/decode/sparse/head64/kernel.cuh:892-894; FlashMLA#124 comment 2026-10-01; image 97de25b1 (nightly 4a5c6b8f) site-packages; flashinfer v0.6.18 _core.py:1062, v0.7.3 :1226-1255,1241-1244,1821-1903, v0.7.0 :1341, v0.7.4rc2; flashinfer_jit_cache_sm121a-0.7.3+cu130 RECORD; image 85c1ffc3 (:0.2.1) deepseek_v4_trtllm_backend.py:366,506 and deepseek_v4_hook.py:58; GPU probe on a GB10 node 2026-11-10 (GB10 12,1; smem_optin 101376); sgl-project/sglang#31481 (open 2026-07-16), #40286 (open 2026-09-19), #36649 (merged 2026-08-27), #49182; mad-science/SM121-SPARSE-MLA-PORT.md",
-      "evidence": "",
-      "claimed_by": "session:tp4-20261111",
-      "claimed_at": "2026-11-11T05:23:37Z",
+      "evidence": "head:~/benchmarks/arm5-fi073c-20261111/ -- RECEIPT-canary-fi073d.md §§10-11 (canary 4183 on both arms; 128K C5 309.798 s vs 333.618 s; ladder boot7/boot8; TTR and floors)",
+      "claimed_by": "",
+      "claimed_at": "",
       "recipe": "recipes/ds4/zz-ds4-1017-sm121-arm5-fi073.yaml",
       "tp": 4
     },
@@ -2837,14 +2837,14 @@
         "ds4-arm5-flashinfer-073-port"
       ],
       "blocked_by": [],
-      "state": "running",
+      "state": "done",
       "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
       "node_cost": "",
       "notes": "OWNER 2026-11-11 (#7, the missing BF16 row): this is the BF16 assert question 1 names — the sixth delta the arm-5 port is missing. The DSpark draft path (`deepseek_v4_dspark.py:760`, entered through `dspark_worker_v2.py:515 init_cuda_graphs`) hands the ported sparse decode in `deepseek_v4_trtllm_backend.py:361` an FP8 query, and the port's own assert rejects it. Authoring row: the delta lands in `recipes/ds4/patch_dsv41_fi073.py`, which today writes only `models/deepseek_v4.py` and touches nothing in `models/deepseek_v4_dspark.py`. No boot of its own — the rebuilt image and canary belong to `ds4-arm5-flashinfer-073-port`. estimate: provisional.",
       "provenance": "mad-science/TODO.md §\"Settled questions\" ## Owner round 2026-11-11 — TP>=4 survey S1/S7; .scratch/tp4-survey/evidence.md §1",
-      "evidence": "",
-      "claimed_by": "session:tp4-20261111",
-      "claimed_at": "2026-11-11T05:23:36Z"
+      "evidence": "head:~/benchmarks/arm5-fi073c-20261111/RECEIPT-canary-fi073d.md -- delta landed in :fi073d; canary 4183 on arm 5, identical answer to the flashmla route",
+      "claimed_by": "",
+      "claimed_at": ""
     },
     {
       "id": "ernie-5.5-flash-base-arm-promotion",
@@ -2872,12 +2872,12 @@
         "ds4-arm5-flashinfer-073-port"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "",
       "node_cost": "",
       "notes": "NEW ROUTE 2026-11-11 (authoring, estimate 4 h provisional). Drive prefill through the package's own phase-routing entry -- `_sparse_mla_sm120_paged_attention`, or the wrapper's run-prefill implementation -- instead of the decode-only wrapper the port calls, so prefill stops instantiating a decode table capped at 64 tokens (the boot-4 stopper: `SM120 sparse-MLA has no decode kernel for this shape: num_tokens=193 ... (num_tokens <= 64)`). GPU-less eligibility probe BEFORE any build decides whether the route is reachable: topk 128, heads 16, d_qk 512, page 256, at 193 and 16,384 tokens; if the package has no prefill entry on that shape, the row closes measured-negative without spending a build. Canary is `tools/gate-37111.py:152` `CANARY_Q` (\"What is 47 multiplied by 89? ...\", expected 4183); its answer is not on file for this lane, so a control boot in the same window is part of acceptance.",
       "provenance": "boot 3/4 stoppers and boot history under `head:~/benchmarks/arm5-fi073c-20261111/`; `recipes/ds4/zz-ds4-1017-sm121-arm5-fi073.yaml`; `tools/gate-37111.py:152`; `mad-science/SM121-SPARSE-MLA-PORT.md` section 'Port A'",
-      "evidence": "",
+      "evidence": "head:~/benchmarks/arm5-fi073c-20261111/boot7-arm5-ladder/ -- row-packed prefill split tables landed and answered (canary 4183, ladder C1-C10)",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -2892,6 +2892,21 @@
       "node_cost": "",
       "notes": "REPORT-ONLY IN THIS REPO (sparkrun-side defect; no `recipe`/`tp`, not bootable). One derived `NCCL_IB_GID_INDEX` applied to every HCA the probe names is wrong when the rails' GID tables disagree: `scripts/ib_detect.sh:44-45` derives the index from the first active HCA and `infiniband.py:246,268` applies it to both. Measured 2026-11-11: a fleet-wide carrier flap at 02:44:36Z vacated plane A's index 3 while plane B stayed contiguous, so sparkrun's injected pair failed `ncclCommInitRank` (`ibv_modify_qp 61`, empty GID) on boot 2 AND on the unmodified arm-3 control; an explicit per-plane override let boot 3 pass `Init parallel`. Should derive per HCA, or fail closed when the tables disagree; repair in sparkrun or cluster config, never a recipe env line.",
       "provenance": "measured boots 2-4 and the arm-3 control, `head:~/benchmarks/arm5-fi073c-20261111/`; `scripts/ib_detect.sh:44-45`; `infiniband.py:246,268`",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "ds4-arm5-verify-route-batch-cap",
+      "title": "Verify route with its own numerics: a 96-row verify call cannot be a decode call",
+      "estimate_h": 4.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "AUTHORING 2026-11-11, estimate 4 h provisional. The target-verify path builds its decode call as `max_num_seqs x 6` rows (6 tokens per step), and above 64 rows FlashInfer's router sends it to a prefill variant whose semantics for a verify batch are unmeasured. Boot 5's deciding line: `ValueError: SM120 sparse-MLA has no decode kernel shape: num_tokens=96 ... (num_tokens <= 64)` at `CUDA_GRAPH_MAX_BS_DECODE=16`; C10 (60 rows) runs, C16 (96 rows) cannot. The durable answer is a verify route with its own numerics (a route that admits a 96-row verify call and is proven to score the same root ids as decode), not raising the request cap. Until it lands, C16+ ladder cells and any served line above 10 concurrent requests are out of reach; the probe matrix (`head:~/benchmarks/arm5-fi073c-20261111/probe_prefill_stride_matrix.py` and the arm-5 receipt §§10-11) records which instantiation the router picks at 60 and 96 rows on the shipped image.",
+      "provenance": "arm-5 boots 5/7 (`head:~/benchmarks/arm5-fi073c-20261111/`); boot 5's `num_tokens=96 ... (num_tokens <= 64)` line; recipe `recipes/ds4/zz-ds4-1017-sm121-arm5-fi073.yaml`; `recipes/ds4/README.md` section 'Arm 5 measured end to end'",
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""

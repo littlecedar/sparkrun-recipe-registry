@@ -1897,6 +1897,51 @@ native FP8 layout, not a re-encode, and the decode kernels take bf16 q
 not exposed by default; anything FP8 inside the decode kernel beyond that native cache stays
 SPECULATIVE — not confirmed on our stack.
 
+### Arm 5 measured end to end (2026-11-11): FlashInfer 0.7.3 sparse MLA on SM121
+
+Seven deltas now ride `dsv41-sm121-dg:0.2.1-fi073d`
+(`sha256:c684c90b41ee94b98cc263afbd4d5db2845984c9a6406023dfbd5123aadc112d`, 35,143,725,530 B),
+carried and id-verified on `.31/.32/.33/.35`. The last is the prefill-envelope fix (labelled
+delta 8 in `recipes/ds4/patch_dsv41_fi073.py`; the seventh the recipe header counts): 0.7.3 builds
+call metadata from the tensors' own strides and refuses a column slice of the combined table as
+"no matching decode instantiation" (`_sparse_mla_sm120/_prepared.py:175`), so **both prefill split
+tables are row-packed with `.contiguous()`**. Decode's sliced tables are untouched — they sit inside
+the decode envelope. GPU-less probe in the built image: packed tables admitted and executed at 193
+and 16,384 rows, sliced ones refused, on the functional call and the wrapper's `run`.
+
+Measured pair, one window, symmetric shaping (`MEM_FRACTION_STATIC=0.75`,
+`MAX_RUNNING_REQUESTS=10`, `CUDA_GRAPH_MAX_BS_DECODE=10`, `CHUNKED_PREFILL_SIZE=16384`,
+`--disable-flashinfer-autotune`, no NCCL override), arm 5 against
+`zz-ds4-1017-sm121-arm3-control.yaml`:
+
+- **Canary, greedy** (`tools/gate-37111.py` `CANARY_Q`): arm 5 **4183** (19 prompt / 3 completion
+  tokens, 0.276 s); control **4183** (19/3, 1.567 s). The silent-wrong-logits falsifier — the only
+  acceptance the port has — does not fire, and the answer text is identical to the flashmla route.
+- **128K C5 needle**: arm 5 **309.798 s, 5/5, 0 errors**; control **333.618 s, 5/5**, identical
+  prompt tokens. The arm-3 2026-11-10 reference of 282.807 s is history, not a baseline: its own
+  same-window rerun measured 333.6 s, and the pool moved `full_token` 438,528 → 544,256.
+- **Ladder, decode t/s mean ± sd over 5 runs**:
+
+| concurrency | arm 5 | control | same-window delta |
+|:--|--:|--:|:--|
+| C1 | 67.66 ± 4.35 | 64.74 ± 8.16 | +4.5 % (z 0.71) |
+| C2 | 87.87 ± 7.06 | 76.83 ± 6.19 | +14.4 % (z 2.63) |
+| C5 | 105.17 ± 17.71 | 102.12 ± 12.43 | +3.0 % (z 0.32) |
+| C10 | 98.12 ± 9.88 | 85.01 ± 24.6 | +15.4 % (z 1.11) |
+
+  Prefill C1 is −2.4 % (z −2.08). No decode cell is slower on arm 5. The profile's own noise floor
+  is 7–25 % inter-boot, so the honest reading is **no regression, C2 a lead** — not a speed claim.
+- **TTR and floors**: arm 5 **194.6 s** to port and **198.5 s** to HTTP; control 249.0 / 253.9 s.
+  `MemAvailable` minima for arm 5 **12.01 / 12.68 / 12.38 / 12.00 GiB** on `.31/.32/.33/.35`,
+  control 13.50 / 12.22 / 12.18 / 13.64 GiB. The 6.0 GiB guard was never approached.
+- **Reachability**: C10 runs under the 10-request cap (10 × 6 = 60 rows, inside the 64-row decode
+  envelope). C16 and above cannot: 16 × 6 = 96 rows is exactly the shape that killed boot 5
+  (`SM120 sparse-MLA has no decode kernel shape: num_tokens=96 … (num_tokens <= 64)`). That is
+  verify-route work, not a cap raise — register row `ds4-arm5-verify-route-batch-cap`.
+
+Receipts: `head:~/benchmarks/arm5-fi073c-20261111/` — `RECEIPT-canary-fi073d.md` §§10–11,
+`boot5b-fi073d/`, `boot6-arm3-canary/`, `boot7-arm5-ladder/`, `boot8-arm3-ladder/`.
+
 ## External stack: spark-ds41f (survey, 2026-11-08)
 
 The stack inspected above is a fully engineered **vLLM** stack for the identical checkpoint and
