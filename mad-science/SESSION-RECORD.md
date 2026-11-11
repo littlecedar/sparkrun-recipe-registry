@@ -10826,3 +10826,28 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
 - **CI, read by SHA from the workstation:** `tools/push-gate.py` printed `ok -- HEAD 29274e66` on
   the committed tree before the push; the `gate` run for `29274e6` was `in_progress` at close, so no
   green is claimed here.
+
+## 2026-11-11 12:26 ET hourly board tick: the `.31` reap refusal explained, not reported again
+
+- **What this tick uniquely held is the mechanism**, so it published that and not a second census.
+  Two whole-fleet sweeps (`17:03:39Z`–`17:03:41Z`, `17:10:30Z`–`17:10:32Z`) read nothing live and
+  `.30` carrying the same nine `Created` leftovers, and the pool's through-mount proof (`stat -L`
+  **7,685 B** on the Kromoss `0c5417ec…` snapshot, **102** hub entries) was taken at `17:11:31Z` —
+  but the 12:19 board already carried fresher reads (`17:15:21Z`, `17:16:15Z`), so replacing its In
+  flight set would have republished older numbers over newer ones
+  (`board-publish-accepts-weaker-replacement`, already queued).
+- **The refusal is a stored marker, not a live fault.** `director status` reprints
+  `cannot reap … cannot list containers on .31 (rc=255)` for `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4`
+  because that arm's `h2h-20261107/state.json` record carries `needs_reap` on the four hosts with
+  `last.at` **`2026-11-11T06:38:06Z`**, and `status` echoes that instant's `last.reason`. Twelve
+  same-shaped probes in three passes at `17:09:03Z` (`.30`–`.33`, `BatchMode`, the filter the reaper
+  uses) all answer **rc=0** with 0 containers, so the hosts stay refused only until the director
+  reaps and clears the marker. The two earlier ticks could only say it did not reproduce.
+- **Published `24fcf07`** (board sha `82551bbd…`) on base `1ce699ae…` (title 12:19 ET) with
+  `--expect-sha` and `--expect-remote-sha` carrying the saved copy; `lint` ok. The first publish
+  attempt was refused on two RFC1918 literals inside the `needs_reap` list — masked `.30`–`.33`.
+- **Not touched, on purpose:** the register reads **188 tasks / 43 open / 0 claims** on
+  `ee54e27c…` and its two closures are still worktree-only (`git status` `M`), the campaign holds
+  **0 leases** across all nine `state.json` roots, and the ledger is still `{"leases":[],"version":1}`.
+- **CI:** `tools/push-gate.py` printed `ok -- HEAD 24fcf076` on the committed tree before the push;
+  the `gate` run for `24fcf07` was `in_progress` at close, so no green is claimed here.
