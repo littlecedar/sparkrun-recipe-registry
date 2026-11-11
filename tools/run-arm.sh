@@ -884,6 +884,31 @@ artifacts "$L/ladder.yaml" "$L/house.yaml"
     # without a client.
     export ARM_HOSTS="$HOSTS" ARM_RECIPE="$RECIPE" ARM_RECEIPT_DIR="$L"
     echo "extra client: $ARM_EXTRA_CLIENT (timeout ${extra_timeout}s)"
+    # Snapshot the candidate files' identities BEFORE the client runs. The log is appended after
+    # it exits, so a timestamp filter would drop a client that prints a summary after writing its
+    # JSON (`run_benchmarks.py` does exactly that) -- the defect this snapshot replaces. Identity
+    # is content (sha256), so a new file or one the client overwrote is this hook's; a stale file
+    # from a previous boot is not. `.json` only, `_raw` excluded, same root the after-walk uses.
+    timeout 30 python3 -B - "$L" <<'PY'
+import hashlib, json, os, sys
+
+root = sys.argv[1]
+skip = {"quality.json", "house.json", "ladder.json", "ladder.transcribed.json"}
+before = {}
+for dirpath, dirnames, filenames in os.walk(root):
+    dirnames[:] = [name for name in dirnames if name != "_raw"]
+    for name in filenames:
+        rel = os.path.relpath(os.path.join(dirpath, name), root)
+        if not name.endswith(".json") or rel in skip:
+            continue
+        try:
+            with open(os.path.join(root, rel), "rb") as fh:
+                before[rel] = hashlib.sha256(fh.read()).hexdigest()
+        except OSError:
+            continue
+with open(os.path.join(root, ".client-before.sha256"), "w", encoding="utf-8") as fh:
+    json.dump(before, fh, sort_keys=True)
+PY
     extra_rc=0
     # Bound a wedged client so it cannot hold a TP4 boot; `-k 30` kills one that ignores TERM.
     eval "timeout -k 30 $extra_timeout $ARM_EXTRA_CLIENT" > "$L/extra-client.log" 2>&1 || extra_rc=$?
@@ -891,15 +916,19 @@ artifacts "$L/ladder.yaml" "$L/house.yaml"
     # The campaign reads fixed receipt-root names, and a quality client writes its own
     # (`run_benchmarks.py`'s `<stem>.json`, `h2h-client`'s `client/house.json`): a scored arm then
     # files as "no machine-readable artefact" and is re-booted. Normalise the JSON this successful
-    # hook wrote (newer than its own log, anywhere under the receipt root) into one `quality.json`
-    # -- values unchanged, producer naming the command. A failed hook or one that wrote no JSON
-    # gets nothing here: this normalises a client cell, it never manufactures one.
-    if [ "$extra_rc" = 0 ] && [ ! -e "$L/quality.json" ]; then
-      timeout 30 python3 -B - "$L" "$L/extra-client.log" "$ARM_EXTRA_CLIENT" <<'PY'
-import json, os, sys
+    # hook wrote -- new or changed against the before-snapshot, anywhere under the receipt root --
+    # into one `quality.json`, values unchanged, producer naming the command. A failed hook or one
+    # that wrote no JSON gets nothing here: this normalises a client cell, it never manufactures one.
+    if [ "$extra_rc" = 0 ] && [ ! -e "$L/quality.json" ] && [ -s "$L/.client-before.sha256" ]; then
+      timeout 30 python3 -B - "$L" "$L/.client-before.sha256" "$ARM_EXTRA_CLIENT" <<'PY'
+import hashlib, json, os, sys
 
-root, log, command = sys.argv[1:4]
-stamp = os.path.getmtime(log)
+root, before_path, command = sys.argv[1:4]
+try:
+    with open(before_path, encoding="utf-8") as fh:
+        before = json.load(fh)
+except (OSError, ValueError):
+    sys.exit(0)               # no identity baseline: not this run's cell, never a timestamp guess
 skip = {"quality.json", "house.json", "ladder.json", "ladder.transcribed.json"}
 found = {}
 for dirpath, dirnames, filenames in os.walk(root):
@@ -910,12 +939,13 @@ for dirpath, dirnames, filenames in os.walk(root):
             continue
         path = os.path.join(root, rel)
         try:
-            if os.path.getmtime(path) < stamp:
-                continue
-            with open(path, encoding="utf-8") as fh:
-                found[rel] = json.load(fh)
+            with open(path, "rb") as fh:
+                raw = fh.read()
+            if before.get(rel) == hashlib.sha256(raw).hexdigest():
+                continue          # unchanged since before the hook: a previous boot's file
+            found[rel] = json.loads(raw.decode("utf-8"))
         except (OSError, ValueError):
-            continue          # an unparseable client file is not a cell; it must not measure
+            continue              # unparseable is not a cell; it must not measure
 if found:
     payload = {"producer": {"component": "ARM_EXTRA_CLIENT", "command": command, "rc": 0,
                             "source": "run-arm.sh", "files": sorted(found)},

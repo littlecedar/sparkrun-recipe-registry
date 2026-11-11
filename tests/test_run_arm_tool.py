@@ -1335,11 +1335,16 @@ class ExtraClientHook(BashArmHarness):
         self.assertLess(start, text.index(TEARDOWN_START),
                         "the client runs after the serve is stopped")
 
-    def run_hook(self, env_extra: dict[str, str], house: bool = True) -> tuple[dict[str, str], str]:
+    def run_hook(self, env_extra: dict[str, str], house: bool = True,
+                 receipt_extra: dict[str, str] | None = None) -> tuple[dict[str, str], str]:
         with tempfile.TemporaryDirectory() as tmpdir:
             receipt = Path(tmpdir)
             if house:
                 (receipt / "house.yaml").write_text("suite: ok\nladder: ok\n")
+            for name, text in (receipt_extra or {}).items():
+                path = receipt / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text, encoding="utf-8")
             script = receipt / "hook.sh"
             script.write_text(
                 "#!/usr/bin/env bash\nset -uo pipefail\n"
@@ -1414,6 +1419,32 @@ class ExtraClientHook(BashArmHarness):
         self.assertEqual(quality["producer"]["component"], "ARM_EXTRA_CLIENT")
         self.assertEqual(quality["producer"]["rc"], 0)
         self.assertIn("mkdir", quality["producer"]["command"])
+
+    def test_a_client_that_prints_after_writing_still_normalises(self):
+        # `run_benchmarks.py`'s real shape: write the result, then print a summary table. The old
+        # filter compared the JSON's mtime with the log's last append, so this wrote no quality.json
+        # and the arm filed failed -- the rc=4 loop this normalisation exists to end.
+        files, _ = self.run_hook({
+            "ARM_EXTRA_CLIENT":
+                "printf '{\"correct\": 190}' > \"$L/gsm8k.json\"; sleep 1.1; "
+                "echo '  => gsm8k: 190/200'"})
+        self.assertEqual(json.loads(files["quality.json"])["client"]["gsm8k.json"],
+                         {"correct": 190})
+
+    def test_a_pre_existing_unchanged_json_is_not_this_runs_cell(self):
+        files, _ = self.run_hook({"ARM_EXTRA_CLIENT": "true"},
+                                 receipt_extra={"stale.json": '{"correct": 1}'})
+        self.assertNotIn("quality.json", files,
+                         "a previous boot's unchanged file became this run's measurement")
+
+    def test_an_overwritten_json_is_normalised(self):
+        # A resume overwrites its own `<stem>.json`; identity must see the change, not a set diff.
+        files, _ = self.run_hook({
+            "ARM_EXTRA_CLIENT":
+                "printf '{\"correct\": 200}' > \"$L/gsm8k.json\"; sleep 1.1; echo done"},
+            receipt_extra={"gsm8k.json": '{"correct": 1}'})
+        self.assertEqual(json.loads(files["quality.json"])["client"]["gsm8k.json"],
+                         {"correct": 200})
 
     def test_a_failed_client_writes_no_measured_artefact(self):
         files, _ = self.run_hook({
