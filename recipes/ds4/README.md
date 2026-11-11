@@ -1588,7 +1588,14 @@ loader that does not hold the checkpoint layout and the repacked layout at once*
 fits, the pool builds, the server serves. Receipts `marlin-dummy-078/` and `marlin-dummy-085/`.
 Two knobs had to move together: raising the fraction alone does not clear it, because the 2.25 GB SWA
 term is subtracted before the pool is divided — 0.85 with tails 128 would have refused the same way.
-The refusal was caught **unattended**: on that same boot `tools/boot-watchdog.py` reached
+****The streamer route was tried and does not buy the copy back** (`marlin-streamer-085b`): `runai_streamer`
+refused at its own `DEFAULT_MEMORY_LIMIT_STRING` of 40 GB against a 98.3 GB chunk
+(`runai_model_streamer/file_streamer/requests_iterator.py:14`), and with `memory_limit=110000000000` it
+engaged, loaded (`avail mem=111.50 GB`) and dived to **4.77-6.98 GiB** across ranks over 902 one-Hz
+samples until the 6.0 GiB guard killed it (exit -15, no OOM line). So `ds4-marlin-serial-loader` closes
+**negative** on this lane's own terms — the destination fits, the pool builds, the server serves, and
+the one remaining barrier is a per-module streaming loader that does not hold the checkpoint layout and
+the repacked layout at once (~155 GiB against 121.69). The refusal was caught **unattended**: on that same boot `tools/boot-watchdog.py` reached
 `verdict=dead cause='RuntimeError'` at `t=71 s` (two observations, `dead_candidate` at `t=59 s`),
 harvested the engine log as `serve-reaped-sparkrun_1c0dffa45afa6e47_072f0842ecda_node_0.log` before
 stopping task `1c0dffa45afa6e47_072f0842ecda` by literal id, and left `ctns=0` on the ranks — the
@@ -1812,7 +1819,10 @@ appearance is a cell-and-units trap, not a measured gap: our nearest same-cell a
 shipped line's depth-0 **C8 159.61 ± 8.71** (S3 control), which their 198.4 exceeds by ~24 %; the
 named falsifier is one same-window arm with their client shape against our line. Leads: the glibc
 malloc pin is adopted as `zz-ds4-1017-malloc-pin-sglang.yaml`, A/B control the shipped canary and its
-own receipts; the TileLang block-scaled-MMA patch says exact MXFP4 is reachable on sm_121a (LIKELY,
+own receipts (`ds4-malloc-pin-ab` closes **unresolved**, not confirmed: three consecutive C1 runs on the
+treatment boot spread 43.6 -> 33.3 -> 35.0 ms/step at `--min-answer-tokens 32`, a +/-15 % within-boot
+spread larger than the control-treatment gap and pointing both ways, so the earlier 3-step 54.6 vs 47.5
+and its 13 % win were sample noise); the TileLang block-scaled-MMA patch says exact MXFP4 is reachable on sm_121a (LIKELY,
 above); the attention-compute pin is answered above. Verify an env-carried knob with
 `sparkrun export recipe <recipe>`: `sparkrun run … -n` renders only the serve command, so its
 byte-identity to the canary is the **argv** half of the A/B and never the env half. A `command:`-line
