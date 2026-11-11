@@ -10609,3 +10609,37 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   register row touched, and nothing booted, stopped or claimed. The board's one new landed row is this
   tick's correction.
 
+## 2026-11-11 — ERNIE promoted, four cache readings corrected, and sparkrun's own repairs named
+
+- **The ERNIE arm ships as `ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang`** (`bb13ce8`): the owner
+  ruled the ERNIE 5.5 Flash Base Model License v1.0 shippable with its obligations, so the rename, the
+  licence banner (attribution and the one-time written notice, §4.2), the root index row with ✨📜 from
+  the taxonomy, the lane section rewritten as shipped, and every live reference swept. The control stays
+  `zz-` for the engine reason only. `validate` prints the same findings before and after (valid → valid;
+  this recipe passes `--revision` so it carries no `unpinned-model-revision` warning).
+- **The LibertAIDAI "body stub" was false, and the false reading had a mechanism.** Row
+  `hf-cache-libertai-1017-exl3-body-stub` closes on the scout's read-back: 0 missing in the tree compare
+  (one docs-only README size mismatch), `find -L` 210.8 GiB, `du` 205.9 GiB, shard 43 read back and its
+  safetensors header parsed, `hf cache ls` 210.8G with no warning. The 0.01 GiB was the body's symlink
+  farm — `blobs/` holds 21 dangling links into the hub CAS — so a symlink walk is not a completeness
+  test. Nothing was fetched.
+- **The ds4 1017 double-count is an artifact, named.** Two revisions share one index — `08c8657f` (a
+  link farm) and `1bae0e10` (in-body) — each 475.25 GiB complete, and the census summed them: 950.48 GiB
+  "declared" against 475.25 GiB present, no shard shortfall.
+- **Three cache-consistency figures corrected.** The GSQ-RCO Engram link is now relative and resolves,
+  so the "repo invisible to hf" cause is dead; 32 incomplete files total 19.27 GiB, not 24.1; the stray
+  hub-root trees are 188.8 GiB (`dsv41-engram`) + 14.1 GiB (`mellum-mtp-head`).
+- **Sparkrun's own surface answered two rows' shape.** `setup fix-permissions` defaults to
+  `~/.cache/huggingface` and takes `--cache-dir` (`scripts/fix_permissions.sh:7,11`, chown at `:15`;
+  `cli/_setup/_commands.py:1170,1206`), so the runtime-cache path the ERNIE rank died on needs the flag —
+  run twice on the head, both verbatim in the row (`Results: 6 fixed.` each, `.35` post-fix probe
+  `root-owned-count=0`). `daemon resources` reservations are host-granular with no expiry or window and
+  per config root (`core/coordination.py:83,210,311,327`), so the lease ledger stays. The container-side
+  prevention is the shared `mods/reown-runtime-cache/` (`ba42153`), listed after each writer; the row
+  stays queued for the boot that proves it.
+- **Two hand-rolled checks now have native commands**, and the lesson is on file: per-rank serve output
+  is `sparkrun logs <recipe|cluster-id> -a` (`core/log_source.py:35`, row `adopt-native-per-rank-log`)
+  and declared-vs-present is `model-cache inspect` once a manifest exists (`model-cache
+  resolve`/`import`, row `model-cache-inspect-for-pool-bodies`); the hand-rolled `docker logs` capture
+  and the symlink walk were both standing in for them.
+
