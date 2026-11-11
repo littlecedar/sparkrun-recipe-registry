@@ -10679,6 +10679,6 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   now printed with addresses) still does not reproduce — `.31` answers rc=0 by address and by name
   in consecutive seconds from the same head.
 - **Two procedure traps worth keeping.** `publish` refuses board text carrying cluster addresses
-  *and* node hostname literals (`stdin:14: cluster-address: spark-01`), so rows quote `.30`–`.35`
+  *and* node hostname literals (a node hostname, one address hit on one line), so rows quote `.30`–`.35`
   shorthand and say so; and a compose script's `KEY=value` parser needs `-` inside the key class, or
   `U_beegfs-meta=…` unit lines parse as nothing and every restart counter reads `KeyError`.
