@@ -1552,6 +1552,11 @@ roughly 64–69 GiB of the 121.69 GiB pool for KV there. Receipt
 `head:~/benchmarks/tp4-20261111/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4/`
 (`mem-floor.json`).
 
+**Under the six-node route (TP=2 x PP=3), the arm waits on an image built from vLLM main ≥ `4088c283`**
+(#66037, merged 2026-11-09); the pinned 2026-11-07 nightly predates it, no eugr/GB10 nightly is newer,
+and no knob in the pinned image admits the shape (`.scratch/kimi-six-engine-verdict-20261111.md`; row
+`kimi-k31-indexer-block-vs-blhnc-layout`).
+
 **The answer form decides, not the distance (ERNIE control pair, 2026-11-11).** On the same control
 boot (`/v1/completions` only — the checkpoint ships no chat template; 128-shard load; `Ready`
 2026-11-11T09:48:25Z) the QA form **passes at 4,005 and 26,547 prompt tokens** (code `ZX81-4321`
