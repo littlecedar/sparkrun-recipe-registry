@@ -9983,3 +9983,35 @@ find **0 running and 0 volumes on all six** with only `.30`'s nine `Created` lef
 - **Still open**: the RoCE/`NCCL_IB_HCA` pin the 01:20 entry proposes, the decode-shape ceiling this
   boot measured, `campaign-leases-tp4-onto-30` (host order still starts at `.30`), the expired `h2h`
   lease, and the ten orphan guards.
+
+## 2026-11-11 — the fleet reboot between two arm-5 boots, and what earlyoom's file really said
+
+- **The reboot was the whole fleet, in parallel, on owner authorization.** All six nodes rebooted
+  06:33–06:38Z and came back on kernel 7.0.0-1025 from 1024. The boot it was ordered for is the
+  evidence it worked: boots 2 and 3 had both died in `ncclCommInitRank` (`ibv_modify_qp 61`, empty
+  GID) — including the unmodified arm-3 control, which is what made it fleet state rather than the
+  port — and boot 4, first boot after the reboot, passed `Init parallel` (49.35 s) on sparkrun's own
+  injected env, loaded target and draft, and went on to die on its own prefill stopper. Canary NOT
+  measured. Receipts: `head:~/benchmarks/arm5-fi073c-20261111/`; boot-by-boot history in register row
+  `ds4-arm5-flashinfer-073-port`.
+- **Before/after GID tables.** A carrier flap on the plane at 2026-11-11T02:44:36Z left plane A's GID
+  index 3 vacated while plane B stayed contiguous. Sparkrun derives one `NCCL_IB_GID_INDEX` from the
+  first active HCA (`scripts/ib_detect.sh:44-45`) and applies it to both (`infiniband.py:246,268`), so
+  that index was invalid on plane A until the reboot restored contiguous tables. An explicit override
+  carried boot 3 past NCCL while the tables disagreed, which is the workaround and not a fix: the
+  defect is register row `sparkrun-single-gid-index-for-two-hcas`, and its repair belongs in sparkrun
+  or cluster config, never a recipe env line.
+- **earlyoom's authority is the file, and a reboot restores nothing.** The 2026-11-08 lease-gate
+  wording "memory term in the ~20 % range" plus "swap term unreachable" described a `-m 20,10`
+  experiment that was live on 11-08 for 37 minutes and reverted because it fires at ~24.3 GiB free —
+  an hour, not a policy. The ratified pair is `-m 4,1 -s 100,95` (`QUESTIONS.md` #72, 2026-11-09), and
+  `/etc/default/earlyoom` is what earlyoom reads at boot, so a reboot re-reads whatever that file says
+  and restores no previous boot's settings. Four register rows carried the stale premise (three
+  quartet rows and `host-memory-policy-apply`); all four now name the ratified pair and the file as
+  the evidence. Receipts: `head:~/benchmarks/guard-cleanup-20261111/README.md`,
+  `head:~/benchmarks/host-mem-policy-20261109/`.
+- **The guard-leak premise was wrong, the leak was not.** Ten `mem-guard.sh` processes were alive
+  with nothing running. They cannot stop a future boot: each issues `sparkrun stop` only for the TID
+  in its own argv, so a leaked guard is a stale no-op. What accumulates is processes, ssh sessions and
+  stop paths that resolve to nothing, so `mem-guard-outlives-its-task` stays open for a lifetime fix
+  rather than a hazard removal.
