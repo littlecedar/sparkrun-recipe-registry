@@ -10410,3 +10410,41 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   `hf-cache-libertai-1017-exl3-body-stub`, `ds4-arm5-verify-route-batch-cap`,
   `sparkrun-single-gid-index-for-two-hcas`, the campaign lease/placement rows (mechanism landed, no
   live lease yet), `mem-guard-outlives-its-task`, and the earlyoom policy row's last item.
+
+## 2026-11-11 — tick 05:00–05:22: an idle fleet re-read twice, and a published cell repaired
+
+- **The fleet was idle at both ends of the window, and the ERNIE window closed cleanly.** Two own
+  sweeps of all six nodes, `10:04:19Z`–`10:04:22Z` and `10:09:11Z`–`10:09:13Z`, read `.31`–`.35` at
+  **0 containers and 0 volumes** and `.30` at **0 running** with its nine never-started `Created`
+  leftovers unchanged; `sparkrun status` from the head at `10:05:04Z` names every host "Idle hosts".
+  The lease the 04:11 board held on four ranks to `06:03:48 ET` is **gone from the ledger**
+  (`{"leases": [], "version": 1}`, 33 B, mtime 04:50 ET, on the head and byte-identical here), so
+  the quartet was released, not lost — the reading the peer's 05:12 board had also reached.
+- **Two pool pairs, 376,832 B and 339,968 B apart**, against 61,440 B in the peer's read: mount
+  `13,981,077,995,520 B` against the six roots' `13,981,077,618,688 B`, then `13,981,080,616,960 B`
+  against `13,981,080,276,992 B` at `10:09:13Z` (58 % of a `24,191,229,755,392 B` pool). Both sides
+  rose together, and **all six roots moved up** — unlike the 09:03 interval where `.35` carried
+  99.88 % of the rise — so this interval's writes are fleet-spread and the chunk store taking a
+  pooled write is the LIKELY mechanism. 102 hub entries and Kromoss
+  `snapshots/a4fe9744…/README.md` **7685 B** through the mount on every node.
+- **My first name-entry reading was wrong and did not ship.** The FQDN answers `rc=0` from the
+  head, so I briefly concluded `head-mesh-cannot-reach-30` was stale. The register row and the peer's
+  probe both mean the **short alias**, and `ssh spark-41e1 true` returns **255** with `REMOTE HOST
+  IDENTIFICATION HAS CHANGED` (offending ED25519 key, `known_hosts:117`) while the FQDN and the
+  management address both return 0 in the same second. The landed row narrows the claim to the alias
+  instead of contradicting it: DNS resolves and the node answers; a stale known_hosts entry for the
+  alias is the defect.
+- **A published cell carried no time, and is now repaired.** The 05:17 composition sliced its sweep
+  stamps to eleven characters, so its publication cell named no time at all. `lint` passes such a
+  cell — it checks the fence and the row set — and the peer's 05:20 board inherited it verbatim,
+  which is why the repair landed as its own commit (`dcd46e6`) over that board instead of inside the
+  composition: the cell now names `10:04:19Z`–`10:04:22Z` and `10:09:11Z`–`10:09:13Z`, and no
+  measured figure moved.
+- **Composition discipline that cost a redo.** The 05:00 tick's first board was refused by its own
+  base-moved guard when the peer published at `122f98f`; the second composition folded onto their
+  board, keeping their node rows verbatim rather than republishing them a minute fresher and dropping
+  the deltas they carry against the 09:03 sweep.
+- **Remaining open on this tick's evidence.** The register read 183 tasks / 44 open / 0 claims at
+  snapshot `a04eb1ab`, then gained `campaign-state-copy-re-nests` under `8678ac5` (45 open on the
+  05:20 board). `head-mesh-cannot-reach-30` should narrow its text to the alias. No boot was made,
+  no window claimed, nothing stopped.
