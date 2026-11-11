@@ -1,9 +1,10 @@
 # ===========================================================================
-# LICENSE — ERNIE 5.5 Flash Base Model License v1.0 (new class; owner question
-# open in mad-science/QUESTIONS.md). Free for non-commercial use; commercial
-# use permitted only up to US$50 M annual revenue, with attribution and a
-# one-time written notice (S4.2), otherwise separate authorization (S4.3).
-# This is a PROBE arm, not a shipped default.
+# LICENSE — ERNIE 5.5 Flash Base Model License v1.0. Free non-commercial use;
+# commercial use permitted only up to US$50 M annual revenue, with attribution
+# and a one-time written notice (S4.2), otherwise separate authorization (S4.3).
+# Owner ruled the class shippable 2026-11-11; the shipped arm is
+# `ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang.yaml`, and this control
+# stays a PROBE for the engine reason only (FlashMLA has no SM12x sparse decode).
 # ===========================================================================
 recipe_version: "2"
 model: baidu/ERNIE-5.5-Flash-Base
@@ -23,10 +24,10 @@ description: >-
   ERNIE-5.5-Flash-Base — 280B-total / ~14B-active MoE (43 layers, hidden 4096,
   top-10 of 512 experts, FP8 e4m3 block weights with ue8m0 scales) — on 4x DGX
   Spark, TP=4: 268.65 GiB of shards is 67.16 GiB per rank against 121.69 GiB
-  unified. DRAFT probe (`zz-`), not shippable as-is: the checkpoint's license is
-  a class this registry has never shipped (see the banner), and it ships no chat
-  template, so /v1/completions is the answering endpoint until a template is
-  staged. Window 131072 is upstream's only validated context: ~7.2 KiB of KV per
+  unified. PROBE (`zz-`) for the engine reason: FlashMLA sparse decode has no
+  SM12x build (the control's boot section below), while the licence class is now
+  shipped on the FlashInfer arm. It ships no chat template, so /v1/completions is
+  the answering endpoint until a template is staged. Window 131072 is upstream's only validated context: ~7.2 KiB of KV per
   token puts it at 0.90 GiB of the ~27.7 GiB a 0.78 static budget leaves, so the
   pool holds ~29 full windows. The checkpoint's 1M is unproven here.
 metadata:
@@ -38,11 +39,13 @@ metadata:
   tags: large_context
   caveats: >-
     ERNIE 5.5 Flash Base Model License v1.0: free non-commercial use; commercial
-    use only to US$50 M annual revenue with attribution and a one-time written
-    notice, otherwise separate authorization. This class has no owner ruling
-    yet, so the arm is probe-only until one land. Tokenizer ships no
-    chat_template (tokenizer_config.json carries none, chat_template.jinja 404),
-    so chat/completions has no prompt contract; serve /v1/completions.
+    use only up to US$50 M annual revenue with attribution and a one-time
+    written notice, otherwise separate authorization. The owner ruled the class
+    shippable 2026-11-11, so those obligations attach; this control stays a probe
+    only because FlashMLA's sparse decode has no SM12x build. The tokenizer
+    ships no chat_template (tokenizer_config.json carries none,
+    chat_template.jinja 404), so /v1/chat/completions has no prompt contract;
+    serve /v1/completions.
 
 defaults:
   port: 8000
