@@ -902,6 +902,23 @@ stable question ids — the round raised one numbered register question, `#84`.
  rows `campaign-six-node-claim`, `campaign-ignores-declared-window`; `AGENTS.md` §"Node hygiene" (amended
  2026-11-11); owner 2026-11-11.
 
+## Owner answer 2026-11-11 — ERNIE licence class
+- **#84 — Which licence class does `baidu/ERNIE-5.5-Flash-Base` get: ship the eval-only arm, stay probe-only, or
+ not ship at all?** *Answered 2026-11-11:* **a production arm is permitted.** The owner's reasoning: revenue is
+ well below US$50M annual and most of the work qualifies as non-commercial, so the arm may ship as a production
+ arm if we judge it performs well enough to deserve a production ship — "our best judgement decides". The ruling
+ carries the licence's obligations rather than waiving them: attribution and the one-time use notice must be
+ stated wherever the arm is documented, and shipping still needs a performance call from us. Nothing is promoted
+ by this answer.
+- **The call recorded with it.** Promotion waits for the two queued ERNIE items — `ernie-window-control-receipt`
+ (the control answers filed in a receipt) and `ernie-flashinfer-sparse-sink-route` (the 128K C5/C10 cell) —
+ because the measured evidence on file is a 0-shot completions cell at 190/200
+ (`head:~/benchmarks/tp4-20261110b/ernie-gate2/`) and a trio that passes T and N while the imperative-form C fails
+ at 1,977 tokens (`trio.json` beside it). An arm shipped on that alone would carry a documented acceptance gap.
+ Promotion itself is queue row `ernie-5.5-flash-base-arm-promotion`; the recipe is not touched by this answer.
+— provenance: `mad-science/QUESTIONS.md` `#84` (settled); owner 2026-11-11 (oversight thread);
+`.scratch/tp4-survey/evidence.md` §2; queue rows named above.
+
 ## Owner directive 2026-11-11 — TP1/TP2 parked until production returns
 - **Owner directive, 2026-11-11:** **TP1/TP2 arms stay parked until the production serve returns.** The owner's
  reason: a TP>=4 session requires taking the production serve down, which forces the agents onto expensive

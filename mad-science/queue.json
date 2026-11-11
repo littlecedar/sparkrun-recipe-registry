@@ -2411,7 +2411,9 @@
       "id": "ernie-flashinfer-sparse-sink-route",
       "title": "ERNIE-5.5-Flash-Base TP=4 via FlashInfer SM121 sparse MLA with attn_sink: no flag reaches it, five engine sites do",
       "estimate_h": 6.0,
-      "blocks": [],
+      "blocks": [
+        "ernie-5.5-flash-base-arm-promotion"
+      ],
       "blocked_by": [
         "ernie-flashinfer-sparse-sink-port"
       ],
@@ -2802,7 +2804,9 @@
       "id": "ernie-window-control-receipt",
       "title": "ERNIE-5.5-Flash-Base TP=4 sparse arm: rerun trio_c2.py and file the three window-control replies into the receipt",
       "estimate_h": 1.0,
-      "blocks": [],
+      "blocks": [
+        "ernie-5.5-flash-base-arm-promotion"
+      ],
       "blocked_by": [],
       "state": "queued",
       "model": "baidu/ERNIE-5.5-Flash-Base",
@@ -2831,15 +2835,25 @@
       "evidence": "",
       "claimed_by": "session:tp4-20261111",
       "claimed_at": "2026-11-11T05:23:36Z"
+    },
+    {
+      "id": "ernie-5.5-flash-base-arm-promotion",
+      "title": "Promote ERNIE-5.5-Flash-Base from a `zz-` probe to a production arm once its receipt and route cells land",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [
+        "ernie-flashinfer-sparse-sink-route",
+        "ernie-window-control-receipt"
+      ],
+      "state": "queued",
+      "model": "baidu/ERNIE-5.5-Flash-Base",
+      "node_cost": "",
+      "notes": "OWNER 2026-11-11 (#84): the licence answer permits a production arm, and this row is what promotion concretely means. It waits on both blockers: `ernie-window-control-receipt` (the control answers in a receipt) and `ernie-flashinfer-sparse-sink-route` (the 128K C5/C10 cell), because an arm shipped on today's evidence would carry a documented acceptance gap. Promotion: drop the `zz-` prefix from the recipe name and every reference to it, add the arm's section to `recipes/explore/README.md`, add the root index row with its flags, and carry the licence's attribution and one-time use notice in the recipe header and the lane doc. No numerics are invented here — the arm's numbers stay those the blocking rows measure. estimate: provisional.",
+      "provenance": "mad-science/TODO.md §\"Settled questions\" ## Owner answer 2026-11-11 — ERNIE licence class (register question #84); mad-science/QUESTIONS.md `#84`; .scratch/tp4-survey/evidence.md §2",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
-  "questions": [
-    {
-      "id": 84,
-      "summary": "ERNIE-5.5-Flash-Base licence class: may the eval-only arm ship, stay probe-only, or not ship at all?",
-      "status": "open — owner decision",
-      "provenance": "mad-science/TODO.md §\"Settled questions\" ## Owner round 2026-11-11 — TP>=4 survey S5; mad-science/queue.json row lane-survey-baidu-ernie-5.5-flash-base (licence terms: custom ernie-5.5-flash-base-model-license-v1.0, non-commercial free, commercial use at or below US$50M annual related revenue with attribution and a one-time use notice, above that separate authorization)",
-      "asked": "2026-11-11"
-    }
-  ]
+  "questions": []
 }
