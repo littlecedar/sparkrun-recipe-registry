@@ -135,9 +135,16 @@ def checks(tree: Path, gitdir: str, base: str | None) -> bool:
                "-p", "test_tracked_address_hygiene.py"], tree, address).returncode == 0
     # The archive tree has no `.git`, so this test reads HEAD through the same GIT_DIR the address
     # check uses -- the committed mode, which is what the campaign executor actually receives.
-    ok &= run("tracked executable modes (test_executable_modes)",
-              [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests",
-               "-p", "test_executable_modes.py"], tree, address).returncode == 0
+    # Guarded: a tree whose HEAD predates the guard has no such module, and discovery then exits 5
+    # ("no tests ran"), which would report a clean tree red -- the fixtures in tests/test_push_gate.py
+    # are exactly that tree.
+    if (tree / "tests" / "test_executable_modes.py").is_file():
+        ok &= run("tracked executable modes (test_executable_modes)",
+                  [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests",
+                   "-p", "test_executable_modes.py"], tree, address).returncode == 0
+    else:
+        sys.stderr.write("push-gate: SKIPPED tracked executable modes -- "
+                         "tests/test_executable_modes.py not in HEAD\n")
 
     shells = [s for s in changed(base, "*.sh") if (tree / s).is_file()]
     if not shutil.which("bash"):
