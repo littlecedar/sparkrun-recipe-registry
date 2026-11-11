@@ -595,7 +595,7 @@ class Director:
                     self.holder, list(hosts), ttl=self.campaign.lease_ttl, arm=arm,
                     window=str(self.campaign.arm(arm).get("window") or ""), proof=proof)
                 ledger_id = str(claim["id"])
-            except leases.LeaseError as exc:
+            except (leases.LeaseError, plan.PlanError) as exc:
                 print(f"lease-refused: {arm} on {','.join(hosts)} ({exc}); not attempted",
                       file=self.out)
                 return None
@@ -1045,39 +1045,59 @@ def plan_command(args: argparse.Namespace) -> int:
 
 
 def lease_command(args: argparse.Namespace) -> int:
-    """The manual session's entry point: write, list or release a fleet lease.
+    """The manual session's entry point: write, list or release a fleet claim.
 
     Same ledger and same record as the director uses, so one mechanism claims a multi-rank boot.
     A `--ttl` is required to write: the claim expires on its own, which is what lets a lost session
-    stop holding the fleet.
+    stop holding the fleet. A release names one record — its id, or the same holder and hosts it
+    was written with — because a holder is a session, not a claim.
     """
     ledger = leases.Ledger(Path(args.repo_root).expanduser() / leases.LEDGER)
     try:
         if args.release:
-            released = ledger.release(args.release)
-            print(("released " if released else "no such live lease: ") + args.release)
-            return 0 if released else 3
+            hosts = _host_list(args.hosts)
+            record = ledger.find(lease_id=args.release) or (
+                ledger.find(holder=args.release, hosts=hosts) if hosts else None)
+            if record is None:
+                print(f"no such live lease: {args.release}"
+                      + (f" on {','.join(hosts)}" if hosts else ""), file=sys.stderr)
+                return 3
+            if not ledger.release(str(record["id"])):
+                print(f"no such live lease: {record['id']}", file=sys.stderr)
+                return 3
+            print(f"released {record['id']} ({record.get('holder')} on "
+                  f"{','.join(record.get('hosts') or ())})")
+            return 0
         if args.list or not args.hosts:
             live = ledger.leases()
             for record in live:
-                print(f"{record.get('id')} {record.get('holder')} on "
-                      f"{','.join(record.get('hosts') or ())} until "
-                      f"{float(record.get('expires_at') or 0):.0f}"
-                      + (f" ({record['window']})" if record.get("window") else ""))
+                print(f"id={record.get('id')} holder={record.get('holder') or '?'} "
+                      f"hosts={','.join(record.get('hosts') or ())} "
+                      f"window={record.get('window') or '-'} "
+                      f"until={float(record.get('expires_at') or 0):.0f}"
+                      + (f" arm={record['arm']}" if record.get("arm") else "")
+                      + (f" note={record['note']}" if record.get("note") else ""))
             print(f"{len(live)} live lease(s) in {ledger.path}")
             return 0
         if not args.holder or args.ttl is None:
             print("cannot lease: --holder and --ttl are required to write a lease", file=sys.stderr)
             return 2
-        hosts = [host.strip() for host in args.hosts.split(",") if host.strip()]
-        record = ledger.acquire(args.holder, hosts, ttl=args.ttl, arm=args.arm,
-                                window=args.window)
+        record = ledger.acquire(args.holder, _host_list(args.hosts), ttl=args.ttl,
+                                arm=args.arm, window=args.window, takeover=args.takeover)
         print(f"leased {record['id']} to {record['holder']} on {','.join(record['hosts'])}"
               f" until {record['expires_at']:.0f}")
+        if args.takeover:
+            print(f"lease-takeover: {record['id']} "
+                  f"{record.get('note') or 'replaced nothing live'}")
         return 0
-    except leases.LeaseError as exc:
+    except (leases.LeaseError, plan.PlanError) as exc:
         print(f"cannot lease: {exc}", file=sys.stderr)
         return 3
+
+
+def _host_list(value: str | None) -> list[str]:
+    """A comma-separated `--hosts` cell as hosts; an absent one is no hosts, never a guess."""
+    return [host.strip() for host in (value or "").split(",") if host.strip()]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1146,7 +1166,11 @@ def main(argv: list[str] | None = None) -> int:
     claim.add_argument("--ttl", type=float, help="seconds until the lease expires (required)")
     claim.add_argument("--arm", default="", help="arm the ranks are booting, for the record")
     claim.add_argument("--window", default="", help="declared window name, per boot")
-    claim.add_argument("--release", default="", metavar="ID", help="drop this lease id")
+    claim.add_argument("--release", default="", metavar="ID",
+                       help="drop one record: give its id, or a holder plus --hosts")
+    claim.add_argument("--takeover", action="store_true",
+                       help="supersede a live claim on overlapping ranks; the note records it "
+                            "(never needed to release your own record)")
     claim.add_argument("--list", action="store_true", help="print every live lease")
     claim.add_argument("--repo-root", default=fleet.default_repo_root(),
                        help="registry checkout holding .local/fleet-leases.json")

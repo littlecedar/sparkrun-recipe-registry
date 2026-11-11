@@ -196,7 +196,14 @@ mechanism, not two. The ledger is `<repo-root>/.local/fleet-leases.json` — `.l
 syncthing shares it (a lock written under `.scratch/` never left its clone, measured 2026-10-30)
 and it is git-ignored, so a claim carries no tracked address. One record names the holder, every
 rank (one host per rank), the arm, the window, the proof lines and an expiry; writes take an
-exclusive `flock` beside it and land through the state module's atomic `write_json`. The director
+exclusive `flock` beside it and land through the state module's atomic `write_json`. The holder
+names a session, not a claim: the id is the claim (holder, host set, window), so two workstreams
+that pick one holder string coexist on disjoint ranks instead of the second write replacing the
+first (measured 2026-11-11, `session:tp4-20261111`). A write never replaces a live claim it did
+not create — overlapping ranks refuse with the holder, hosts and expiry, an identical re-write
+refreshes its own record, and only an explicit `--takeover` supersedes, naming the replaced ids in
+the new record's `note`; `--release` takes the record's id or the same holder and hosts and refuses
+an ambiguous match by naming the candidates. The director
 is the writer for campaign boots — the record exists, and any rank is checked again, before the
 state lease a worker can launch from — and a manual session uses the same code path:
 

@@ -47,10 +47,12 @@ class LedgerCase(unittest.TestCase):
 
     def test_a_second_holder_cannot_take_a_leased_rank(self) -> None:
         self.ledger.acquire("session-a", ["n1", "n2"], ttl=600)
-        with self.assertRaises(leases.LeaseError) as ctx:
+        with self.assertRaises(plan.PlanError) as ctx:
             self.ledger.acquire("session-b", ["n2", "n3"], ttl=600)
-        self.assertIn("n2", str(ctx.exception))
-        self.assertIn("session-a", str(ctx.exception))
+        message = str(ctx.exception)
+        self.assertIn("n2", message)
+        self.assertIn("session-a", message)
+        self.assertIn("until ", message, "the refusal names the live record's expiry")
         self.assertEqual(len(self.ledger.leases()), 1, "a refused claim writes nothing")
 
     def test_the_same_holder_reclaims_its_own_ranks(self) -> None:
@@ -86,6 +88,83 @@ class LedgerCase(unittest.TestCase):
         self.assertTrue(self.ledger.held_hosts(["n1"]))
         self.assertTrue(self.ledger.release(record["id"]))
         self.assertEqual(self.ledger.held_hosts(["n1"]), {})
+
+
+class HolderIsNotAClaim(unittest.TestCase):
+    """The 2026-11-11 measured sequence: two workstreams shared one holder string.
+
+    A booted `.31`-`.35` as `session:tp4-20261111`; B wrote the same holder on `.30`-`.34`, and the
+    second write replaced the first record, so A's `--release` answered "no such live lease" while
+    its boot was refused by capacity. A holder names a session; the claim is (holder, hosts,
+    window), and a write never replaces a live claim it did not create.
+    """
+
+    HOLDER = "session:tp4-20261111"
+    A = ("node.31", "node.32", "node.33", "node.34", "node.35")
+    B = ("node.30", "node.31", "node.32", "node.33", "node.34")
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.repo = self.tmp / "repo"
+        self.repo.mkdir()
+        self.clock = FakeClock()
+        self.ledger = leases.Ledger(self.repo / leases.LEDGER, clock=self.clock)
+
+    def test_the_second_claim_under_one_holder_is_refused_not_superseded(self) -> None:
+        first = self.ledger.acquire(self.HOLDER, self.A, ttl=600, arm="kimi-six", window="w1")
+        with self.assertRaises(plan.PlanError) as ctx:
+            self.ledger.acquire(self.HOLDER, self.B, ttl=600, arm="other", window="w1")
+        message = str(ctx.exception)
+        self.assertIn(self.HOLDER, message)
+        self.assertIn("node.31", message, "the shared rank is named")
+        self.assertIn(f"{first['expires_at']:.0f}", message, "the live record's expiry is named")
+        self.assertEqual([lease["id"] for lease in self.ledger.leases()], [first["id"]],
+                         "the refused write leaves the live record intact")
+        self.assertTrue(self.ledger.release(first["id"]), "A still releases its own claim")
+        second = self.ledger.acquire(self.HOLDER, self.B, ttl=600, arm="other", window="w1")
+        self.assertEqual([lease["id"] for lease in self.ledger.leases()], [second["id"]])
+
+    def test_two_claims_from_one_session_coexist_on_disjoint_hosts(self) -> None:
+        first = self.ledger.acquire(self.HOLDER, self.A, ttl=600, arm="kimi-six", window="w1")
+        second = self.ledger.acquire(self.HOLDER, ("node.30",), ttl=600, arm="solo", window="w2")
+        self.assertEqual([lease["id"] for lease in self.ledger.leases()],
+                         [first["id"], second["id"]])
+        self.assertEqual(self.ledger.find(holder=self.HOLDER, hosts=self.A)["id"], first["id"])
+        self.assertEqual(self.ledger.find(holder=self.HOLDER, hosts=["node.30"])["id"],
+                         second["id"])
+
+    def test_an_identical_rewrite_refreshes_the_same_record(self) -> None:
+        first = self.ledger.acquire(self.HOLDER, self.A, ttl=600)
+        self.clock.now += 10
+        again = self.ledger.acquire(self.HOLDER, tuple(reversed(self.A)), ttl=600)
+        self.assertEqual(again["id"], first["id"], "host order is not a second claim")
+        self.assertEqual(len(self.ledger.leases()), 1)
+        self.assertEqual(again["expires_at"], self.clock.now + 600)
+
+    def test_an_ambiguous_holder_and_hosts_match_names_the_candidates(self) -> None:
+        # A ledger written by the old code, or by two writers racing it, can hold two records under
+        # one holder; resolution refuses instead of deleting the wrong one.
+        write(self.repo / leases.LEDGER, json.dumps({"version": 1, "leases": [
+            {"id": "a@1", "holder": self.HOLDER, "hosts": ["n1"], "window": "w1", "ttl": 600,
+             "issued_at": self.clock.now, "expires_at": self.clock.now + 600},
+            {"id": "a@2", "holder": self.HOLDER, "hosts": ["n1"], "window": "w2", "ttl": 600,
+             "issued_at": self.clock.now, "expires_at": self.clock.now + 600},
+        ]}))
+        with self.assertRaises(plan.PlanError) as ctx:
+            self.ledger.find(holder=self.HOLDER, hosts=["n1"])
+        message = str(ctx.exception)
+        self.assertIn("a@1", message)
+        self.assertIn("a@2", message)
+
+    def test_takeover_supersedes_and_records_which_record_it_replaced(self) -> None:
+        first = self.ledger.acquire(self.HOLDER, self.A, ttl=600, arm="kimi-six", window="w1")
+        second = self.ledger.acquire(self.HOLDER, self.B, ttl=600, arm="other", window="w1",
+                                     takeover=True)
+        self.assertEqual([lease["id"] for lease in self.ledger.leases()], [second["id"]])
+        self.assertIn(first["id"], second["note"])
+        self.assertIn(first["holder"], second["note"])
+        self.assertIn("takeover of", second["note"])
 
 
 class LeaseCommand(unittest.TestCase):
@@ -124,6 +203,78 @@ class LeaseCommand(unittest.TestCase):
                                      "--repo-root", str(self.repo)])
         self.assertEqual(code, 2)
         self.assertEqual(leases.Ledger(self.repo / leases.LEDGER).leases(), [])
+
+    def test_the_measured_holder_collision_is_refused_and_release_resolves_by_claim(self) -> None:
+        root = str(self.repo)
+        first = ["lease", "--hosts", "n1,n2,n3", "--holder", "session:x", "--ttl", "600",
+                 "--window", "w1", "--repo-root", root]
+        self.assertEqual(director_module.main(first), 0)
+        refused = director_module.main(["lease", "--hosts", "n2,n3,n4", "--holder", "session:x",
+                                        "--ttl", "600", "--window", "w1", "--repo-root", root])
+        self.assertEqual(refused, 3, "one holder is not one claim")
+        ledger = leases.Ledger(self.repo / leases.LEDGER)
+        self.assertEqual(len(ledger.leases()), 1)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = director_module.main(["lease", "--release", "session:x",
+                                         "--hosts", "n1,n2,n3", "--repo-root", root])
+        self.assertEqual(code, 0, out.getvalue())
+        self.assertIn("released ", out.getvalue())
+        self.assertEqual(ledger.leases(), [])
+        self.assertEqual(director_module.main(["lease", "--hosts", "n2,n3,n4", "--holder",
+                                               "session:x", "--ttl", "600",
+                                               "--repo-root", root]), 0)
+
+    def test_takeover_supersedes_and_the_list_shows_the_note(self) -> None:
+        root = str(self.repo)
+        director_module.main(["lease", "--hosts", "n1,n2", "--holder", "session:a",
+                              "--ttl", "600", "--window", "w1", "--repo-root", root])
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = director_module.main(["lease", "--hosts", "n2,n3", "--holder", "session:b",
+                                         "--ttl", "600", "--window", "w1", "--takeover",
+                                         "--repo-root", root])
+        self.assertEqual(code, 0)
+        self.assertIn("lease-takeover:", out.getvalue())
+        listed = io.StringIO()
+        with contextlib.redirect_stdout(listed):
+            self.assertEqual(director_module.main(["lease", "--list", "--repo-root", root]), 0)
+        text = listed.getvalue()
+        self.assertIn("holder=session:b", text)
+        self.assertNotIn("holder=session:a", text)
+        self.assertIn("note=takeover of ", text)
+
+    def test_list_prints_two_records_from_one_holder_with_their_fields(self) -> None:
+        root = str(self.repo)
+        director_module.main(["lease", "--hosts", "n1", "--holder", "session:x", "--ttl", "600",
+                              "--window", "w1", "--repo-root", root])
+        director_module.main(["lease", "--hosts", "n2", "--holder", "session:x", "--ttl", "700",
+                              "--window", "w2", "--repo-root", root])
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(director_module.main(["lease", "--list", "--repo-root", root]), 0)
+        lines = [line for line in out.getvalue().splitlines() if line.startswith("id=")]
+        self.assertEqual(len(lines), 2, out.getvalue())
+        for line in lines:
+            for field in ("id=", "holder=session:x", "hosts=n", "window=w", "until="):
+                self.assertIn(field, line)
+
+    def test_an_ambiguous_release_refuses_naming_the_candidates(self) -> None:
+        write(self.repo / leases.LEDGER, json.dumps({"version": 1, "leases": [
+            {"id": "a@1", "holder": "session:x", "hosts": ["n1"], "window": "w1", "ttl": 600,
+             "issued_at": 1.0, "expires_at": 10**12},
+            {"id": "a@2", "holder": "session:x", "hosts": ["n1"], "window": "w2", "ttl": 600,
+             "issued_at": 1.0, "expires_at": 10**12},
+        ]}))
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = director_module.main(["lease", "--release", "session:x", "--hosts", "n1",
+                                         "--repo-root", str(self.repo)])
+        self.assertEqual(code, 3)
+        self.assertIn("a@1", err.getvalue())
+        self.assertIn("a@2", err.getvalue())
+        self.assertEqual(len(leases.Ledger(self.repo / leases.LEDGER).leases()), 2,
+                         "an ambiguous refusal deletes nothing")
 
 
 class GuardrailProof(unittest.TestCase):
@@ -299,7 +450,7 @@ class SingleClaim(DirectorCase):
         self.assertEqual(live[0]["hosts"], ["node-a", "node-b"])
         self.assertEqual(live[0]["holder"], "sparkrun-campaign:test")
         self.assertEqual(live[0]["arm"], "pair")
-        with self.assertRaises(leases.LeaseError):
+        with self.assertRaises(plan.PlanError):
             leases.Ledger(self.repo / leases.LEDGER, clock=self.clock).acquire(
                 "another-session", ["node-a", "node-b"], ttl=600)
 

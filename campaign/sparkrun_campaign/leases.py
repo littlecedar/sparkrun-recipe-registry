@@ -1,7 +1,9 @@
 """The fleet lease ledger: the only claim for a multi-machine boot (owner ruling 2026-11-11).
 
-A lease is one record naming every rank a boot takes, its holder, and an expiry. Two claims that
-used to race are one mechanism:
+A lease is one record naming every rank a boot takes, its holder, and an expiry. The holder names
+a session; the id names a claim (holder, host set and window), so two claims from one session
+coexist and a write never replaces a live claim it did not create. One mechanism serves both
+writers:
 
 * the **campaign director** writes a record before it hands a multi-node boot to a worker, and
   refuses the boot when any rank is already leased;
@@ -33,6 +35,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from .plan import PlanError
 from .state import write_json
 
 #: Ledger path relative to the registry checkout.
@@ -120,33 +123,59 @@ class Ledger:
         finally:
             os.close(fd)
 
+    @staticmethod
+    def claim(record: dict[str, Any]) -> tuple[str, tuple[str, ...], str]:
+        """A claim's identity: holder, host set and window -- never the holder alone.
+
+        Measured 2026-11-11: two workstreams both used the holder `session:tp4-20261111`, and the
+        second write replaced the first live record, so the first workstream's `--release`
+        answered "no such live lease" while the list still showed the second. The holder names a
+        session; the id (and this triple) names the claim.
+        """
+        return (str(record.get("holder") or ""),
+                tuple(sorted(str(host) for host in record.get("hosts") or ())),
+                str(record.get("window") or ""))
+
     def acquire(self, holder: str, hosts: list[str] | tuple[str, ...], *, ttl: float,
                 arm: str = "", window: str = "", proof: list[str] | tuple[str, ...] = (),
-                lease_id: str = "") -> dict[str, Any]:
-        """Write one lease for `hosts`, or raise naming the rank another holder has."""
+                lease_id: str = "", takeover: bool = False) -> dict[str, Any]:
+        """Write one claim for `hosts`, or refuse naming every live lease it would replace.
+
+        An identical (holder, hosts, window) re-write refreshes that record -- a restart or a
+        renewing worker is not a conflict. Any other live record overlapping the requested hosts is
+        a different claim, whoever holds it: the write refuses, naming each holder, host set and
+        expiry, unless `takeover` says the operator means to supersede it (`note` records which).
+        """
         hosts = [str(host) for host in hosts]
         if not hosts or len(set(hosts)) != len(hosts):
             raise LeaseError(f"one host cannot hold two ranks: {hosts!r}")
         declared = self._window_lock()
         if declared is not None:
             raise LeaseError(f"declared window {declared} is present; hands off")
+        mine = (str(holder), tuple(sorted(hosts)), str(window))
+        wanted = set(hosts)
 
         def change(data: dict[str, Any], now: float) -> dict[str, Any]:
-            # A repeat by the same holder for an overlapping rank is this session's own stale
-            # claim (a restart saw its campaign lease expire), never a conflict with a peer.
-            live = [lease for lease in data["leases"]
-                    if not (lease.get("holder") == holder
-                            and set(lease.get("hosts") or ()) & set(hosts))]
-            data["leases"] = live
-            conflicts: dict[str, str] = {}
-            for lease in live:
-                for host in lease.get("hosts") or ():
-                    if host in hosts:
-                        conflicts.setdefault(host, str(lease.get("holder") or "?"))
+            existing = next((lease for lease in data["leases"]
+                             if self.claim(lease) == mine), None)
+            if existing is not None:
+                existing.update({"ttl": float(ttl), "expires_at": now + float(ttl),
+                                 "proof": list(proof)})
+                if arm:
+                    existing["arm"] = arm
+                return existing
+            conflicts = [lease for lease in data["leases"]
+                         if set(lease.get("hosts") or ()) & wanted]
+            if conflicts and not takeover:
+                raise PlanError(
+                    f"held by a live lease: {self._describe(conflicts)} -- release it by id, or "
+                    f"by holder and hosts, or re-issue this claim with --takeover")
+            superseded = ""
             if conflicts:
-                raise LeaseError("held by another lease: " + ", ".join(
-                    f"{host} ({name})" for host, name in sorted(conflicts.items())))
-            used = {lease.get("id") for lease in live}
+                superseded = self._describe(conflicts)
+                drop = {id(lease) for lease in conflicts}
+                data["leases"] = [lease for lease in data["leases"] if id(lease) not in drop]
+            used = {lease.get("id") for lease in data["leases"]}
             base = lease_id or f"{holder}:{arm or 'manual'}:{int(now)}"
             record_id, index = base, 1
             while record_id in used:
@@ -163,6 +192,8 @@ class Ledger:
                 "issued_at": now,
                 "expires_at": now + float(ttl),
             }
+            if superseded:
+                record["note"] = f"takeover of {superseded}"
             data["leases"].append(record)
             return record
 
@@ -170,6 +201,35 @@ class Ledger:
             return self._locked(change, self.clock())
         except OSError as exc:
             raise LeaseError(f"cannot write {self.path}: {exc}") from exc
+
+    @staticmethod
+    def _describe(records: list[dict[str, Any]]) -> str:
+        """One live record per clause: id, holder, hosts and expiry, so a refusal is checkable."""
+        return "; ".join(
+            f"{lease.get('id')} held by {lease.get('holder') or '?'} on "
+            f"{','.join(lease.get('hosts') or ())} until {float(lease.get('expires_at') or 0):.0f}"
+            for lease in records)
+
+    def find(self, *, lease_id: str = "", holder: str = "",
+             hosts: list[str] | tuple[str, ...] = ()) -> dict[str, Any] | None:
+        """The one live record an id or a (holder, hosts) claim names, or None.
+
+        Two records can share a holder now that a holder is a session, so a holder+hosts pair that
+        matches more than one record refuses and names the candidates instead of guessing.
+        """
+        live = self.leases()
+        if lease_id:
+            return next((lease for lease in live if lease.get("id") == lease_id), None)
+        wanted = {str(host) for host in hosts}
+        if not holder or not wanted:
+            return None
+        matches = [lease for lease in live
+                   if lease.get("holder") == holder
+                   and set(lease.get("hosts") or ()) == wanted]
+        if len(matches) > 1:
+            raise PlanError(f"{holder} on {','.join(sorted(wanted))} names {len(matches)} live "
+                            f"leases: {self._describe(matches)}; release one by id")
+        return matches[0] if matches else None
 
     def renew(self, lease_id: str, now: float | None = None) -> bool:
         """Extend a live lease by its own TTL; False when it is gone."""
