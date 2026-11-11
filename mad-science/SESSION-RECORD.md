@@ -10682,3 +10682,8 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   *and* node hostname literals (a node hostname, one address hit on one line), so rows quote `.30`–`.35`
   shorthand and say so; and a compose script's `KEY=value` parser needs `-` inside the key class, or
   `U_beegfs-meta=…` unit lines parse as nothing and every restart counter reads `KeyError`.
+- **This tick pushed one red commit, and the cause is the order, not the content.** `push-gate` reads
+  `git archive HEAD`, so the gate run before the commit checked the *previous* tree; the commit then
+  carried a node hostname in the trap note above and CI's address guard failed `f94df50`. Fixed in
+  `d236ce4` with the gate run *after* that commit, which printed `ok -- HEAD d236ce42`. The rule the
+  repo already states is the one that was violated: commit first, then gate, then push.
