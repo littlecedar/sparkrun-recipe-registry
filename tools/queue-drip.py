@@ -24,6 +24,10 @@ Four gates stand between a plan and a launch:
     plan a second boot onto a leased host. Roots come from `--campaign-root` and the head's
     `~/.config/sparkrun-campaign.env` (`CAMPAIGN_ROOT`); a host under a live lease or an outstanding reap
     is not free, and state that cannot be read is a refusal — "free" is a claim about state somebody read.
+  * the fleet lease ledger — `.local/fleet-leases.json`, written by the director and by `director lease`
+    (a manual session's claim). A live, unexpired record holds its hosts and is refused with the holder's
+    name; an expired one holds nothing. This tool reads the ledger and never writes it — the writer is the
+    director. A ledger that cannot be read is a refusal, like state that cannot.
   * a receipt already carrying numbers — `next-arms.py` owns that predicate; this does not re-derive it.
   * this tool's own ledger (`.local/drip-state.json`) — an arm launched a minute ago has a receipt
     directory with no numbers in it yet, so the receipt predicate cannot see it.  Pids are checked
@@ -42,8 +46,8 @@ Usage
     tools/queue-drip.py --campaign-root ~/benchmarks/campaign-x --once --dry-run
     setsid nohup tools/queue-drip.py >/tmp/drip.log 2>&1 &
 
-Exit codes: 0 pass (or dry run) completed, 2 unusable config (including campaign state that could not
-be read), 3 a declared window or a campaign lease holds the nodes.
+Exit codes: 0 pass (or dry run) completed, 2 unusable config (including campaign state or a lease
+ledger that could not be read), 3 a declared window or a live lease holds the nodes.
 """
 
 from __future__ import annotations
@@ -64,6 +68,8 @@ TOOL = REPO / "tools" / "next-arms.py"
 #: is in syncthing's ignore list -- a lock there is host-local, and a coordination mechanism one host
 #: can see is not a coordination mechanism.
 LOCK_PATHS = (REPO / ".local" / "fleet-window.lock", REPO / ".scratch" / "fleet-window.lock")
+#: The fleet lease ledger (`campaign/sparkrun_campaign/leases.py` owns the format and the writers).
+LEDGER = REPO / ".local" / "fleet-leases.json"
 STATE = REPO / ".local" / "drip-state.json"
 LOGDIR = REPO / ".local" / "drip-logs"
 #: The director's run definition on the head (`campaign/DESIGN.md` §Supervision): one
@@ -310,6 +316,40 @@ def campaign_holders(roots: list, now: float) -> dict:
     return held
 
 
+def ledger_holders(path: Path, now: float) -> dict:
+    """host -> why it is held, read from the fleet lease ledger without the writer's lock.
+
+    The ledger is the current claim path (a campaign lease or `director lease`), and the declared-window
+    lock it replaces holds every host the same way. A record that has not expired owns its hosts; an
+    expired one holds nothing, and a missing ledger is absent, not broken. Anything else is a refusal:
+    "free" is a claim about state somebody read.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError) as exc:
+        raise ConfigError(f"cannot read lease ledger {path}: {exc}") from exc
+    if not isinstance(data, dict) or not isinstance(data.get("leases"), list):
+        raise ConfigError(f"{path} is not a lease ledger (no `leases` list)")
+    held: dict = {}
+    for record in data["leases"]:
+        if not isinstance(record, dict):
+            continue
+        try:
+            expiry = float(record.get("expires_at") or 0)
+        except (TypeError, ValueError) as exc:
+            raise ConfigError(f"{path} carries a lease with an unreadable expiry: "
+                              f"{record.get('id')!r}") from exc
+        if expiry <= now:
+            continue
+        when = time.strftime("%H:%M:%S", time.localtime(expiry))
+        for host in record.get("hosts") or ():
+            held.setdefault(host, f"lease {record.get('id') or '?'} held by "
+                                  f"{record.get('holder') or '?'}, until {when}")
+    return held
+
+
 def free_nodes(nodes: list, held: dict) -> list:
     """The nodes this session may use right now.
 
@@ -336,6 +376,8 @@ def main(argv: list[str]) -> int:
                          "--campaign-env is always read too")
     ap.add_argument("--campaign-env", type=Path, default=CAMPAIGN_ENV, metavar="FILE",
                     help=f"file naming CAMPAIGN_ROOT (default {CAMPAIGN_ENV})")
+    ap.add_argument("--ledger", type=Path, default=LEDGER, metavar="FILE",
+                    help=f"fleet lease ledger whose live records hold hosts (default {LEDGER})")
     args = ap.parse_args(argv)
 
     try:
@@ -350,7 +392,12 @@ def main(argv: list[str]) -> int:
             print(f"drip: {declared} is present -- a window is declared, hands off")
             return 3
         try:
-            held = campaign_holders(campaign_roots(args.campaign_env, args.campaign_root), time.time())
+            now = time.time()
+            held = campaign_holders(campaign_roots(args.campaign_env, args.campaign_root), now)
+            # The ledger is the current claim path and the state file the older one; a host either
+            # holds is held, and the campaign's own reason wins where both name it.
+            for host, why in ledger_holders(args.ledger, now).items():
+                held.setdefault(host, why)
             free = free_nodes(cfg["research"], held)
             if not free:
                 for why in sorted(set(held.values())):

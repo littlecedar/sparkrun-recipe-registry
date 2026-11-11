@@ -213,6 +213,104 @@ class Windows(unittest.TestCase):
         self.assertEqual(rc, 3, "a declared window must refuse, not plan")
 
 
+class Ledger(unittest.TestCase):
+    """The fleet lease ledger holds hosts the same way the declared-window lock it replaces did."""
+
+    @staticmethod
+    def _ledger(tmp: str, records: list) -> Path:
+        path = Path(tmp) / "fleet-leases.json"
+        path.write_text(json.dumps({"version": 1, "leases": records}), encoding="utf-8")
+        return path
+
+    @staticmethod
+    def _record(hosts: list, expires_in: float) -> dict:
+        now = time.time()
+        return {"id": "session:tp4:manual", "holder": "session:tp4-20261111", "hosts": hosts,
+                "arm": "manual", "window": "", "proof": [], "ttl": 900.0,
+                "issued_at": now - 60, "expires_at": now + expires_in}
+
+    def setUp(self):
+        self._ledger_dir = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        self._ledger_dir.cleanup()
+
+    def test_a_live_record_holds_its_hosts_and_an_expired_one_holds_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._ledger(tmp, [self._record(["node-a"], 600.0),
+                                      self._record(["node-c"], -5.0)])
+            held = drip.ledger_holders(path, time.time())
+        self.assertEqual(sorted(held), ["node-a"])
+        self.assertIn("session:tp4:manual", held["node-a"])
+        self.assertIn("session:tp4-20261111", held["node-a"])
+
+    def test_a_live_lease_refuses_and_names_the_holder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._ledger(tmp, [self._record(["node-a"], 600.0)])
+            cfg = _config(tmp, "research:\n  - node-a\n")
+
+            def refuse(cfg, busy=frozenset(), nodes=None):
+                raise AssertionError("the planner must not be asked while a lease holds the node")
+
+            orig = drip.plan_pass
+            drip.plan_pass = refuse
+            out = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(out):
+                    rc = drip.main(["--config", str(cfg), "--state", str(Path(tmp) / "s.json"),
+                                    "--campaign-env", str(Path(tmp) / "absent.env"),
+                                    "--ledger", str(path), "--once", "--dry-run"])
+            finally:
+                drip.plan_pass = orig
+        self.assertEqual(rc, 3)
+        self.assertIn("session:tp4-20261111", out.getvalue())
+
+    def test_unreadable_ledger_is_a_refusal_not_freedom(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "fleet-leases.json"
+            path.write_text("{not json", encoding="utf-8")
+            cfg = _config(tmp, "research:\n  - node-a\n")
+
+            def refuse(cfg, busy=frozenset(), nodes=None):
+                raise AssertionError("an unreadable ledger must refuse before planning")
+
+            orig = drip.plan_pass
+            drip.plan_pass = refuse
+            err = io.StringIO()
+            try:
+                with contextlib.redirect_stderr(err):
+                    rc = drip.main(["--config", str(cfg), "--state", str(Path(tmp) / "s.json"),
+                                    "--campaign-env", str(Path(tmp) / "absent.env"),
+                                    "--ledger", str(path), "--once", "--dry-run"])
+            finally:
+                drip.plan_pass = orig
+        self.assertEqual(rc, 2)
+        self.assertIn("cannot read lease ledger", err.getvalue())
+
+    def test_no_ledger_plans_as_before(self):
+        """Negative control: a missing ledger is absent, not unreadable."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = _config(tmp, "research:\n  - node-a\n")
+            seen = []
+
+            def fake_plan(cfg, busy=frozenset(), nodes=None):
+                seen.append(list(nodes))
+                return []
+
+            orig = drip.plan_pass
+            drip.plan_pass = fake_plan
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    rc = drip.main(["--config", str(cfg), "--state", str(Path(tmp) / "s.json"),
+                                    "--campaign-env", str(Path(tmp) / "absent.env"),
+                                    "--ledger", str(Path(tmp) / "no-ledger.json"),
+                                    "--once", "--dry-run"])
+            finally:
+                drip.plan_pass = orig
+        self.assertEqual(rc, 0)
+        self.assertEqual(seen, [["node-a"]])
+
+
 class Campaign(unittest.TestCase):
     """The director holds hosts through leases and never writes the window lock."""
 
@@ -222,9 +320,13 @@ class Campaign(unittest.TestCase):
         self._lock_dir = tempfile.TemporaryDirectory()
         self._lock_paths = drip.LOCK_PATHS
         drip.LOCK_PATHS = (Path(self._lock_dir.name) / "fleet-window.lock",)
+        # Same isolation for the lease ledger: the checkout may legitimately hold a live claim.
+        self._ledger = drip.LEDGER
+        drip.LEDGER = Path(self._lock_dir.name) / "fleet-leases.json"
 
     def tearDown(self):
         drip.LOCK_PATHS = self._lock_paths
+        drip.LEDGER = self._ledger
         self._lock_dir.cleanup()
 
     @staticmethod
