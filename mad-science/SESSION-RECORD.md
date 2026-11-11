@@ -10298,14 +10298,21 @@ Tick scope: read-only census, pool and claim reads, board publish; no boot, no s
   earlier `kimi-param-floor-dummy-load` `boot-a` lease to `10:34:18Z`, so a workstation-side reader
   would report a lease that has already been replaced. Read the head; `.local/` sync lag is now a
   known trap for this cell.
-- **The pool pair reproduces, the cross-cycle level does not.** This tick: mount used
+- **The pool pair reproduces, and the interval's rise is one node's.** This tick: mount used
   13 980 954 263 552 B against the six roots' own sum 13 980 954 009 600 B, **253 952 B apart**,
   identical mount read on all six hosts, 102 hub entries, Kromoss `README.md` 7685 B through the
-  mount. The previous cycle's pair was 52.70 GB lower on both sides, yet its published per-node
-  avail figures imply only ~57 MB of net root consumption since. A chunk-store write consumes the
-  same bytes of a fixed-size ext4's avail, so the two cycles' figures cannot both be right as
-  labelled; the missing basis is a **per-node `used` series**, which is what the next pool cell
-  should carry instead of a mechanism story. No growth rate is quoted from the pair.
+  mount; a second independent pair at `09:07:37Z` sits 3.67 MB above it, 200 704 B apart.
+  **Correction, and it is mine:** the first publication of this cell mistyped `.35`'s avail as
+  `1,266,290,698,240` — a figure close to last cycle's rather than the captured
+  `1,213,659,369,472` — and concluded from the typo that the two cycles could not be reconciled.
+  They reconcile exactly: the mount rose **+52 696 711 168 B** and the roots' own sum rose
+  **+52 696 530 944 B**, and **52 618 240 000 B of that (99.88 %) is `.35`'s root alone**, its
+  avail falling 52.62 GB while `.30`/`.31`/`.32`/`.33`/`.34` moved −9.7/−20.4/−11.7/−11.7/−3.2 MB.
+  What wrote those bytes is **unattributed**: `.35`'s newest docker image is `02:04:30` (a loaded
+  image keeps its original creation date, so an image is not excluded) and the hub root's own mtime
+  is `03:51` ET with the entry count unchanged at 102. Every figure in the corrected cells is parsed
+  from the capture files, never retyped — the defect was a hand transcription, exactly the class the
+  skill warns about.
 - **Register moved before this tick and is quiet during it:** `7732cc17…`, 180 tasks, 48 open
   (132 done / 36 queued / 10 blocked / 2 running), both claims `session:tp4-20261111` at
   `08:30:37Z` — `kimi-param-floor-dummy-load` and `ernie-window-control-receipt`. `check` rc=0 from
