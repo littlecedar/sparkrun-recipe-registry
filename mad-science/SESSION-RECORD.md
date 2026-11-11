@@ -9831,12 +9831,19 @@ only where it was folded.
   added and the superseded arm-5 rows retired; nothing is reserved for the session; and a campaign lease is
   the only claim for any multi-machine boot.
 - **The register now says that.** `ds4-arm5-flashinfer-073-port` is machine-runnable on
-  `recipes/ds4/zz-ds4-1017-sm121-arm5-fi073.yaml` (quartet, tp 4) and claimed by `session:tp4-20261111`;
-  the new authoring row `ds4-arm5-dspark-bf16-query-delta` is its sixth delta and blocks it; the stale
-  `:0.2.1-trtllm-mla` pointer on the sparse-route row is gone; `w4-survey-arm5-sm121-boot` is closed onto its
-  successor; `kimi-tp2-pp3-six-node` is released onto the new `campaign-six-node-claim` row; ERNIE's route row
-  points the sparse arm and its freeze story is corrected to the head losing reachability during `TP0 Init
-  parallel`; and `ernie-window-control-receipt` is the recordability row that files `trio_c2.py`'s answers.
+  `recipes/ds4/zz-ds4-1017-sm121-arm5-fi073.yaml` (quartet, tp 4) and claimed by `session:tp4-20261111` —
+  verified in `queue --json`, after those three fields were dropped once by the fold itself: a later `update`
+  preserves them, so what lost them was a pre-update register snapshot written back through the tool's `_save`,
+  not the claim path. The new authoring row `ds4-arm5-dspark-bf16-query-delta` is its sixth delta and blocks it;
+  the stale `:0.2.1-trtllm-mla` pointer on the sparse-route row is gone; `w4-survey-arm5-sm121-boot` is closed
+  onto its successor; `kimi-tp2-pp3-six-node` is released onto the new `campaign-six-node-claim` row; ERNIE's
+  route row points the sparse arm, its freeze story is corrected to the head losing reachability during `TP0
+  Init parallel`, and it stays blocked as a scheduling choice (arm 5 first, then a declared lease); and
+  `ernie-window-control-receipt` is the recordability row that files `trio_c2.py`'s answers.
+- **The ERNIE port row stays `queued` after an acceptance audit.** Its Ready criterion is evidenced by the
+  916 s gate-2 boot, but its written quality criterion is upstream's own 8-shot test while the run was the
+  repo's 0-shot cell, and the window falsifier's imperative form still fails with the QA-form controls outside
+  a receipt — so closing it would claim an acceptance the boots do not show.
 - **`#84` is the one open question.** ERNIE-5.5-Flash-Base's licence class (ship with attribution and
   use-notice obligations, probe-only, or drop) is now both register `questions` row 84 and the
   `QUESTIONS.md` §Spend & risk row; `task-queue.py questions` reads 1 open of 1.
