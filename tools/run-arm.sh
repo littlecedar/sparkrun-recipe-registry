@@ -603,13 +603,16 @@ if [ -z "${N:-}" ]; then
   exit 1
 fi
 TID=${N#sparkrun_}; TID=${TID%_node_*}; TID=${TID%_solo}
+# The receipt cell a pre-ready client waits on: the task id does not exist until the launch
+# resolves, and a client armed before it must not invent one.
+printf '%s\n' "$TID" > "$L/task-id.txt"
 echo "arm=$NAME container=$N task=$TID port=$PORT"
 
 # Whatever happens to this script -- SIGINT, SIGTERM, an early exit, a timeout --
 # the task does not outlive it. The explicit stop below is the normal path; this
 # trap is the one that covers the script being killed mid-measurement, which is
 # the same class of leak as forgetting the stop entirely.
-trap 'oom_watchdog_check; stop_capture; sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; exit' EXIT INT TERM
+trap 'oom_watchdog_check; stop_capture; sparkrun stop "$TID" >/dev/null 2>&1; [ -n "${WD:-}" ] && kill "$WD" 2>/dev/null; [ -n "${EXTRA_PID:-}" ] && kill "$EXTRA_PID" 2>/dev/null; exit' EXIT INT TERM
 
 # The image cell belongs to every receipt, not to the arms that happen to carry a quality client:
 # the concurrency rows had to smuggle an image-id gate into ARM_EXTRA_CLIENT because this block
@@ -630,6 +633,26 @@ fi
 printf '%s\n' "$IMAGE_ID" > "$L/image.txt"
 export ARM_IMAGE_ID="$IMAGE_ID"
 echo "image=$IMAGE_ID"
+
+# A pre-ready extra client (`ARM_EXTRA_CLIENT_AT=pre-ready`) samples while the boot loads. The
+# post-ready hook below cannot see a boot that dies during load, and a load-only probe
+# (Kimi `--load-format dummy`) dies exactly there: measured 2026-11-10, three attempts held four
+# ranks ~5 min each and every receipt lacked the floor only the load could show. Armed once the
+# container and image resolve (both receipt cells the client waits on), so the exit trap reaps it
+# and an early refusal leaves no sampler behind.
+EXTRA_PID=""
+if [ -n "${ARM_EXTRA_CLIENT:-}" ] && [ "${ARM_EXTRA_CLIENT_AT:-post-ready}" = pre-ready ]; then
+  export ARM_HOSTS="$HOSTS" ARM_RECIPE="$RECIPE" ARM_RECEIPT_DIR="$L"
+  echo "extra client (pre-ready): $ARM_EXTRA_CLIENT (timeout ${ARM_EXTRA_TIMEOUT:-1800}s)"
+  eval "timeout -k 30 ${ARM_EXTRA_TIMEOUT:-1800} $ARM_EXTRA_CLIENT" \
+    > "$L/extra-client.log" 2>&1 &
+  EXTRA_PID=$!
+  # The post-ready hook must not run the same command a second time. Clearing the variable is
+  # what skips it without editing the guard the existing tests extract; the teardown line keeps
+  # the saved copy so the receipt still names the command.
+  ARM_EXTRA_CLIENT_ARMED=$ARM_EXTRA_CLIENT
+  unset ARM_EXTRA_CLIENT
+fi
 
 # The per-rank stdout the follower used to stream is owned by the exit capture armed before the
 # launch: it attaches at `create` (the follower waited for `docker ps` to see the container, which
@@ -1200,5 +1223,23 @@ for hn in $(echo "$HOSTS" | tr ',' ' '); do
     esac
   done
 done
+# A pre-ready client writes its cell once the boot's containers are gone, so it is reaped
+# elsewhere; wait for it here so the receipt is complete when this script exits, and never
+# leave a sampler running on a shared node. A bounded wait, not a join: a wedged client must
+# not hold the arm open (an absent cell is a failed client, which the campaign retries).
+if [ -n "${EXTRA_PID:-}" ]; then
+  waited=0
+  while kill -0 "$EXTRA_PID" 2>/dev/null && [ "$waited" -lt 60 ]; do
+    sleep 1; waited=$((waited + 1))
+  done
+  if kill -0 "$EXTRA_PID" 2>/dev/null; then
+    echo "extra client still sampling ${waited}s after teardown; killing it (no cell written)"
+    kill "$EXTRA_PID" 2>/dev/null
+  else
+    wait "$EXTRA_PID"; extra_rc=$?
+    echo "extra-client: rc=$extra_rc — ${ARM_EXTRA_CLIENT_ARMED:-}" >> "$L/extra-client.log"
+    echo "extra client rc=$extra_rc (pre-ready)"
+  fi
+fi
 echo "ARM DONE $NAME rc=$rc"
 exit "$rc"
