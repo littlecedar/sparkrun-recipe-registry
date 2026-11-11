@@ -10141,3 +10141,18 @@ Tick scope: read-only census, pool and claim reads, board publish; no boot, no s
   `ok -- HEAD 589200a8 is what CI will see` on the committed tree; its own CI run not yet read.
 - **Left behind on purpose**: the tick read the register, the campaign state and the fleet read-only, and
   spawned nothing. Its private dirs (`.scratch/tick-0200-*`, the throwaway clones) are removed.
+
+## 2026-11-11 — 02:03 tick addendum: the gate red closed on the gate, not the fixture
+- **`589200a` ("Gate: skip the executable-mode step when that guard is not in the tree") is the fix in the tree.** The step
+  now no-ops when `tests/test_executable_modes.py` is absent from the archived tree, which is the
+  fixture's case, so `tests.test_push_gate` reads 4/4 and `tools/push-gate.py` exits 0 on the committed
+  tree. Both `tools/push-gate.py` and `tests/test_executable_modes.py` are tracked now, so the
+  worktree-only red the 02:03 close-out describes no longer exists.
+- **The alternative was tried and dropped.** Completing the fixture roster — copy the module and write
+  `tools/run-arm.sh` and `tools/queue-drip.py` executable, since the check reads `git ls-tree HEAD` and
+  reports an untracked guard path as a failure — also turned the 4 tests green, and was reverted:
+  landing it would put a second copy of `DIRECTLY_INVOKED` in the fixture, where a growing list breaks
+  the fixture again, while the committed skip names itself in the gate's own output.
+- **`f1f5d2f` (the 02:03 close-out) has a red gate run, 42980903014, for that fixture reason only** —
+  the ledger bytes are prose and the failure predates `589200a`. Recorded by run id so a later reader
+  does not have to infer whether the commit or its parent carried the defect.
