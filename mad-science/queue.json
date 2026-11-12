@@ -3076,6 +3076,21 @@
       "claimed_by": "",
       "claimed_at": "",
       "memory_risky": false
+    },
+    {
+      "id": "hermes-workstation-gc",
+      "title": "Garbage-collect hermes: leftover containers, images, caches and session scratch",
+      "estimate_h": 4.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "OWNER DIRECTIVE (verbatim, 2026-11-12): \"Add task garbage collect on local workstation (hermes). You've left lot stuff and containers and images behind when working on prior mad science sessions and needs cleaned up.\" INVENTORY 2026-11-12 (read-only, hermes): / = 267G used of 370G (88G free, 76%). Docker: 7 containers, 6 Up (llm-gateway, headroom, hindsight, litellm-postgres, litellm-valkey, one vsc-* devcontainer), 1 Exited(137) `elated_lamport` (vsc-praxisred-website-…-uid). 70 image rows / 69 unique ids, 105.8GB total per `docker system df`; 53 are neither active nor named by any tracked path = 98.9GB. Volumes 27 (4 active), 4.36GB, 2.37GB reclaimable. Build cache 250 entries, 27.02GB, 361MB reclaimable. Caches/scratch: ~/.cache/uv 18G (archive-v0 18G), ~/.omp 2.9G, ~/.cache/huggingface 287M, ~/.cache/sparkrun 6.6M, ~/benchmarks 3.4G across 13 dirs (liquidai-finetune-20261103 alone 3.3G), /tmp 8.1G (/tmp/fivenv 6.5G, sd41f 623M, fi073 301M, sglang-pin 185M, pub 185M, three tmp.* ~39M), ~/builds/deepgemm-sm121 376M, ~/gate-oom 78M and ~/gate-cluster 75M (standalone clones, mtime 2026-11-08, not worktrees), ~/tmp 300K, ~/benchmarks-sparkx26-boot.log 8K (2026-10-22), repo .scratch 1.5G (srhome 435M, ifm 245M, tp4-lane 234M). CANDIDATE CLASSES: stopped container `elated_lamport`; 53 inactive+unreferenced images — vllm-glm52-b12x:nvfp4-dflash2-p2 36.6GB (0 hits anywhere), openproject*/dev family 20.7GB, vsc-*/jb-* devcontainer builds ~17GB, selenium/* 7.5GB, browserless/chrome 3.45GB, nikolaik/python-nodejs 4.44GB, omp-* 3.8GB, geerlingguy/docker-ubuntu2404-ansible 1.52GB, grc.io/getzola v0.19.2, base images (alpine/ubuntu/node/python/ruby/cuda/hello-world); 23 unused volumes (~2.37GB); ~/gate-oom + ~/gate-cluster + ~/builds/deepgemm-sm121 ≈ 530MB; /tmp scratch 8.1G; ~/.cache/uv archive-v0 18G; ~/benchmarks-sparkx26-boot.log. OUT OF SCOPE (live or documented): the 6 Up containers and their images (llm-gateway:1, headroom-proxy:0.42.0, postgres:17, valkey:8-alpine, hindsight); every receipt location AGENTS.md §Node hygiene protects (~/benchmarks/<lane>-<date>/, repo .scratch/<lane>/, harness dirs ~/serve_argv and ~/mem_watch — neither exists on hermes today); images a tracked file names — ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:98a2535b… (recipes/explore/kimi-k3.1-pro-*, 39.2GB) and the b12x family pinned cf5a2a53… in 8 arms (local ghcr.io/spark-arena/dgx-vllm-eugr-nightly-b12x:latest af9629c5… must be digest-checked before any rm), ghcr.io/vectorize-io/hindsight, renovate 44.202.1, getzola v0.20.0, shellcheck; ~/.cache/huggingface (287M, not litter); all ~/src children (sibling projects, some with live processes: omp-viboard, praxisred-website, littlecedar-website). Nothing deleted, nothing stopped — inventory only. Estimate 4h not 3h: 53 images need a per-repo tracked grep, 27 volumes attach checks, and the openproject/website images belong to sibling repos whose owners must confirm before any rm.",
+      "provenance": "owner 2026-11-12 oversight thread; AGENTS.md §Node hygiene; hermes inventory 2026-11-12",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
