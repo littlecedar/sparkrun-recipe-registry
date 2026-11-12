@@ -11179,3 +11179,60 @@ contribution to `tools/task-queue.py` is zero.
 **Board.** Published through `task-queue.py publish` on base `0451a1a4...` (the `21:49 ET` board, also
 `origin/main`'s blob at read and at publish), `--expect-sha` and `--expect-remote-sha` both carried it.
 `lint` ok, `push-gate` ok.
+
+## Tick 2026-11-12 02:16 ET — board refresh (`06:41Z` census)
+
+Published through `task-queue.py publish` on base `e3efab11...` (the peer's `01:57 ET` board, disk at
+publish), `--expect-sha` and `--expect-remote-sha` (`7d99e267...`) both carried it; `lint` ok.
+
+**The fresh fact is `.35`.** The peer boards read 0 containers there at `05:30Z`; by `06:41Z` the node
+runs `sparkrun_764ef61b64791742_f150788fcb9d_solo` (image id `50359e0ae2ae`, started `05:36:00Z`),
+`llama-server` pid 131 inside, `/v1/models` answering 200 as
+`ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF` — the offload-guard assertion arm. Its
+declaring `.local/fleet-window.lock` (269 B, sha `5ea1b1be...`, mtime `00:15:16 ET`, session
+`tp4minus-20261111`) names `window-start 23:55Z` and `window-end 02:00Z`, i.e. the boot started 3 h
+36 m after the window it declared had ended, and its declared receipt root
+`~/benchmarks/tp1-20261111/` is absent on the head. Reported on the board's `window` row and as two
+landed rows; nothing was stopped, booted, or re-declared by this tick.
+
+**Contradiction kept visible.** `director status` still reports
+`cannot list containers on .31 (rc=255)` for the Kimi row while this tick's own `ssh` to that
+address answers rc=0 in the same minute. Named on the board; not explained away.
+
+**Numbers.** Pool `df -B1` used `13,955,269,918,720 B` (`-29,995,953,664 B` on the base read) with
+hub entries 102 and the 1017 index at 7,470,294 B; `.30` freed 11,503,267,840 B of root with
+`docker system df` showing 416.3 GB reclaimable of 64 images — named as a candidate, not as the cause.
+Register re-snapshotted at `2e220389...`: 193 tasks / 42 open, rendered with a peer's still-uncommitted
+backtick-parity fix in `tools/task-queue.py`.
+### Follow-up: the head's campaign unit does not match the tracked one (unregistered)
+
+Found while confirming what the campaign row's `ExecStart` quote meant. The head's installed
+`~/.config/systemd/user/sparkrun-campaign.service` and the tracked
+`campaign/systemd/sparkrun-campaign.service` disagree on the command line, and the live one is
+overridden again by a drop-in:
+
+- tracked: `serve --manifest ${CAMPAIGN_MANIFEST} --hosts ${CAMPAIGN_HOSTS} --root ${CAMPAIGN_ROOT}`
+  - manifest-driven, default parallelism and retries.
+- installed: `serve --queue --hosts ${CAMPAIGN_HOSTS} --root ${CAMPAIGN_ROOT} --receipts-root
+  ${CAMPAIGN_ROOT} --max-parallel 1 --retries 2` - so the fleet dispatches from the register in
+  queue mode, one arm at a time, and `--receipts-root` is the campaign root.
+- `sparkrun-campaign.service.d/retries3.conf` replaces `ExecStart` again with `--retries 8` (the
+  file is named for an earlier 4 -> 3 change; its own comment records 4 -> 8 on 2026-11-08).
+
+Consequence for a reader: installing the tracked unit yields a manifest campaign, not the queue
+campaign the fleet runs, and the `--max-parallel 1` that makes one arm at a time true lives only in
+the untracked copy. Evidence is `systemctl --user cat sparkrun-campaign` on the head, read
+`2026-11-12T06:2xZ`, against `campaign/systemd/sparkrun-campaign.service:35` (the tracked
+`ExecStart` line).
+
+Also confirmed from the same read, because it cost a failed probe: the unit runs with
+`WorkingDirectory=/home/red/src/sparkrun-recipe-registry/campaign`, so `-m sparkrun_campaign.director`
+resolves for it and not for an `ssh` that starts in the repo root - which is why this tick's
+`director status` / `lease --list` calls returned `ModuleNotFoundError` and the census row was built
+from `state.json` and the lease ledger directly instead.
+
+**Not registered as a queue row on purpose.** `mad-science/queue.json` was a live writer's file all
+cycle (three shas in one tick, 46 lines staged in the index by another session), so a read-modify-write
+through `task-queue.py add` could have published over that session's in-flight edit. The row to add on
+top of their write: the tracked unit contradicts the running fleet, and the drop-in is the only record
+of `--max-parallel 1` and `--retries 8`.
