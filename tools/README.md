@@ -186,6 +186,16 @@ alone (a dead ladder's `rc=2` does not exit, so file presence must never mean "m
 `ladder` field carries the command's own exit status. `ladder: failed (rc=N)` is therefore the
 re-attempt shape in both branches — the only state where re-running the arm is the right move.
 
+**A llama.cpp arm's receipt states whether it offloaded (`llamacpp-offload.txt`, `rc=8` when
+unproven).** The serve log's loader lines (`offloaded N/N layers to GPU` plus a non-zero
+`CUDA0 model buffer size`) are the direct witness, but shipped recipes log at `-lv 3`, where
+llama.cpp never writes them — measured 2026-11-12 on `.35`: a healthy 22 m 31 s boot's whole
+serve log carried neither line. So the assertion falls back to the rendered `Serve command:`
+line in `launch.log` and requires a positive `--n-gpu-layers`/`-ngl` there; an arm with neither
+witness fails at `rc=8`, and a deliberate CPU-only arm declares `# offload: none` in the recipe
+(the recipe side is guarded by `tests/test_llamacpp_offload.py`). A low tok/s is never evidence
+of a CPU serve: the GSQ-RCO arm's Engram page churn dominates its rates.
+
 **A quality client rides inside the arm (`ARM_EXTRA_CLIENT`).** A client started from another
 process cannot share the serve: `run-arm.sh` tears the serve down unconditionally at the end of the
 arm, and the client's load would pollute the ladder cells the arm is measuring. So the hook runs

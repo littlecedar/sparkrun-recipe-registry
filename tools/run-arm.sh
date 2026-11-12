@@ -1545,6 +1545,62 @@ echo "serve logs harvested: $harvested live copy/copies; receipt holds" \
      "${#live_logs[@]} live and ${#reaped_logs[@]} reaped serve log(s)"
 # harvest-report: end
 echo "engine stdout captured: $captured container stream(s) (a boot that died has no other copy)"
+# llamacpp-offload: start
+# A llama.cpp arm that lost its offload flag serves on CPU and reads as "slow but
+# working": no receipt field catches it, and a low tok/s is not evidence either way
+# (the GSQ-RCO arm's 105 GiB Engram mapping dominates its rates). Two witnesses, strongest
+# first: the serve log's loader lines (`offloaded N/N layers to GPU` plus a non-zero
+# CUDA0 model buffer, written only at loader verbosity), else the rendered serve line in
+# launch.log (the recipe pins `-lv 3`, where llama.cpp never prints those lines; measured
+# on the 2026-11-12 .35 boot). An arm with neither fails rather than passing silently.
+# A deliberate CPU-only arm declares it with a whole-line `# offload: none`.
+RUNTIME_KIND=$(sed -n 's/^runtime:[[:space:]]*\([a-z-]*\).*/\1/p' "$RECIPE" | sed -n '1p')
+if [ "$RUNTIME_KIND" = llama-cpp ]; then
+  if grep -qE '^[[:space:]]*#[[:space:]]*offload:[[:space:]]*none' "$RECIPE"; then
+    echo "llamacpp_offload: skipped — the recipe declares a deliberate CPU-only arm (# offload: none)" \
+      > "$L/llamacpp-offload.txt"
+  else
+    off_seen=""; off_log=""; off_layers=""; off_cuda0=""
+    for f in "$L"/serve-*.log "$L"/logs/*-serve.log "$L"/docker-*.log; do
+      [ -s "$f" ] || continue
+      layers=$(grep -oE 'offloaded [0-9]+/[0-9]+ layers to GPU' "$f" | sed -n '1p')
+      cuda0=$(grep -oE 'CUDA0 model buffer size = [0-9.]+ MiB' "$f" | sed -n '1p')
+      cuda0_mb=$(printf '%s\n' "$cuda0" | sed -n 's/.*= \([0-9.]*\) MiB/\1/p')
+      if [ -n "$layers" ] && [ -n "$cuda0_mb" ] && awk -v v="$cuda0_mb" 'BEGIN{exit !(v > 0)}'; then
+        off_log=${f##*/}; off_layers=$layers; off_cuda0=$cuda0; break
+      fi
+      [ -n "$off_seen" ] || off_seen="${f##*/} layers=${layers:-none} cuda0=${cuda0:-none}"
+    done
+    if [ -n "$off_layers" ]; then
+      printf 'llamacpp_offload: evidence=serve-log %s; %s (log: %s)\n' \
+        "$off_layers" "$off_cuda0" "$off_log" > "$L/llamacpp-offload.txt"
+      echo "llama.cpp offload asserted: $off_layers; $off_cuda0 ($off_log)"
+    else
+      off_argv=""
+      if [ -s "$L/launch.log" ]; then
+        off_argv=$(grep -oE '(--n-gpu-layers|-ngl)[[:space:]]+(all|[0-9]+)' "$L/launch.log" | sed -n '1p')
+      fi
+      off_n=$(printf '%s\n' "$off_argv" | sed -nE 's/.*[[:space:]]+//p')
+      if [ -n "$off_argv" ] && { [ "$off_n" = all ] || awk -v v="$off_n" 'BEGIN{exit !(v > 0)}'; }; then
+        printf 'llamacpp_offload: evidence=argv %s; the serve log carries no loader lines at\n' "$off_argv" \
+          > "$L/llamacpp-offload.txt"
+        printf 'this verbosity (rebuild with -o extra_args="-lv 5" for the log witness)\n' \
+          >> "$L/llamacpp-offload.txt"
+        echo "llama.cpp offload asserted from the rendered serve command: $off_argv"
+      else
+        printf 'llamacpp_offload: FAIL — no serve log proves offload and the rendered command\n' \
+          > "$L/llamacpp-offload.txt"
+        printf 'carries no positive offload flag (%s)\n' "${off_seen:-no serve log in the receipt}" \
+          >> "$L/llamacpp-offload.txt"
+        echo "llamacpp_offload: FAIL — no serve log shows 'offloaded N/N layers to GPU' with" \
+             "a non-zero CUDA0 buffer, and launch.log carries no positive offload flag;" \
+             "this arm may be serving on CPU"
+        rc=8
+      fi
+    fi
+  fi
+fi
+# llamacpp-offload: end
 
 stop_capture
 sparkrun stop "$TID" 2>&1 | tail -1

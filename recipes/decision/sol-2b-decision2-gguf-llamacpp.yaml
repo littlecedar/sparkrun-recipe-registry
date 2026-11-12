@@ -55,6 +55,10 @@ executor_config:
 # The vendor's run line (llama-server -hf …:Q8_0 --embeddings --pooling none
 # -c 8192 -b 8192 -ub 8192 -np 1), plus sparkrun's host/port/alias. -b/-ub stay
 # literal: the decision path reads the whole case in one prefill batch.
+# The vendor's run line carries no `-ngl`, so llama.cpp keeps its default 0 GPU
+# layers; stated here because the offload guard (tests/test_llamacpp_offload.py)
+# fails a silent CPU serve. Re-measure with --n-gpu-layers before changing it.
+# offload: none
 command: >
   llama-server -hf {model}
   --alias {served_model_name}
