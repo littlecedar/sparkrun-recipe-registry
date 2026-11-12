@@ -11054,3 +11054,53 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   `0a6e4b6` and `d04eb9c`), and `bfef80c` / `9ab9ff7` are this tick's own two commits, so nothing
   peer-authored landed after `d04eb9c`. Both pushes are green — `gh run list` reads `bfef80c`
   success and `9ab9ff7` success — which also settles the `in_progress` line above.
+## 2026-11-11 21:34 ET hourly board tick: the fleet came back from a power-and-upgrade cycle, and the "unleased quartet" is the production serve
+- **The 14:38 board's headline finding was misattributed, and this tick withdraws it.** That board,
+  and register row `fleet-boot-without-lease-record` written from it, described the four-rank boot on
+  `.31`–`.34` as an unattributed research quartet. It is the **shipped production arm**,
+  `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`: its `container:` pin
+  `ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb394…` resolves on `.31` to image id `3f4480818acb`,
+  tagged `canary-roce-aff52fa5`; its `model_revision: 08c8657f…` is the snapshot in the engine's own
+  argv; TP 4, `max_model_len` 1048576, port 8000 and DSPARK k=5 all match. Arm 5 is refuted twice
+  over — it pins `dsv41-sm121-dg:0.2.1-fi073e` (`sha256:85c1ffc3…`) and sets `SWA_BOUNDED_REPLAY=0`,
+  which `mods/dsv41-sglang-overlay/launcher.py:479-481` turns into
+  `--no-enable-decoder-swa-bounded-replay`, while the live argv carries the positive flag that only
+  the shipped canary accepts (`recipes/ds4/README.md:1188-1214`). Production is protected and excluded
+  from research accounting (owner directive 2026-10-28), so the census row now says so and counts
+  **0 research containers running** on all six.
+- **The register row is corrected, not closed.** `fleet-boot-without-lease-record` keeps its dated
+  `19:15:59Z`–`19:31Z` measurement and gains a `21:24 ET` correction paragraph: subject is the
+  production serve, the unattributed-research framing is withdrawn, and the question that stays open is
+  whether a protected production boot is meant to carry a lease record under the 2026-11-11 S9 answer
+  ("a campaign lease is the only claim for any multi-machine boot"). The same paragraph records that
+  the production serve's return satisfies the stated unblock condition of `kimi-superexpert-ref-probe`,
+  `ripple-65b-nvfp4-tp1`, `ripple-65b-nvfp4-dflash2-tp1` and `ripple-65b-bf16-tp2` — four rows, not
+  the seven an advisory suggested; the register was counted. Lifting them stays the director's call.
+- **The fleet was power-cycled twice and then rebooted under a full-upgrade between 18:31 and 20:03 ET.**
+  Every node's long boot ends `18:31`, boots again `19:14`–`19:59` and goes down at the same `19:40`,
+  then boots `20:02`–`20:03`. The actor is named in the head's journal: `sudo /usr/sbin/poweroff` at
+  `19:40:11`, `apt -y full-upgrade` `20:02:01`–`20:02:13`, `sudo /usr/sbin/reboot` at `20:02:36`, and
+  `.35` carries the same `sudo reboot` in the same second. Not OOM (0 kernel OOM matches in both the
+  current and the previous boot on all six), not a kernel change (`uname -r` `7.0.0-1025-nvidia`
+  everywhere, `/boot`'s newest image `2026-11-03`), and the KHO mitigation survived the new boot
+  (`kho=off` 1, `CmaTotal/CmaFree` 0/0, `nr_free_cma` 0 on all six). `/var/run/reboot-required` absent.
+  The production serve was relaunched thirty-two minutes later as `b020d2dd178343a5_0abd7d020db4`
+  (`StartedAt` `2026-11-12T01:34:30Z`) and answers `/v1/models` 200 with a live serve pid on each rank.
+- **Census, pool and register re-derived on the new boot.** `02:06:25Z`–`02:06:27Z` sweep: `.31`–`.34`
+  one running rank each, `.30` nine `Created` leftovers running 0, `.35` empty, volumes 0 everywhere;
+  root avail net **-810,913,792 B** against the base board's `19:25:50Z` read, a span crossing the
+  reboot. Pool reads answer through the mount (`02:07:35Z`): head units active/success/0 restarts, the
+  other five's `beegfs-meta` loop counter reset by the boot (717–729), `df -B1` used
+  13,985,440,071,680 B (**+798,490,624 B**), hub 102 entries, 1017 index `stat -L` 7,470,294 B — the
+  six roots' fall is within 1.6 % of the pool's growth, **LIKELY** chunk-store traffic between node
+  roots and labelled as such in one cell only. The register did not otherwise move in the six-hour gap:
+  190 tasks, 148 done / 33 queued / 9 blocked, 0 claims, **42 open**, the only edit this tick's own.
+- **Two publish refusals, both worth keeping.** The first composition dropped the landed table's
+  delimiter row (a `startswith("| ")` filter excludes `|---|---|---|`) and `publish` refused
+  `table-missing-delimiter: 823 row(s)`; the second quoted the director's own blocked line verbatim and
+  was refused for carrying a cluster address literal. The first republish therefore also fixed a
+  contradictory publication sentence before it could sit on the board.
+- **Publish:** base = the published 14:38 board after `512c440`, blob `92a32548…`, saved copy
+  byte-identical to disk and `origin/main`, and both `--expect-sha` and `--expect-remote-sha` set to it.
+  Published 21:34 ET (disk was 14:38), `lint` ok, and the register correction rides the same commit as
+  the board so the two cannot diverge in history.
