@@ -91,7 +91,7 @@ class LeaseParity(unittest.TestCase):
         rc_lease, out_lease = self.run_drip("research:\n  - node-a\n", "--campaign-root", str(root))
 
         self.assertEqual((rc_lock, rc_lease), (3, 3), "a lease refuses like a lock, not with a plan")
-        self.assertIn("a window is declared, hands off", out_lock)
+        self.assertIn("unparseable declaration, still hands off", out_lock)
         self.assertIn("every node this session may use is held", out_lease)
         self.assertIn("campaign d1 holds node-a", out_lease)
         self.assertIn("attempt 2", out_lease)
