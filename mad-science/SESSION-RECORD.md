@@ -11236,3 +11236,46 @@ cycle (three shas in one tick, 46 lines staged in the index by another session),
 through `task-queue.py add` could have published over that session's in-flight edit. The row to add on
 top of their write: the tracked unit contradicts the running fleet, and the drop-in is the only record
 of `--max-parallel 1` and `--retries 8`.
+
+## Tick 2026-11-12 02:24 ET — no board published (a peer tick's census was fresher), and the board could not render itself until `b57a1ef`
+
+**The defect.** `c0e50ea` capped every open row's state cell at `NOTE_BUDGET` (240) characters
+and appended a pointer, which cut inside a code span wherever one straddled the boundary. The
+cell then carried one backtick and `render --board` refused the whole register — measured
+`2026-11-12 01:2x ET`, `board table:22/25/29: unbalanced-backticks`, three rows of the live
+`mad-science/queue.json`, i.e. **no tick could emit a work-queue table at all**. The register's
+own notes balance (scanned every field, zero odd counts), so the cut was the only source. The
+cut now walks back to the last backtick and drops the dangling stub; the existing over-budget case
+in `BoardAndArchive` gained the boundary assertion (even backtick count, no stub). Verified with
+`uv run python -B -m unittest tests.test_task_queue_tool` (117 tests, OK) and by rendering the
+live register (19 921 B, rc=0). No test added, so no stated suite total moved. `b57a1ef`, pushed
+with peers' `070d3aa`/`2301b4c`; gate green on `2301b4c`.
+
+**Why nothing was published.** This tick composed a board on base `0451a1a4…` (`21:49 ET`), and
+before it could publish four other ticks had written one: `01:19` (`e3efab11…`), `01:46`
+(`070d3aa`), a `01:57` composition that reached the disk only, and the `02:16` board whose census
+reads `06:41Z`. Mine is built on `05:14Z`/`05:32Z`/`06:19Z` reads, so publishing it would have
+replaced a fresher census with an older one — `board-publish-accepts-weaker-replacement` exactly.
+The `02:16` board already carries this cycle's findings (the fence record, the `.35` boot, the
+register's movement) and its queue table's bytes come from the worktree `tools/task-queue.py`,
+i.e. from the fix above while it was still uncommitted — which is why the fix, not a board, is what
+this tick landed. Reproducibility note: those table bytes are now reproducible from `b57a1ef`.
+
+**Head-to-peer ssh is broken fleet-wide, not only for `.30`.** Every probe this tick ran from the
+workstation, because `.30`'s own client fails `Host key verification failed` to **all five** peers
+(`/home/red/.ssh/known_hosts`, offending entry at `:117` for `spark-41e1`) while the workstation
+reached all six by name inside the same minute. So open row `head-mesh-cannot-reach-30` is not
+about `.30`: it is the head's stale `known_hosts`. That also reads the campaign row differently —
+the campaign's `cannot list containers on … (rc=255)` is issued from the head, so it is this
+client state and not evidence about the node. No `StrictHostKeyChecking=no` was used anywhere:
+a changed peer key is a fleet event, and the fix is `ssh-keygen -R <host>` on the head.
+
+**Window-lock discriminators, since the stamps alone do not decide.** `.local/fleet-window.lock`
+(head, 269 B, mtime `00:15 ET`) declares `window-start 2026-11-11T23:55Z` / `window-end
+2026-11-12T02:00Z`, which are past at its own mtime. Read as ET mislabeled `Z` they are
+`04:55Z`–`07:00Z`, and the boot they claim sits inside that span — `.35` carried
+`sparkrun_764ef61b64791742_f150788fcb9d_solo` from `05:36:00Z`, host `/v1/models` **200** as
+`ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF` at `06:19:47Z`. So the ET reading is the
+one the artifact supports; the `Z` reading is the one a clock-comparing reader would enforce, and
+the 20-minute gap between the lock's mtime (`05:15Z`) and the boot it authorizes is the window
+being declared, not held.
