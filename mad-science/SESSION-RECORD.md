@@ -11237,45 +11237,34 @@ through `task-queue.py add` could have published over that session's in-flight e
 top of their write: the tracked unit contradicts the running fleet, and the drop-in is the only record
 of `--max-parallel 1` and `--retries 8`.
 
-## Tick 2026-11-12 02:24 ET — no board published (a peer tick's census was fresher), and the board could not render itself until `b57a1ef`
+## Tick 2026-11-12 01:57 ET — board refresh (`05:57Z`–`06:03Z` census)
 
-**The defect.** `c0e50ea` capped every open row's state cell at `NOTE_BUDGET` (240) characters
-and appended a pointer, which cut inside a code span wherever one straddled the boundary. The
-cell then carried one backtick and `render --board` refused the whole register — measured
-`2026-11-12 01:2x ET`, `board table:22/25/29: unbalanced-backticks`, three rows of the live
-`mad-science/queue.json`, i.e. **no tick could emit a work-queue table at all**. The register's
-own notes balance (scanned every field, zero odd counts), so the cut was the only source. The
-cut now walks back to the last backtick and drops the dangling stub; the existing over-budget case
-in `BoardAndArchive` gained the boundary assertion (even backtick count, no stub). Verified with
-`uv run python -B -m unittest tests.test_task_queue_tool` (117 tests, OK) and by rendering the
-live register (19 921 B, rc=0). No test added, so no stated suite total moved. `b57a1ef`, pushed
-with peers' `070d3aa`/`2301b4c`; gate green on `2301b4c`.
+Published through `task-queue.py publish` and landed as `070d3aa` — a board-only commit built in a
+throwaway index, because three peer paths (`QUESTIONS.md`, `TODO.md`, `queue.json`) already sat staged.
+Base was the peer's `01:46 ET` board (blob `7d99e267…`, 334 890 B, mtime `01:48:49 ET`) because a live
+peer had published after the committed `0451a1a4…`; `--expect-remote-sha` carried `0451a1a4…`. The first
+publish cited the wrong peer blob in its `publication` cell; a second publish on its own output corrected
+the sha rather than leaving a traceable error on the board.
 
-**Why nothing was published.** This tick composed a board on base `0451a1a4…` (`21:49 ET`), and
-before it could publish four other ticks had written one: `01:19` (`e3efab11…`), `01:46`
-(`070d3aa`), a `01:57` composition that reached the disk only, and the `02:16` board whose census
-reads `06:41Z`. Mine is built on `05:14Z`/`05:32Z`/`06:19Z` reads, so publishing it would have
-replaced a fresher census with an older one — `board-publish-accepts-weaker-replacement` exactly.
-The `02:16` board already carries this cycle's findings (the fence record, the `.35` boot, the
-register's movement) and its queue table's bytes come from the worktree `tools/task-queue.py`,
-i.e. from the fix above while it was still uncommitted — which is why the fix, not a board, is what
-this tick landed. Reproducibility note: those table bytes are now reproducible from `b57a1ef`.
+**Facts.** Production serve `.31`–`.34` unchanged (image id `3f4480818acb`, `running`+`healthy` since
+`01:34:30Z`, rank-0 serve pid 247723, `/v1/models` 200 as `deepseek-ai/DeepSeek-V4.1-Flash-1017`); `.30`'s
+nine `Created` leftovers gone, so it read 0 containers and 0 volumes; `.35` carried the tick's only
+research container (`sparkrun_764ef61b64791742_f150788fcb9d_solo`, image id `50359e0ae2ae`, up since
+`05:36:00Z`, the llama.cpp GSQ-RCO arm under `tp4minus-20261111`'s claim). Pool used
+`13,955,148,808,192 B` (`-30,291,263,488 B` on the base read), hub entries 102, 1017 index 7,470,294 B on
+both snapshots. Lease ledger 739 B, sha `69f613aa…`: zero leases plus one `fenced` record naming the
+production serve.
 
-**Head-to-peer ssh is broken fleet-wide, not only for `.30`.** Every probe this tick ran from the
-workstation, because `.30`'s own client fails `Host key verification failed` to **all five** peers
-(`/home/red/.ssh/known_hosts`, offending entry at `:117` for `spark-41e1`) while the workstation
-reached all six by name inside the same minute. So open row `head-mesh-cannot-reach-30` is not
-about `.30`: it is the head's stale `known_hosts`. That also reads the campaign row differently —
-the campaign's `cannot list containers on … (rc=255)` is issued from the head, so it is this
-client state and not evidence about the node. No `StrictHostKeyChecking=no` was used anywhere:
-a changed peer key is a fleet event, and the fix is `ssh-keygen -R <host>` on the head.
+**Two corrections this tick owes.** (1) Its window cell read "no `.local/fleet-window.lock` in this
+clone" and the tick then inferred fleet-wide absence — wrong as an inference. The head carried a 269 B
+lock (session `tp4minus-20261111`, mtime `00:15:16 ET`) that this clone never received, and by `02:2xZ`
+neither copy has one, so it was removed in between; the peer tick's `06:4xZ` read is what named it. A
+**LIKELY** cause of the clone's miss is a syncthing folder-ignore pattern configured outside the tree (no
+`.stignore` exists in either copy, so this is unproven). (2) The census had to move to addresses: from the
+head, the ssh alias entries for all six nodes fail host-key verification while the address probes answer
+in the same second — `head-mesh-cannot-reach-30` is now the whole mesh, named in the census cell instead
+of hidden in the probe.
 
-**Window-lock discriminators, since the stamps alone do not decide.** `.local/fleet-window.lock`
-(head, 269 B, mtime `00:15 ET`) declares `window-start 2026-11-11T23:55Z` / `window-end
-2026-11-12T02:00Z`, which are past at its own mtime. Read as ET mislabeled `Z` they are
-`04:55Z`–`07:00Z`, and the boot they claim sits inside that span — `.35` carried
-`sparkrun_764ef61b64791742_f150788fcb9d_solo` from `05:36:00Z`, host `/v1/models` **200** as
-`ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF` at `06:19:47Z`. So the ET reading is the
-one the artifact supports; the `Z` reading is the one a clock-comparing reader would enforce, and
-the 20-minute gap between the lock's mtime (`05:15Z`) and the boot it authorizes is the window
-being declared, not held.
+The register moved three times inside the cycle (`5fd23afd…` → `4780d2b4…` → `2e220389…`); each board
+cited the sha of the copy its two blocks were rendered from, and no `queue.json` hunk rode the commit.
+Superseded within minutes by `b57a1ef` and `2301b4c`, which carried the `.35` fact forward.
