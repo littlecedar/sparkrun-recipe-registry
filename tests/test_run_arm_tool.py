@@ -62,6 +62,8 @@ TRAP_RE = re.compile(r"^[ \t]*trap\b[^\n]*sparkrun stop[^\n]*\bEXIT\b", re.MULTI
 # and run in a temp script: the loop's control flow is what is under test, not its text.
 LOOP_START = "POLL_SLEEP=${ARM_POLL_SLEEP:-15}"
 LOOP_END = 'echo "readiness=$ready"'
+LAUNCHER_BLOCK_START = "  # The launcher is the only instrument that OWNS the containers"
+LAUNCHER_BLOCK_END = "  # The guard is the window's stop rule"
 
 
 def read_tool() -> str:
@@ -79,6 +81,12 @@ def readiness_loop(text: str) -> str:
     start = text.index(LOOP_START)
     end = text.index(LOOP_END, start) + len(LOOP_END)
     return text[start:end]
+
+
+def launcher_block(text: str) -> str:
+    """The loop's launcher poll verbatim, so a control can remove exactly that block."""
+    start = text.index(LAUNCHER_BLOCK_START)
+    return text[start : text.index(LAUNCHER_BLOCK_END, start)]
 
 
 # The teardown, from the stop call to its verdict line: stop, leftover removal, census, gate.
@@ -1560,6 +1568,46 @@ echo "probes=$(wc -l < {probes})"
         probes_run = int(re.search(r"^probes=(\d+)$", out.stdout, re.M).group(1))
         return out.stdout + out.stderr, probes_run, elapsed
 
+    def run_loop_launcher(self, text: str, extra_env: dict[str, str]) -> tuple[str, int, float]:
+        """Execute the real loop with a `$LAUNCH` that exits on its own readiness verdict."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            wd = tmp / "watchdog.sh"
+            wd.write_text("#!/usr/bin/env bash\nexit 4\n")
+            launch = tmp / "launcher.sh"
+            launch.write_text(
+                "#!/usr/bin/env bash\n"
+                "sleep 0.6\n"
+                f"echo 'ERROR: endpoint did not become ready -- rank-0 readiness probe: Timeout'"
+                f" > {tmp / 'launch.log'}\n"
+                "exit 1\n")
+            probes = tmp / "probe.log"
+            script = tmp / "loop.sh"
+            script.write_text(
+                f"""#!/usr/bin/env bash
+set -uo pipefail
+NODE=127.0.0.1
+PORT=1
+L={tmp}
+TID=abc123
+NAME=arm-under-test
+curl() {{ echo probe >> {probes}; printf '000'; }}
+bash {launch} &
+LAUNCH=$!
+bash {wd} &
+WD=$!
+sleep 0.2
+{readiness_loop(text)}
+echo "probes=$(wc -l < {probes})"
+"""
+            )
+            started = time.monotonic()
+            out = subprocess.run(["bash", str(script)], capture_output=True, text=True,
+                                 check=False, env=clean_env(extra_env), timeout=180)
+            elapsed = time.monotonic() - started
+        probes_run = int(re.search(r"^probes=(\d+)$", out.stdout, re.M).group(1))
+        return out.stdout + out.stderr, probes_run, elapsed
+
     def test_the_default_is_the_old_2250s_ceiling(self):
         self.assertIn("READY_TIMEOUT=${ARM_READY_TIMEOUT:-2250}", read_tool())
         self.assertEqual(self.polls({"ARM_POLL_SLEEP": "15"}), 150)
@@ -1587,6 +1635,29 @@ echo "probes=$(wc -l < {probes})"
         self.assertEqual(probes, 150, out)
         self.assertLess(elapsed, 30, "the unset ceiling did not terminate quickly")
         self.assertIn("readiness=no", out)
+
+    def test_a_dead_launcher_ends_the_loop_instead_of_holding_its_containers(self):
+        """The launcher's own readiness verdict is the end of the boot, not the start of a wait.
+
+        A `sparkrun run` that gives up on readiness exits non-zero and leaves its containers
+        running (2026-11-10: ERNIE quartet, rank-0 probe timed out at 1364 s, four containers up
+        32 min until a human stopped the task). Without the launcher poll this loop sat out the
+        rest of its ceiling on that decided boot, holding the node for it.
+        """
+        text = read_tool()
+        out, probes, elapsed = self.run_loop_launcher(text, {"ARM_READY_TIMEOUT": "60",
+                                                             "ARM_POLL_SLEEP": "1"})
+        self.assertIn("readiness=no", out)
+        self.assertIn("launcher: exited rc=1 before readiness on task abc123", out)
+        self.assertLess(probes, 10, f"the loop waited out a ceiling the launcher had ended: {out}")
+        self.assertLess(elapsed, 20, "the arm held the boot after the launcher gave up")
+        # Negative control: the loop without its launcher poll runs the whole ceiling.
+        stripped = text.replace(launcher_block(text), "")
+        self.assertNotEqual(stripped, text, "the launcher poll is not in the loop any more")
+        out, probes, _ = self.run_loop_launcher(stripped, {"ARM_READY_TIMEOUT": "5",
+                                                           "ARM_POLL_SLEEP": "1"})
+        self.assertIn("readiness=no", out)
+        self.assertEqual(probes, 5, out)
 
     def test_the_ceiling_drives_the_real_loop(self):
         out, probes, elapsed = self.run_loop({"ARM_READY_TIMEOUT": "3",

@@ -954,7 +954,9 @@ POLLS=$(awk -v t="$READY_TIMEOUT" -v s="$POLL_SLEEP" 'BEGIN {
   print n
 }')
 ready=no
+ready_launcher_rc=""
 wd_done=0
+lch_done=0
 for _ in $(seq 1 "$POLLS"); do
   if [ "$(curl -s -m 3 -o /dev/null -w '%{http_code}' "http://$NODE:$PORT/v1/models")" = 200 ]; then
     ready=yes; break
@@ -983,6 +985,27 @@ for _ in $(seq 1 "$POLLS"); do
               "instrument left; polling the endpoint only" ;;
     esac
     [ "$ready" = yes ] && break
+  fi
+  # The launcher is the only instrument that OWNS the containers, and it has its own readiness
+  # deadline. A `sparkrun run` that gives up on readiness prints its verdict and exits non-zero
+  # while its serve keeps running: measured 2026-11-10, an ERNIE TP=4 quartet's rank-0 probe
+  # timed out at 1364 s and the four containers stayed up 32 min until a human stopped the task.
+  # Polling only the endpoint sat out the rest of this loop's ceiling on a boot that was already
+  # decided, so a dead launcher ends the loop here and the teardown below stops the task.
+  # rc=0 is not a failure: sparkrun exits 0 only after announcing readiness, so a launcher that
+  # detached early still leaves the endpoint to be polled as before.
+  if [ "$lch_done" = 0 ] && [ -n "${LAUNCH:-}" ] && ! kill -0 "$LAUNCH" 2>/dev/null; then
+    wait "$LAUNCH"; lch_rc=$?; lch_done=1
+    if [ "$lch_rc" -ne 0 ]; then
+      echo "launcher: exited rc=$lch_rc before readiness on task $TID -- the boot is decided," \
+           "stopping it now instead of polling to ${READY_TIMEOUT}s. Its last lines:"
+      tail -3 "$L/launch.log"
+      ready_launcher_rc=$lch_rc
+      ready=no
+      break
+    fi
+    echo "launcher: exited rc=0 (readiness announced) but the endpoint has not answered yet;" \
+         "polling on"
   fi
   # The guard is the window's stop rule; a boot it no longer covers may not read as ready.
   guard_lost
@@ -1255,8 +1278,13 @@ PY
     echo "extra client rc=$extra_rc"
   fi
 else
-  echo "ARM FAIL $NAME: /v1/models never answered 200 within ${READY_TIMEOUT}s" \
-       "(${POLLS} polls at ${POLL_SLEEP}s) on $NODE:$PORT"
+  if [ -n "$ready_launcher_rc" ]; then
+    echo "ARM FAIL $NAME: the launcher exited rc=$ready_launcher_rc before /v1/models answered" \
+         "200; task $TID stopped by teardown instead of leaking until ${READY_TIMEOUT}s expired"
+  else
+    echo "ARM FAIL $NAME: /v1/models never answered 200 within ${READY_TIMEOUT}s" \
+         "(${POLLS} polls at ${POLL_SLEEP}s) on $NODE:$PORT"
+  fi
   rc=4
 fi
 

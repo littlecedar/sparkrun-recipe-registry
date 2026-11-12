@@ -21,7 +21,7 @@ still add no row, because an accuracy declaration belongs inside `metadata:` whe
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1673 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
+suite 1674 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -388,6 +388,11 @@ boot was killed by its own watchdog 120 s in at shard 13/128 with 37.3 GiB free.
 `nothing captured` followed by `sparkrun stop` is a **failed instrument, not a dead boot** — check the
 sampler and the kernel log before recording a verdict. `run-arm.sh`'s readiness loop polls the watchdog's pid as well as `/v1/models`, so a dead boot
 ends the arm in one probe instead of waiting out the readiness ceiling (`ARM_READY_TIMEOUT`, 2250 s default; the ceiling is a knob because GLM-753B's own TTR is 2538.9 s, and its rc=4 line names the effective value).
+It polls the launcher's pid too: `sparkrun run` announces readiness and then exits 0, so a non-zero exit
+before the endpoint answers is the driver's own verdict on a boot it walked away from with the serve still
+up (measured 2026-11-10: an ERNIE quartet's rank-0 probe timed out at 1364 s and four containers stayed up
+32 min until a human stopped the task). The loop ends there, names the task id and the launcher's last
+lines, and the ordinary teardown stops and verifies it — the arm is never left polling a decided boot.
 
 ```bash
 HOME="$H" sparkrun benchmark performance <recipe> -H <node> --profile benchmarking/<name>.yaml \
@@ -497,7 +502,10 @@ remove what the session created** — a leftover is anything undocumented, unkno
   still honoured. **A campaign holds nodes without writing this lock** (`campaign/DESIGN.md`
   §Supervision): its claim is `<CAMPAIGN_ROOT>/state.json` on the head plus
   `systemctl --user is-active sparkrun-campaign.service`, so "no lock" is not an idle fleet — read the
-  campaign state before planning onto its hosts, and never boot onto a live lease.
+  campaign state before planning onto its hosts, and never boot onto a live lease. **A production
+  serve is fenced, not merely leased**: a `fenced` record in `.local/fleet-leases.json` names its
+  ranks, workload and reason, holds them permanently, and is refused by name by every placement path
+  and even by `--takeover` — only deleting the record opens the hosts.
 - **`.30` may not be rebooted without owner approval; every other node may be rebooted at your
   discretion** (`TP4-BGFS Q9`). Ranks may be split across any free nodes — the fleet shares one switch
   and one interconnect shape — and a node's controller or mgmtd duty is never a reason to exclude it
@@ -967,7 +975,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1673 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1674 tests,
   3 skipped on 2026-11-08** in a clean checkout of the tracked tree, 4 in CI and 2 in this clone (it
   carries the untracked `.local/fleet.yaml`). The first three, by name and cause: `test_ifm_recipes`'
   research-doc case (the git-ignored K2-09B docs are absent on any fresh checkout);
