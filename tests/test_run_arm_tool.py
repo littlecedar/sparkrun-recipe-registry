@@ -2798,6 +2798,53 @@ class OomWatchdog(ExecutedBlock):
         self.assertEqual(rc, 0, out)
         self.assertIn("seen=sparkrun_abc123_solo", out)
 
+    def aged_appear_block(self, elapsed: int) -> str:
+        """The shipped loop with its clock moved `elapsed` seconds in.
+
+        Waiting 340 s of wall time is not a unit test. The loop's only clock is `SECONDS`, so
+        the measured duration is injected where the loop starts counting, and the mutation is
+        asserted non-vacuous rather than assumed.
+        """
+        block = self.appear_block()
+        aged = block.replace("appear_start=$SECONDS", f"appear_start=$((SECONDS - {elapsed}))")
+        self.assertNotEqual(aged, block, "the loop no longer counts from `appear_start`")
+        return aged
+
+    def test_a_340s_distribution_with_a_live_launcher_is_not_a_failure(self):
+        """The measured defect: containers at 340 s under a launcher still distributing.
+
+        `zz-ripple-65b-preview-bf16-tp2-vllm` attempt 3 (2026-11-08) spent 340 s on a 129.6 GB
+        pair distribution before any container existed, and the fixed 300 s window declared
+        "no container appeared" while that launch went on to answer `/v1/models`. The launcher
+        pid is the signal that separates "still loading" from "died": only a gone launcher
+        fails, so a live one is never killed for taking longer than the window it predates.
+        """
+        body = (
+            # Empty on the first poll, this launch's own container on the second.
+            'on_node() { n=$(cat "$NODES/polls" 2>/dev/null || echo 0); n=$((n + 1));'
+            ' echo "$n" > "$NODES/polls"; [ "$n" -ge 2 ] && echo sparkrun_abc123_node_0; }\n'
+            "oom_watchdog_check() { :; }\n"
+            "sleep 2 & LAUNCH=$!\n"          # alive through both polls, gone by script end
+            + self.aged_appear_block(340)
+            + '\necho "seen=$N"\n'
+        )
+        rc, out, _, _ = self.run_block(
+            body, env_extra={"ARM_APPEAR_POLL": "0"},
+            receipt_extra={"launch.log": "launcher output\n"})
+        self.assertEqual(rc, 0, out)
+        self.assertIn("seen=sparkrun_abc123_node_0", out)
+        self.assertNotIn("ARM FAIL", out, "a loading boot was declared failed")
+
+        # Negative control: the window the defect shipped with fails the same boot, so the case
+        # turns on the clock the old code used and not on this fixture's container stub.
+        rc, out, _, _ = self.run_block(
+            body, env_extra={"ARM_APPEAR_POLL": "0", "ARM_CONTAINER_APPEAR_TIMEOUT": "300"},
+            receipt_extra={"launch.log": "launcher output\n"})
+        self.assertEqual(rc, 1, out)
+        self.assertIn("no container appeared after 340s (ceiling 300s", out)
+        self.assertIn("launcher was still running, killing it", out)
+        self.assertNotIn("seen=", out, "the 300 s window let the loading boot through")
+
     def test_the_default_ceiling_covers_a_multi_rank_body(self):
         self.assertIn("ARM_CONTAINER_APPEAR_TIMEOUT:-900", read_tool(),
                       "the default window is below the measured 340 s pair distribution")
