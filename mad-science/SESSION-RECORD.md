@@ -11521,3 +11521,25 @@ process exists on any node at `12:49:50Z` or at `14:35:27Z`, and no receipt dire
 **The gate that held the tail has cleared.** `tools/push-gate.py` on `892469d` prints
 `ok -- HEAD 892469d6 is what CI will see`, so the 7-commit unpushed tail is now pushable and belongs to the
 sessions that wrote it; this tick added nothing to it and committed nothing.
+
+**Misattribution, disclosed (not amended).** The section above did not land under its own commit. It was
+swept into a peer's `e83a81d` (`Ledger: third tick of the hour, an independent sweep that agrees`,
+`09:55:35 ET`), which added **three** ledger sections — the `08:30 ET` one, this tick's `09:45 ET` one, and
+the `08:34 ET` one — under a subject naming none of them. A second peer commit, `e3e64aa`
+(`Ledger: drop the head hostname literal from the tick's trap note`, `10:11 ET`), then carried this
+session's own relocation churn: moving the section to EOF re-emitted the file with runs of blank lines
+collapsed, which is the `42 insertions / 53 deletions` that commit shows. Both were verified to be
+whitespace-only — every deleted line was empty, no non-blank text left the file — and the section's text is
+intact at EOF, so nothing needs restoring and no shared history was rewritten; the damage is two commit
+subjects that do not describe their contents.
+
+**Correction to the `08:30 ET` entry.** Its premise (the tail held behind a red stated-count gate) no longer
+holds: `tools/push-gate.py` on `892469d` printed `ok -- HEAD 892469d6 is what CI will see`, and the tail was
+**7 ahead** at that read, then **4 ahead** after peers landed and pushed further commits. A later tick must
+not inherit that entry as "branch still blocked".
+
+**Register generations measured this tick, in order.** `e6fbb4de…` (193 tasks, 2 running, 2 claims) →
+`8b52ebe5…` (193, 3 running, 3 claims; `hermes-workstation-gc` closed, `expired-window-lock-reads-as-live`
+added) → `81254066…` → `95e214f5…` (**194 tasks, 39 open, 1 running, 1 claim**). The only surviving claim is
+`media-idol-3dgs-boot` by `sparkrun-session:tp4minus-20261112` (`11:58:39Z`), and `.30` and `.35` both read
+`docker ps -aq` **0** at `14:35:27Z`, 2 h 37 m after that claim, with no receipt newer than `tp1-20261111`.
