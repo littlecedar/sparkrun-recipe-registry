@@ -231,8 +231,15 @@ class Ledger(unittest.TestCase):
 
     def setUp(self):
         self._ledger_dir = tempfile.TemporaryDirectory()
+        # The checkout may legitimately carry a declared window (a peer's live session, measured
+        # 2026-11-12); these cases are about the lease ledger, so give them no lock to find.
+        self._lock_dir = tempfile.TemporaryDirectory()
+        self._lock_paths = drip.LOCK_PATHS
+        drip.LOCK_PATHS = (Path(self._lock_dir.name) / "fleet-window.lock",)
 
     def tearDown(self):
+        drip.LOCK_PATHS = self._lock_paths
+        self._lock_dir.cleanup()
         self._ledger_dir.cleanup()
 
     def test_a_live_record_holds_its_hosts_and_an_expired_one_holds_nothing(self):
@@ -286,6 +293,44 @@ class Ledger(unittest.TestCase):
                 drip.plan_pass = orig
         self.assertEqual(rc, 2)
         self.assertIn("cannot read lease ledger", err.getvalue())
+
+    def test_a_fenced_host_is_held_and_stops_the_drip(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "fleet-leases.json"
+            path.write_text(json.dumps({"version": 1, "leases": [], "fenced": [
+                {"hosts": ["node-a"], "reason": "production serve TP=4",
+                 "fenced_by": "owner directive", "fenced_at": "2026-11-12T02:00:00Z"}]}),
+                encoding="utf-8")
+            held = drip.ledger_holders(path, time.time())
+            self.assertEqual(sorted(held), ["node-a"])
+            self.assertIn("fence: production serve TP=4", held["node-a"])
+            self.assertIn("owner directive", held["node-a"])
+            cfg = _config(tmp, "research:\n  - node-a\n")
+
+            def refuse(cfg, busy=frozenset(), nodes=None):
+                raise AssertionError("a fenced node must never reach the planner")
+
+            orig = drip.plan_pass
+            drip.plan_pass = refuse
+            out = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(out):
+                    rc = drip.main(["--config", str(cfg), "--state", str(Path(tmp) / "s.json"),
+                                    "--campaign-env", str(Path(tmp) / "absent.env"),
+                                    "--ledger", str(path), "--once", "--dry-run"])
+            finally:
+                drip.plan_pass = orig
+            self.assertEqual(rc, 3)
+            self.assertIn("fence: production serve TP=4", out.getvalue())
+            self.assertIn("hands off", out.getvalue())
+
+    def test_a_fenced_key_that_is_not_a_list_is_a_refusal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "fleet-leases.json"
+            path.write_text(json.dumps({"version": 1, "leases": [], "fenced": {}}),
+                            encoding="utf-8")
+            with self.assertRaises(drip.ConfigError):
+                drip.ledger_holders(path, time.time())
 
     def test_no_ledger_plans_as_before(self):
         """Negative control: a missing ledger is absent, not unreadable."""

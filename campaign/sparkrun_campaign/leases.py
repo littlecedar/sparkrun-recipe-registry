@@ -23,6 +23,9 @@ atomic `write_json`, so a power cut leaves the old ledger or the new one. Expire
 on every write and ignored on every read; renewal is what keeps a live claim alive (`renew`, driven
 by the worker's lease beat), so a director that dies stops holding ranks after one TTL like any
 stale claim.
+
+A top-level `fenced` list holds a production serve's ranks permanently: every reader refuses them
+by name, `acquire` refuses them even with `takeover`, and only deleting the record opens the hosts.
 """
 
 from __future__ import annotations
@@ -73,12 +76,33 @@ class Ledger:
             raise LeaseError(f"cannot read {self.path}: {exc}") from exc
         if not isinstance(data, dict) or not isinstance(data.get("leases"), list):
             raise LeaseError(f"{self.path} is not a lease ledger (no `leases` list)")
+        if not isinstance(data.get("fenced", []), list):
+            raise LeaseError(f"{self.path}: `fenced` must be a list of fence records")
         return data
 
     @staticmethod
     def _live(data: dict[str, Any], now: float) -> list[dict[str, Any]]:
         return [lease for lease in data["leases"]
                 if isinstance(lease, dict) and float(lease.get("expires_at") or 0) > now]
+
+    def fences(self) -> list[dict[str, Any]]:
+        """Every fence record, whatever the clock says: a fence has no expiry."""
+        return [fence for fence in self._read().get("fenced") or [] if isinstance(fence, dict)]
+
+    @staticmethod
+    def _fence_holds(data: dict[str, Any], hosts: list[str] | tuple[str, ...]) -> dict[str, str]:
+        """host -> why a fence holds it, for the requested hosts only."""
+        wanted = set(hosts)
+        held: dict[str, str] = {}
+        for fence in data.get("fenced") or []:
+            if not isinstance(fence, dict):
+                continue
+            for host in fence.get("hosts") or ():
+                if host in wanted:
+                    held.setdefault(host, f"fence: {fence.get('reason') or 'no reason recorded'} "
+                                          f"(fenced by {fence.get('fenced_by') or '?'} at "
+                                          f"{fence.get('fenced_at') or '?'})")
+        return held
 
     def leases(self, now: float | None = None) -> list[dict[str, Any]]:
         """Every live record, oldest first. An expired one holds nothing and is not listed."""
@@ -97,8 +121,9 @@ class Ledger:
         if window is not None:
             return {host: f"declared window {window}" for host in hosts}
         now = self.clock() if now is None else now
-        held: dict[str, str] = {}
-        for lease in self._live(self._read(), now):
+        data = self._read()
+        held = self._fence_holds(data, hosts)
+        for lease in self._live(data, now):
             if lease.get("holder") == holder:
                 continue
             for host in lease.get("hosts") or ():
@@ -160,6 +185,12 @@ class Ledger:
         wanted = set(hosts)
 
         def change(data: dict[str, Any], now: float) -> dict[str, Any]:
+            fenced = self._fence_holds(data, hosts)
+            if fenced:
+                raise LeaseError(
+                    "fenced: " + "; ".join(f"{host} ({why})"
+                                           for host, why in sorted(fenced.items()))
+                    + " -- only deleting the fence record opens these hosts, --takeover cannot")
             existing = next((lease for lease in data["leases"]
                              if self.claim(lease) == mine), None)
             if existing is not None:

@@ -24,7 +24,7 @@ the scheduling mechanism rather than the thing being scheduled, and this tree al
 | `state.py` | The persisted plan and per-arm records: atomic file writes, the single-director lock, lease/bookkeeping transitions | Which arm is next (that is `plan.py`) |
 | `plan.py` | The two plan sources (manifest and register), plan order, the register client that claims and closes rows through the tool, and the pure placement function | Talking to a worker |
 | `fleet.py` | Docker facts: which containers a recipe left on which hosts, and removal of only those | Knowing why it was asked |
-| `leases.py` | The fleet lease ledger: one record per multi-rank claim (holder, every rank, expiry, proof), the legacy declared window read as a blanket hold, renewal and release | Deciding what to boot (that is `plan.py`) |
+| `leases.py` | The fleet lease ledger: one record per multi-rank claim (holder, every rank, expiry, proof), a permanent `fenced` list for a production serve's ranks, the legacy declared window read as a blanket hold, renewal and release | Deciding what to boot (that is `plan.py`) |
 | `guardrails.py` | The head's lease-time proof: earlyoom's running argv, `OOMScoreAdjust` on ssh/NetworkManager/user@1000/BeeGFS, and the window's executable guard script (a mechanism check, not a process scan) | Placement (that is `plan.py`) |
 | `director.py` | The service: prints the exclusions, claims the arm in the register before its lease, hands out leases, decides "measured" from receipts, reclaims dead leases, spawns workers, writes per-arm receipts | Running an arm |
 | `worker.py` | One slot: poll, run `tools/run-arm.sh`, heartbeat the lease, report the return code | Interpreting the return code |
@@ -223,7 +223,11 @@ Another holder's live lease is honoured: its ranks are removed from the campaign
 before placement (`lease-held: <host> (lease <id> held by <holder>)`) and a shape that cannot fit
 waits; a claim that appears between placement and the write refuses that arm's boot for the tick
 (`lease-refused: …; not attempted`), never launches it. Single-rank boots take no record — the
-ruling is about multi-machine boots — but they still do not land on a leased rank. The legacy
+ruling is about multi-machine boots — but they still do not land on a leased rank. A top-level
+`fenced` list in the same ledger holds ranks **permanently** — a live production serve, not a
+window — and is refused by every reader (`lease-held: <host> (fence: …)`) and by `acquire` even
+with `--takeover`; only deleting the record opens the hosts, so a lapsed TTL cannot un-fence
+production. The legacy
 `.local/fleet-window.lock` is still read, as a blanket hold for every declared host, because a
 session that wrote one has not moved to a lease yet; the lease command refuses while one exists,
 and the director never writes it. Only the canonical `.local/fleet-window.lock` and its legacy
@@ -706,8 +710,9 @@ uv run --frozen python -m sparkrun_campaign.director lease --release <id>
 
 `.local/` is syncthing-shared, so a claim written on another checkout reaches the head on sync
 delay; claims and boots belong on the head, which is where every session reads them. The ledger is
-not yet read by `tools/queue-drip.py` (that tool still reads campaign `state.json` and the lock);
-until it is, a drip session sees a manual lease only through the lock it replaces.
+read by `tools/queue-drip.py` beside campaign `state.json` and the legacy lock, so a manual lease is
+seen by the drip without a lock; a `fenced` record in the same document holds a production serve's
+ranks permanently, and both the drip and every placement/proof path refuse them by name.
 
 Deliberately not done: a system-wide unit (needs root for no benefit), a timer (a campaign is
 started by a decision, not a schedule), and `Restart=always` (a finished campaign must not restart

@@ -1072,6 +1072,7 @@ def lease_command(args: argparse.Namespace) -> int:
             return 0
         if args.list or not args.hosts:
             live = ledger.leases()
+            fences = ledger.fences()
             for record in live:
                 print(f"id={record.get('id')} holder={record.get('holder') or '?'} "
                       f"hosts={','.join(record.get('hosts') or ())} "
@@ -1081,7 +1082,15 @@ def lease_command(args: argparse.Namespace) -> int:
                       + (f" record-risk={record['record_risk']}"
                          if record.get("record_risk") else "")
                       + (f" note={record['note']}" if record.get("note") else ""))
-            print(f"{len(live)} live lease(s) in {ledger.path}")
+            for fence in fences:
+                serve = fence.get("serve") or {}
+                print(f"fence hosts={','.join(fence.get('hosts') or ())} "
+                      f"reason={fence.get('reason') or '?'} "
+                      f"fenced-by={fence.get('fenced_by') or '?'} "
+                      f"at={fence.get('fenced_at') or '?'} "
+                      f"task={serve.get('task_id') or '-'} "
+                      f"image={serve.get('image_id') or '-'}")
+            print(f"{len(live)} live lease(s), {len(fences)} fence(s) in {ledger.path}")
             return 0
         if not args.holder or args.ttl is None:
             print("cannot lease: --holder and --ttl are required to write a lease", file=sys.stderr)

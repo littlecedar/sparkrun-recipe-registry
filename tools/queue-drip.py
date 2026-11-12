@@ -24,10 +24,11 @@ Four gates stand between a plan and a launch:
     plan a second boot onto a leased host. Roots come from `--campaign-root` and the head's
     `~/.config/sparkrun-campaign.env` (`CAMPAIGN_ROOT`); a host under a live lease or an outstanding reap
     is not free, and state that cannot be read is a refusal — "free" is a claim about state somebody read.
-  * the fleet lease ledger — `.local/fleet-leases.json`, written by the director and by `director lease`
+  * fleet lease ledger — `.local/fleet-leases.json`, written by the director and by `director lease`
     (a manual session's claim). A live, unexpired record holds its hosts and is refused with the holder's
-    name; an expired one holds nothing. This tool reads the ledger and never writes it — the writer is the
-    director. A ledger that cannot be read is a refusal, like state that cannot.
+    name; an expired one holds nothing. A `fenced` record holds its hosts permanently — a production
+    serve's ranks, refused by name until the record is deleted. This tool reads the ledger and never
+    writes it — the writer is the director. A ledger that cannot be read is a refusal, like state that cannot.
   * a receipt already carrying numbers — `next-arms.py` owns that predicate; this does not re-derive it.
   * this tool's own ledger (`.local/drip-state.json`) — an arm launched a minute ago has a receipt
     directory with no numbers in it yet, so the receipt predicate cannot see it.  Pids are checked
@@ -332,7 +333,17 @@ def ledger_holders(path: Path, now: float) -> dict:
         raise ConfigError(f"cannot read lease ledger {path}: {exc}") from exc
     if not isinstance(data, dict) or not isinstance(data.get("leases"), list):
         raise ConfigError(f"{path} is not a lease ledger (no `leases` list)")
+    if not isinstance(data.get("fenced", []), list):
+        raise ConfigError(f"{path}: `fenced` must be a list of fence records")
     held: dict = {}
+    # A fence is a production serve's rank: permanent until its record is deleted, never expired.
+    for fence in data.get("fenced") or []:
+        if not isinstance(fence, dict):
+            continue
+        for host in fence.get("hosts") or ():
+            held.setdefault(host, f"fence: {fence.get('reason') or 'no reason recorded'} "
+                                  f"(fenced by {fence.get('fenced_by') or '?'} at "
+                                  f"{fence.get('fenced_at') or '?'})")
     for record in data["leases"]:
         if not isinstance(record, dict):
             continue

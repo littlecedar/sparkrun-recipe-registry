@@ -80,6 +80,24 @@ class LedgerCase(unittest.TestCase):
         record = self.ledger.acquire("session-a", ["n1", "n2"], ttl=600)
         self.assertEqual(record["hosts"], ["n1", "n2"])
 
+    def test_a_fenced_rank_is_held_and_refused_even_by_a_takeover(self) -> None:
+        write(self.repo / leases.LEDGER, json.dumps({
+            "version": 1, "leases": [],
+            "fenced": [{"hosts": ["n1", "n2"], "reason": "production serve TP=4",
+                        "fenced_by": "owner directive", "fenced_at": "2026-11-12T02:00:00Z"}]}))
+        held = self.ledger.held_hosts(["n1", "n3"])
+        self.assertEqual(sorted(held), ["n1"])
+        self.assertIn("fence: production serve TP=4", held["n1"])
+        self.assertIn("owner directive", held["n1"])
+        with self.assertRaises(leases.LeaseError) as ctx:
+            self.ledger.acquire("session-a", ["n2"], ttl=600, takeover=True)
+        message = str(ctx.exception)
+        self.assertIn("n2", message)
+        self.assertIn("production serve TP=4", message)
+        self.assertIn("--takeover cannot", message)
+        self.assertEqual(self.ledger.leases(), [], "a fenced claim writes nothing")
+        self.assertEqual(len(self.ledger.fences()), 1, "the fence survives the refused write")
+
     def test_renew_keeps_a_live_claim_and_release_drops_it(self) -> None:
         record = self.ledger.acquire("session-a", ["n1"], ttl=10)
         self.clock.now += 8
@@ -536,6 +554,16 @@ class SingleClaim(DirectorCase):
         self.assertIn("lease-held: node-a (lease", self.out.getvalue())
         self.assertNotIn("assign:", self.out.getvalue())
         self.assertEqual(self.ledger.held_hosts(["node-a"])["node-a"][:5], "lease")
+
+    def test_a_fenced_rank_is_never_placed(self) -> None:
+        write(self.repo / leases.LEDGER, json.dumps({
+            "version": 1, "leases": [],
+            "fenced": [{"hosts": ["node-a"], "reason": "production serve TP=4",
+                        "fenced_by": "owner", "fenced_at": "2026-11-12T02:00:00Z"}]}))
+        leader, _ = self.build([self.arm("pair", tp=2)])
+        self.assertEqual(leader.handle(protocol.poll("w1"))["op"], "idle")
+        self.assertIn("lease-held: node-a (fence: production serve TP=4", self.out.getvalue())
+        self.assertNotIn("assign:", self.out.getvalue())
 
     def test_a_declared_window_lock_holds_the_whole_declared_set(self) -> None:
         write(self.repo / ".local" / "fleet-window.lock", "session they-declared\n")
