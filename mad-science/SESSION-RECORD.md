@@ -11401,3 +11401,134 @@ modules), which is right for their worktree and wrong for the committed tree, so
 not swept from here. Both commits of this tick — the board (`e891127`) and this ledger entry — are
 therefore **local only**; the board is already live on `origin/main` through the push that raced it,
 and the ledger entry waits for the peer to close the red.
+## 2026-11-12 08:30 ET — hourly board tick, published nothing (a peer composition held the file, and the branch is held behind a red gate)
+
+Read-only tick: no board publish, no commit, no push. Every stamp below comes from a node's own
+`date -u` or a local `stat`, never from this shell's clock — the shell open at tick start read
+`04:07 ET` while the fleet read `11:52Z`, so a title stamped from it would have been ~2 h wrong.
+
+**What the tick read.** Six-node census `12:30:05Z`–`12:30:09Z`: the shipped production serve still
+holds `.31`–`.34`, one container per rank (`sparkrun_b020d2dd178343a5_0abd7d020db4_node_0` …
+`_node_3`, image id `3f4480818acb`, `Up 11 hours (healthy)`, serve pids `247723`/`252393`/`251947`/`252215`),
+rank 0 answers `/v1/models` **200** as `deepseek-ai/DeepSeek-V4.1-Flash-1017` `max_model_len` 1048576 and
+ranks 1–3 answer 404 as one container each; **no research container on any node** — `.30` and `.35` both
+`docker ps -aq` **0**, volumes **0**, `.30` `MemAvailable` 121,721,104 kB. Pool through mount on `.30` and
+`.33`: `df -B1` used **13,956,022,272,000 B**, avail **10,235,207,483,392 B** (**+195,035,136 B** used since
+base board's `11:01:57Z` read), hub **97** `models--*` + **1** `datasets--*`, 1017 index `stat -L`
+**7,470,294 B**. The known `beegfs-meta` 5 s loop's counters climbed to `.31` **7892**, `.32` **7904**,
+`.33` **7904**, `.34` **7904**, `.35` **7905** (base board read 5570–5583 at `09:08Z`; +2320 ≈ the loop's
+own 5 s cadence, no new failure), while head's three units stay `active`/`Result=success`/`NRestarts` 0.
+Head at `13:11:33Z`: campaign unit **inactive**, `ExecMainStatus` 0, `NRestarts` 0, `ExecMainPID` 2616,
+last stop `01:27:16 EST`; **no `.local/fleet-window.lock`**; `.local/fleet-leases.json` **739 B** sha
+**`69f613aa…`** (0 live leases + the `.31`–`.34` production fence, unchanged since `05:05:32Z`); campaign
+`state.json` **62,990 B** sha **`85c1b777…`** mtime `01:00:57 EST`. Register snapshot `e6fbb4de…` equals
+the live file: **193 tasks, 152 done, 32 queued, 7 blocked, 2 running, 41 open**, two claims both
+`sparkrun-session:tp4minus-20261111` (`run-arm-appearance-window-300s` `08:36:07Z`,
+`hermes-workstation-gc` `08:26:36Z`), `task-queue.py check` rc=0, table 19,463 B.
+
+**Why nothing published.** Base read was `origin/main`'s board at `9b2bda3`, title `05:01 ET`, sha256
+**`d8feff83…`**. Before composing, a peer's composition reached the worktree: title `08:13 ET`, sha256
+**`487f53bc…`**, mtime `08:15:41`, **uncommitted**. `publish --expect-sha d8feff83…` refuses on that disk
+state, and the two ways to force it — recompute the expectation from the moved file, or compose over the
+peer's bytes — both publish another session's in-flight board under this commit's subject, which is the
+defect `board-publish-accepts-weaker-replacement` records. So the attempt stopped.
+
+**The finding a later tick needs.** That peer composition's title is **`08:13 ET` while its own captures
+are `10:55:04Z`–`10:55:06Z` (census) and `11:01:57Z` (pool)** — 05:55/06:01 ET, ~2 h older than the title it
+carries. A board title is therefore not evidence that its numbers are current, and the next tick must
+re-census rather than inherit those rows; this tick's `12:30Z` sweep and `13:11Z` head read are the
+freshest on this clone.
+
+**Nothing committed, deliberately.** HEAD sits **4 ahead** of `origin/main` (`54913b7`, `feaaab5`,
+`306f9a3`, `8260d20`) and that queue is held by a peer because `tools/push-gate.py` is red on a stated
+suite total — their own close-out says so. A ledger commit here would ride out on their push, so this entry
+lands as worktree bytes beside the peer's uncommitted close-out instead, and the session that closes the red
+takes both.
+
+## 2026-11-12 09:45 ET — hourly board tick, held again (a peer's board sat on the path the whole window); register moved three times, and the one live claim has no workload
+
+**Base, then supersession.** Base was read at `06:39 ET`: `mad-science/STATUS.md` title `05:01 ET`, sha256
+`d8feff83…`, byte-identical to `origin/main`'s board at `9b2bda3` (that base then published as `e891127`).
+A peer composed over it at `08:13 ET` and again at `08:39 ET`; the live file is sha256 `1a0b539c…`, mtime
+`08:44:49 ET`, and it is **uncommitted on top of** `512f233`'s blob `bed34e19…`. So the path held another
+session's in-flight board for the whole analysis window below and no `publish` was attempted: recomputing
+`--expect-sha` from a moved file is the same defect this file's `08:30 ET` entry already names, and
+syncthing versioning is off, so an overwrite there is unrecoverable.
+
+**This tick's own evidence (independent of the peer's rows).** Six-node sweep `12:49:47Z`–`12:49:50Z`:
+the shipped production serve holds `.31`–`.34`, one container per rank
+(`sparkrun_b020d2dd178343a5_0abd7d020db4_node_0`…`_node_3`), `Up 11 hours (healthy)` on image id
+`3f4480818acb`, serve pid present on all four ranks (287 / 317 / 304 / 310), rank 0's `:8000/v1/models`
+**200** as `deepseek-ai/DeepSeek-V4.1-Flash-1017` `max_model_len` 1048576; **research containers 0**; `.30`
+and `.35` read `docker ps -aq` **0**, volumes **0**, re-probed at `14:35:27Z` and still 0/0; the known
+`beegfs-meta` 5 s loop's counters are `.31` **8118**, `.32` **8131**, `.33` **8130**, `.34` **8131**, `.35`
+**8131** (`activating` / `exit-code`), head's three units `active` / `success` / `NRestarts` 0; `kho=off`
+**1**, `CmaTotal/CmaFree` **0/0**, `nr_free_cma` **0** on all six. Head probe `13:10:48Z`: pool `df -B1`
+used **13,956,097,245,184 B**, avail **10,235,132,510,208 B**, total **24,191,229,755,392 B**; reads answer
+through the mount (hub **102** entries / 97 model dirs, the 1017 index `stat -L` **7,470,294 B** on
+`08c8657f…`); `.local/fleet-leases.json` **739 B** sha **`69f613aa…`** (0 live leases, 1 fence on `.31`–`.34`);
+campaign unit `inactive/dead`, `ExecMainPID` 2616, exited `Thu 2026-11-12 01:27:16 EST`; no
+`.local/fleet-window.lock`; newest `~/benchmarks` entry `tp1-20261111`, so no boot ran a receipt this tick.
+
+**A trap for the next tick.** Probing every rank's `:8000` from the head gives **404** on `.32`–`.34`
+(`server: uvicorn`, body `{"detail":"Not Found"}`) while rank 0 gives **200**. An HTTP listener on a
+non-rank-0 container answers but does not serve `/v1/models`, so a 404 there is not evidence of a dead
+serve; readiness is rank 0's answer plus a pid on every rank.
+
+**Register divergence, stated rather than corrected.** The published board's queue row cites snapshot
+`e6fbb4de…` (193 tasks, 2 running, 2 claims). The register moved three further times inside this tick:
+`8b52ebe5…` (193 tasks, 3 running, 3 claims — `hermes-workstation-gc` closed `done`,
+`expired-window-lock-reads-as-live` added), then `81254066…`, then `95e214f5…` (194 tasks, 1 running,
+1 claim, **39 open**). So that row's counts and its claim list were already a generation behind when it was
+published, and a render from any of these snapshots goes stale within minutes.
+
+**The one live claim has no workload behind it.** `media-idol-3dgs-boot` is claimed by
+`sparkrun-session:tp4minus-20261112` at `2026-11-12T11:58:39Z`; no container, no volume and no launcher
+process exists on any node at `12:49:50Z` or at `14:35:27Z`, and no receipt directory is newer than
+`tp1-20261111`. Recorded, not cleared — releasing another session's claim is that session's call.
+
+**The gate that held the tail has cleared.** `tools/push-gate.py` on `892469d` prints
+`ok -- HEAD 892469d6 is what CI will see`, so the 7-commit unpushed tail is now pushable and belongs to the
+sessions that wrote it; this tick added nothing to it and committed nothing.
+
+## 2026-11-12 08:34 ET — third tick of the hour: the peer's board published, and an independent sweep that agrees
+
+Read-only tick: **no board publish**, one ledger commit. A peer tick's board reached `origin/main` at
+`332bc0f` while this session was reading (`1a0b539c`, title `08:39 ET`), and its census window
+`13:34:22Z`–`13:34:26Z` is **ten seconds** older than this tick's own sweep. Republishing over it would
+add a third identical "tick happened" row for the hour, which the board contract forbids, so the ticks'
+numbers were compared instead and no row was rewritten.
+
+**Fleet, six nodes, one window.** `13:34:32Z`–`13:34:36Z`, every stamp from the node's own `date -u`.
+The shipped production serve holds `.31`–`.34`, one container per rank on image id `3f4480818acb`, serve
+pids `287`/`317`/`304`/`310`, `/v1/models` **200** at `13:42:52Z` as `deepseek-ai/DeepSeek-V4.1-Flash-1017`;
+`.30` and `.35` read `docker ps -aq` **0** and volumes **0**, so no research container runs anywhere.
+Pool `df -B1` identical on all six — used **13,956,161,208,320 B**, avail **10,235,068,547,072 B**, total
+**24,191,229,755,392 B** — hub **102** entries and the 1017 index `stat -L` **7,470,294 B** on each. The
+known `beegfs-meta` 5 s loop reached `.31` **8633**, `.32` **8646**, `.33` **8645**, `.34` **8645**,
+`.35` **8646**: **+3063 since the `09:08Z` board**, which is 5.2 s per restart across 4 h 26 m, so the
+loop's own cadence and no new failure; head's three units stay `active`/`Result=success`/`NRestarts` 0.
+The six roots' avail fell **611,241,984 B** in sum while the pool's used rose **611,319,808 B** — 77,824 B
+apart, one movement, and `.31` alone read `MemAvailable` **10,118,664 kB** (`13:34:33Z`), the lowest of
+the four ranks and still well above the 6.0 GiB sampler.
+
+**Holder state re-proved, not inherited.** Campaign unit `inactive (dead)`, `ExecMainStatus` 0,
+`ExecMainPID` 2616, last stop `01:27:16 EST`; `state.json` unchanged (**62,990 B**, sha `85c1b777…`,
+mtime `01:00:57 EST`); `.local/fleet-leases.json` **739 B** sha `69f613aa…`; `director lease --list` prints
+**`0 live lease(s), 1 fence(s)`** with the `.31`–`.34` production fence `at=2026-11-12T05:05:32Z`; no
+`.local/fleet-window.lock` on either copy. Register snapshot `e6fbb4de…` equals the live file: **193
+tasks, 152 done, 32 queued, 7 blocked, 2 running, 41 open**, `task-queue.py check` rc=0.
+
+**A transient that reads exactly like a broken campaign.** At `06:33 ET` this clone's *and* the head's
+worktree copy of `campaign/sparkrun_campaign/leases.py` raised `IndentationError: unexpected indent` at
+line `242`, so `director status` and `director lease --list` could not run at all; the committed blob
+parsed at both `HEAD` and `origin/main`, so the defect was a peer's mid-write edit landing in a shared
+tree. By `06:51:14 ET` the file parsed again (17,737 B, `git status` clean) and the documented command
+works. No fix was needed and none was made — but a peer sampling that minute would have reported the
+campaign's supervisor as broken when nothing was.
+
+**Instrument trap, hit twice in this tick.** `ssh -n` on the outer hop sets stdin to `/dev/null`, so
+`ssh -n … 'bash -s' < probe.sh` inside a `for` loop ran **nothing** and returned rc=0 with an empty body —
+which reads exactly like six unreachable nodes. Dropping `-n` on the hop that is fed a script is what
+made the six-node window above possible; the head's own self-hop (`ssh spark-head` from `spark-head`)
+also fails host-key verification, so a sweep launched *on* the head silently loses `.30`.
