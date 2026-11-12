@@ -1079,7 +1079,10 @@ def board_rows(data: dict, path: Path | None = None) -> list[str]:
         if task.get("notes"):
             note = task["notes"]
             if len(note) > NOTE_BUDGET:
-                note = note[:NOTE_BUDGET] + "… (full note: queue.json)"
+                note = note[:NOTE_BUDGET]
+                if note.count("`") % 2:  # cut inside a code span: drop the stub, not the pair count
+                    note = note[:note.rindex("`")]
+                note += "… (full note: queue.json)"
             state = f"{state} — {note}"
         if task.get("evidence"):
             state = f"{state} — evidence: `{task['evidence']}`"

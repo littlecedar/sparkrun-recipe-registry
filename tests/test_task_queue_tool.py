@@ -585,6 +585,12 @@ class BoardAndArchive(unittest.TestCase):
         self.assertIn("…", row)
         self.assertIn("full note: queue.json", row)
         self.assertNotIn("x" * (tq.NOTE_BUDGET + 1), row)
+        # Boundary the live register hit on 2026-11-12: a cut inside a code span leaves one
+        # backtick, `lint_markdown` rejects that cell and `render --board` refuses to emit.
+        t["notes"] = "y" * (tq.NOTE_BUDGET - 4) + "`abc`" + "z" * 40
+        row = tq.board_rows(data([t]))[2]
+        self.assertEqual(row.count("`") % 2, 0, "a truncated code span drops its opening stub")
+        self.assertNotIn("`abc", row)
 
     def test_evidence_must_be_a_string(self):
         # Negative control: a non-string evidence is a data defect, never silently ignored.
