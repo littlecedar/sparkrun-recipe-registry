@@ -559,6 +559,33 @@ class BoardAndArchive(unittest.TestCase):
         self.assertIn(r"vs NVMe \| staging", rows[2])
         self.assertIn("first line Framing:", rows[2])
 
+    def test_a_long_note_is_truncated_to_a_pointed_at_register(self):
+        """Measured 2026-11-08 14:10 ET: whole notes put 75 821 B in the 23-row work queue, and
+        the 82 136 B board was read by every tick before it wrote one census row."""
+        t = task("a", 1.0)
+        t["notes"] = "a justification the register alone should hold. " * 90
+        rows = tq.board_rows(data([t]))
+        self.assertEqual(len(rows), 3, "one row per task, never a wrapped line")
+        self.assertLess(max(len(r.encode()) for r in rows), 400,
+                        "one board row carries a note's opening, not the note")
+        self.assertIn("full note: queue.json", rows[2])
+        self.assertNotIn(t["notes"], rows[2])
+        self.assertEqual(t["notes"], "a justification the register alone should hold. " * 90,
+                         "rendering never rewrites the register row")
+
+    def test_a_note_at_the_budget_is_quoted_whole(self):
+        """Boundary and negative control: only the over-budget note gains the pointer."""
+        t = task("a", 1.0)
+        t["notes"] = "x" * tq.NOTE_BUDGET
+        row = tq.board_rows(data([t]))[2]
+        self.assertIn("x" * tq.NOTE_BUDGET, row)
+        self.assertNotIn("full note: queue.json", row)
+        t["notes"] = "x" * (tq.NOTE_BUDGET + 1)
+        row = tq.board_rows(data([t]))[2]
+        self.assertIn("…", row)
+        self.assertIn("full note: queue.json", row)
+        self.assertNotIn("x" * (tq.NOTE_BUDGET + 1), row)
+
     def test_evidence_must_be_a_string(self):
         # Negative control: a non-string evidence is a data defect, never silently ignored.
         payload = data([task("a", 1.0)])

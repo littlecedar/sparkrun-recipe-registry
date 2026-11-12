@@ -1056,13 +1056,20 @@ def cmd_render(args, path: Path) -> None:
     _emit(lines, "weighted table")
 
 
+#: The state cell quotes this much of a row's note.  Whole notes prose measured 75 821 B across
+#: the 23 open rows — an 82 136 B board — and every hourly tick read it before writing one census
+#: row (2026-11-08).  The register keeps the full text, so the cell points at it instead of
+#: copying it; `graph`'s `GRAPH_LABEL` truncates its own label the same way.
+NOTE_BUDGET = 240
+
+
 def board_rows(data: dict, path: Path | None = None) -> list[str]:
     """The STATUS.md `## Work queue` table, derived from the register.
 
     Columns are the board's own: job, node cost, holds, state.  `holds` is the task's
-    `blocked_by` (what must clear first), and the state cell carries the task's notes,
-    because that justification text IS the row's notes — a second copy in TODO.md is the
-    drift this replaces, not a convenience.
+    `blocked_by` (what must clear first), and the state cell carries the note's opening —
+    `NOTE_BUDGET` characters, then a pointer to `queue.json` — because the note lives in exactly
+    one place and a second whole copy is what made the board 82 KB.
     """
     ordered = ordering(data, path)
     tiers = _tiers(data["priority_models"])
@@ -1070,7 +1077,10 @@ def board_rows(data: dict, path: Path | None = None) -> list[str]:
     for _tier, task in enumerate_tasks_with_tier(ordered, tiers):
         state = task["state"]
         if task.get("notes"):
-            state = f"{state} — {task['notes']}"
+            note = task["notes"]
+            if len(note) > NOTE_BUDGET:
+                note = note[:NOTE_BUDGET] + "… (full note: queue.json)"
+            state = f"{state} — {note}"
         if task.get("evidence"):
             state = f"{state} — evidence: `{task['evidence']}`"
         lines.append(f"| `{task['id']}` — {_cell(task['title'])} | {task['node_cost'] or '—'} "
