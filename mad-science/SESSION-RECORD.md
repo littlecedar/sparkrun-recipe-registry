@@ -1172,7 +1172,6 @@ Everything was torn down: 0 beegfs packages, 0 failed units, **0 containers**, `
 (93 % used) on `.34`** and **615 GB free (83 % used) on `.35`**, fstab identical to its pre-pilot backup.
 Report: `mad-science/BEEGFS-REPORT.md` §10; receipts `~/benchmarks/beegfs-pilot-20261022/`.
 
-
 # 2026-10-24 — narrative moved from `mad-science/TODO.md` (cleanup sweep)
 
 *(Moved verbatim from `mad-science/TODO.md` when it was cleaned to open work only; blocks
@@ -1232,7 +1231,6 @@ an offsite API endpoint when TP=4 tests must run** — batch every TP=4 measurem
 rather than asking per boot. Local `.34`/`.35` remain the registry's GPU pair: one serve at a time,
 TP≤2 boots only. The binding constraints are therefore (a) serialized boot time on `.34`/`.35` and
 (b) one owner action per TP=4 offsite switch, not calendar days.
-
 
 ## Session progress, policy, cluster state (2026-10-18/19)
 
@@ -1314,7 +1312,6 @@ the head carries that job's control container plus the always-on `sparkroute` ga
 and a `sparkrun cluster monitor` — infrastructure, not session leftovers. Treat the `.34`/`.35` pair as
 the only free resource.
 
-
 ## Closed no-boot items note (2026-10-19)
 
 *(source: pre-cleanup TODO.md:618-623)*
@@ -1345,7 +1342,6 @@ single-node tail closes, not now — the tail's estimates assume local boots thr
   *(progress 2026-10-22 01:55 ET — **TP=4 W6 is blocked at the engine, not the arm and not memory.** The boot loaded 41/41 shards on four ranks and died in `modelopt_quant.py:2624` (gated-activation MoE padding) on every rank, so TP=4 is an engine limit on this build. `649d3c7`; `attic/qwen4/AGENTS.md`.)*
   *(progress 2026-10-22 03:44 ET — **the v0.5.22 follow-up closes it as a checkpoint limit, not a build defect.** One boot of the same arm on `lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f060…` (task `08acf79cd757a666_7afff0589a33`, quartet `.30`/`.31`/`.32`/`.33`) loaded 41 shards and asserted identically on **all four ranks**: `modelopt_quant.py:2942` (`:2624` on v0.5.20 — same message, `The intermediate size required padding, but padding is also implemented for gated activations`). So TP=4 stays closed for this NVFP4 export on both builds; do not re-try another nightly expecting a different answer. By-products: the relay reports the pinned image `already verified on all 4 receiver(s)` and the model distributes in 18.3 s from a node-local HF cache (the 2-5 MiB/s leg only exists cold). Receipt `~/benchmarks/tp4-20261022/w6-tp4-v0522/REPORT.md` §Verdict, MANIFEST row.)*
   *(progress 2026-10-22 03:31 ET — **W12 served**, so the cross-runtime column has its vLLM number. TP=2 on `.31`/`.32` (`6a76d7f90a79f4f4_6eb961eae222`), `RadixArk/Qwen3.8-Flash-Next-NVFP4` @ `7b71922`, b12x `cf5a2a53`, `max_model_len` 262144 accepted, KV 1,757,475 tokens (6.70x). Decode 42.8/51.2/40.1 t/s over three 256-token samples at temp 0 (median 42.8). Two engine-side traps recorded: the restored PLE mod cannot run in-container (`docker` absent) and is inert on this image anyway (its PLE layer is `qwen4_exp/nvidia`, b12x-aware, no `Fp8Config` guard — vLLM flags `VLLM_PLE_FP8_CHECKPOINT` as unknown), and `load_format: instanttensor` dies at `weight_utils.py:1679` because the image's instanttensor has no `_determine_buffer_size` (TP=1 never takes that path, TP>1 always does) — the arm now loads safetensors. Cold boot to first 200: ~19 min, mostly b12x autotune. Receipt `~/benchmarks/tp4-20261022/w12-vllm-b12x/REPORT.md`.)*
-
 
 ## decision candidates progress (2026-10-18..20)
 
@@ -1610,7 +1606,6 @@ C2/C5/C10 and highcon aside) are the last registry gap for the pair.)*
 **Correction (same day):** the BFCL leg took 6,555 s, not the "1,383 s / a quarter of the cap" first
 written here — the per-check cap was at 91 %, so a 4096-token BFCL run sits close to its budget on this
 arm family, and a larger thinking model would exceed it.)*
-
 
 *(progress 2026-10-19 — **qwen4 labquant TP=2** landed both legs on one boot: eval-suite `ok` — contract `max_model_len=262144` / ready / `finish=stop`, house 19/19 + 18/18, needle 3/3 at 32k / 128k / 262k, hard ARC 95.5 % and GSM8K 95.5 % (n=200 each) — and tool-eval-bench **100** (15/15 scenarios, 0 partial, 0 fail, `bench_eff75293e461`, 91.6 s); receipt `~/benchmarks/qwen4-labq-suite-20261018/`, rows in `recipes/qwen4/README.md`. The needle leg needs `--needle-max-tokens 512` on this export: at the 256 default every cell is reasoning-only, the same trap the IFM 0.9B pass hit.)*
 
@@ -2446,7 +2441,6 @@ premise — that the engine does not log acceptance at default verbosity — is 
 read of an existing receipt, not a boot. Whether that read explains the 67.02-vs-13 t/s gap stays the
 row's own question and is not closed here.
 
-
 ## Board landed rows preserved — 2026-11-04 01:52 ET
 
 The board's `Landed session` table is cleared at session handoff, so the clauses it carries for commits
@@ -2891,7 +2885,6 @@ returned nothing), so both are appended here verbatim:
   builds predate `lfm3` landing upstream) and bf16 on vLLM, both TP=1 and pinned; ships as an ordinary
   arm on the 2026-11-02 ruling (`QUESTIONS.md` #56). Register untouched (`queue.json` unchanged), so
   26 open.
-
 
 ## 2026-11-07 06:01 ET — two ticks in one minute, and the equal-stamp replace
 
@@ -4157,7 +4150,6 @@ lease was live.
   `85c1ffc3e3a0`) exited before 00:11:27 — the same shape as the 00:00 transient, this time with the
   container observed while it was running. The attribution moves from open to LIKELY relay receive/decode
   scratch; nothing in the pool or the chunk store has been shown to move for it.
-
 
 ## 2026-11-08 00:13 ET — the published board's own commit names the wrong census
 
@@ -5992,7 +5984,6 @@ window B. What changes is the mechanism line: "not on a restart" should read **"
 reads after it"**, and any future reader should not infer from the original heading that a service restart is what
 ended an outage — a reboot is the only one of the two that appeared here.
 
-
 ## 2026-11-08 — correction: earlyoom `-m 20` reverted to `-m 4,1`; the threshold cannot be the protection
 
 - **What was applied and why it was wrong.** The clause above (`6df4c0c`) set `-m 20,10`. That fires at 24.3 GiB free,
@@ -6477,7 +6468,6 @@ strip the blank line first; `lint` passes once it does.
 session's rows, did not re-stamp or delete the live `sparkrun-vibe:tp4-boot` lock, and did not
 correct the unclaimed register row. The shared clone is **77 ahead / 126 behind** origin and its
 worktree board is the stale 23:14 one, so the board was composed from a fresh shallow clone.
-
 
 ## 2026-11-09 01:16 ET — hourly tick, second writer: the +51 GB is one statfs, not two measurements
 
@@ -9293,7 +9283,6 @@ id, so the pin is unresolved rather than proven wrong.
   12:59 rows are not retracted, only marked unreproduced with a named discriminator; and the register
   keeps `pool-window-invalid-cells` and `pool-target-probe-beegfs-ctl-absent` exactly as it has them.
 
-
 ### 16:00 ET tick — independent census, and the refusal that changed shape
 
 - **Two pairs of the same hour, from two instruments.** This tick's census ran 21:01:49Z → 21:05:21Z
@@ -11445,6 +11434,48 @@ suite total — their own close-out says so. A ledger commit here would ride out
 lands as worktree bytes beside the peer's uncommitted close-out instead, and the session that closes the red
 takes both.
 
+## 2026-11-12 08:34 ET — third tick of the hour: the peer's board published, and an independent sweep that agrees
+
+Read-only tick: **no board publish**, one ledger commit. A peer tick's board reached `origin/main` at
+`332bc0f` while this session was reading (`1a0b539c`, title `08:39 ET`), and its census window
+`13:34:22Z`–`13:34:26Z` is **ten seconds** older than this tick's own sweep. Republishing over it would
+add a third identical "tick happened" row for the hour, which the board contract forbids, so the ticks'
+numbers were compared instead and no row was rewritten.
+
+**Fleet, six nodes, one window.** `13:34:32Z`–`13:34:36Z`, every stamp from the node's own `date -u`.
+The shipped production serve holds `.31`–`.34`, one container per rank on image id `3f4480818acb`, serve
+pids `287`/`317`/`304`/`310`, `/v1/models` **200** at `13:42:52Z` as `deepseek-ai/DeepSeek-V4.1-Flash-1017`;
+`.30` and `.35` read `docker ps -aq` **0** and volumes **0**, so no research container runs anywhere.
+Pool `df -B1` identical on all six — used **13,956,161,208,320 B**, avail **10,235,068,547,072 B**, total
+**24,191,229,755,392 B** — hub **102** entries and the 1017 index `stat -L` **7,470,294 B** on each. The
+known `beegfs-meta` 5 s loop reached `.31` **8633**, `.32` **8646**, `.33` **8645**, `.34` **8645**,
+`.35` **8646**: **+3063 since the `09:08Z` board**, which is 5.2 s per restart across 4 h 26 m, so the
+loop's own cadence and no new failure; head's three units stay `active`/`Result=success`/`NRestarts` 0.
+The six roots' avail fell **611,241,984 B** in sum while the pool's used rose **611,319,808 B** — 77,824 B
+apart, one movement, and `.31` alone read `MemAvailable` **10,118,664 kB** (`13:34:33Z`), the lowest of
+the four ranks and still well above the 6.0 GiB sampler.
+
+**Holder state re-proved, not inherited.** Campaign unit `inactive (dead)`, `ExecMainStatus` 0,
+`ExecMainPID` 2616, last stop `01:27:16 EST`; `state.json` unchanged (**62,990 B**, sha `85c1b777…`,
+mtime `01:00:57 EST`); `.local/fleet-leases.json` **739 B** sha `69f613aa…`; `director lease --list` prints
+**`0 live lease(s), 1 fence(s)`** with the `.31`–`.34` production fence `at=2026-11-12T05:05:32Z`; no
+`.local/fleet-window.lock` on either copy. Register snapshot `e6fbb4de…` equals the live file: **193
+tasks, 152 done, 32 queued, 7 blocked, 2 running, 41 open**, `task-queue.py check` rc=0.
+
+**A transient that reads exactly like a broken campaign.** At `06:33 ET` this clone's *and* the head's
+worktree copy of `campaign/sparkrun_campaign/leases.py` raised `IndentationError: unexpected indent` at
+line `242`, so `director status` and `director lease --list` could not run at all; the committed blob
+parsed at both `HEAD` and `origin/main`, so the defect was a peer's mid-write edit landing in a shared
+tree. By `06:51:14 ET` the file parsed again (17,737 B, `git status` clean) and the documented command
+works. No fix was needed and none was made — but a peer sampling that minute would have reported the
+campaign's supervisor as broken when nothing was.
+
+**Instrument trap, hit twice in this tick.** `ssh -n` on the outer hop sets stdin to `/dev/null`, so
+`ssh -n … 'bash -s' < probe.sh` inside a `for` loop ran **nothing** and returned rc=0 with an empty body —
+which reads exactly like six unreachable nodes. Dropping `-n` on the hop that is fed a script is what
+made the six-node window above possible; the head's own self-hop (ssh to the head *from* the head)
+also fails host-key verification, so a sweep launched *on* the head silently loses `.30`.
+
 ## 2026-11-12 09:45 ET — hourly board tick, held again (a peer's board sat on the path the whole window); register moved three times, and the one live claim has no workload
 
 **Base, then supersession.** Base was read at `06:39 ET`: `mad-science/STATUS.md` title `05:01 ET`, sha256
@@ -11490,45 +11521,3 @@ process exists on any node at `12:49:50Z` or at `14:35:27Z`, and no receipt dire
 **The gate that held the tail has cleared.** `tools/push-gate.py` on `892469d` prints
 `ok -- HEAD 892469d6 is what CI will see`, so the 7-commit unpushed tail is now pushable and belongs to the
 sessions that wrote it; this tick added nothing to it and committed nothing.
-
-## 2026-11-12 08:34 ET — third tick of the hour: the peer's board published, and an independent sweep that agrees
-
-Read-only tick: **no board publish**, one ledger commit. A peer tick's board reached `origin/main` at
-`332bc0f` while this session was reading (`1a0b539c`, title `08:39 ET`), and its census window
-`13:34:22Z`–`13:34:26Z` is **ten seconds** older than this tick's own sweep. Republishing over it would
-add a third identical "tick happened" row for the hour, which the board contract forbids, so the ticks'
-numbers were compared instead and no row was rewritten.
-
-**Fleet, six nodes, one window.** `13:34:32Z`–`13:34:36Z`, every stamp from the node's own `date -u`.
-The shipped production serve holds `.31`–`.34`, one container per rank on image id `3f4480818acb`, serve
-pids `287`/`317`/`304`/`310`, `/v1/models` **200** at `13:42:52Z` as `deepseek-ai/DeepSeek-V4.1-Flash-1017`;
-`.30` and `.35` read `docker ps -aq` **0** and volumes **0**, so no research container runs anywhere.
-Pool `df -B1` identical on all six — used **13,956,161,208,320 B**, avail **10,235,068,547,072 B**, total
-**24,191,229,755,392 B** — hub **102** entries and the 1017 index `stat -L` **7,470,294 B** on each. The
-known `beegfs-meta` 5 s loop reached `.31` **8633**, `.32` **8646**, `.33` **8645**, `.34` **8645**,
-`.35` **8646**: **+3063 since the `09:08Z` board**, which is 5.2 s per restart across 4 h 26 m, so the
-loop's own cadence and no new failure; head's three units stay `active`/`Result=success`/`NRestarts` 0.
-The six roots' avail fell **611,241,984 B** in sum while the pool's used rose **611,319,808 B** — 77,824 B
-apart, one movement, and `.31` alone read `MemAvailable` **10,118,664 kB** (`13:34:33Z`), the lowest of
-the four ranks and still well above the 6.0 GiB sampler.
-
-**Holder state re-proved, not inherited.** Campaign unit `inactive (dead)`, `ExecMainStatus` 0,
-`ExecMainPID` 2616, last stop `01:27:16 EST`; `state.json` unchanged (**62,990 B**, sha `85c1b777…`,
-mtime `01:00:57 EST`); `.local/fleet-leases.json` **739 B** sha `69f613aa…`; `director lease --list` prints
-**`0 live lease(s), 1 fence(s)`** with the `.31`–`.34` production fence `at=2026-11-12T05:05:32Z`; no
-`.local/fleet-window.lock` on either copy. Register snapshot `e6fbb4de…` equals the live file: **193
-tasks, 152 done, 32 queued, 7 blocked, 2 running, 41 open**, `task-queue.py check` rc=0.
-
-**A transient that reads exactly like a broken campaign.** At `06:33 ET` this clone's *and* the head's
-worktree copy of `campaign/sparkrun_campaign/leases.py` raised `IndentationError: unexpected indent` at
-line `242`, so `director status` and `director lease --list` could not run at all; the committed blob
-parsed at both `HEAD` and `origin/main`, so the defect was a peer's mid-write edit landing in a shared
-tree. By `06:51:14 ET` the file parsed again (17,737 B, `git status` clean) and the documented command
-works. No fix was needed and none was made — but a peer sampling that minute would have reported the
-campaign's supervisor as broken when nothing was.
-
-**Instrument trap, hit twice in this tick.** `ssh -n` on the outer hop sets stdin to `/dev/null`, so
-`ssh -n … 'bash -s' < probe.sh` inside a `for` loop ran **nothing** and returned rc=0 with an empty body —
-which reads exactly like six unreachable nodes. Dropping `-n` on the hop that is fed a script is what
-made the six-node window above possible; the head's own self-hop (`ssh spark-head` from `spark-head`)
-also fails host-key verification, so a sweep launched *on* the head silently loses `.30`.
