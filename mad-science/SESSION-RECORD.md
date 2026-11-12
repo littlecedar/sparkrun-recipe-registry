@@ -11123,3 +11123,59 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   `red` account — so the owner-approval question for `.30` (`TP4-BGFS Q9`) is open. It is not registered
   as an owner question because it blocks nothing: nothing is planned onto `.30` and the node serves
   nothing.
+
+## 2026-11-12 01:19 ET hourly board tick: the production serve fenced, `.30`'s leftovers gone, and the register rendering under a peer's fix
+
+Read-only on the fleet; the tick booted nothing, stopped nothing, claimed nothing. Census is one
+whole-fleet sweep of six direct reads, `2026-11-12T05:13:13Z`-`05:13:15Z`.
+
+**What the read found.**
+
+- The shipped production serve still holds `.31`-`.34` (task `b020d2dd178343a5_0abd7d020db4`, `Up 4
+  hours (healthy)`, image id `3f4480818acb`), serve pid alive on all four ranks (287/317/304/310) and
+  `/v1/models` from `.31:8000` answers **200** with `max_model_len` 1048576. It stays excluded from
+  research accounting; **0 research containers** run on all six nodes.
+- **`.30`'s nine never-started `Created` leftovers are gone.** `docker ps -aq` reads 0 there against 9
+  on the base board's `02:06:25Z` read, and `.35` reads 0 as well; volumes are 0 on all six. No session
+  in this log claims the removal and the read cannot attribute it, so the board records it as a fleet
+  change with no actor named. The register row that censused the leftovers
+  (`boot-driver-leaves-containers-on-readiness-timeout`, which said "do not remove") closed `done`
+  during this tick beside its `run-arm.sh` fix, so nothing editorial depends on them now.
+- **The production serve is FENCED in the lease ledger**, which is the change of substance.
+  `.local/fleet-leases.json` grew 33 B to 739 B, sha `69f613aa...`, mtime `00:05:32 ET`: `"leases": []`
+  (still 0 live leases) plus a new `fenced` record naming hosts `.31`-`.34`, the serve's task id, image
+  id and `started_at`, `fenced_by` "owner directive, session production-fence", `fenced_at
+  2026-11-12T05:05:32Z`. No window lock on either copy. That answers the *mechanism* half of row
+  `fleet-boot-without-lease-record` - a protected production boot is claimed by a fence record rather
+  than a lease - while the row itself stays `queued` with its policy question open.
+- The pool **fell**: mount used `13,985,266,008,064 B` (**-174,063,616 B** on the base read), and the
+  six roots' own `/` avail rose **+173,723,648 B** in sum, which is **339,968 B** from the pool's fall
+  - one movement across two bases. Hub entries 102 and the 1017 index `stat -L` `7,470,294 B` through
+  the mount on every host. The `beegfs-meta` 5 s loop on `.31`-`.35` is unbroken: `NRestarts`
+  2866/2878/2877/2878/2877, about 2 149 more cycles each in the 3 h 07 m since the base read.
+
+**What moved under the tick, and how it was handled.** The register was a live writer's file all
+cycle: three reads, three shas - `5fd23afd...` (150 done / 29 queued / 9 blocked / 2 running), then
+`12e4b8bf...` after a peer closed `boot-driver-leaves-containers-on-readiness-timeout` `done`, then
+`4780d2b4...` with two new eval-only survey rows (`minimax-viggle-remake-eval-only-arm`,
+`webai-twil-8b-eval-only-arm`) - 192 tasks / 41 open, one claim left
+(`llamacpp-arms-declare-offload`, `sparkrun-session:tp4minus-20261111`, `04:55:58Z`). Both board
+blocks were rendered from the last copy, the live file still equalled it at publish time, and the
+board's queue row says so. What this snapshot carries past `origin/main` is three edits - the two
+survey rows, `media-idol-3dgs-boot` unblocked `blocked` -> `queued`, and the `llamacpp` claim;
+`origin/main` at `201cad7` carries `0058ad95...` (190 tasks: 151 done / 31 queued / 8 blocked), so
+the row the table shows as running is not in this commit. An earlier composition of this close-out
+said `origin/main` still carried `13f98212...`, which `201cad7` had already falsified; the board was
+republished from its base with that corrected before this commit.
+
+**A refusal worth recording, because it is a guard class the tool now has.** The first
+`render --board` of the tick **failed**: `unbalanced-backticks`, board-table lines 22/25/29. The cause
+is `c0e50ea`'s own feature - the 240-char note cut splits a backtick pair on three live rows - and a
+peer had already fixed it in the worktree (trim the cut back to even parity) while keeping the change
+uncommitted. So the table in this board came from worktree code that `origin/main` does not carry, and
+the board's queue row names that. Nothing was changed here to route around it: this tick's own
+contribution to `tools/task-queue.py` is zero.
+
+**Board.** Published through `task-queue.py publish` on base `0451a1a4...` (the `21:49 ET` board, also
+`origin/main`'s blob at read and at publish), `--expect-sha` and `--expect-remote-sha` both carried it.
+`lint` ok, `push-gate` ok.
