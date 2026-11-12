@@ -11104,3 +11104,22 @@ accepted the composition, `lint` prints ok and `push-gate` passed on the committ
   byte-identical to disk and `origin/main`, and both `--expect-sha` and `--expect-remote-sha` set to it.
   Published 21:34 ET (disk was 14:38), `lint` ok, and the register correction rides the same commit as
   the board so the two cannot diverge in history.
+- **Correction at 21:49 ET, same tick, after the bullet above was read back against the captures.** Four
+  things in it were thin or wrong, and the second publish carries the fixed versions. (1) The sequence is
+  not "powered off twice and then rebooted under a full-upgrade" as a single act: it ran long boot ends
+  `18:31` → up `19:14`–`19:19` → down `19:40` → up `19:43`–`19:59` → down `20:02` → up `20:02`–`20:03`,
+  and there are **two** poweroffs, `18:31:42` and `19:40:11`, both named in the head's boot-(-3) and
+  boot-(-2) journals — the bullet above cited only the second. (2) The identity's strongest evidence is
+  rank 0's own container label `sparkrun.recipe=@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang`,
+  not the image-pin resolution alone; the board and the register row cite the label now. (3) The task the
+  14:38 board carried, `…_55dafcf24cde`, was killed by the **first** shutdown at `18:31`, not by the
+  `20:02` reboot — saying "gone with the power cycles" implied it survived to the reboot. (4) The
+  actor's scope was over-generalized: the upgrade is verified on the head and on `.31`, `.34` and `.35`
+  (all `Start-Date 20:02:01`), and among nvidia and container packages it moved only
+  `nvidia-redfish-config` 26.01-1 — driver `580.178.04`, `docker-ce` `5:29.6.2` and `containerd.io`
+  `2.2.5` read identical — so no driver or runtime boundary was crossed and cells either side of the
+  reboot stay comparable. Finally, the point the bullet left implicit: **`.30` went down and came back
+  with the fleet**, and no session in this log claims the action — the actor is `sudo` inside the shared
+  `red` account — so the owner-approval question for `.30` (`TP4-BGFS Q9`) is open. It is not registered
+  as an owner question because it blocks nothing: nothing is planned onto `.30` and the node serves
+  nothing.
