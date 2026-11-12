@@ -1992,7 +1992,7 @@
       "node_cost": "single",
       "notes": "Measured 2026-11-09 12:10-12:12 ET: a tick composed a board whose `## Work queue` section carried the eval harness's own `--- stderr ---` banner plus a `VIRTUAL_ENV=...` warning line between the mermaid fence and the job table, because the graph output was captured into a file that also echoed stderr. `task-queue.py publish` accepted it (198 690 B, exit 0) and `lint` printed `ok: 1 markdown file(s) render` - the banner is plain text between two blocks, so neither door looks at it. It reached the clone's board and was caught only by a reader before the commit. Acceptance: publish (or lint) refuses a composed board carrying a `--- stderr ---` line, or a `warning:` line naming VIRTUAL_ENV, outside a fence, and names the line number; a test covers pass/fail. Cheaper alternative worth weighing: compose from subprocess stdout only and never from a `/tmp` file that mixes stderr, which is what fixed this tick by hand.",
       "provenance": "mad-science/STATUS.md board composition, 2026-11-09 12:10-12:12 ET; publish exit 0 on 198 690 B",
-      "evidence": "ae0e42c tools/task-queue.py:683-688, tests/test_task_queue_tool.py:693-707",
+      "evidence": "ae0e42c tools/task-queue.py:683-688, tests/test_task_queue_tool.py:720-734,1236-1249",
       "claimed_by": "",
       "claimed_at": ""
     },
