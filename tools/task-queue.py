@@ -624,6 +624,11 @@ def cmd_check(args, path: Path) -> None:
 
 
 _TABLE_DELIM = re.compile(r"^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$")
+#: A tick that captures `graph` through a shell captures the harness's own stderr too: the
+#: `--- stderr ---` banner and uv's `VIRTUAL_ENV` warning then sit between two blocks as prose.
+#: Measured 2026-11-09 12:10-12:12 ET: publish exited 0 and lint said `ok` on both, and the
+#: banner reached the clone's board, so neither door looked at a line that is not markdown.
+HARNESS_ECHO = re.compile(r"^--- stderr ---\s*$|^warning:.*\bVIRTUAL_ENV\b")
 
 
 def _table_cells(row: str) -> list[str]:
@@ -662,7 +667,8 @@ def lint_markdown(text: str) -> list[tuple[int, str, str]]:
     a header with no delimiter row (GFM then renders every row as one paragraph
     of pipes — measured on `mad-science/STATUS.md`'s landed table, 2026-11-03),
     a row whose cell count disagrees with its header, a `|` inside a cell's code
-    span, an odd backtick count in a cell, and a fence left open at EOF.
+    span, an odd backtick count in a cell, and a fence left open at EOF.  A harness
+    transcript line outside a fence is the same class: it renders as prose between blocks.
     """
     problems: list[tuple[int, str, str]] = []
     lines = text.split("\n")
@@ -672,6 +678,12 @@ def lint_markdown(text: str) -> list[tuple[int, str, str]]:
         line = lines[i]
         if line.lstrip().startswith("```"):
             in_fence = not in_fence
+            i += 1
+            continue
+        if not in_fence and HARNESS_ECHO.match(line.lstrip()):
+            problems.append((i + 1, "harness-transcript",
+                             "the eval harness's own stderr was echoed into the document; it "
+                             "renders as prose between blocks — capture stdout alone"))
             i += 1
             continue
         if in_fence or not line.lstrip().startswith("|"):

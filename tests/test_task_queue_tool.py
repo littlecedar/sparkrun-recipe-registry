@@ -690,6 +690,22 @@ class MarkdownLint(unittest.TestCase):
         broken = board + "\n\n| a | b |\n| 1 | 2 |\n"
         self.assertIn("table-missing-delimiter", [r for _l, r, _d in tq.lint_markdown(broken)])
 
+    def test_harness_transcript_lines_are_caught_outside_a_fence(self):
+        """Measured 2026-11-09 12:10-12:12 ET: a tick captured `graph`'s output into a file and
+        the shell also echoed the harness's stderr, so `--- stderr ---` and uv's `VIRTUAL_ENV`
+        warning landed between the mermaid fence and the job table. `publish` exited 0 and `lint`
+        printed `ok: 1 markdown file(s) render`; the banner reached the clone's board and was
+        caught only by a reader before the commit."""
+        head = "```mermaid\ngraph TD\n```\n\n"
+        for banner in ("--- stderr ---", "warning: VIRTUAL_ENV=/tmp/x does not match"):
+            self.subTest(banner=banner)
+            text = head + banner + "\n\n| a | b |\n|---|---|\n| 1 | 2 |\n"
+            self.assertEqual([(line, rule) for line, rule, _d in tq.lint_markdown(text)],
+                             [(5, "harness-transcript")], "line number names the banner")
+            # The same line inside a fence is documentation, not a transcript.
+            self.assertEqual(tq.lint_markdown("```\n" + banner + "\n```\n"), [])
+        self.assertEqual(tq.lint_markdown(head + "| a | b |\n|---|---|\n| 1 | 2 |\n"), [])
+
     def test_the_board_renders(self):
         """The published board: every table it carries must parse."""
         board = REPO_ROOT / "mad-science" / "STATUS.md"
@@ -1189,6 +1205,19 @@ class BoardPublish(unittest.TestCase):
         broken = board_text(self.NEW).replace("|---|---|---|\n", "", 1)
         self.assertEqual(self.publish(broken), 1)
         self.assertIn(self.OLD, self.board.read_text(encoding="utf-8"))
+
+    def test_a_harness_transcript_banner_is_refused(self):
+        """Measured 2026-11-09 12:10 ET: the banner publishes at exit 0 and reaches the clone."""
+        self.board.write_text(board_text(self.OLD), encoding="utf-8")
+        before = self.board.read_bytes()
+        for banner in ("--- stderr ---", "warning: VIRTUAL_ENV=/tmp/x does not match"):
+            self.subTest(banner=banner)
+            with_banner = board_text(self.NEW).replace(
+                "## Work queue\n\n", f"## Work queue\n\n{banner}\n\n")
+            self.assertEqual(self.publish(with_banner), 1)
+            self.assertEqual(self.board.read_bytes(), before)
+        # Negative control: the same board without the echoed line publishes.
+        self.assertEqual(self.publish(board_text(self.NEW)), 0)
 
     def test_a_cluster_address_in_the_board_is_refused_pre_push(self):
         # Measured twice on 2026-11-08: a tick quoted a host verbatim and CI redded the tip
