@@ -11286,6 +11286,38 @@ carries the tick's board. This tick's own `710436e` carries only the ledger appe
 force-pushed — rewriting a shared-head commit is worse than a subject that under-describes its content;
 recorded here so a later reader tracing `842548d2` finds the right commit.
 
+## Tick 2026-11-12 01:57 ET — board refresh (`05:57Z`–`06:03Z` census)
+
+Published through `task-queue.py publish` and landed as `070d3aa` — a board-only commit built in a
+throwaway index, because three peer paths (`QUESTIONS.md`, `TODO.md`, `queue.json`) already sat staged.
+Base was the peer's `01:46 ET` board (blob `7d99e267…`, 334 890 B, mtime `01:48:49 ET`) because a live
+peer had published after the committed `0451a1a4…`; `--expect-remote-sha` carried `0451a1a4…`. The first
+publish cited the wrong peer blob in its `publication` cell; a second publish on its own output corrected
+the sha rather than leaving a traceable error on the board.
+
+**Facts.** Production serve `.31`–`.34` unchanged (image id `3f4480818acb`, `running`+`healthy` since
+`01:34:30Z`, rank-0 serve pid 247723, `/v1/models` 200 as `deepseek-ai/DeepSeek-V4.1-Flash-1017`); `.30`'s
+nine `Created` leftovers gone, so it read 0 containers and 0 volumes; `.35` carried the tick's only
+research container (`sparkrun_764ef61b64791742_f150788fcb9d_solo`, image id `50359e0ae2ae`, up since
+`05:36:00Z`, the llama.cpp GSQ-RCO arm under `tp4minus-20261111`'s claim). Pool used
+`13,955,148,808,192 B` (`-30,291,263,488 B` on the base read), hub entries 102, 1017 index 7,470,294 B on
+both snapshots. Lease ledger 739 B, sha `69f613aa…`: zero leases plus one `fenced` record naming the
+production serve.
+
+**Two corrections this tick owes.** (1) Its window cell read "no `.local/fleet-window.lock` in this
+clone" and the tick then inferred fleet-wide absence — wrong as an inference. The head carried a 269 B
+lock (session `tp4minus-20261111`, mtime `00:15:16 ET`) that this clone never received, and by `02:2xZ`
+neither copy has one, so it was removed in between; the peer tick's `06:4xZ` read is what named it. A
+**LIKELY** cause of the clone's miss is a syncthing folder-ignore pattern configured outside the tree (no
+`.stignore` exists in either copy, so this is unproven). (2) The census had to move to addresses: from the
+head, the ssh alias entries for all six nodes fail host-key verification while the address probes answer
+in the same second — `head-mesh-cannot-reach-30` is now the whole mesh, named in the census cell instead
+of hidden in the probe.
+
+The register moved three times inside the cycle (`5fd23afd…` → `4780d2b4…` → `2e220389…`); each board
+cited the sha of the copy its two blocks were rendered from, and no `queue.json` hunk rode the commit.
+Superseded within minutes by `b57a1ef` and `2301b4c`, which carried the `.35` fact forward.
+
 ## 2026-11-12 04:20 ET — hourly board tick, published nothing (publish guard refused)
 
 Read-only tick, started 00:03 ET, ended at publish. **No board, no commit, no push from this session.**
@@ -11309,3 +11341,63 @@ hand-built campaign row would have published `MainPID 0` beside "active (running
 `fleet-window.lock` question was already settled in this file — the lock's `Z` stamps were ET mislabeled,
 `04:55Z`-`07:00Z`, which places the `.35` boot inside its own window. Both facts came from the peer board
 verbatim in the final composition, which is the right home for them.
+
+## Hourly board tick, 2026-11-12 05:01 ET — a census overtaken three times, and one correction that survived
+
+This tick published board `d8feff83` over the peer's 04:12 composition, committed as `e891127`
+("Board: narrow the offload boot's end to a 27-minute interval"). It composed three times and was
+refused twice by the publish guard, both refusals correct and both named here rather than retried
+blind:
+
+- first composition on the `21:49` board was obsolete before it ran — a peer published `02:16`;
+- second composition on `842548d2` was refused (`on disk is sha256 da193f9cbecb, not the 842548d2
+  this board was composed from`) because the peer's `03:27` board landed first;
+- third composition on `da193f9c` was refused the same way when the peer's `04:12` board landed.
+
+What the tick actually measured, and what the board carried instead of its own prose: a six-node
+census at `06:33:47Z`–`06:33:51Z` (production serve on `.31`–`.34` on image id `3f4480818acb`,
+serve pids 287/317/304/310; `.35` carrying the GSQ-RCO llama.cpp boot started `05:36:00Z`), the
+pool at `06:42:04Z` (used `13,955,270,967,296 B`, hub 102 entries, 1017 index `stat -L` 7,470,294 B),
+and the campaign unit dead at `06:42:04Z`, `06:50:06Z` and `07:21:59Z` (`SubState=dead`,
+`Result=success`, `ExecMainExitTimestamp` `01:27:16 ET`). Every one of those facts reached the
+board through a peer's fresher composition, not through this tick's pen — the tick's own rows were
+superseded each time.
+
+The one claim that survived every rewrite, and the only thing this tick added to the board:
+
+**`.35`'s offload-guard boot ended inside `07:09:31Z`–`07:36:57Z`.** The board's landed row put the
+end *after* `07:36:57Z`. Falsifier: `.35:8000` answered `/v1/models` **200** as
+`ISTA-DASLab/DeepSeek-V4.1-Flash-1017-GSQ-RCO-Coder-GGUF` at `07:09:31Z`, and the `07:36:57Z` read of
+that node already reported `docker ps -aq` **0**, so the end cannot lie after the later stamp. A
+third read at `08:08:43Z` agreed: **no container at all** — so this is a teardown, not the
+keep-alive-with-dead-serve-child class — no `:8000` listener, `MemAvailable` back to
+`123,283,596 kB`. It was appended as a correction row, never a rewrite of the peer's.
+
+**Register state after that publish, for the next tick** (`e6fbb4de`, read `2026-11-12T05:0x`): 193
+tasks, 152 done, 32 queued, 7 blocked, **2 running, 2 claims** — `run-arm-appearance-window-300s` and
+`hermes-workstation-gc`, both by `sparkrun-session:tp4minus-20261111`. The board published on this
+tick still renders the earlier `2e220389` snapshot (151 done / 34 queued / 1 running), so its queue
+row is one revision behind by the time it landed; this paragraph is the current fact, per the
+ledger-not-board rule.
+
+**Two instrument defects in this tick's own probes, recorded so a later reader does not cite them.**
+(1) The first reused census script died on an unterminated quote and was replaced by a proven one;
+its `CMA` field is the only casualty and `CmaTotal/CmaFree 0/0` came from a separate working awk.
+(2) A `kho=off` count reported `0` on all six nodes and is wrong — the same command spelled plainly
+inside the working census reports `KHO=1` on all six; the zero came from a `\x27` escape that never
+reached `grep`, an instrument failure rather than a kernel change. The board's `kho=off 1` stands.
+
+**Push state: held, not pushed.** `push-gate.py` exits red on the committed tree at `9b2bda3` —
+`AGENTS.md:24` states **1694** tests while discovery over that same committed tree finds **1697**.
+The three numbers this defect shows at once are the discriminator: committed states 1694, committed
+tree discovers 1697, and this clone's worktree discovers **1701** because a peer is adding tests in
+it right now (`tests/test_llamacpp_offload.py` deleted-but-untracked, `tests/test_run_arm_tool.py`
+and `tests/test_queue_drip.py` modified). The gate's own repair, `tools/doc-census.py --fix`,
+discovery-runs over the **worktree**, so it would write 1701 into a file the gate then reads from
+`git archive HEAD` and rejects again — a fix that cannot go green, and stale within minutes. The
+count can only go green when the peer commits their test changes **and** the `AGENTS.md` total in
+one commit. `AGENTS.md` also carries that session's staged edit (1694 -> 1676, 72 -> 71 test
+modules), which is right for their worktree and wrong for the committed tree, so it is deliberately
+not swept from here. Both commits of this tick — the board (`e891127`) and this ledger entry — are
+therefore **local only**; the board is already live on `origin/main` through the push that raced it,
+and the ledger entry waits for the peer to close the red.
