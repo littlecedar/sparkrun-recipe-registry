@@ -29,7 +29,11 @@ that the next edit keeps the promise, so the properties are pinned here:
   the effective ceiling (`ReadinessCeiling`);
 * every booting row writes `image.txt`/`ARM_IMAGE_ID` from the container's own config sha,
   client or no client, and a missing id fails visibly instead of writing `unknown`
-  (`ImageCell`).
+  (`ImageCell`);
+* a boot whose workload id does not map back to a recipe and hosts is refused before any
+  instrument is armed, because `sparkrun logs <task id>` has no reader and the arm's own
+  evidence is unattributable (`MetadataMapGate`, executing the block against a stub
+  `sparkrun status`).
 
 Every assertion here needs its negative control: a copy with the stop line
 deleted, one with it indented, and one with the trap removed must each fail the
@@ -44,6 +48,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -164,7 +169,7 @@ class RunArmContract(unittest.TestCase):
         text = read_tool()
         self.assertIn('HOSTS=${2:-${ARM_NODE:-}}', text)
         self.assertIn("NODE=${HOSTS%%,*}", text)
-        self.assertEqual(text.count('-H "$HOSTS"'), 5, "every sparkrun call site must pass the pair")
+        self.assertEqual(text.count('-H "$HOSTS"'), 6, "every sparkrun call site must pass the pair")
         self.assertEqual(text.count('-H "$NODE"'), 0, "a leftover single-host site breaks TP=2")
 
     def test_serve_port_comes_from_the_recipe(self):
@@ -1766,6 +1771,8 @@ OOM_START = "# oom-watchdog: start"
 OOM_END = "# oom-watchdog: end"
 M_START = "# metrics-scrape: start"
 M_END = "# metrics-scrape: end"
+MM_START = "# metadata-map: start"
+MM_END = "# metadata-map: end"
 
 SSH_STUB = """#!/usr/bin/env bash
 host="${@: -2:1}"; host="${host#red@}"; cmd="${@: -1}"
@@ -1909,7 +1916,7 @@ class ExecutedBlock(unittest.TestCase):
 
     def run_block(self, body, hosts=("head.test",), files=None, recipe="runtime: vllm\n",
                   ready="yes", house=False, hub=True, hub_text=None, env_extra=None, timeout=60,
-                  receipt_extra=None):
+                  receipt_extra=None, path_prefix=None):
         files = files or {}
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
@@ -1946,8 +1953,10 @@ class ExecutedBlock(unittest.TestCase):
                 f"HOSTS={','.join(hosts)}\nTID=abc123\nRECIPE={recipe_path}\nready={ready}\n"
                 + body + "\necho NEXT\necho AGG=${M_AGG:-none}\n"
             )
-            run_env = {**os.environ, "PATH": f"{bins}:{os.environ['PATH']}", "NODES": str(nodes),
-                       "BINS": str(bins), "CURL_CALLS": str(calls), "HOME": str(home)}
+            run_env = {**os.environ,
+                       "PATH": f"{path_prefix + ':' if path_prefix else ''}{bins}:{os.environ['PATH']}",
+                       "NODES": str(nodes), "BINS": str(bins), "CURL_CALLS": str(calls),
+                       "HOME": str(home)}
             run_env.update(env_extra or {})
             out = subprocess.run(
                 ["bash", str(script)], capture_output=True, text=True, check=False, timeout=timeout,
@@ -3190,6 +3199,97 @@ exit 0
                         "an instrument is armed on the path a refusal must leave")
         self.assertLess(refusal, text.index("guard-arm: start"),
                         "the window guard is armed on the path a refusal must leave")
+
+
+def status_fixture(entries, rc: int = 0) -> str:
+    """A `sparkrun status --json` answer: the fixture's first line is the exit code."""
+    return f"{rc}\n" + json.dumps({"groups": {}, "solo_entries": entries})
+
+
+def solo_entry(meta: dict, workload_id: str = "sparkrun_abc123") -> dict:
+    return {"workload_id": workload_id, "meta": meta, "host": "head.test",
+            "status": "Up 3 minutes", "image": "sha256:0", "label": workload_id}
+
+
+class MetadataMapGate(ExecutedBlock):
+    """A boot the driver cannot map back to a recipe and hosts is not a measurement.
+
+    Measured 2026-11-12: `sparkrun_764ef61b64791742_f150788fcb9d` (TP=1 llama.cpp serve on one
+    node) was launched on the node itself, so its job record landed in that node's `$HOME`
+    (`orchestration/job_metadata.py:807`; the cache root is `Path.home()/".cache/sparkrun"`,
+    `core/config.py:29`). `sparkrun status` on the head and on the workstation still listed the
+    container -- the listing is live docker enumeration -- with `"meta": {}`, no recipe label,
+    and `sparkrun logs <id>` refused it at `api/_logs.py:748`. Everything this repo rests on
+    ("a causal claim must name its discriminator") needs that reader, so the gate refuses the
+    arm before the watchdog, the samplers, the extra client and the ladder.
+    """
+
+    MAPPED = {"recipe": "recipes/lane/arm.yaml", "runtime": "llama-cpp", "hosts": ["head.test"]}
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # The harness stubs `python3` (the port probe), and the gate parses the status JSON with
+        # it; a real interpreter in front of the stubs keeps this test about the verdict.
+        cls.pybin = Path(tempfile.mkdtemp(prefix="mapgate-py-"))
+        (cls.pybin / "python3").symlink_to(sys.executable)
+        cls.addClassCleanup(shutil.rmtree, cls.pybin, ignore_errors=True)
+
+    def block(self, mutant: bool = False) -> str:
+        body = block_region(read_tool(), MM_START, MM_END)
+        return body.replace("    exit 17\n", "    :\n") if mutant else body
+
+    def run_gate(self, fixture: str, mutant: bool = False):
+        return self.run_block(self.block(mutant), files={"?.sparkrun": fixture},
+                              path_prefix=str(self.pybin))
+
+    def test_a_mapped_workload_passes_and_its_receipt_names_the_recipe(self):
+        rc, out, files, _ = self.run_gate(status_fixture([solo_entry(self.MAPPED)]))
+        self.assertEqual(rc, 0, out)
+        self.assertIn("NEXT", out, "the gate ended an arm it should have passed")
+        self.assertIn("metadata-map: sparkrun_abc123 -> recipes/lane/arm.yaml on head.test via llama-cpp", out)
+        receipt = files["metadata-map.txt"]
+        self.assertIn("state=ok", receipt)
+        self.assertIn("recipe=recipes/lane/arm.yaml", receipt)
+        self.assertIn("hosts=head.test", receipt)
+
+    def test_every_unmapped_verdict_refuses_on_its_own_code(self):
+        cases = {
+            # The measured record: a container listed by docker labels, no recipe in any record
+            # the driver can see.
+            "record-has-no-recipe-or-runtime": status_fixture([solo_entry({})]),
+            "hosts-mismatch:other.test": status_fixture(
+                [solo_entry({**self.MAPPED, "hosts": ["other.test"]})]),
+            "workload-not-listed": status_fixture([]),
+            "status-output-unreadable": "0\nnot json at all\n",
+        }
+        for reason, fixture in cases.items():
+            with self.subTest(reason=reason):
+                rc, out, files, _ = self.run_gate(fixture)
+                self.assertEqual(rc, 17, out)
+                self.assertNotIn("NEXT", out, "the arm continued past an unmappable boot")
+                self.assertIn("ARM FAIL stub-arm", out)
+                self.assertIn("does not resolve back to a recipe and hosts", out)
+                receipt = files["metadata-map.txt"]
+                self.assertIn("state=not-resolved", receipt)
+                self.assertIn(f"reason={reason}", receipt)
+
+    def test_the_gate_runs_after_the_task_id_and_before_any_instrument(self):
+        text = read_tool()
+        self.assertGreater(text.index(MM_START), text.index('> "$L/task-id.txt"'),
+                           "the gate cannot name a task id it does not have yet")
+        self.assertLess(text.index(MM_END), text.index("# guard-arm: start"))
+        self.assertLess(text.index(MM_END), text.index("python3 tools/boot-watchdog.py"))
+        block = block_region(text, MM_START, MM_END)
+        self.assertIn('sparkrun stop "$TID"', block, "a refused boot is left serving")
+        self.assertIn("--cluster WOPR", block,
+                      "the record is read through the same cluster the launch used")
+
+    def test_a_gate_ignoring_the_record_passes_the_defect(self):
+        """The control: the verdict branch, not the arm's shape, is what refuses."""
+        rc, out, _, _ = self.run_gate(status_fixture([solo_entry({})]), mutant=True)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("NEXT", out)
 
 
 if __name__ == "__main__":

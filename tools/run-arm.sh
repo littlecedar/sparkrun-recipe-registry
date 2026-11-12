@@ -746,68 +746,6 @@ TID=${N#sparkrun_}; TID=${TID%_node_*}; TID=${TID%_solo}
 printf '%s\n' "$TID" > "$L/task-id.txt"
 echo "arm=$NAME container=$N task=$TID port=$PORT"
 
-# metadata-map: start
-# `sparkrun status` and `sparkrun logs <task id>` answer "which recipe, which hosts, which runtime"
-# from a job record the LAUNCHER wrote under its own cache root: `orchestration/job_metadata.py:807`
-# writes `{cache_dir}/jobs/<digest>.yaml`, `core/config.py:29` derives that root from `$HOME`, and
-# `api/_logs.py:748` is the reader that refuses without one. A launch that ran on another machine,
-# or under `HOME=$PWD/.local/sparkrun-home`, leaves the record over there; the container still
-# enumerates from its docker labels, so `sparkrun status` lists it with `meta: {}` and the workload
-# id maps back to no recipe, no hosts and no log reader. Measured 2026-11-12:
-# `sparkrun_764ef61b64791742_f150788fcb9d` booted on .35, record under .35's `$HOME`; head and
-# hermes both read `meta: {}` and `sparkrun logs <id>` answered "No job metadata". A boot nobody
-# can map back is not a measurement, so this refuses on its own code (17) before the watchdog, the
-# samplers, the extra client and the ladder. Reads the tool's own view, never the file directly:
-# the cache path is sparkrun's private detail (`job_metadata.py:1070`).
-MAP_TXT="$L/metadata-map.txt"
-map_out=$(sparkrun status -H "$HOSTS" --cluster WOPR --json 2>"$L/metadata-map.err")
-printf '%s\n' "$map_out" > "$L/metadata-map.json"
-map_verdict=$(printf '%s\n' "$map_out" | MAP_TID="sparkrun_$TID" MAP_HOSTS="$HOSTS" python3 -c '
-import json, os, sys
-tid = os.environ["MAP_TID"]
-want = sorted(h.strip() for h in os.environ["MAP_HOSTS"].split(",") if h.strip())
-raw = sys.stdin.read()
-at = raw.find("{")
-if at < 0:
-    print("status-output-unreadable"); raise SystemExit
-try:
-    doc = json.loads(raw[at:])
-except ValueError:
-    print("status-output-unreadable"); raise SystemExit
-metas = [e.get("meta") or {} for e in doc.get("solo_entries") or [] if e.get("workload_id") == tid]
-metas += [(g or {}).get("meta") or {} for cid, g in (doc.get("groups") or {}).items() if cid == tid]
-if not metas:
-    print("workload-not-listed"); raise SystemExit
-meta = metas[0]
-missing = [k for k in ("recipe", "runtime") if not meta.get(k)]
-if missing:
-    print("record-has-no-" + "-or-".join(missing)); raise SystemExit
-hosts = sorted(h for h in meta.get("hosts") or [])
-if hosts != want:
-    print("hosts-mismatch:%s" % (",".join(hosts) or "-")); raise SystemExit
-print("ok:%s:%s:%s" % (meta["recipe"], meta["runtime"], ",".join(hosts)))
-')
-case "$map_verdict" in
-  ok:*)
-    IFS=: read -r map_recipe map_runtime map_hosts <<< "${map_verdict#ok:}"
-    printf 'state=ok\ntid=sparkrun_%s\nrecipe=%s\nruntime=%s\nhosts=%s\n' \
-      "$TID" "$map_recipe" "$map_runtime" "$map_hosts" > "$MAP_TXT"
-    echo "metadata-map: sparkrun_$TID -> $map_recipe on $map_hosts via $map_runtime"
-    ;;
-  *)
-    printf 'state=not-resolved\ntid=sparkrun_%s\ncommand=sparkrun status -H %s --cluster WOPR --json\nreason=%s\n' \
-      "$TID" "$HOSTS" "${map_verdict:-empty}" > "$MAP_TXT"
-    sparkrun stop "$TID" >/dev/null 2>&1 || true
-    echo "ARM FAIL $NAME: workload sparkrun_$TID does not resolve back to a recipe and hosts from"
-    echo "  this driver (reason: ${map_verdict:-empty}). sparkrun keeps the job record under the"
-    echo "  launcher's own \$HOME, so a launch from another host or under an override HOME leaves"
-    echo "  it there and \`sparkrun logs $TID\` cannot read this boot: launch from the head with"
-    echo "  the real HOME. Evidence: $MAP_TXT, $L/metadata-map.json"
-    exit 17
-    ;;
-esac
-# metadata-map: end
-
 # guard-arm: start
 # The window's memory guard and its per-rank trigger writers, armed only for an arm that declared
 # a window (the campaign exports the row's `window` as ARM_WINDOW). This is the executor half of
