@@ -11285,3 +11285,35 @@ garbage-collect row queue"), so that commit's subject describes one queue row wh
 carries the tick's board. This tick's own `710436e` carries only the ledger append. Not amended and not
 force-pushed — rewriting a shared-head commit is worse than a subject that under-describes its content;
 recorded here so a later reader tracing `842548d2` finds the right commit.
+
+## Tick 2026-11-12 01:57 ET — board refresh (`05:57Z`–`06:03Z` census)
+
+Published through `task-queue.py publish` and landed as `070d3aa` — a board-only commit built in a
+throwaway index, because three peer paths (`QUESTIONS.md`, `TODO.md`, `queue.json`) already sat staged.
+Base was the peer's `01:46 ET` board (blob `7d99e267…`, 334 890 B, mtime `01:48:49 ET`) because a live
+peer had published after the committed `0451a1a4…`; `--expect-remote-sha` carried `0451a1a4…`. The first
+publish cited the wrong peer blob in its `publication` cell; a second publish on its own output corrected
+the sha rather than leaving a traceable error on the board.
+
+**Facts.** Production serve `.31`–`.34` unchanged (image id `3f4480818acb`, `running`+`healthy` since
+`01:34:30Z`, rank-0 serve pid 247723, `/v1/models` 200 as `deepseek-ai/DeepSeek-V4.1-Flash-1017`); `.30`'s
+nine `Created` leftovers gone, so it read 0 containers and 0 volumes; `.35` carried the tick's only
+research container (`sparkrun_764ef61b64791742_f150788fcb9d_solo`, image id `50359e0ae2ae`, up since
+`05:36:00Z`, the llama.cpp GSQ-RCO arm under `tp4minus-20261111`'s claim). Pool used
+`13,955,148,808,192 B` (`-30,291,263,488 B` on the base read), hub entries 102, 1017 index 7,470,294 B on
+both snapshots. Lease ledger 739 B, sha `69f613aa…`: zero leases plus one `fenced` record naming the
+production serve.
+
+**Two corrections this tick owes.** (1) Its window cell read "no `.local/fleet-window.lock` in this
+clone" and the tick then inferred fleet-wide absence — wrong as an inference. The head carried a 269 B
+lock (session `tp4minus-20261111`, mtime `00:15:16 ET`) that this clone never received, and by `02:2xZ`
+neither copy has one, so it was removed in between; the peer tick's `06:4xZ` read is what named it. A
+**LIKELY** cause of the clone's miss is a syncthing folder-ignore pattern configured outside the tree (no
+`.stignore` exists in either copy, so this is unproven). (2) The census had to move to addresses: from the
+head, the ssh alias entries for all six nodes fail host-key verification while the address probes answer
+in the same second — `head-mesh-cannot-reach-30` is now the whole mesh, named in the census cell instead
+of hidden in the probe.
+
+The register moved three times inside the cycle (`5fd23afd…` → `4780d2b4…` → `2e220389…`); each board
+cited the sha of the copy its two blocks were rendered from, and no `queue.json` hunk rode the commit.
+Superseded within minutes by `b57a1ef` and `2301b4c`, which carried the `.35` fact forward.
