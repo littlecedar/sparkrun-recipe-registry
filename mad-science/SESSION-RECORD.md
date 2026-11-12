@@ -11279,3 +11279,9 @@ a changed peer key is a fleet event, and the fix is `ssh-keygen -R <host>` on th
 one the artifact supports; the `Z` reading is the one a clock-comparing reader would enforce, and
 the 20-minute gap between the lock's mtime (`05:15Z`) and the boot it authorizes is the window
 being declared, not held.
+**Commit-side sweep, disclosed.** The `02:16 ET` board bytes (`842548d2`) did not land under a message
+about them: a peer committed the published worktree board in `2301b4c` ("Add a hermes workstation
+garbage-collect row queue"), so that commit's subject describes one queue row while its content also
+carries the tick's board. This tick's own `710436e` carries only the ledger append. Not amended and not
+force-pushed — rewriting a shared-head commit is worse than a subject that under-describes its content;
+recorded here so a later reader tracing `842548d2` finds the right commit.
