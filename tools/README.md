@@ -109,6 +109,22 @@ launches with `--cluster WOPR` and never falls back to an anonymous cluster — 
 weights out per node and measures a different arm. A host without the profile refuses by design,
 with its own code and a "not a launch host" message rather than a model-shaped one.
 
+**An arm whose workload id does not map back to a recipe is refused (rc=17).** `sparkrun status`
+and `sparkrun logs <task id>` read a job record the *launcher* wrote under its own cache root
+(`orchestration/job_metadata.py:807`; that root is `$HOME/.cache/sparkrun`, `core/config.py:29`),
+and `api/_logs.py:748` is the reader that refuses when no record is there. A launch performed on
+the node itself, or under the `HOME="$PWD/.local/sparkrun-home"` override, leaves the record over
+there: the container still enumerates from its docker labels, so `sparkrun status` lists it with
+`meta: {}` — no recipe, no hosts, no log reader — and the arm's own serve log cannot be read from
+the driver. Once the task id resolves, `run-arm.sh` runs
+`sparkrun status -H "$HOSTS" --cluster WOPR --json` and requires this workload's record to name
+the recipe, the runtime and exactly its hosts; otherwise it stops the task, writes
+`metadata-map.txt` (`state=not-resolved`, `reason=…`) with the raw JSON beside it, and exits 17
+before any instrument is armed. Measured 2026-11-12: `sparkrun_764ef61b64791742_f150788fcb9d`
+booted on one node **from that node**, record in its `$HOME`; the head and the workstation both
+read `"meta": {}` for it and `sparkrun logs <id>` answered "No job metadata". Launch from the
+head with the real `HOME` — the same place the `WOPR` profile lives.
+
 **Every arm receipt says who killed the serve.** After the launch, `run-arm.sh` reads each lease
 host's `journalctl -u earlyoom` over the arm's own window and writes `oom-watchdog.txt`: a
 `# oom_watchdog=<state> … cgroup_oom=<container> evidence=<journal line>` header plus one
