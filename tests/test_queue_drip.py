@@ -212,6 +212,46 @@ class Windows(unittest.TestCase):
                 drip.LOCK_PATHS = orig
         self.assertEqual(rc, 3, "a declared window must refuse, not plan")
 
+    def _lock(self, tmp: str, end: str) -> Path:
+        path = Path(tmp) / "fleet-window.lock"
+        path.write_text("session=s\nwindow-end=" + end + "\n", encoding="utf-8")
+        return path
+
+    def test_an_expired_window_still_refuses_and_says_stale(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lock = self._lock(tmp, "2026-11-12T02:00Z")
+            cfg = _config(tmp, "research:\n  - node-a\n")
+            orig = drip.LOCK_PATHS
+            drip.LOCK_PATHS = (lock,)
+            out = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(out):
+                    rc = drip.main(["--config", str(cfg),
+                                    "--state", str(Path(tmp) / "s.json"),
+                                    "--once", "--dry-run"])
+            finally:
+                drip.LOCK_PATHS = orig
+        self.assertEqual(rc, 3, "an expired declaration never frees the node")
+        self.assertIn("went STALE at its declared end 2026-11-12T02:00Z", out.getvalue())
+        self.assertIn("re-declare", out.getvalue())
+
+    def test_a_live_window_reads_declared_not_stale(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lock = self._lock(tmp, "2026-11-12T02:00Z")
+            state = drip.read_window(lock, now=1794430000.0)  # 2026-11-11T21:26Z
+        self.assertFalse(state.stale)
+        self.assertIn("until 2026-11-12T02:00Z", state.verdict)
+        self.assertNotIn("STALE", state.verdict)
+
+    def test_an_unparseable_window_reads_unparseable_not_free(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            lock = Path(tmp) / "fleet-window.lock"
+            lock.write_text("session: other; nodes: all\n", encoding="utf-8")
+            state = drip.read_window(lock)
+        self.assertFalse(state.stale)
+        self.assertIn("no parseable end", state.verdict)
+        self.assertIn("still hands off", state.verdict)
+
 
 class Ledger(unittest.TestCase):
     """The fleet lease ledger holds hosts the same way the declared-window lock it replaces did."""

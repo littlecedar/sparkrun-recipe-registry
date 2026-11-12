@@ -954,6 +954,9 @@ def status_campaign(root: Path) -> int:
     summary = ", ".join(f"{counts[status]} {status}" for status in
                         (PENDING, LEASED, MEASURED, FAILED, SKIPPED, BLOCKED) if counts[status])
     print(f"campaign {name}: {summary or 'no arms'}")
+    window = leases.Ledger(Path(fleet.default_repo_root()) / leases.LEDGER).window()
+    if window is not None:
+        print(f"window: {window.verdict}")
     for arm in order:
         record = arms[arm]
         reason = (record.get("last") or {}).get("reason", "")
@@ -1090,6 +1093,9 @@ def lease_command(args: argparse.Namespace) -> int:
                       f"at={fence.get('fenced_at') or '?'} "
                       f"task={serve.get('task_id') or '-'} "
                       f"image={serve.get('image_id') or '-'}")
+            window = ledger.window()
+            if window is not None:
+                print(f"window: {window.verdict}")
             print(f"{len(live)} live lease(s), {len(fences)} fence(s) in {ledger.path}")
             return 0
         if not args.holder or args.ttl is None:

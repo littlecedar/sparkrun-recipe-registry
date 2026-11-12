@@ -16,6 +16,9 @@ it must be explicit: an empty or unreadable `research:` list is an error, never 
 Four gates stand between a plan and a launch:
 
   * `.local/fleet-window.lock` — a declared window means hands off, no matter how idle a node looks.
+    Its `key=value` lines declare a `window-end`; a lock whose end has passed still holds every node
+    but its verdict says STALE and names the end, so an expired declaration cannot silently no-op the
+    drip, and a lock with no parseable end is reported unparseable rather than read as free.
     The legacy `.scratch/` path is still read: syncthing's `**/.scratch` ignore means a lock written
     there never leaves the clone that wrote it, which is how a window declared on the head was invisible
     to every other checkout (measured 2026-10-30).
@@ -61,7 +64,9 @@ import shlex
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 REPO = Path(__file__).resolve().parent.parent
 TOOL = REPO / "tools" / "next-arms.py"
@@ -258,6 +263,57 @@ def declared_window() -> Path | None:
     return next((p for p in LOCK_PATHS if p.exists()), None)
 
 
+class WindowState(NamedTuple):
+    """A declared-window lock as read: its path, its declared end, and what a reader must say."""
+    path: Path
+    end: str
+    stale: bool
+    verdict: str
+
+
+def _window_end(text: str) -> tuple[str, float | None]:
+    """The `window-end=` value as written and its epoch seconds, or ("", None) when none parses."""
+    for line in text.splitlines():
+        key, sep, value = line.partition("=")
+        if sep and key.strip().lower().replace("_", "-") == "window-end":
+            raw = value.strip().strip("\"'")
+            # A bare stamp is read as UTC, the way the windows themselves are declared.
+            stamp = raw[:-1] + "+00:00" if raw[-1:] in ("Z", "z") else raw
+            try:
+                parsed = datetime.fromisoformat(stamp)
+            except ValueError:
+                return raw, None
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return raw, parsed.timestamp()
+    return "", None
+
+
+def read_window(path: Path, now: float | None = None) -> WindowState:
+    """Read a lock's declared end without touching the file.
+
+    A lock whose declared end has passed still holds every rank -- a boot may be inside it -- but
+    its verdict says STALE and names the end, so an expired declaration cannot silently no-op the
+    fleet. A lock with no parseable end is named unparseable, never read as free. The format owner
+    is `campaign/sparkrun_campaign/leases.py`; this is a mirrored reader so the tool stays stdlib-only.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        text = ""
+    raw, end = _window_end(text)
+    if end is None:
+        why = f"window-end {raw!r} is not a timestamp" if raw else "no window-end= line"
+        return WindowState(path, raw, False,
+                           f"declared window {path} has no parseable end ({why}) -- unparseable "
+                           "declaration, still hands off; clear the file or re-declare the window")
+    if end <= (time.time() if now is None else now):
+        return WindowState(path, raw, True,
+                           f"declared window {path} went STALE at its declared end {raw} -- "
+                           "expired, still hands off; clear the file or re-declare the window")
+    return WindowState(path, raw, False, f"declared window {path} until {raw} -- hands off")
+
+
 def campaign_roots(env: Path, extra: list) -> list:
     """Every campaign root a pass must honour: `--campaign-root` first, then the head's env file.
 
@@ -400,7 +456,7 @@ def main(argv: list[str]) -> int:
     while True:
         declared = declared_window()
         if declared is not None:
-            print(f"drip: {declared} is present -- a window is declared, hands off")
+            print(f"drip: {read_window(declared).verdict}")
             return 3
         try:
             now = time.time()

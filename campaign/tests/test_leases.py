@@ -80,6 +80,51 @@ class LedgerCase(unittest.TestCase):
         record = self.ledger.acquire("session-a", ["n1", "n2"], ttl=600)
         self.assertEqual(record["hosts"], ["n1", "n2"])
 
+    def _stale_lock(self) -> None:
+        write(self.repo / ".local" / "fleet-window.lock",
+              "session=s\nwindow-end=1970-01-01T00:10:00Z\n")
+
+    def _live_lock(self) -> None:
+        write(self.repo / ".local" / "fleet-window.lock",
+              "session=s\nwindow-end=1970-01-01T01:00:00Z\n")
+
+    def test_a_live_window_reads_declared_not_stale(self) -> None:
+        self._live_lock()
+        state = self.ledger.window()
+        self.assertFalse(state.stale)
+        self.assertEqual(state.end, "1970-01-01T01:00:00Z")
+        held = self.ledger.held_hosts(["n1"])
+        self.assertNotIn("STALE", held["n1"])
+        self.assertIn("until 1970-01-01T01:00:00Z", held["n1"])
+
+    def test_an_unparseable_window_reads_unparseable_not_free(self) -> None:
+        write(self.repo / ".local" / "fleet-window.lock", "session ds4-kimi-fit .31-.34\n")
+        state = self.ledger.window()
+        self.assertFalse(state.stale)
+        self.assertIn("no parseable end", state.verdict)
+        self.assertEqual(set(self.ledger.held_hosts(["n1"])), {"n1"})
+
+    def test_lease_list_prints_the_stale_window_verdict(self) -> None:
+        self._stale_lock()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(director_module.main(
+                ["lease", "--list", "--repo-root", str(self.repo)]), 0)
+        self.assertIn("went STALE at its declared end 1970-01-01T00:10:00Z", out.getvalue())
+        self.assertIn("still hands off", out.getvalue())
+
+    def test_an_expired_window_still_holds_and_names_the_stale_end(self) -> None:
+        # Measured 2026-11-12 on the head: declared end 02:00Z, still "hands off" at ~07:00Z.
+        self._stale_lock()
+        held = self.ledger.held_hosts(["n1", "n2"])
+        self.assertEqual(set(held), {"n1", "n2"}, "an expired declaration still holds")
+        self.assertIn("STALE", held["n1"])
+        self.assertIn("1970-01-01T00:10:00Z", held["n1"])
+        self.assertIn("clear the file or re-declare", held["n1"])
+        with self.assertRaises(leases.LeaseError) as ctx:
+            self.ledger.acquire("session-b", ["n1"], ttl=600)
+        self.assertIn("STALE", str(ctx.exception))
+
     def test_a_fenced_rank_is_held_and_refused_even_by_a_takeover(self) -> None:
         write(self.repo / leases.LEDGER, json.dumps({
             "version": 1, "leases": [],

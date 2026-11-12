@@ -10,7 +10,10 @@ writers:
 * a **manual session** writes the same record through `director lease --hosts … --ttl …`, so the
   legacy `.local/fleet-window.lock` is no longer a second mechanism for a new window. The lock is
   still *honoured* -- as a blanket hold, the way `tools/queue-drip.py` reads it -- because a session
-  that wrote one has not moved to a lease yet, and two mechanisms that disagree is the defect.
+  that wrote one has not moved to a lease yet, and two mechanisms that disagree is the defect. Its
+  `key=value` lines declare a `window-end`: a lock past that end still holds every rank (a boot may be
+  inside it) but reads STALE in every verdict, and a lock with no parseable end reads unparseable,
+  never free.
 
 Why one file beside the director's state rather than inside it: `<CAMPAIGN_ROOT>/state.json` is one
 campaign's record, and the collision the ruling exists to stop is between *different* sessions. The
@@ -35,8 +38,9 @@ import json
 import os
 import time
 from collections.abc import Callable
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from .plan import PlanError
 from .state import write_json
@@ -45,6 +49,56 @@ from .state import write_json
 LEDGER = Path(".local") / "fleet-leases.json"
 #: The declared-window files a manual session used before this ledger. Honoured, not written.
 WINDOW_LOCKS = (Path(".local") / "fleet-window.lock", Path(".scratch") / "fleet-window.lock")
+
+
+class WindowState(NamedTuple):
+    """A declared-window lock as read: its path, its declared end, and what a reader must say."""
+    path: Path
+    end: str
+    stale: bool
+    verdict: str
+
+
+def _window_end(text: str) -> tuple[str, float | None]:
+    """The `window-end=` value as written and its epoch seconds, or ("", None) when none parses."""
+    for line in text.splitlines():
+        key, sep, value = line.partition("=")
+        if sep and key.strip().lower().replace("_", "-") == "window-end":
+            raw = value.strip().strip("\"'")
+            # A bare stamp is read as UTC, the way the windows themselves are declared.
+            stamp = raw[:-1] + "+00:00" if raw[-1:] in ("Z", "z") else raw
+            try:
+                parsed = datetime.fromisoformat(stamp)
+            except ValueError:
+                return raw, None
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return raw, parsed.timestamp()
+    return "", None
+
+
+def read_window(path: Path, now: float | None = None) -> WindowState:
+    """Read a lock's declared end without touching the file.
+
+    A lock whose declared end has passed still holds every rank -- a boot may be inside it -- but
+    its verdict says STALE and names the end, so an expired declaration cannot silently no-op the
+    fleet. A lock with no parseable end is named unparseable, never read as free.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        text = ""
+    raw, end = _window_end(text)
+    if end is None:
+        why = f"window-end {raw!r} is not a timestamp" if raw else "no window-end= line"
+        return WindowState(path, raw, False,
+                           f"declared window {path} has no parseable end ({why}) -- unparseable "
+                           "declaration, still hands off; clear the file or re-declare the window")
+    if end <= (time.time() if now is None else now):
+        return WindowState(path, raw, True,
+                           f"declared window {path} went STALE at its declared end {raw} -- "
+                           "expired, still hands off; clear the file or re-declare the window")
+    return WindowState(path, raw, False, f"declared window {path} until {raw} -- hands off")
 
 
 class LeaseError(RuntimeError):
@@ -66,6 +120,12 @@ class Ledger:
     def _window_lock(self) -> Path | None:
         return next((self.repo / relative for relative in WINDOW_LOCKS
                      if (self.repo / relative).exists()), None)
+
+    def window(self, now: float | None = None) -> WindowState | None:
+        """The declared-window lock this checkout honours, read, or None when none exists."""
+        path = self._window_lock()
+        return None if path is None else read_window(
+            path, self.clock() if now is None else now)
 
     def _read(self) -> dict[str, Any]:
         try:
@@ -117,10 +177,10 @@ class Ledger:
         it is asked about, which is how the legacy file reads today.
         """
         hosts = list(hosts)
-        window = self._window_lock()
-        if window is not None:
-            return {host: f"declared window {window}" for host in hosts}
         now = self.clock() if now is None else now
+        window = self.window(now)
+        if window is not None:
+            return {host: window.verdict for host in hosts}
         data = self._read()
         held = self._fence_holds(data, hosts)
         for lease in self._live(data, now):
@@ -178,9 +238,9 @@ class Ledger:
         hosts = [str(host) for host in hosts]
         if not hosts or len(set(hosts)) != len(hosts):
             raise LeaseError(f"one host cannot hold two ranks: {hosts!r}")
-        declared = self._window_lock()
+        declared = self.window()
         if declared is not None:
-            raise LeaseError(f"declared window {declared} is present; hands off")
+            raise LeaseError(declared.verdict)
         mine = (str(holder), tuple(sorted(hosts)), str(window))
         wanted = set(hosts)
 
