@@ -11286,34 +11286,26 @@ carries the tick's board. This tick's own `710436e` carries only the ledger appe
 force-pushed — rewriting a shared-head commit is worse than a subject that under-describes its content;
 recorded here so a later reader tracing `842548d2` finds the right commit.
 
-## Tick 2026-11-12 01:57 ET — board refresh (`05:57Z`–`06:03Z` census)
+## 2026-11-12 04:20 ET — hourly board tick, published nothing (publish guard refused)
 
-Published through `task-queue.py publish` and landed as `070d3aa` — a board-only commit built in a
-throwaway index, because three peer paths (`QUESTIONS.md`, `TODO.md`, `queue.json`) already sat staged.
-Base was the peer's `01:46 ET` board (blob `7d99e267…`, 334 890 B, mtime `01:48:49 ET`) because a live
-peer had published after the committed `0451a1a4…`; `--expect-remote-sha` carried `0451a1a4…`. The first
-publish cited the wrong peer blob in its `publication` cell; a second publish on its own output corrected
-the sha rather than leaving a traceable error on the board.
+Read-only tick, started 00:03 ET, ended at publish. **No board, no commit, no push from this session.**
+`task-queue.py publish` refused rc=1: a peer tick put a fresh `04:12 ET` board on disk (sha `9019b8e7`)
+after this tick's base read (`da193f9c`, the board on `origin/main` at `9d809d0`), so the composed board
+was discarded instead of written over theirs.
 
-**Facts.** Production serve `.31`–`.34` unchanged (image id `3f4480818acb`, `running`+`healthy` since
-`01:34:30Z`, rank-0 serve pid 247723, `/v1/models` 200 as `deepseek-ai/DeepSeek-V4.1-Flash-1017`); `.30`'s
-nine `Created` leftovers gone, so it read 0 containers and 0 volumes; `.35` carried the tick's only
-research container (`sparkrun_764ef61b64791742_f150788fcb9d_solo`, image id `50359e0ae2ae`, up since
-`05:36:00Z`, the llama.cpp GSQ-RCO arm under `tp4minus-20261111`'s claim). Pool used
-`13,955,148,808,192 B` (`-30,291,263,488 B` on the base read), hub entries 102, 1017 index 7,470,294 B on
-both snapshots. Lease ledger 739 B, sha `69f613aa…`: zero leases plus one `fenced` record naming the
-production serve.
+What it read, so the next tick does not repeat it (captures: `.scratch/tick-0003-3587724/`). Sweep
+`08:19:31Z`-`08:19:34Z` then `09:10:21Z`: production serve holds `.31`-`.34` (same task
+`b020d2dd178343a5_0abd7d020db4`, image id `3f4480818acb`, `/v1/models` 200), no research container on any
+node — `.35`'s llama.cpp boot (`sparkrun_764ef61b64791742_f150788fcb9d_solo`, upstream `6023692b1e13`)
+started `05:36:00Z`, answered 200 at `06:07:48Z`, was gone by `07:32:37Z`. `.30` reads 0 containers where
+the 21:49 board counted 9 `Created` leftovers. Pool at `09:10Z`: used `13,955,456,565,248 B`, hub 97
+`models--*` + 1 `datasets--*`. Register `e6fbb4de`: 193 tasks, 152 done, 32 queued, 7 blocked, 2 running,
+2 claims. Campaign unit **inactive** since `01:27:16 ET` (`MainPID` 0). Ledger file: `{"leases":[]}` plus
+the `.31`-`.34` production fence, sha `69f613aa`, byte-identical on clone and head.
 
-**Two corrections this tick owes.** (1) Its window cell read "no `.local/fleet-window.lock` in this
-clone" and the tick then inferred fleet-wide absence — wrong as an inference. The head carried a 269 B
-lock (session `tp4minus-20261111`, mtime `00:15:16 ET`) that this clone never received, and by `02:2xZ`
-neither copy has one, so it was removed in between; the peer tick's `06:4xZ` read is what named it. A
-**LIKELY** cause of the clone's miss is a syncthing folder-ignore pattern configured outside the tree (no
-`.stignore` exists in either copy, so this is unproven). (2) The census had to move to addresses: from the
-head, the ssh alias entries for all six nodes fail host-key verification while the address probes answer
-in the same second — `head-mesh-cannot-reach-30` is now the whole mesh, named in the census cell instead
-of hidden in the probe.
-
-The register moved three times inside the cycle (`5fd23afd…` → `4780d2b4…` → `2e220389…`); each board
-cited the sha of the copy its two blocks were rendered from, and no `queue.json` hunk rode the commit.
-Superseded within minutes by `b57a1ef` and `2301b4c`, which carried the `.35` fact forward.
+Two things this tick got wrong before the guard stopped it, recorded so they are not re-derived:
+`state.json` shrank to one token after the mtime, so a two-token stat regex returned `None` and the
+hand-built campaign row would have published `MainPID 0` beside "active (running)"; and the
+`fleet-window.lock` question was already settled in this file — the lock's `Z` stamps were ET mislabeled,
+`04:55Z`-`07:00Z`, which places the `.35` boot inside its own window. Both facts came from the peer board
+verbatim in the final composition, which is the right home for them.
