@@ -1,0 +1,71 @@
+recipe_version: "2"
+model: unsloth/Qwen3.8-Flash-Next-GGUF:UD-Q3_K_XL
+model_revision: f5d175de2cf7f720d45d6064019a81fcf056e986
+runtime: llama-cpp
+min_nodes: 1
+max_nodes: 1
+# llama.cpp `6023692` (2026-11-05): `src/llama-arch.cpp` at that commit maps
+# LLM_ARCH_QWEN4EXP to "qwen4exp", the arch this GGUF declares, so the loader exists in the
+# image. The `ghcr.io/` host is load-bearing: the bare `littlecedar/...` ref answers Docker Hub.
+container: ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b806cdc2acbbf57341d38e29dafe1e353b7b9f231e750becdbbb256a288
+description: >-
+  Qwen3.8-Flash-Next (125B LM, 6B active, plus the 51B n-gram embedding table) at Unsloth's
+  dynamic UD-Q3_K_XL tier on ONE DGX Spark through llama.cpp at TP=1: four shards totalling
+  89,464,948,506 B (83.32 GiB), the fourth being the bundled IQ4_NL n-gram table, so no separate
+  engram side file is downloaded. 48 layers (12 x Gated DeltaNet then Qwen Sparse Attention, 512
+  routed experts top-10), 12 full-attention layers x 2 KV heads x head_dim 256 = 24 KiB/token, so
+  the full 262,144 window costs 6.00 GiB. VIABILITY ARM: it exists to answer whether this tier
+  loads and serves on one node, not to clear a gate; UD-Q4_K_XL is rejected on arithmetic
+  (103.69 GiB weights + overhead + KV exceeds the 112.33-115.02 GiB measured free pool).
+metadata:
+  model_url: https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF
+  base_model: https://huggingface.co/Qwen/Qwen3.8-Flash-Next
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "180B"
+  # Mixed dynamic tier at ~3.7 bit/weight. Same call as the flint UD-Q3_K_XL arm: the accuracy
+  # checker has no dynamic-GGUF label, so int4 is the honest bit class.
+  model_dtype: int4
+  kv_dtype: fp16
+  tags: explore, reasoning, long_context, gguf
+  caveats: >-
+    Qwen Community License 1.0 (qwen-community-1.0), ungated. The 3-bit class is the unmeasured
+    risk here: no in-tree instrument has scored a UD-Q3_K_XL of this checkpoint, so this arm
+    measures load, memory and decode speed only. The MTP head ships as a separate file and is not
+    part of this arm; the engram/ catalog in the repo is a table-SWAP catalog, not required data.
+    MEASURED 2026-11-16 on .30 (receipt head:~/benchmarks/tp1-gguf-20261116/): TTR 145 s, decode
+    32.5-32.7 t/s at concurrency 1, full 262,144 window, ~95.6 GiB held of 116.2 GiB free. The GGUF
+    template preserves reasoning by default and the engine splits it into `reasoning_content`, so a
+    tight `max_tokens` returns empty `content` with `finish=length` — a client trap, not a dead serve.
+executor_config:
+  # The lane's llama.cpp images keep ENTRYPOINT ["/usr/local/bin/llama-server"], which would
+  # swallow sparkrun's appended `bash -c <command>`; clear it (lane-wide shape).
+  entrypoint: ""
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared shard-1 path, so the
+  # served id would be a cache path (-n hides this). --alias carries the client-visible id.
+  served_model_name: unsloth/Qwen3.8-Flash-Next-GGUF
+  ctx_size: 262144
+  parallel: 1
+  n_gpu_layers: 999
+  flash_attn: auto
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 20
+command: >
+  llama-server -m {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --n-gpu-layers {n_gpu_layers}
+  --flash-attn {flash_attn}
+  --temp {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --jinja
+  --no-webui
+  --cont-batching
+  --metrics
