@@ -334,7 +334,10 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
   | `rerank/qwen3-vl-reranker-2b-vllm-b12x.yaml` | `unpinned-model-revision`, `restated-managed-path` |
   | `rerank/qwen3-vl-reranker-8b-vllm-b12x.yaml` | `unpinned-model-revision`, `restated-managed-path` |
 
-  The nineteen `unpinned-model-revision` arms either pass the prepared path through `{model}` or serve
+  The 33 `unpinned-model-revision` arms — re-counted 2026-11-16 over the tracked tree with
+  `sparkrun recipe validate --strict` under `sparkrun` 0.4.3-alpha+g35b208a, in a run that printed 69
+  finding rows over 122 recipes, two more rows than the roster below carries — either pass the
+  prepared path through `{model}` or serve
   a model set baked into the image (`kokoro`), so the missing `--revision` does not select a
   different artifact;
   `unpinned-model-revision` is the known false positive the lanes document, not a boot risk
