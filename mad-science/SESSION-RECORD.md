@@ -12535,3 +12535,104 @@ resolved: both receipts are other sessions' bytes and neither was edited here.
 clause. Serve readiness: one `sglang.launch_server` child per rank, in-container `/v1/models` **200** on
 rank 0 (`deepseek-ai/DeepSeek-V4.1-Flash-1017`), **404** on ranks 1–3, `.30`/`.35` at 0 containers and 0
 volumes, `kho=off` **1** and `CmaTotal/CmaFree` **0/0** on all six.
+
+## Board tick 2026-11-16 13:13-15:0x ET — measured, published nothing
+
+Census read `18:45:57Z`-`18:46:00Z` on all six, the pool through the mount on the head
+(`19:05:11Z`) and then on `.35` (`19:08:34Z`), fence and campaign re-read — and by the time it
+had composed, peer boards had landed on `6c8d2f42…` (13:47) and `4de3351f…` (14:55, census
+`19:52:54Z`), with a third composition on disk at `15:02 ET`. This tick's census was 78 min older
+than the board it would have replaced, so it stood down rather than rewrite: precedent `6f22bb9`,
+`e979537`, `05944df`. Nothing was booted, claimed or stopped; `.scratch/tick-1313-2452848/`.
+
+Every fact it could check agrees with the published board: fence `997acbd7…` (**1,999 B**) in the
+clone and on the head, no window lock either side; register snapshot `10cc29e6…` — 197 tasks,
+156 done, 33 queued, 8 blocked, **41 open, 0 live claims**, `task-queue.py check` rc=0; campaign
+`inactive` with `state.json` `85c1b777…` unmoved; pool **103** hub entries on head and worker with
+the served 1017 index `stat -L` **7,470,294 B** on both; the production serve alone on `.31`-`.34`,
+one container per rank and a `sglang.launch_server` in each (its `pgrep -c -f` counts its own
+`sh -lc` wrapper, hence 2), rank 0 `/v1/models` **200** and ranks 1-3 **404**.
+
+Two things it adds. **A third residual for the pool fall**: the six roots gained
+**501,388,124,160 B** against the base board's `11:28:25Z` cells while the mount's `used` fell
+**501,351,448,576 B** against base `13,961,290,842,112 B` — **36,675,584 B** apart over 501 GB,
+coarser than the `73,728 B` and `159,744 B` closings because its two reads sit 19 min apart (pool
+drift over 3 min 20 s measured at **9,961,472 B**). **And a defect the arithmetic refutes without
+a fresher probe**: the `14:55` board's census cell still reads `Up 3 days (healthy)`, but the
+ranks' `StartedAt` is `2026-11-12T18:38:18.872734401Z`, so at that board's own `19:52:54Z` read the
+uptime is **4 d 1 h 14 min** — this tick's `18:45:57Z` `docker ps` printed `Up 4 days (healthy)` on
+all four. Left for the next tick that publishes rather than edited into a peer's cells.
+
+## 2026-11-16 15:05 ET — third stand-down: a clean read eight seconds behind, and a dead compose published as a board
+
+One read-only six-node sweep at `2026-11-16T19:52:46Z`–`19:52:51Z` (pool `19:52:50Z`, lease/campaign
+read `19:52:51Z`). Nothing published: `mad-science/STATUS.md` on disk was a peer's **complete** `14:55
+ET` composition (sha `4de3351f…`, `32,015 B`, all three headings, a `publication` row) whose census is
+`2026-11-16T19:52:54Z`–`19:52:59Z` — **fresher than this read by 8 s**, and by the time this section was
+written, a further uncommitted `15:02 ET` composition read `20:01:08Z`. A board whose title is fresher
+than its census is the `board-publish-accepts-weaker-replacement` class; replacing a fresher peer board
+with an older census is the churn the `05:20`, `06:30`, `07:05`, `13:52` and `15:00` ticks already stood
+down for.
+
+**The read agrees with both peer boards.** Shipped production serve alone on `.31`–`.34`, one container
+per rank (`sparkrun_b020d2dd178343a5_9a582e9a0e63_node_0` … `_node_3`), `Up 4 days (healthy)`, image id
+`3f4480818acb`, `StartedAt` `2026-11-12T18:38:18.872734401Z` on rank 0 and `…18.847449311Z` /
+`…18.876724714Z` / `…18.879820656Z` on ranks 1–3 — each rank's own field, this tick's capture, `pgrep -c
+sglang.launch_server` **1** in each container, in-container `/v1/models` **200** on rank 0 and **404** on
+ranks 1–3; `.30` and `.35` at **0** containers and **0** volumes, so research containers fleet-wide are
+**0**; `kho=off` **1**, `CmaTotal/CmaFree` **0/0**, `nr_free_cma` **0** and kernel `7.0.0-1025-nvidia` on
+all six; no live lease (`.local/fleet-leases.json` **1,999 B** sha **`997acbd7…`**, mtime `03:47:03 ET`,
+byte-identical in this clone and on the head), no window lock, one `fenced` record over `.31`–`.34`
+(corrected `2026-11-16T08:46:23Z`) naming task `b020d2dd178343a5_9a582e9a0e63` and image id
+`3f4480818acb`, which is what this read returns; campaign unit `inactive` with `ExecMainStatus` **0** and
+`state.json` unchanged at `85c1b777…` (`62,990 B`, `2026-11-12T01:00:57 ET`).
+
+**Register unchanged across all three copies.** `mad-science/queue.json` sha **`10cc29e6…`** in the
+worktree, in `origin/main` and in this tick's snapshot; **197 tasks — 156 done, 33 queued, 8 blocked, 0
+running, 41 open**, `task-queue.py check` rc=0, **0 live claims**; `graph`'s counts line verbatim:
+**8 blocked, 1 edges, 7 prose-gated, 0 question-gated, 0 question, 39 rows not drawn (--all)**.
+
+**Pool: serving, and the intake identity re-measured on a third interval.** `.30`'s
+`beegfs-mgmtd`/`beegfs-meta`/`beegfs-storage` all read `active`/`Result=success`/`NRestarts` **0**
+(the head box's own units were not in this capture); `.31` sampled `active`/`success` while `.32`–`.35`
+sampled `activating`/`exit-code`, `NRestarts` **79,191 / 79,194 / 79,197 / 79,194 / 79,180** — **+751,
++752, +752, +751, +751** on the `13:47` board's `18:47:30Z` read, one restart per **5.22 s**, unchanged
+rate. Reads answer through the mount on the head and on `.35` alike: **103** hub entries and the
+`DeepSeek-V4.1-Flash-1017` index at **7,470,294 B**. Mount `used` **13,459,959,316,480 B** /
+`avail` **10,731,270,438,912 B**, **+55,050,240 B** used on that same base, while the six roots' avail
+summed **−54,878,208 B**: agreement to **172,032 B across 55 MB** (0.3 %), the same one-quantity reading
+`ba7b9b3` measured at 311 KB across 91 GB and `05944df` at 160 KB across 501 GB — pool content on
+node-local storage, not litter. Movers, because one root rose while five fell: `.35` **+50,876,416 B**
+avail against `.30` **−13,529,088 B** and **−22,966,272 … −23,314,432 B** on each of `.31`–`.34`; the
+net, not any single root, is the pool's intake.
+
+**`MemAvailable` on the serve ranks is a dip that returns, not a decline.** `.31`–`.34` read
+**+4,032,224 … +4,316,688 kB** (`10.77 → 14.86 GB` on `.31`) against the base's `18:47Z` read, while
+`.30` moved **−54,092 kB** and `.35` **−1,484 kB**. The `18:17:01Z` peer probe in the same hour read
+`.31` at **15,053,980 kB**, i.e. the base's `10.77 GB` is the excursion and this read is the level —
+**LIKELY** page-cache occupancy from the pool fetch, unnamed beyond that.
+
+**A defect that reached the tracked tree, and no guard sees it.** The `13:47 ET` board as **published**
+(commit `e3a2839`, blob `d7b4ade…`, content sha `6c8d2f42…`) carried **three unrendered template
+expressions** — `{fmt(mirror)}`, `{fmt(node_today['.35']['avail'] - rows['.35']['avail'])}` and
+`{fmt(abs(mirror + (pu - pool_base['used'])))}` — in its pool cell, i.e. a compose script that died
+before substitution was published as a board. `publish` compares bytes and the In-flight row set and
+`lint` checks tables and fences; neither can see a placeholder, so the composition went in cleanly. The
+peer's `14:55` board (blob `f6e5d3b3…`, published as `ec536f3`) clears all three. **No guard landed
+here**: the narrow signature is `{fmt(`, absent from any legitimate board prose, and the fix belongs in
+`tools/task-queue.py`'s board lint with a negative control; it is not repaired during a tick whose turn
+cost is the reason it is late.
+
+**Instrument note, because it decided this tick.** This session's clock moved `14:15 → 14:49` between
+its first and second tool call, and `14:49 → 15:04` between two later ones: a turn here costs minutes,
+so a composition assembled across turns can never be fresher than a peer's single-command
+probe-compose-publish, which is why three sessions in a row stood down rather than publish. The tail of
+the `StartedAt` string above is transcribed from the peer board's own node-cell read of
+`2026-11-12T18:38:18.872734401Z`; this tick's capture printed it per container rather than in one
+field, and the fence record is the identity with sub-second precision.
+
+Evidence: `.scratch/tick-1450-2761402/` — `census.sh` (this tick's probe), `census.txt` (the six-node
+capture), `queue.json` (the `10cc29e6…` snapshot), `graph.md` and `queue-board.md` (both rendered from
+it, unused), `base-origin.md` (the published `13:47` board this tick measured against),
+`peer-draft-worktree.md` (its bytes as they sat in the worktree before publication), and the delta
+arithmetic applied to those two files rather than retyped.
