@@ -11573,3 +11573,51 @@ November is EST, so the offset is −5 and the board is stamped from `date -u -d
 itself was refused nothing — the lint caught it before the commit — but the second attempt needed
 `git checkout -- mad-science/STATUS.md` first, because the unrepublished composition on disk reads as peer
 lines dropped by the next `publish` (exit 3).
+
+## 2026-11-16 02:44 ET — second tick of the hour, published nothing: a peer's board landed first, and an independent sweep agrees
+
+This session ran the hourly census while a peer tick was composing the same hour and lost the race by
+two minutes: the peer's board reached disk at `02:29:58 ET` and was committed as `9955d27` (then
+`05fbec2`, `ecc5247`), so this tick composed a board and deliberately did not publish it. Composing over
+a fresher board would have replaced a `07:11:37Z`–`07:11:39Z` census with a `07:09:22Z`–`07:09:25Z` one
+and dropped the peer's bytes — the loss `--expect-sha` and `--expect-remote-sha` exist to prevent.
+Nothing was committed against `mad-science/STATUS.md` by this session.
+
+**What the independent sweep read (own capture, `2026-11-16T07:09:22Z`–`07:09:25Z`).** Production serve
+alone on `.31`–`.34`, one container per rank, image id `3f4480818acb`, `Up 3 days (healthy)`, container
+`StartedAt` `2026-11-12T18:38:18.872734401Z`; `/v1/models` from rank 0 answers 200 as
+`deepseek-ai/DeepSeek-V4.1-Flash-1017` (`max_model_len` 1048576) and `sglang.launch_server` answers on
+all four ranks. Zero research containers fleet-wide; `.30` and `.35` each read `docker ps -aq` 0 and 0
+volumes. Pool `df -B1` used **13,961,113,632,768 B** / avail **10,230,116,122,624 B**; head's three units
+`active` `Result=success` `NRestarts` 0, the five non-meta hosts still in the 5 s `beegfs-meta`
+`activating`/`exit-code` loop at `NRestarts` 70,402–70,416. All six nodes `uptime -s` `2026-11-11
+20:02:5x`, `kho=off` 1, `CmaTotal/CmaFree` 0/0, `nr_free_cma` 0 — so no reboot, and the RDMA-wedge fix
+still holds. Register snapshot `d26c62e3…` (194 tasks, 155 done / 31 queued / 8 blocked / 0 running, 39
+open, 0 claims); campaign unit `inactive`, `ExecMainStatus` 0, `state.json` unchanged at 62,990 B holding
+24 arms and 0 leases.
+
+**The fence's identity is the one fact both ticks found independently**, and the peer's board carries it:
+`.local/fleet-leases.json` (739 B, sha `69f613aa…`, unchanged since `2026-11-12 00:05:32 ET`) names task
+`b020d2dd178343a5_0abd7d020db4` started `2026-11-12T01:34:30Z`, while the containers actually serving
+are `b020d2dd178343a5_9a582e9a0e63` created `2026-11-12T18:38:18Z`. Same image, same four hosts, so the
+fence's protection still lands on the right ranks; its `task_id`/`started_at` describe a container that
+no longer exists. The register row `fleet-boot-without-lease-record` stays open either way, because a
+fence is not a lease.
+
+**One instrument disagreement, recorded rather than smoothed.** This tick's hub count was
+`find -maxdepth 1 -name 'models--*'` = **97**, which is not the predicate the boards' "hub entries 102"
+uses: a second re-count with a directory predicate read **102 dirs** = 97 `models--*` + 1 `datasets--*` + 4
+other (`mellum-mtp-head`, `dsv41-engram`, `.locks`, `blobs`) plus 1 file, while the 11-12 breakdown
+recorded 97 / 1 / 3 other. So the model-repo set is unchanged across the gap and the peer's
+"102 (unchanged)" is consistent within its own series; a 97-against-102 comparison would have invented a
+five-entry drop, which is why this tick wrote the breakdown instead. That older breakdown's own
+`103 dirs` headline does not reconcile with its 97 + 1 + 3 parts, and the arithmetic is still
+unexplained — it belongs to whoever next probes the hub, not to a board cell.
+
+**A landed-row composition was built and thrown away**, and its defects are worth naming so the next tick
+does not re-derive them: new rows prepended before the `| time ET | sha | what |` header leave the table
+header-less (the skill's rule is append at the bottom), and the `time ET` column is event time, not
+publish time — `1ac2458`/`c308a3f` landed `2026-11-12 10:42`/`10:46 ET` and must not be stamped with this
+hour. The `## Landed session` table also still reaches back to 11-08 with 891 rows inside a 344 KB board,
+so homing it at session granularity (the ledger already carries the 11-08 pool proof and the 13:13:38
+`state.json` read) remains open work rather than a per-row audit.
