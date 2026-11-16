@@ -12315,9 +12315,11 @@ independent quantities agree to **159,744 B** across 501 GB. Per node (avail): `
 The 13:47 entry's **501,595,766,784 B** is the same series sampled at this session's first pool read
 (`17:04:25Z`, used **13,459,695,075,328 B**, exactly base minus that figure): the pool then re-consumed
 **197,132,288 B** by `18:43:22Z`, which is the whole of the difference between the two sessions'
-numbers. This proves the freed bytes were pool content sitting on the ranks' roots; it does **not**
-name the deleter, and the 13:47 entry's `LIKELY something pruned cache content` stands as the only
-mechanism claim.
+numbers. This proves the freed bytes were pool content sitting on the ranks' roots. The deleter is
+named by the `14:49 ET` mechanism entry below — the pool's `sparkrun/` tree, **LIKELY** the approved
+runtime-cache GC, 592.8 GB reclaimed against a 732 GB plan — and this tick's pair is a second,
+independent residual for it: **159,744 B** against that entry's **147,456 B**, over a different
+sample interval.
 
 **Restart loop unmoved, and the base's `.34` exception was a one-sample transient.** `beegfs-meta`
 `NRestarts` at `16:29Z` → `18:43Z`: `.31` 76,851 → **78,392**, `.32` 76,854 → **78,395**, `.33`
@@ -12329,7 +12331,8 @@ that `.34` "now reports `active` `Result=success`" does not hold: both of this t
 **Two defects in the 13:47 composition, reported not edited** (its bytes are its author's): its census
 cell reads `Up 3 days (healthy)` for all four ranks, while `StartedAt` `2026-11-12T18:38:18Z` puts both
 that cell's own `18:47Z` read and this tick's `18:43Z` read past the four-day mark (`docker ps` here
-reads **`Up 4 days (healthy)`**), so the phrase looks carried from the base rather than read; and its
+reads **`Up 4 days (healthy)`**), so the phrase looks carried from the base rather than read — and the
+`13:52 ET` entry above copied it again, so the stale phrase is in two records now, not one; and its
 delta reads `443–443 min`, a range with one value.
 
 Readiness, units and register re-proved here and agree with the 13:52 entry, so not restated; what that
