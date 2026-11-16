@@ -335,16 +335,12 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
   | `rerank/qwen3-vl-reranker-2b-vllm-b12x.yaml` | `unpinned-model-revision`, `restated-managed-path` |
   | `rerank/qwen3-vl-reranker-8b-vllm-b12x.yaml` | `unpinned-model-revision`, `restated-managed-path` |
 
-  The 33 `unpinned-model-revision` arms — re-counted 2026-11-16 over the tracked tree with
-  `sparkrun recipe validate --strict` under `sparkrun` 0.4.3-alpha+g35b208a, in a run that printed 69
-  finding rows over 122 recipes, two more rows than the roster below carries — either pass the
-  prepared path through `{model}` or serve
-  a model set baked into the image (`kokoro`), so the missing `--revision` does not select a
-  different artifact;
-  `unpinned-model-revision` is the known false positive the lanes document, not a boot risk
-  (`sparkrun/core/validation.py:837-914`). Never edit a recipe merely to clear a `suggestion` (such as
-  deliberate `/cache/runtime` paths flagged `restated-managed-path`) or a documented, deliberate
-  warning.
+  The arms the roster above flags `unpinned-model-revision` either pass the prepared path through
+  `{model}` or serve a model set baked into the image (`kokoro`), so the missing `--revision` does
+  not select a different artifact; `unpinned-model-revision` is the known false positive the lanes
+  document, not a boot risk (`sparkrun/core/validation.py:837-914`). Never edit a recipe merely to
+  clear a `suggestion` (such as deliberate `/cache/runtime` paths flagged `restated-managed-path`)
+  or a documented, deliberate warning.
   The four embed/rerank pins added 2026-10-22 are the same class: `{model}` renders to the prepared
   snapshot there too, so the pin selects the bytes and the engine never resolves a ref.
 - `py_compile` leaves `__pycache__/`; the suite's own child processes may recreate it even under
