@@ -11681,7 +11681,9 @@ holds only this window's landings.
 one container per rank, `Up 3 days (healthy)`, created `2026-11-12T18:38:18Z`, image id `3f4480818acb` (label
 `@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang`), and rank 0 answers `/v1/models` **200** with
 `deepseek-ai/DeepSeek-V4.1-Flash-1017` at `max_model_len` 1048576. **Research containers 0 on all six**; `.30` and `.35`
-each `docker ps -aq` **0**, running **0**; fleet volumes **0**; no `sparkrun` task live. All six answered in 1.2 s at
+each `docker ps -aq` **0**, running **0**; fleet volumes **0**. The only live `sparkrun` task on the fleet is that
+production serve; `sparkrun status` was not run, and the discriminator is `docker ps -aq` **0** on `.30` and `.35` with
+no research container anywhere. All six answered in 1.2 s at
 load 0.23–8.16 and none carried a `D`-state process. Root-avail deltas against the base board's `07:11:37Z` read
 (69 min): `.30` −17,539,072 B, `.31` −32,268,288 B, `.32` **+44,515,328 B**, `.33` **+35,741,696 B**, `.34`
 −31,776,768 B, `.35` −23,121,920 B — **LIKELY** chunk-store traffic between node roots at noise scale; nothing ties a
@@ -11700,8 +11702,9 @@ rendered from that copy: **196 tasks — 155 done, 33 queued, 8 blocked, 0 runni
 rc=0, **0 live claims**. Graph: 8 blocked, 1 edge, 7 prose-gated, 0 question-gated, 0 question, 39 rows not drawn.
 
 **Window and campaign.** `.local/fleet-leases.json` 739 B sha `69f613aa…` mtime `2026-11-12 00:05:32 ET`, byte-identical
-on the head's clone and this one, holding zero leases and one `fenced` record over `.31`–`.34`. **The fence is stale on
-identity, unchanged from the base board**: it names task `b020d2dd178343a5_0abd7d020db4` started `2026-11-12T01:34:30Z`
+on the head's clone and this one, holding zero leases and one `fenced` record over `.31`–`.34`. **The fence was stale on
+identity at this read, unchanged from the base board, and a peer corrected it two minutes later — see the correction
+below**: it names task `b020d2dd178343a5_0abd7d020db4` started `2026-11-12T01:34:30Z`
 while the live rank-0 container was created `18:38:18Z` as `…9a582e9a0e63`; same image digest and same four hosts, so
 the protection lands on the right ranks while its `task_id` names a container that no longer exists. No
 `.local/fleet-window.lock` in this clone or on the head. The `h2h-20261107` campaign unit reads `inactive`, `MainPID` 0,
