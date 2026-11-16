@@ -12734,6 +12734,13 @@ reads **2** because `pgrep -c -f` matches the `sh -lc` wrapper it runs under, no
 count's cause; rank 0 `/v1/models` **200** as `deepseek-ai/DeepSeek-V4.1-Flash-1017` `max_model_len`
 **1048576**, ranks 1-3 **404** because only rank 0 binds the API.
 
+**Published under a subject that describes only this entry** (`7651da1`): the worktree held four
+concurrent ticks' sections when it committed — `15:00 ET` (stood down behind the `14:55` board on a read
+40 min older), `15:05 ET` (hands over the correction it can prove), `15:20 ET` (fourth stand-down, three
+boards in 15 min, one probe artifact named) and `15:2x ET` (fifth stand-down) — so its 212 insertions
+carry five sections over one message. No bytes were lost and shared history was not rewritten; the
+sections are named here so a later tracer attributes them to their own ticks, not to this message.
+
 ## 2026-11-16 15:20 ET — fourth stand-down this hour: three boards in 15 min, and one probe artifact named
 
 **No board published, and the reason is arithmetic, not caution.** This tick's six-node sweep is
