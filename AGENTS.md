@@ -13,10 +13,10 @@ suite total is derived the same way**: `SuiteTotal` in that same test module com
 total against `unittest.defaultTestLoader.discover("tests").countTestCases()` (under a second, no test
 executed) and fails naming the stale line, so the number cannot rot — `tools/doc-census.py --fix` derives
 and rewrites both statements from that same discovery; only its skip count needs a run,
-which is why that half carries a date. What only a run can know stays a *dated snapshot*: **2026-11-10
+which is why that half carries a date. What only a run can know stays a *dated snapshot*: **2026-11-16
 — every tracked recipe passes plain `validate`, and `--strict` prints exactly the roster below over
-the whole tracked tree (re-measured 2026-11-10, the date on this line: 122 tracked recipes scanned,
-69 of them printing a finding, 34 with a warning and the rest suggestions only; the LiquidAI arms
+the whole tracked tree (re-measured 2026-11-16, the date on this line: 125 tracked recipes scanned,
+70 of them printing a finding, 34 with a warning and the rest suggestions only; the LiquidAI arms
 still add no row, because an accuracy declaration belongs inside `metadata:` where
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
@@ -70,7 +70,7 @@ The guards that hold these are [Testing & QA](#testing--qa).
 
 ## Project Overview
 
-- **Recipes** (`recipes/`, 122 tracked recipe files in 12 family dirs) — v2 recipe definitions consumed by
+- **Recipes** (`recipes/`, 125 tracked recipe files in 12 family dirs) — v2 recipe definitions consumed by
   `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
 - **Mods** (`mods/`, 5 shared + `mod-template`; single-lane mods live in `recipes/<lane>/mods/`) —
   pre-launch container hooks that patch or stage files inside the serving image before the engine
@@ -105,7 +105,7 @@ Load-bearing contracts:
   (`sparkrun/core/recipe.py:1264-1270`), where only a by-name consumer reads it, and draws
   `misplaced-config-key` or `unknown-top-level-key` (`sparkrun/core/validation.py:1176-1272`). The full
   41-key rule set is in [`recipes/MECHANICS.md`](recipes/MECHANICS.md).
-- **`command:` is YAML folded `>`** (all 122 tracked recipe files). JSON-shaped defaults must keep their shell
+- **`command:` is YAML folded `>`** (all 125 tracked recipe files). JSON-shaped defaults must keep their shell
   quotes inside the fold — `limit_mm_per_prompt: >-` with `'{"image": 4, "video": 1}'` — or
   word-splitting hands the engine four arguments.
 - **`mods:` is an ordered dependency chain, not a set.** Recipe comments
@@ -256,7 +256,7 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
 
 - **Plain `validate` is the gate, not `--strict`**: every tracked recipe passes plain `validate`, and
   `--strict` prints exactly the findings in the roster below — it adds none of its own and only exits
-  non-zero on the rows whose findings include a `warning`. Re-measured 2026-11-10 over the current 122
+  non-zero on the rows whose findings include a `warning`. Re-measured 2026-11-16 over the current 125
   tracked recipes, so the snapshot was re-taken rather than
   adjusted: thirty-three rows carry `unpinned-model-revision` — the pin never reaches the engine as
   `--revision` — one carries `deprecated-topology` instead, and every other row carries suggestions
@@ -311,6 +311,7 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
   | `media/ltx-2.5-22b-nvfp4-t2v-comfyui-script.yaml` | `restated-managed-path` |
   | `media/phonon-31m-tts-cpu.yaml` | `recipe-metadata`, `restated-managed-path` |
   | `media/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml` | `restated-managed-path` |
+  | `media/viggle-remake-h3-lora-v2v-comfyui-script.yaml` | `restated-managed-path` |
   | `media/zz-minimax-h3-fl2va-t2va-sglang.yaml` | 3× `restated-managed-path` |
   | `media/zz-minimax-h3-fl2va-t2va-tp4-sglang.yaml` | 3× `restated-managed-path` |
   | `media/zz-pyannote-community-1-diarization-cpu.yaml` | `unpinned-model-revision`, `inline-script`, `restated-managed-path` |
