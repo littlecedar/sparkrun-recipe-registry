@@ -12820,3 +12820,40 @@ Compositions built and left uncommitted: `.scratch/tick-0703-686561/` — `probe
 unused `board.md`. This entry is committed through a throwaway index against `origin/main`, because the
 worktree copy of this file was overwritten twice by peers' in-progress entries mid-tick and a pathspec
 commit would have published their text under this message.
+
+## 2026-11-16 15:35 ET — stood down behind a census 1 h 53 m fresher, and a 501 GB pool fall separated from the GC batch that did not cause it
+
+**Nothing published; one register row added.** This tick read the six nodes at
+`2026-11-16T17:59:42Z`–`17:59:45Z` on the `08:08 ET` published base (`0149f13d…`, commit `055b491`),
+composed at `15:13 ET` in a throwaway clone of `origin/main` tip `bf59c0d` because this clone's
+worktree board held a peer's *uncommitted* composition (`6c8d2f42…`) and its HEAD was one commit ahead
+of the remote, so `publish` ran there (`rc=0`, `lint` ok) and its commit `e2d4fff` was **never
+pushed**: `origin/main` moved to `112f1f7` with a peer board whose census reads `19:52:54Z`–`19:52:59Z`,
+1 h 53 m fresher than this tick's read. The `--expect-remote-sha` gate named the move and the push was
+refused by an explicit byte comparison before any remote write, which is the mechanism working as
+designed, not a failure.
+
+**The finding the tick did land.** `df -B1 /mnt/beegfs` reads used `13,459,970,326,528 B` at
+`19:07:40Z`, which is `501,316,845,568 B` **below** the `13,961,287,172,096 B` the `06:39` board
+carried at `11:23:54Z`. It is not HF content vanishing: the hub *gained* a repo (102 → 103,
+`models--unsloth--Qwen3.8-Flash-Next-GGUF`, written 11:49–12:04Z), 98 `models--` entries stand, the
+served arm's snapshot index is `7,470,294 B` through the mount on both the head and `.35`, and no
+depth-2 pool tree moved since that read. The six roots' avail gains sum to `+501,461,008,384 B`, and
+`/srv/beegfs/storage` is on the same device as `/` on `.30`/`.31`/`.35` (`stat -c %d` equal), so a
+storage-target host's root reading carries pool chunk bytes. Cross-reading the peer register rows
+updated the same hour: cache-GC **batch 1** ran `2026-11-16T16:33:28Z` and deleted 52 items / 554.54 GB
+on `.30`–`.34` (`.30` 22.53, `.31` 96.38, `.32` 143.49, `.33` 143.68, `.34` 148.46 GB), which is what
+the root gains are; its own record leaves the **shared HF pool** for later and batch 2 on `.35`
+deleted nothing, so the pool's fall is *not* that batch. Register row `pool-content-fall-20261116`
+carries the measurement, the 47 unresolvable `hub` symlinks (no baseline in hand to date them) and
+the probes that would name the deletion. No mechanism is claimed.
+
+**Instrument notes.** (1) `ssh -n … 'bash -s' <<'EOS'` on the *outer* hop feeds `bash` an empty stdin
+and returns rc=0 with no output — the first census read 0 nodes that way; the outer hop must omit
+`-n`. (2) The address-hygiene red this tick hit at the pushed tip `bf59c0d`
+(`recipes/qwen4/README.md` naming the head machine and the `.31` alias) was fixed by the peer's own
+`112f1f7`, so the local mask commit was reset instead of pushed. (3) `task-queue.py render --board`
+takes `--file` at the *parent* level; `graph` accepts it after the subcommand, and both were checked
+to render the same register here. Captures: `/tmp/tick-1112-1834453/` — `census.sh`/`census.txt`,
+`probe.sh`/`probe.txt`, `repos.txt` (98 `models--` entries), `queue.json`, `graph.md`,
+`board-table.md`, `compose.py`, `board.md` (unpublished), `clone/` (the throwaway).

@@ -3183,6 +3183,21 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "pool-content-fall-20261116",
+      "title": "Pool used fell 501 GB in 6.5 h while every repo entry stayed: name the deletion",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "The six roots' avail gains are answered: they are cache-GC batch 1, run 2026-11-16T16:33:28Z (52 items / 554.54 GB on '.30'-'.34'; receipt '.scratch/gc-20261116/census.md' rev 3 Execution appendix; row runtime-cache-stale-tree-gc). The pool figure is NOT that batch: its own record leaves the shared HF pool for later and batch 2 on '.35' deleted nothing. What stays open is one question: df -B1 /mnt/beegfs used fell 501,316,845,568 B between the 11:23:54Z read the 06:39 board carried and 2026-11-16T19:07:40Z, while the hub GAINED a repo (102 -> 103, models--unsloth--Qwen3.8-Flash-Next-GGUF, written 11:49-12:04Z), 98 models-- entries stand, the served arm's snapshot index is 7,470,294 B through the mount on both the head and .35, and no depth-2 pool tree moved since that read (engine-cache trees triton-cache/vllm-cache/tilelang-cache/xet/flashinfer keep October mtimes). 47 symlinks under hub are unresolvable (find -mindepth 3 -maxdepth 7 -xtype l) with no baseline in hand to date them. /srv/beegfs/storage sits on the same device as / on .30/.31/.35 (stat -c %d equal), so a storage-target host's root reading carries pool chunks: check whether the GC's node-local deletes touched a tree that also backs a storage target, then du per pool tree and the BeeGFS trash/chunk accounting (beegfs-ctl is absent, see pool-target-probe-beegfs-ctl-absent).",
+      "provenance": "mad-science/STATUS.md 2026-11-16 14:59 ET pool row; tick captures /tmp/tick-1112-1834453/{census,probe}.txt",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
