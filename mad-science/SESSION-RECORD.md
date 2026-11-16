@@ -11915,3 +11915,141 @@ row, and the peer's `09:00:33Z` census notes the same fleet `39 min` after this 
 | 06:32 | `f8a1f25` | ledger: the board tick published nothing, and the register's claims closed |
 | 10:15 | `eb17adc` | media lane: idol arm stays blocked on the DINOv3 gate, not on the licence |
 | 02:29 | board refresh | census re-read and this table recomposed on it; the four-day gap between the base board and this read is named in every delta rather than smoothed |
+| 04:20 | `c6b31b2` | board tick on the `331ab824` base: the register row `campaign-state-copy-re-nests` is **falsified on this tree** — `h2h-20261107/tp12-window` is a symlink to `.`, so a recursive walk re-reaches the one root `state.json` (46 times, `find` counts 1) and the row's "40 byte-identical copies" is that walk, not copies; its cited sha `1c52f82b`/23 arms also predates the live `85c1b777`/24. Same tick closed the fence's stale identity (`997acbd7`, 1999 B, corrected `08:46:23Z`, live task `b020d2dd178343a5_9a582e9a0e63`) |
+
+## 2026-11-16 05:20 ET — hourly board tick: published nothing, because a peer composition sat on disk
+
+Fleet read-only; nothing claimed, booted, stopped or deleted.
+
+**Census, six nodes, `2026-11-16T10:19:59Z`** (one ssh per node, `bash -s` on stdin). The
+production serve alone on `.31`–`.34`: one container per rank
+(`sparkrun_b020d2dd178343a5_9a582e9a0e63_node_0` … `_node_3`), each `Up 3 days (healthy)` and
+created `2026-11-12T18:38:18Z`, rank 0's container id `a52dfd234d10`, image id `3f4480818acb`
+(digest `sha256:3f4480818acb…a4d5`), and every rank's container runs its `sglang.launch_server`
+child (pgrep count 2). Rank 0 answers `/v1/models` **200** with
+`deepseek-ai/DeepSeek-V4.1-Flash-1017` at `max_model_len` 1048576. `.30` and `.35` carry
+`docker ps -aq` **0** and volumes **0**; fleet volumes **0**; so **research containers 0** and the
+serve is excluded from research accounting per the 2026-10-28 owner directive. All six run kernel
+`7.0.0-1025-nvidia` with `kho=off` **1**, `CmaTotal/CmaFree` **0/0**, `nr_free_cma` **0**.
+
+Root-avail deltas against the peer board's `10:13:50Z` read (6.2 min): `.30` −561,152 B, `.31`
+−614,400 B, `.32` −8,966,144 B, `.33` −8,962,048 B, `.34` −8,957,952 B, `.35` −573,440 B. The
+three ranks `.32`–`.34` fell by the same ~8.96 MB while the other three fell under 1 MB;
+**LIKELY** rank-side serve writes at that window, and nothing ties a process or an inode to it.
+`MemAvailable` moved at or below 173 MB on every node.
+
+**Pool** at `2026-11-16T10:35:36Z`, read on the head with `df -B1` on the mount (never the mount's
+own `ls` — a dead BeeGFS mount hangs in `D`): used **13,961,259,909,120 B**, avail
+**10,229,969,846,272 B**, total **24,191,229,755,392 B**, so used **+64,487,424 B** over the 21.8
+min since the peer's `10:13:50Z` read. 102 entries in `huggingface/hub`, and `stat -L` answers
+**7,470,294 B** for the 1017 body's `model.safetensors.index.json` on both snapshot revisions
+(`08c8657f…`, `1bae0e10…`). Head's `beegfs-mgmtd`/`beegfs-meta`/`beegfs-storage` read `active`
+`Result=success` `NRestarts` **0**; `.31`–`.35` keep the known 5 s `beegfs-meta`
+`activating`/`exit-code` loop at `NRestarts` **72,603** / **72,607** / **72,608** / **72,607** /
+**72,594** — **+913** each on the 04:26 board, the loop's own growth, no new failure.
+
+**Register** `mad-science/queue.json` sha256 **`9c62a1f3…`**, unchanged since the 03:39 ET board;
+snapshotted into this tick's private dir and both blocks rendered from the copy.
+`task-queue.py check` prints `ok: 196 task(s)`; 155 done, 33 queued, 8 blocked, 0 running — **41
+open**, 0 live claims, 0 questions. Graph counts line **8 blocked, 1 edges, 7 prose-gated, 0
+question-gated, 0 question, 39 rows not drawn (--all)**.
+
+**Claims**: `.local/fleet-leases.json` **1,999 B** sha **`997acbd7…`** mtime `03:47:03 ET`,
+`leases: []` — no live lease; one `fenced` record naming the live task, corrected
+`08:46:23Z`. No `.local/fleet-window.lock`.
+
+**Campaign** `h2h-20261107`, read **on the head** (this workstation carries no such unit — a probe
+here answers `inactive` for a unit that does not exist, which is why the head is the only valid
+place to read it): `sparkrun-campaign` **inactive**, `MainPID` **0**, `ExecMainStatus` **0**,
+`Result` **success**, `FragmentPath` `/home/red/.config/systemd/user/sparkrun-campaign.service`;
+`state.json` **62,990 B** mtime `2026-11-12 01:00` sha **`85c1b777…`**, unchanged. `tp12-window`
+is a symlink to `.`.
+
+**Why this tick published nothing.** The disk board was a peer's `05:43 ET` composition —
+uncommitted, `lint` rc=0, carrying its own `10:13:50Z` census plus probes this tick did not run
+(each rank's in-container probe, a worker-side pool read) — while the published board was
+`05:17 ET` (`f5de07c`, content sha `f77b8a41…`) with a `09:11Z` census. Composing from `f5de07c`
+and publishing this tick's six-minutes-fresher numbers would have replaced that row set with a
+weaker one, the `board-publish-accepts-weaker-replacement` class, so the fresher numbers are
+recorded here instead and the board keeps its peer's content. The peer landed `cf805b7` (ledger
+scope) mid-tick, so `origin/main` was `cf805b7` at the end of this read.
+
+**Instrument note.** The first census attempt used `ssh -n <host> bash -s < script.sh`; `-n` points
+the remote stdin at `/dev/null`, so every node returned 0 bytes and exit 0 — six silent empties.
+Dropping `-n` produced 21–22 lines per node. This is the documented outer-hop trap, hit again.
+
+**Not this session's work, seen in flight:** untracked `recipes/explore/twil-8b-bf16-reasoning-sglang.yaml`
+and `recipes/media/mods/viggle-remake-launcher/`, plus uncommitted `recipes/MECHANICS.md` and
+`.idea/modules.xml` edits.
+
+## 2026-11-16 06:20 ET — hourly board tick: published nothing, and a second sweep corroborates the stranded one
+
+Read-only tick that wrote no board. Its base read was the `04:26 ET` board (content sha256 `dc4a43e7…`,
+blob `2992455c…`, tip `e0071c4`); every later read in this close-out is the tick's own.
+
+**Census, one six-node sweep at `2026-11-16T10:21:27Z`** (all six answered within the same second),
+`81 min` after that base's own `09:00:36Z` read. Shipped production serve alone on `.31`–`.34`: one
+container per rank (`sparkrun_b020d2dd178343a5_9a582e9a0e63_node_0` … `_node_3`), each `Up 3 days
+(healthy)`, created `2026-11-12T18:38:18Z`, image id `3f4480818acb`, `RestartCount` **0**, and
+`pgrep -c sglang.launch_server` reads **2** inside each. `/v1/models` from rank 0 answers **200** at
+`10:29:23Z` naming `deepseek-ai/DeepSeek-V4.1-Flash-1017` (`max_model_len` 1048576). **Research
+containers: 0** — `.30` and `.35` each read `docker ps -aq` **0**, running **0**, volumes **0**, and the
+fleet's four containers are all the fenced production serve. All six carry kernel `7.0.0-1025-nvidia`,
+`kho=off` **1**, `CmaTotal/CmaFree` **0/0**, `nr_free_cma` **0**.
+
+**Root and memory, delta on the base's `09:00:36Z` read** (avail / `MemAvailable`):
+`.30` −18,665,472 B / −28,460 kB; `.31` −33,406,976 B / −27,616 kB; `.32` −24,506,368 B / +65,268 kB;
+`.33` −24,506,368 B / +60,720 kB; `.34` −24,502,272 B / +126,740 kB; `.35` **+51,027,968 B** / +57,640 kB.
+`.35` is the fleet's only gainer and the only idle node that also freed memory; the near-equal rank
+deltas are carried as measured, and `.32`/`.33` moving by an identical `24,506,368 B` is **not**
+explained by this tick — the mechanism stays unnamed rather than inferred (LIKELY cache chunk traffic
+over node roots, the class earlier ticks named, but no inode or process ties these two windows).
+
+**Pool, `df -B1` on the mount at `10:29:23Z`**: used **13,961,256,239,104 B**, avail
+**10,229,973,516,288 B**, total **24,191,229,755,392 B** — used **+105,906,176 B** on the base read,
+`88.8 min`, the same tens-of-MiB-per-hour regime. Reads answer through the mount: hub entries **102**,
+`stat -L` on the shipped Kolibri-1 snapshot file returns **3,156,374,416 B** with its
+`2026-10-13 08:57:47 -0400` mtime. Head's `beegfs-mgmtd`/`beegfs-meta`/`beegfs-storage` read `active`
+`Result=success` `NRestarts` **0**; the other five keep the known 5 s `beegfs-meta` `activating`/
+`exit-code` loop — `NRestarts` `.31` **72620**, `.32` **72623**, `.33` **72625**, `.34` **72624**,
+`.35` **72610**, +930 on `.31` in `81 min` (one restart per 5.22 s), loop's own growth, no new failure.
+
+**Leases**: `.local/fleet-leases.json` **1,999 B**, sha **`997acbd7…`**, mtime
+`2026-11-16 03:47:03.588 ET` — **0 live leases**, one `fenced` record over `.31`–`.34` whose `serve`
+block names this live boot (`task_id` `b020d2dd178343a5_9a582e9a0e63`, `image_id` `3f4480818acb`,
+`started_at` `2026-11-12T18:38:18.872734401Z`, `health` healthy) and whose `corrected_at`
+`2026-11-16T08:46:23Z` / `corrected_by` `session fleet-gc-census (census only, no container touched)`
+close the stale `previous_task_id` `b020d2dd178343a5_0abd7d020db4`; `hosts`, `reason`, `fenced_by`,
+`fenced_at` (`2026-11-12T05:05:32Z`) unchanged. No `.local/fleet-window.lock` in this clone or on the
+head. **Campaign** `h2h-20261107` user unit **inactive**, `ExecMainPID` **2616**, `ExecMainStatus` **0**,
+`Result` **success**, `ExecMainExitTimestamp` `Thu 2026-11-12 01:27:16 EST`, `NRestarts` **0**;
+`state.json` **62,990 B** at `2026-11-12 01:00:57 ET`, sha **`85c1b777…`**, **24 arms**, and
+`find -name state.json` under the campaign root returns **1** file — the `tp12-window → .` symlink loop
+is re-confirmed, so the register row `campaign-state-copy-re-nests` still does not hold on this tree.
+
+**Register** `mad-science/queue.json` sha256 **`9c62a1f3…`** — byte-identical to the snapshot both
+queue blocks were rendered from, and unchanged from the base board's own read. **196 tasks: 155 done,
+33 queued, 8 blocked, 0 running — 41 open**, `task-queue.py check` rc=0, **0 live claims**,
+**0 questions**; graph's counts line **8 blocked, 1 edges, 7 prose-gated, 0 question-gated, 0 question,
+39 rows not drawn (--all)**.
+
+**Why no board was written.** Composition began on the `04:26 ET` base, but by the first publish
+attempt the worktree board held a peer tick's uncommitted composition (title `05:43 ET`, disk sha
+`861ce82d…`, census `10:13:50Z`), its author still running among the four ticks that started at
+`05:00`. Publishing then would have named those uncommitted bytes as `--expect-sha` and replaced a live
+peer's row set, which is the clobber the guard exists to prevent; the newest *published* base on
+`origin/main` was meanwhile the `05:17 ET` board (blob `f74be0fe…`). So this tick wrote nothing to
+`mad-science/STATUS.md` and contributed its read here instead.
+
+**What the second sweep is worth**: the stranded composition's own six-node census (`10:13:50Z`) and
+this tick's (`10:21:27Z`) are independent reads of the same idle fleet, and they agree on every node —
+root avail differs by **+724,992 B / +794,624 B / +9,134,080 B / +9,134,080 B / +9,125,888 B /
++737,280 B** (earlier read shows more, in node order `.30`–`.35`), `MemAvailable` by `−18,784` …
+`+108,188 kB`. Two reads `7.6 min` apart landing within ~9 MB on 1.2–1.8 TB roots is corroboration, not
+a contradiction: the fleet state that composition carries is real and nothing in it is stale.
+
+**Coordination defect worth naming**: at `06:06 ET` four ticks from the `05:00` batch were still alive
+with a fifth batch started at `06:00`, all composing the same board. The publish guards keep them from
+clobbering each other, but they make each tick's composition race a base that a peer replaces, and this
+one's only safe outcome was silence. One tick per hour, or a lease on board composition, is the fix;
+nothing in this tick changed the guards.
