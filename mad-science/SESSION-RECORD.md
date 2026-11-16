@@ -12297,7 +12297,7 @@ open**, `check` rc=0, **0 live claims**; graph `8 blocked, 1 edges, 7 prose-gate
 published snapshot carries. Evidence: `.scratch/tick-1054/` (`census.txt`, `census2.txt`, `node.sh`,
 `pool.sh`, `base-0808.md`, `queue2.json`, `graph.md`, `queue-board.md`).
 
-## 2026-11-16 14:49 ET — board tick stood down behind the 13:47 composition; its unattributed pool fall closes to an identity
+## 2026-11-16 14:49 ET — same stand-down as the 13:52 entry; only the identity and two defects below are new
 
 Own fresh read over all six at `18:43:19Z`–`18:43:21Z` (pool `18:43:22Z`), taken as this tick's census,
 found the 13:47 tick's composition already on disk with a `18:47:26Z` census — four minutes fresher and
@@ -12332,16 +12332,109 @@ that cell's own `18:47Z` read and this tick's `18:43Z` read past the four-day ma
 reads **`Up 4 days (healthy)`**), so the phrase looks carried from the base rather than read; and its
 delta reads `443–443 min`, a range with one value.
 
-Readiness re-proved this tick, for the record: one `sglang.launch_server` per rank (`pgrep -af
-'launch_serve[r]'` gives pids 278/323/317/312 on `.31`–`.34`, `--node-rank 0..3`, tp 4, DSPARK block 5,
-`context-length 1048576`), in-container `/v1/models` **200** on rank 0 and **404** on ranks 1–3, all
-four on image `3f4480818acb`; `.30` and `.35` read `docker ps -aq` 0, volumes 0 fleet-wide; campaign
-unit inactive since `2026-11-12 01:27:16 ET` with `state.json` byte-identical (`85c1b777…`, 13 blocked
-/ 10 measured / 1 pending, 0 leases) and **one** `state.json` under the root, so register row
-`campaign-state-copy-re-nests` still does not hold on this tree; leases `997acbd7…` 1,999 B in both
-clones, no window lock. Evidence: `.scratch/tick-1112/` (`census2.txt`, `head2.txt`, `ranks2.txt`,
-`queue.json` at `10cc29e6…`, `graph.txt`, `board-table.txt`, probe scripts).
+Readiness, units and register re-proved here and agree with the 13:52 entry, so not restated; what that
+entry does not carry: `state.json` under `/home/red/benchmarks/h2h-20261107` is **one** file, not the
+forty nested copies register row `campaign-state-copy-re-nests` claims, so that row still does not hold
+on this tree. Evidence: `.scratch/tick-1112/` (`census2.txt`, `head2.txt`, `ranks2.txt`, `queue.json` at
+`10cc29e6…`, `graph.txt`, `board-table.txt`, probe scripts).
 
-**Push owed.** Nothing here was pushed: `origin/main` sat at `d03d519` while this clone held nine
-unpushed commits (`e79b489`, `dcf98a2`, `055b491`, `276c149`, `10ed155`, `ba7b9b3`, `07485e0`,
-`e2ef062`, `417ad7e`, `bf59c0d`), i.e. the published board on the remote was still `06:39`.
+**The push that entry records as owed is now closed by its author**, not by this session:
+`origin/main` advanced to `2865aa2` at `14:34`, which is this clone's `HEAD`, so the published board is
+no longer the `06:39` one.
+
+## 2026-11-16 14:49 ET — the half-terabyte the 13:47 board could not name: the pool's `sparkrun/` tree is gone
+
+The `13:47 ET` board's pool cell says the mount's used space "FELL by half a terabyte this window and
+this tick cannot name what went." It can be named, and the naming is arithmetic plus one listing.
+
+Three read-only sweeps of the same fleet inside one tick (`.scratch/tick-0701-0707-22551/`,
+`census.out`, `census2.out`, `census3.out`; each capture parsed by `compose.py`, no value retyped):
+
+| read | pool used | pool avail | hub entries |
+|---|---|---|---|
+| `12:08:07Z` | `14,052,439,883,776 B` | `10,138,789,871,616 B` | 103 |
+| `13:33:28Z` | `14,052,623,908,864 B` | `10,138,605,846,528 B` | 103 |
+| `18:34:02Z` | `13,459,868,614,656 B` | `10,731,361,140,736 B` | 103 |
+
+Between `13:33:28Z` and `18:34:02Z` the pool's used fell **592,755,294,208 B**, while the six roots'
+avail rose **592,755,146,752 B** — a residual of **147,456 B**. That identity is the one the ledger
+already bought on 2026-11-07 ("the 18.7 GB fleet-wide disk mystery was the pool's own traffic") and
+that peer commit `ba7b9b3` measured for the intake direction: BeeGFS stripes chunks onto the storage
+hosts' own disks, so a pool write is a node-root fall and a pool deletion is a node-root gain.
+
+**What left is not HF cache.** The hub reads **103** entries at all three reads, and
+`models--unsloth--Qwen3.8-Flash-Next-GGUF` is intact at `91,276,498,432 B` (UD-Q3_K_XL in four
+shards summing `89,464,948,506 B`, written `06:49`–`07:04 ET` — the body `e79b489` ships as
+`zz-qwen3.8-flash-next-ud-q3k-xl-llamacpp.yaml`).
+
+**What left is the `sparkrun/` tree.** On the head, `ls -1d /mnt/beegfs/*` now lists **only**
+`/mnt/beegfs/huggingface`, and `/mnt/beegfs/sparkrun/runtime-cache` answers **0** entries. Every
+runtime tree the mods stage into — `${WOPR_USER_CACHE}/sparkrun/runtime-cache/<runtime>/<model_dir>`,
+the per-boot `modlogs/`, the whole unit — is gone from the shared pool. **LIKELY** the owner-approved
+runtime-cache GC (register row `runtime-cache-stale-tree-gc`, whose note read "APPROVED BUT NEVER
+RUN … 732 GB planned, never executed") ran inside this window: 592.8 GB reclaimed against a 732 GB
+plan, and the *actor* is inferred from the tree's absence plus the approved plan, not observed in a
+process listing (`ps` showed no `rm`/`hf cache`/GC process at `18:34Z`, so the deletion had already
+finished). Two consequences worth carrying: the next boot of any recipe re-runs every `pre_exec` mod
+against an empty runtime cache (mod time, not a failure), and `.local/fleet-leases.json` still holds
+no lease for the deletion — the GC row should be closed with this before/after pair as its evidence.
+
+**Nothing was published by this tick, deliberately.** Composed over the peer's `08:08 ET` board
+(`055b491`, content sha `0149f13d…`), `publish` refused with
+`refusing publish: mad-science/STATUS.md on disk is sha256 6c8d2f42c38c, not the 0149f13d4b9d this
+board was composed from` — a second peer composition (`13:47 ET`) had landed while this tick
+measured, and it already carries a fresher census (`18:47:26Z`) than this tick's `18:33:59Z`. The
+refusal is the guard working: replacing their rows with mine would have dropped facts that exist in
+no commit and no copy. The pool cell this note exists to supply:
+
+> **`.34`'s `beegfs-meta` flaps** — the `08:08` board read it `active` `Result=success` at
+> `NRestarts` 73,395, and the `13:33:24Z` read has it back in the 5 s loop at 74,832, so neither a
+> single `active` nor a single `activating` read describes it. The `06:39` board's `pgrep -c
+> sglang.launch_server` **2** and this tick's `docker top` piped through `grep -c` **1** count
+> different things, so the rank cells should name the instrument rather than read as a lost child.
+> The head's own `localhost:8000` answers **000** (nothing listens there); readiness is the fence
+> endpoint, probed directly, **200** as `deepseek-ai/DeepSeek-V4.1-Flash-1017` (max_model_len
+> 1048576).
+
+Evidence: `.scratch/tick-0701-0707-22551/` (`census.out` `12:08Z`, `census2.out` `13:33Z`,
+`census3.out` `18:34Z`, `queue3.json` at `10cc29e6…`, `graph3.md`, `queue-table3.md`, `compose.py`,
+`base3-disk.md` = `0149f13d…`, `board.md` — the refused composition, kept so the next tick can
+splice its cells rather than re-measure).
+
+## 2026-11-16 13:56 ET — board tick stood down at the publish guard; the nine-root lease enumeration and a GC receipt that the pool identity has to explain
+
+Own read over all six at `16:09:12Z`–`16:09:15Z` (pool `16:09:12Z`, re-read `16:22:56Z`), composed on the
+`08:08 ET` board (`055b491`, bytes `0149f13d…`) — and **`publish` refused it** (`exit 1`) because the disk
+board had moved to `6c8d2f42…` while this tick composed: a peer's `13:47 ET` composition, whose census
+(`18:47:26Z`) is 2 h 38 min fresher than this tick's. Stand-down, not a rewrite: precedent `6f22bb9`,
+`e979537`, and the `14:49 ET` section above. Nothing was booted, claimed or stopped; `.scratch/tick-0906-1210165/`.
+
+**Correcting this tick's own first arithmetic.** Its pool read (`used` **13,459,720,241,152 B**) is
+`592,836,034,560 B` below the ledger's `12:56:15Z` sample, but that interval straddles the peer intake the
+`09:43 ET` section measured, so the interval figure is an artifact. Against the base board's `11:23:54Z`
+read the fall is **501,570,600,960 B**, and this tick's six root rows reproduce it to **73,728 B** — the
+same identity the `14:49 ET` section closes to 159,744 B, sampled 36 min earlier. Two reads 13.7 min apart
+(`16:09:12Z`, `16:22:56Z`) differ by **108,003,328 B**, so the fall was not a deletion in progress at this
+sample. Hub entries **103**, served index `stat -L` **7,470,294 B** from the head and all four ranks.
+
+**What this tick adds.** (1) **Nine campaign roots on the head were enumerated for live leases rather than
+trusted to `director status`** — `/home/red/benchmarks/*/state.json`, `arms[*].lease.expires_at` against
+now: **all nine `live_leases=0`**, newest `h2h-20261107` (24 arms, mtime `2026-11-12T06:00:57Z`), the other
+eight 2026-11-07 one-arm roots. (2) **A receipt the pool identity has to account for**:
+`.scratch/gc-20261116/run-20261116T153546Z-executed.md` records batch 1 executing at `15:35Z` — 52 named
+items, **554.54 GB freed**, per node `.30` 22.53, `.31` 96.38, `.32` 143.49, `.33` 143.68, `.34` 148.46,
+`.35` 0.00 GB — and states `HF pool untouched`. The root rise this tick measured is **501.57 GB** with the
+same per-node shape but *below* the receipt on `.30`–`.33` (10.88 vs 22.53, 90.54 vs 96.38, 134.60 vs
+143.49, 131.97 vs 143.68) and above it on `.34` (149.10 vs 148.46), which is not the 1.05 TB the two
+mechanisms would sum to if the GC freed roots *and* the pool's 501.57 GB were separate root-side releases.
+So either the GC's deletions and the pool's loss share a footprint, or one of the two quantities is not
+what its own read says; this tick does not resolve it and the `14:49 ET` identity should be read as
+base-relative agreement, not as a causal account. Discriminator for a later session: a `df -B1` bracket
+around one known GC item, and BeeGFS target-side accounting (register row `pool-target-probe-beegfs-ctl-absent`
+still blocks it on `.30`).
+(3) Corroboration at an earlier stamp: `beegfs-meta` `NRestarts` `.31`-`.35` **76,620 / 76,623 / 76,626 /
+76,623 / 76,610** at `16:09Z`, which puts the `14:49 ET` series' `16:29Z` sample at the same 11.5/min, and
+`.34` reading `activating`/`exit-code` here is a **third** sample against the `08:08` board's `active`
+clause. Serve readiness: one `sglang.launch_server` child per rank, in-container `/v1/models` **200** on
+rank 0 (`deepseek-ai/DeepSeek-V4.1-Flash-1017`), **404** on ranks 1–3, `.30`/`.35` at 0 containers and 0
+volumes, `kho=off` **1** and `CmaTotal/CmaFree` **0/0** on all six.
