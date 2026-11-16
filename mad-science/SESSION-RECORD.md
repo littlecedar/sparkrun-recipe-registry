@@ -12053,3 +12053,10 @@ with a fifth batch started at `06:00`, all composing the same board. The publish
 clobbering each other, but they make each tick's composition race a base that a peer replaces, and this
 one's only safe outcome was silence. One tick per hour, or a lease on board composition, is the fix;
 nothing in this tick changed the guards.
+
+**Follow-up, `06:2x ET`**: that stranded composition did publish after all — `ce96efe`, board
+`# Board — generated 2026-11-16 06:16 ET`, content identical on `origin/main` and disk. So nothing was
+lost, and the fleet state now on the board is the `10:13:50Z` read this tick's `10:21:27Z` sweep
+corroborates within the bounds above. Recorded rather than left implicit, because the paragraph above
+was written at `06:05 ET` and says the newest published base was the `05:17` board; a tracer reading
+only that sentence would think this hour's board never landed.
