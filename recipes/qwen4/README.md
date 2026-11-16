@@ -223,6 +223,12 @@ at TP=1 on one GB10, which confirms the register arithmetic (83.32 + 6.00 KV + ~
 free pool). Nothing here is a quality measurement: no in-tree instrument has scored a 3-bit quant of
 this checkpoint, and the 32.5 t/s figure is one boot, one window, C1 only.
 
+**Launch host.** The boot ran on `.30`, the head node (`spark-41e1` — the machine that holds
+`~/.config/sparkrun/clusters/WOPR.yaml`, where WOPR is the default cluster), with `--cluster WOPR`
+resolving that real profile: the launch log's `[3/6] Distributing resources` block carries no model
+step, where an anonymous cluster prints `Distributing model … to 1 host(s)`. `spark-01` is `.31`, a
+production TP=4 rank, and was refused as a launch target.
+
 **Two traps the boot exposed.** (1) The rendered command carries **no** `--no-mmap` even though the
 llama-cpp flag map has a GB10 default `mmap: false`: that tier is only applied on the command-less
 path, so a template command runs llama.cpp's own default (mmap on) — measured only as 11 GiB of
