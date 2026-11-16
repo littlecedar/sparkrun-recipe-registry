@@ -445,7 +445,7 @@ benchmarking/concurrency-ladder.yaml` reports `Task 1/4 failed` and then
 `Error: Benchmark incomplete; schedule did not complete` (exit 1) having launched nothing it
 could measure. (The *older* failure mode — a result file whose every metric is `null`, which
 exported as a clean-looking table — is what `BenchmarkingPlugin.measured_nothing` exists to
-reject: `sparkrun/api/_benchmark.py:1328-1332`, `benchmarking/llama_benchy.py:620-627`.)
+reject: `sparkrun/api/_benchmark.py:1390-1398`, `benchmarking/llama_benchy.py:612-622`.)
 Either way **no standard profile produces a pooling number.** This tool measures
 `/v1/embeddings`, `/v2/embed`, and `/v1/score`; `plugins/pooling_bench_framework.py`
 (next section) is the same instrument behind `sparkrun benchmark`.
@@ -515,7 +515,7 @@ first-class subcommand.
 **A registry cannot supply a plugin, and this repo cannot fix that.** sparkrun's plugin
 discovery is config-driven and separate from the registry it clones: a `RegistryEntry` is
 `subpath` / `tuning_subpath` / `benchmark_subpath` / `mods_subpath` / `format` and nothing
-else (`sparkrun/core/registry.py:168-178`), so no registry field can point at a plugin
+else (`sparkrun/core/registry.py:170-181`), so no registry field can point at a plugin
 directory. Out-of-tree plugins arrive two ways — a `plugins.paths` directory
 (`sparkrun/core/external_plugins.py`, every module inside is imported and each must declare
 `SPARKRUN_PLUGIN_API_VERSION = 1`) or a pip `sparkrun.plugins` entry point — and **both are
@@ -581,8 +581,8 @@ sparkrun benchmark pooling recipes/embed/qwen3-vl-embedding-8b-awq-4bit-vllm-b12
 `categories` are what register it: `sparkrun benchmark pooling …` exists because
 `categories = ("pooling",)`, and `--framework pooling-bench` is the explicit alternative.
 What matters is *when* it is chosen — a pinned category subcommand sets the framework from
-its category **before** the profile is read (`sparkrun/api/_benchmark.py:438-457`), and the
-profile's own `framework:` key only fills one that is still unset (`:495-505`). So either run
+its category **before** the profile is read (`sparkrun/api/_benchmark.py:496-515`), and the
+profile's own `framework:` key only fills one that is still unset (`:553-554`). So either run
 `benchmark pooling`, or run `benchmark run` with the profile naming the framework; run a
 pooling profile under `benchmark performance` and llama-benchy gets pooling args (measured
 2026-10-15: `Error: Benchmark incomplete`, exit 1, no number), while `--framework

@@ -365,10 +365,10 @@ Receipt `~/benchmarks/nox4b-20261021/` (`teb-decision.log`, `runs/2026/10/<run-i
 | status | **MEASURED 2026-10-18** (`.34`) — serve healthy, **sparkrun launch gate cannot pass** |
 
 **Blocker — the gate, not the serve.** sparkrun's in-node startup probe requires HTTP 200 on
-`/health` and polls until it sees one (`sparkrun/scripts/startup_probe.py:246-265`); `kev.serve` has
+`/health` and polls until it sees one (`sparkrun/scripts/startup_probe.py:246-274`); `kev.serve` has
 no such route, so it 404s (≈2 polls/s for the ~20 min before the launch was cancelled) and the probe
 would raise `TimeoutError("health")` at `health_timeout_s: 1800`. `readiness.inference: false` skips
-only the inference stage, and `health_path` is runtime-owned (`sparkrun/runtimes/_vllm_common.py:24`
+only the inference stage, and `health_path` is runtime-owned (`sparkrun/runtimes/_vllm_common.py:41`
 → `readiness_health_path = "/health"`), so no recipe key redirects it. The detached container keeps
 serving while the launch waits, which is how this arm was measured; TTR is bounded at ≤ ~3.5 min
 (the cold boot is `pip install torch==2.8.0` + `kev[serve]@1f04cfa2` plus the backbone fetch).
