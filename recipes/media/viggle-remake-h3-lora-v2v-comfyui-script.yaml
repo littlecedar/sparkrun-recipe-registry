@@ -1,0 +1,134 @@
+# ===========================================================================
+# LICENSE BANNER — READ BEFORE DISTRIBUTING THIS RECIPE OR ITS OUTPUTS
+#
+# Viggle/Viggle-Remake is a **Model Derivative of MiniMax H3** and is
+# distributed under the **MiniMax H3 Community License Agreement** (card
+# `license: other`, `license_name: minimax-h3-community-license`; LICENSE and
+# NOTICE ship in the checkpoint). Verbatim, LICENSE I.5 and LICENSE V.4:
+#   "5. 'Excluded Territories' means the European Union, the United Kingdom,
+#        the Republic of Korea and the United States of America."
+#   "4. You may not use, reproduce, modify, distribute, or display the MiniMax
+#        H3 Works or any of their Outputs or results outside the Applicable
+#        Territory."
+#
+# STATUS: territorial, and the owner has decided this fleet is deployed OUTSIDE
+# the United States, so a run here is inside the Applicable Territory and the
+# condition is met BY THE DEPLOYMENT LOCATION. Same ruling that governs the
+# shipped MiniMax-H3 arms — do not re-litigate the license, enforce the
+# location. This arm ships EVAL-ONLY.
+#
+# Obligations that bind on any use:
+#   III.1 a copy of the Agreement to every third party who receives the Works;
+#   III.2 modified files carry prominent modification notices;
+#   III.4 a NOTICE file carrying "MiniMax H3 is licensed under the MiniMax H3
+#         Community License Agreement, Copyright (c) 2026 MiniMax."
+#   IV.1  separate written authorization (api@minimax.io) above 20M USD/yr of
+#         commercial revenue;  IV.2 display "MiniMax H3" on a commercial UI;
+#   V.3   the Works and their Outputs MAY NOT be used to improve any other AI
+#         model.
+# Credit requested by the derivative's NOTICE: "Powered by Viggle Remake
+# (https://huggingface.co/Viggle/Viggle-Remake)". The node pack and the
+# workflows under comfyui/ are Apache-2.0; the weights are not.
+#
+# Owner ruling that permits this class: mad-science/TODO.md
+# §"Owner ruling 2026-11-12 — DINOv3 accepted, two eval-only arms authorized".
+# ===========================================================================
+recipe_version: "2"
+model: Viggle/Viggle-Remake
+model_revision: 7e5be143702dd53b9154482de673b8519ed2d4d6
+# There is no ComfyUI OCI image in the runbook; this digest is the media-gen
+# lane's own arm64 cu130 base (Python 3.12 + CUDA 13 + python3.12-dev), the same
+# one the LTX and qwen-image script arms boot. The mod pins ComfyUI v0.42.0,
+# its requirements, the node pack and the weights, content-gated on every
+# launch.
+container: vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34
+# No sglang/vLLM engine exists for ComfyUI: `runtime: vllm` is the family whose
+# distribution + single-node launcher contract this command satisfies (same
+# pattern as the LTX, qwen-image, kromoss and Decision CPU arms).
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  Viggle/Viggle-Remake — character-swap and instruction-edit video-to-video as
+  a LoRA on MiniMax-H3 (33.1B DiT + 32B text encoder), running the vendor's
+  ComfyUI 0.42.0 node pack on ONE DGX Spark. The graph is the vendor's own
+  swap/edit API workflow; the mod repoints its two base loaders at the
+  AdaLN-pruned fp8 DiT (19.52 GiB) and the NVFP4-AWQ encoder (14.61 GiB) from
+  Comfy-Org/MiniMax-H3@e5eb578a, because the vendor's bf16 pair is ~110 GiB
+  resident against ~109 GB usable. One LoRA (3.51 GiB) loads per task; the
+  measured base set plus that LoRA is ~43 GiB of weights, leaving the sampler
+  room at 832x480x226. LICENSE: territorial MiniMax H3 Community License —
+  EVAL-ONLY, not deployable in the EU/UK/KR/USA, NOTICE carriage (see the
+  banner). TWO FIRST-BOOT QUESTIONS, both unmeasured: whether the Remake LoRA
+  keys match the pruned DiT (`LoraLoaderBypassModelOnly` reports unmatched
+  keys in the ComfyUI log), and whether the node pack loads under this image.
+metadata:
+  model_url: https://huggingface.co/Viggle/Viggle-Remake
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "33B"
+  model_dtype: bf16
+  model_type: diffusion
+  tags: media, video, video-to-video, eval-only, community-license
+
+mods:
+  - "mods/viggle-remake-launcher"
+
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+  # recipe's own launcher line runs instead of being parsed as vLLM flags.
+  entrypoint: ""
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+readiness:
+  # No chat surface: readiness is the launcher's /health plus 200 on
+  # /v1/models, which it serves itself while ComfyUI starts behind it. The cold
+  # first boot stages a cu130 torch venv and 39.5 GiB of components in the mod's
+  # detached job, so the port timeout covers that wait.
+  inference: false
+  port_timeout_s: 3600
+  health_timeout_s: 2400
+
+distribution_config:
+  models:
+    # sparkrun would fetch the entire repo (156 GiB, twelve quant tiers);
+    # the mod fetches the four base files and the two LoRA files it needs, and
+    # the base is a different repo again. Disabling the resource also makes the
+    # launch contract skip bind_runtime_models.
+    enabled: false
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  comfy_port: 8188
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared
+  # snapshot path, and this arm serves a derivative, not the base repo.
+  served_model_name: Viggle/Viggle-Remake
+
+command: >
+  while [ ! -x /cache/runtime/viggle-remake/venv/bin/python ]; do
+  if grep -q '^failed' /cache/runtime/viggle-remake/stage.status 2>/dev/null; then
+  echo "viggle stage failed: $(cat /cache/runtime/viggle-remake/stage.status)" >&2; exit 1; fi;
+  sleep 5; done;
+  exec /cache/runtime/viggle-remake/venv/bin/python
+  /workspace/mods/viggle-remake-launcher/launcher.py
+  --comfy-dir /cache/runtime/viggle-remake/ComfyUI
+  --venv-dir /cache/runtime/viggle-remake/venv
+  --workflows-dir /cache/runtime/viggle-remake/workflows
+  --output-dir /cache/runtime/viggle-remake/output
+  --input-dir /cache/runtime/viggle-remake/input
+  --stage-status /cache/runtime/viggle-remake/stage.status
+  --stage-log /cache/runtime/viggle-remake/stage.log
+  --staged-env /cache/runtime/viggle-remake/staged.env
+  --model {model}
+  --revision {model_revision}
+  --served-model-name {served_model_name}
+  --host {host}
+  --port {port}
+  --comfy-port {comfy_port}
+
+# HOST prerequisite, same as the LTX arm: `sudo nvidia-smi -lgc 0,2200` before a
+# sustained generation run (power-loss protection). Not a gate: the container
+# has no nvidia-smi, so the mod logs it as a note.

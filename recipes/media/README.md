@@ -6,10 +6,12 @@ directive): Explore keeps the language and agentic arms, and every arm whose pro
 or whose job is to transform text rather than answer — lives here. Everything in this lane is
 1 node, and the two CPU serves cost no GPU.
 
-The lane ships **eleven recipes**: seven measured arms (drama TTS, Kokoro TTS, Qwen-Image on both
-routes, LTX-2.5, humanizer Q6_K, Kromoss image), three probe/draft arms (`zz-minimax-h3`,
-`zz-qwen-image-…-4step`, `zz-pyannote-…`), and one eval-only trial authored 2026-11-08
-(`idol-1.8b-bf16-3dgs-script`, image to 3D Gaussian splats — not booted; see its prerequisites).
+The lane ships **fourteen recipes**: eight measured arms (drama TTS, Kokoro TTS, phonon TTS,
+Qwen-Image on both routes, LTX-2.5, humanizer Q6_K, Kromoss image), four probe/draft arms
+(`zz-minimax-h3` in its TP=1 and TP=4 shapes, `zz-qwen-image-…-4step`, `zz-pyannote-…`), and two
+eval-only, authored-not-booted arms (`idol-1.8b-bf16-3dgs-script`, image to 3D Gaussian splats,
+2026-11-08 — see its prerequisites; and `viggle-remake-h3-lora-v2v-comfyui-script`, MiniMax-H3 video
+remake through ComfyUI, 2026-11-16).
 Design and bring-up
 history lives in [`attic/explore/`](../../attic/explore/), written while these arms were in that
 lane; the recipe YAML keeps only the crucial operational notes.
@@ -40,6 +42,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
 - [qwen-image-2.1-turbo-7b-bf16-vllm-omni](#qwen-image-21-turbo-7b-bf16-vllm-omni)
 - [kromoss-mossimage-5b-bf16-diffusers-script](#kromoss-mossimage-5b-bf16-diffusers-script)
 - [idol-1.8b-bf16-3dgs-script](#idol-18b-bf16-3dgs-script)
+- [viggle-remake-h3-lora-v2v-comfyui-script](#viggle-remake-h3-lora-v2v-comfyui-script)
 - [zz-qwen-image-2.1-turbo-4step-diffusers-script](#zz-qwen-image-21-turbo-4step-diffusers-script)
 - [ltx-2.5-22b-nvfp4-t2v-comfyui-script](#ltx-25-22b-nvfp4-t2v-comfyui-script)
 - [LTX-2.5 measured cells (runbook)](#ltx-25-measured-cells-runbook)
@@ -885,6 +888,52 @@ pool snapshot itself through the mod's real-file copy).
 - **Receipt:** `head:~/benchmarks/tplt4-20261024/phonon-arm/` (`boot*.launch.log`,
   `RENDER-TIMINGS.txt`, `c1-boot5.wav`), stopped by literal task id, 0 containers after.
 
+## [viggle-remake-h3-lora-v2v-comfyui-script](viggle-remake-h3-lora-v2v-comfyui-script.yaml)
+
+**Authored 2026-11-16, never booted.** Viggle/Viggle-Remake is a character-swap and
+instruction-edit **video-to-video** model shipped as a LoRA pair on MiniMax-H3, and the vendor's own
+route is ComfyUI 0.42.0 plus a small custom node. This arm is that route as a sparkrun script arm:
+the mod [`mods/viggle-remake-launcher`](mods/viggle-remake-launcher/) stages ComfyUI, the node pack
+and the weights; `launcher.py` starts ComfyUI on a private port and serves `/health`, `/v1/models`
+and `POST /generate`; the vendor's two API workflows ship verbatim in the mod.
+
+**The graph is repointed, and that is the arm's one real decision.** The vendor's workflow loads
+`minimax_h3_fl2va_bf16` (61.73 GiB) and `qwen3vl_32b_minimax_h3_bf16` (47.97 GiB) — ~110 GiB
+resident before the VAE and the LoRA, against ~109 GB of usable unified memory on one GB10, and the
+vendor's own install line downloads ~124 GB of base. So the mod stages the pair this lane already
+measured in the H3 arm's design — the AdaLN-**pruned fp8** DiT (19.52 GiB) and the **NVFP4-AWQ** text
+encoder (14.61 GiB) from `Comfy-Org/MiniMax-H3@e5eb578a`, plus the fp16 video VAE (4.85 GiB) and
+fp32 audio VAE (0.56 GiB) — and the launcher rewrites exactly those two loader inputs. Nothing else
+in the graph changes; the task picks the LoRA (3.51 GiB, one per run).
+
+**Fit arithmetic.** 19.52 + 14.61 + 4.85 + 0.56 + 3.51 = **43.05 GiB** of weights, against ~109 GB
+usable: ~60 GB of headroom for the sampler at 832x480x226 frames, which is the vendor's own example
+shape. The `int8` siblings the card also carries (19.53 GiB each) are **not usable on GB10** — sm_121
+has no int8 scaled GEMM, the same finding the H3 lane records — and the GGUF tiers (Q4_K_M 13.35,
+Q6_K 16.38, Q8_0 20.72 GiB each of swap+edit) belong to a llama.cpp route this arm does not take.
+
+**Licence: territorial, and the condition is the deployment location.** Viggle-Remake is a Model
+Derivative distributed under the **MiniMax H3 Community License Agreement** — the same licence the
+two `zz-minimax-h3` arms ship under, including the exclusion of the EU, UK, Republic of Korea and the
+USA. This lane's arms are deployed outside the United States by owner decision, which is what makes
+the run inside the Applicable Territory; do not re-litigate the licence, enforce the location. The
+notice obligations (Agreement copy to third parties, NOTICE carriage, "Powered by Viggle Remake"
+credit, no use of the Works to improve another model) are in the recipe banner.
+
+**Two first-boot questions, both unmeasured and both named in the recipe:** whether the Remake LoRA
+keys match the *pruned* DiT (`LoraLoaderBypassModelOnly` reports unmatched keys in the ComfyUI log —
+the vendor repacked them against the base transformer), and whether ComfyUI 0.42.0 plus the node pack
+starts under the pinned image. No cell is measured: no task rate, no Mem%, no receipt.
+
+Drive it from the launcher's own verb; `source` and `refs` must already be in
+`/cache/runtime/viggle-remake/input` (the vendor's `examples/inputs/*` are not staged):
+
+```bash
+curl -s -XPOST localhost:8000/generate -H 'content-type: application/json' -d '{
+  "task": "swap", "source": "swap-source.mp4",
+  "refs": ["ref1.png", "ref2.png"], "seed": 0 }'
+```
+
 ## Mods
 
 All lane-local; each is referenced **unscoped** as `mods/<name>`, which sparkrun resolves adjacent
@@ -893,6 +942,7 @@ to the recipe (`core/mods.py` rule 2):
 | mod | used by |
 |---|---|
 | [`ltx-25-launcher`](mods/ltx-25-launcher) | the LTX-2.5 recipe |
+| [`viggle-remake-launcher`](mods/viggle-remake-launcher) | the Viggle-Remake v2v recipe (ComfyUI stage + the `/health`, `/v1/models`, `/generate` shim) |
 | [`qwen-image-2.1-turbo-launcher`](mods/qwen-image-2.1-turbo-launcher) | the shipped Qwen-Image recipe and its 4-step probe |
 | [`qwen-image-sigmas`](mods/qwen-image-sigmas) | no recipe reference — the prior 4-step server, kept with the arm it was written for |
 | [`pyannote-diarize-server`](mods/pyannote-diarize-server) | the pyannote diarization recipe |

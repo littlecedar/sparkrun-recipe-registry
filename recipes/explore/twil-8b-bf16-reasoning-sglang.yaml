@@ -1,0 +1,84 @@
+# ===========================================================================
+# LICENSE BANNER — READ BEFORE DISTRIBUTING THIS RECIPE OR ITS OUTPUTS
+#
+# webAI-Official/TwIL-8B is licensed under the **webAI Non-Commercial License
+# ver. 1.0** (card `license: other`; LICENSE.md in the checkpoint). Verbatim,
+# §3.3: "The Work and any derivative works thereof only may be used or intended
+# for use non-commercially. As used herein, 'non-commercially' means for
+# non-commercial research and educational purposes only."
+#
+# STATUS: this arm ships EVAL-ONLY. A recipe ships a repo id, not weights — but
+# §3.1 binds whoever redistributes the Work ("include a complete copy of this
+# license with your distribution") and §3.5 forbids implying webAI, Inc.
+# endorses any derivative work. Attribution: webAI, Inc., TwIL-8B,
+# https://huggingface.co/webAI-Official/TwIL-8B. An operator needing a
+# commercially usable text arm must swap the checkpoint; the serving path here
+# is checkpoint-agnostic.
+#
+# Owner ruling that permits this class: mad-science/TODO.md
+# §"Owner ruling 2026-11-12 — DINOv3 accepted, two eval-only arms authorized"
+# ("Accept and ship it."). Precedent for the class: QUESTIONS.md #11.
+# ===========================================================================
+recipe_version: "2"
+model: webAI-Official/TwIL-8B
+model_revision: 9563ba7dfb70eeca4a26654b195011cbf818e7d9
+# The fleet-resident, publicly pullable SGLang of the re-pin campaign; its
+# models/granite.py implements GraniteForCausalLM with the family's
+# attention_multiplier (checked inside this image 2026-11-16, sglang 0.5.22).
+container: lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae
+runtime: sglang
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  webAI-Official/TwIL-8B — 8.79B dense Granite-4.2 family reasoning model
+  (40 layers, 8 KV heads, 131,072-token window) served bf16 at TP=1 on ONE DGX
+  Spark by SGLang. 16.38 GiB of bf16 weights. LICENSE: webAI Non-Commercial
+  License ver. 1.0 — NON-COMMERCIAL ONLY, research and educational use; this
+  arm ships EVAL-ONLY and is not a production default (see the banner at the
+  top of this file). The repo also carries a `verbose` variant (a second
+  16.38 GiB bf16 file under `verbose/`) and GGUF Q4_K_M/Q8_0/F16 builds; this
+  arm serves the root checkpoint only.
+metadata:
+  model_url: https://huggingface.co/webAI-Official/TwIL-8B
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "8.8B"
+  model_dtype: bf16
+  kv_dtype: bf16
+  tags: explore, reasoning, math, code, eval-only, non-commercial
+
+env:
+  PYTHONUNBUFFERED: '1'
+  TORCH_CUDA_ARCH_LIST: 12.1a
+  FLASHINFER_CUDA_ARCH_LIST: 12.1a
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served id would be the cache path (-n does not show this).
+  served_model_name: webAI-Official/TwIL-8B
+  gpu_memory_utilization: 0.85
+  max_model_len: 131072
+  max_num_seqs: 32
+  chunked_prefill_size: 8192
+
+# No --trust-remote-code (the card ships stock granite code), no reasoning or
+# tool parser (neither is measured on this checkpoint, and a wrong parser
+# silently reshapes output), and no --chat-template: chat_template.jinja is in
+# the snapshot.
+command: >
+  sglang serve
+  --model-path {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
+  --enable-metrics
+  --enable-cache-report

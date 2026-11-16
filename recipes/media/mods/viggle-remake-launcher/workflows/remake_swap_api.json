@@ -1,0 +1,285 @@
+{
+ "1": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "minimax_h3_fl2va_bf16.safetensors",
+   "weight_dtype": "default"
+  },
+  "_meta": {
+   "title": "Load H3 transformer (fl2va)"
+  }
+ },
+ "2": {
+  "class_type": "LoraLoaderBypassModelOnly",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "lora_name": "viggle_remake_swap_comfyui.safetensors",
+   "strength_model": 1.0
+  },
+  "_meta": {
+   "title": "Remake LoRA"
+  }
+ },
+ "3": {
+  "class_type": "RemakeKeyframeUntil",
+  "inputs": {
+   "model": [
+    "2",
+    0
+   ],
+   "keyframe_until": 0.9
+  },
+  "_meta": {
+   "title": "Viggle Remake Keyframe Until"
+  }
+ },
+ "4": {
+  "class_type": "CLIPLoader",
+  "inputs": {
+   "clip_name": "qwen3vl_32b_minimax_h3_bf16.safetensors",
+   "type": "minimax"
+  },
+  "_meta": {
+   "title": "Load Qwen3-VL text encoder"
+  }
+ },
+ "5": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+  },
+  "_meta": {
+   "title": "Load video VAE"
+  }
+ },
+ "6": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+  },
+  "_meta": {
+   "title": "Load audio VAE"
+  }
+ },
+ "7": {
+  "class_type": "LoadVideo",
+  "inputs": {
+   "file": "remake_swap_source.mp4"
+  },
+  "_meta": {
+   "title": "Source clip (24 fps)"
+  }
+ },
+ "8": {
+  "class_type": "GetVideoComponents",
+  "inputs": {
+   "video": [
+    "7",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Get Video Components"
+  }
+ },
+ "9": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "remake_swap_ref1.png"
+  },
+  "_meta": {
+   "title": "Reference 1 (painted frame)"
+  }
+ },
+ "10": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "remake_swap_ref2.png"
+  },
+  "_meta": {
+   "title": "Reference 2 (painted frame)"
+  }
+ },
+ "11": {
+  "class_type": "RemakeConditioning",
+  "inputs": {
+   "clip": [
+    "4",
+    0
+   ],
+   "vae": [
+    "5",
+    0
+   ],
+   "audio_vae": [
+    "6",
+    0
+   ],
+   "source": [
+    "8",
+    0
+   ],
+   "audio": [
+    "8",
+    1
+   ],
+   "prompt": "subject_definitions:\n<Video 1> is the source video for the editing task: one continuous 9.4 s handheld take on a sunny park road in London in which a pizza maker smiles at the camera, tosses a big sheet of white pizza dough high into the air, catches it, stretches it right in front of the lens and talks to the camera.\n<Picture 1> and <Picture 2> are two frames of the target video, both from [Shot 1].\n<Subject 1> is Pete in <Picture 1> and <Picture 2>: a person wholly hidden inside a full-body plush pineapple mascot costume, with a big round golden-yellow pineapple head with a raised diamond-pattern rind and a spiky crown of stiff green pineapple leaves on top, two big round black-and-white cartoon eyes and a wide stitched black smile on the front of the pineapple where the face would be, a padded golden-yellow bodysuit with the same diamond-pattern pineapple rind over the torso, the arms and the legs, bright-green padded five-finger gloves and bright-green padded boots. The costume covers the whole body; no human face and no human hair show. He replaces the pizza maker in the grey camouflage cap, grey hoodie, neck gaiter and jeans in <Video 1>.\n\nsummary:\n[video editing + character replacement] The target video is an edited version of <Video 1> in which the pizza maker becomes <Subject 1>, Pete the pineapple mascot, looking exactly as he does in <Picture 1> and <Picture 2>, tossing and stretching the same sheet of white pizza dough. The few tiny distant people in the park, the road, the lawns, the trees, the benches, the tent and the red fire-point trolley are unchanged. The single continuous shot, the camera, the motion, the timing and the actions of <Video 1> are kept.\n\nretention_analysis:\n<Video 1> (source video editing): fully_preserved - the single continuous shot with no cut, the handheld camera framing and movement including the tilt up to the park and the moment the dough covers the lens, the location, the sunny daylight, the background people, and the motion and timing of every toss, catch and stretch of the dough are copied frame for frame.\n<Picture 1> (appears in [Shot 1]): reference - a frame of the target video. Pete's whole figure from slightly above, his pineapple head, bodysuit, green gloves and green boots, the dough in his gloves, and the asphalt, kerb and grass are taken from <Picture 1>.\n<Picture 2> (appears in [Shot 1]): reference - a frame of the target video. Pete's pineapple head large in frame with the cartoon eyes and smile, his bodysuit and green gloves holding the dough, and the park path, benches, trees, fire-point trolley and tent edge are taken from <Picture 2>. The figure in both pictures is the same Pete.\n<Subject 1> (appears in [Shot 1]): fully_preserved - the round golden-yellow diamond-pattern pineapple head with the green leaf crown, the cartoon eyes and the stitched smile, the matching padded bodysuit over the torso, arms and legs, the bright-green five-finger gloves and the bright-green boots stay identical in every frame, also during the toss and when he is close to the lens.\n\ndetailed_description:\nThe target video is a realistic sunny outdoor handheld scene in a London park with bright daylight and natural colours.\n[Shot 1] At 00:00.000 the camera looks down from slightly above at <Subject 1>, Pete the pineapple mascot, standing on the asphalt road with his whole figure in view, his pineapple face turned up to the camera, a big sheet of white pizza dough hanging from both green gloves in front of his waist, matching <Picture 1>. He swings the dough from side to side, and at about 00:01.400 he raises both arms and tosses it high into the air; the camera tilts up with it, and at about 00:01.900 the dough sheet spins high above the sunny park while he looks up with one arm raised. At about 00:02.600 he catches it in both gloves, now in a medium view with the lawns, trees, benches and the red fire-point trolley behind him and a few tiny distant people on the lawns. From 00:03.000 he stretches and swings the dough sheet in front of him, and at about 00:04.600 he steps close to the camera holding the big sheet up to the left, glancing at the lens. From about 00:05.800 to 00:06.800 the dough sheet swings right in front of the lens and covers most of the view, with no cut. At about 00:07.000 he faces the camera close up and talks to it, and at 00:07.667 he stands in a medium view facing the camera with the long dough sheet hanging from both gloves in front of his belly, matching <Picture 2>. From about 00:08.300 he looks down at the dough and stretches it between his gloves, and at the end he faces the camera again. The camera is handheld throughout.\nIn every frame, from the first to the last, the pizza maker is this same pineapple mascot exactly as in <Picture 1> and <Picture 2>: no human face, no human hair, no grey cap, no neck gaiter, no grey hoodie, no jeans, no sneakers, no printed text and no logo at any moment. Only one sheet of dough exists. Only this one figure changes, and everything else stays as in <Video 1>.\n\noverall_soundscape:\nThe source soundtrack continues throughout, with his voice as he talks to the camera, open park ambience with light wind, and the soft flap of the dough as it is tossed and stretched.\n\nnon_diegetic_music:\nN/A\n",
+   "ref_1": [
+    "9",
+    0
+   ],
+   "ref_2": [
+    "10",
+    0
+   ],
+   "pins": "12, 184",
+   "frames": 226,
+   "short_edge": 480
+  },
+  "_meta": {
+   "title": "Viggle Remake Conditioning"
+  }
+ },
+ "12": {
+  "class_type": "RemakeNoise",
+  "inputs": {
+   "positive": [
+    "11",
+    0
+   ],
+   "seed": 0
+  },
+  "_meta": {
+   "title": "Viggle Remake Noise"
+  }
+ },
+ "13": {
+  "class_type": "BasicGuider",
+  "inputs": {
+   "model": [
+    "3",
+    0
+   ],
+   "conditioning": [
+    "11",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "BasicGuider"
+  }
+ },
+ "14": {
+  "class_type": "KSamplerSelect",
+  "inputs": {
+   "sampler_name": "euler"
+  },
+  "_meta": {
+   "title": "KSamplerSelect"
+  }
+ },
+ "15": {
+  "class_type": "ManualSigmas",
+  "inputs": {
+   "sigmas": "1.0, 0.990476, 0.965243, 0.923077, 0.8, 0.631579, 0.0"
+  },
+  "_meta": {
+   "title": "Sigmas (6 forwards)"
+  }
+ },
+ "16": {
+  "class_type": "SamplerCustomAdvanced",
+  "inputs": {
+   "noise": [
+    "12",
+    0
+   ],
+   "guider": [
+    "13",
+    0
+   ],
+   "sampler": [
+    "14",
+    0
+   ],
+   "sigmas": [
+    "15",
+    0
+   ],
+   "latent_image": [
+    "11",
+    1
+   ]
+  },
+  "_meta": {
+   "title": "SamplerCustomAdvanced"
+  }
+ },
+ "17": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "16",
+    0
+   ],
+   "vae": [
+    "5",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Decode video"
+  }
+ },
+ "18": {
+  "class_type": "VAEDecodeAudio",
+  "inputs": {
+   "samples": [
+    "16",
+    0
+   ],
+   "vae": [
+    "6",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Decode audio"
+  }
+ },
+ "19": {
+  "class_type": "CreateVideo",
+  "inputs": {
+   "images": [
+    "17",
+    0
+   ],
+   "audio": [
+    "18",
+    0
+   ],
+   "fps": 24.0
+  },
+  "_meta": {
+   "title": "Create Video"
+  }
+ },
+ "20": {
+  "class_type": "SaveVideo",
+  "inputs": {
+   "video": [
+    "19",
+    0
+   ],
+   "filename_prefix": "viggle_remake/swap",
+   "format": "mp4",
+   "codec": "h264"
+  },
+  "_meta": {
+   "title": "Save Video"
+  }
+ }
+}

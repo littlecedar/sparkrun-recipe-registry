@@ -8,7 +8,8 @@ speed (higher) → memory (lower)**. Every measured arm in this lane is 1 node, 
 The lane now ships **seven measured arms** — the accuracy leader, the smallest 262k arm with
 measured headroom, the best 262k aggregate at c10, the fastest/smallest GGUF arm, the
 Nemotron-3.5-Lightning 30B-A3B NVFP4 arm booted 2026-10-21 (highest C1 of any single-node chat arm
-here), and the Spark-X2.6 pair (FP8 fast tier + bf16 accuracy control, booted 2026-10-22) — plus the
+here), and the Spark-X2.6 pair (FP8 fast tier + bf16 accuracy control, booted 2026-10-22) — plus one
+authored, eval-only and never-booted arm (`twil-8b-bf16-reasoning-sglang`, 2026-11-16) — plus the
 other **ten** measured arms from the 2026-10-14…18 expansions are
 archived with their receipts in [`attic/explore/`](../../attic/explore/) (manifest:
 [`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md)). The 17-row decision table with one
@@ -49,6 +50,7 @@ the pyannote diarizer. Explore keeps the language and agentic/RAG arms.
 - [kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4](#kimi-k31-pro-pruned75-mxfp4-dspark-vllm-tp4)
 - [Kimi-K3.1-Pro spinoffs: REAPs, drafters and the EXL3 2-bit](#kimi-k31-pro-spinoffs-reaps-drafters-and-the-exl3-2-bit)
 - [Ripple-65B Preview (2026-11-08 trial)](#ripple-65b-preview-2026-11-08-trial)
+- [twil-8b-bf16-reasoning-sglang](#twil-8b-bf16-reasoning-sglang)
 - [Attic index](#attic-index)
 
 ## Easy-traffic selection (2026-10-22)
@@ -1742,6 +1744,42 @@ digest — a moving target we froze, not a release.
 card's own claim), then its DFlash2 twin on the same node to price the drafter; the BF16 TP=2 arm is
 the quality control and the only long-context cell. That is three boots, two node-shapes, one
 engine digest.
+
+## twil-8b-bf16-reasoning-sglang
+
+**Authored 2026-11-16, never booted, and the lane's second eval-only arm.** `webAI-Official/TwIL-8B`
+is an 8.79B dense **Granite-4.2** derivative (`base_model: ibm-granite/granite-4.2-8b`, 40 layers,
+8 KV heads, `max_position_embeddings: 131072`), post-trained for reasoning/math/code. It ships two
+bf16 variants on one arch and tokenizer — `model-balanced.safetensors` at the repo root (16.38 GiB)
+and `verbose/model-verbose.safetensors` — plus GGUF F16/Q8_0/Q4_K_M builds; this arm serves the root
+checkpoint only and does not use the GGUFs.
+
+**Engine choice is measured, not assumed.** `lmsysorg/sglang:v0.5.22-cu130` is the fleet-resident,
+publicly pullable digest of the re-pin campaign, and its `models/granite.py` implements
+`GraniteForCausalLM` including the family's `attention_multiplier` — checked *inside* that image on
+2026-11-16. vLLM 0.32.0 also registers `GraniteForCausalLM`, so the pair is a tie on architecture
+support and the lane's bf16 text convention (`spark-x2.6-4b-bf16-sglang`) decides it. No
+`--trust-remote-code` (stock granite code), no reasoning or tool parser (unmeasured on this
+checkpoint, and a wrong parser reshapes output silently), no `--chat-template` (the snapshot carries
+`chat_template.jinja`).
+
+**Fit arithmetic.** 8.79B x 2 B = 17.58 GB = **16.38 GiB** of weights. KV is
+40 layers x 8 KV heads x 128 head-dim x 2 (K,V) x 2 B = **160 KiB/token**, i.e. **20.0 GiB** at the
+full 131,072-token window, so the arm sits near **40 GiB of the ~109 GB** usable on one GB10 —
+comfortably inside, which is why the shipped `max_model_len` is the card's own 131,072 and not a
+reduced window.
+
+**Licence: non-commercial, eval-only.** The card is `license: other` and the checkout's `LICENSE.md`
+is the **webAI Non-Commercial License ver. 1.0**: §3.3 limits the Work and any derivative to
+non-commercial research and education, §3.1 makes redistribution carry a complete copy of the licence
+plus the retained notices, §3.5 forbids implying webAI's endorsement, §3.6 terminates on violation.
+The recipe banner carries those terms and the attribution, and the arm is presented **eval-only**,
+never as a production default; an operator needing a commercial arm swaps the checkpoint, because the
+serving path is checkpoint-agnostic.
+
+**Unmeasured, all of it.** No C1–C10, no Mem%, no accuracy, no tool-call or thinking-budget
+measurement — the card's own benchmark claims and `arxiv:2607.02770` are the only quality evidence.
+The 2026-11-10 survey read produced the class and the file sizes; nothing has been booted.
 
 ## Attic index
 
