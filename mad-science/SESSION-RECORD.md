@@ -12066,3 +12066,56 @@ that published nothing behind a peer's board composition") appended its `05:20 E
 `git commit -- <paths>` that took the worktree copy, which by then already carried the section above;
 so one commit's message describes one section and its diff carries two. No bytes were lost and the
 shared-head commit was not amended — `a6066dc` is the only commit this tick owns.
+## 2026-11-16 07:05 ET — hourly board tick: no board written, a peer's 06:39 refresh carries a 6-min-fresher census
+
+**Reads.** Six-node census `11:17:36Z`–`11:17:41Z`, read-only: the shipped production serve alone on
+`.31`–`.34` (`Up 3 days (healthy)`, image id `3f4480818acb`, container `StartedAt`
+`2026-11-12T18:38:18.872734401Z`, each rank running its `sglang.launch_server` child); rank 0 answers
+`/v1/models` **200** both in-container and from its own host (bound `0.0.0.0:8000`), ranks 1–3 answer
+**404** in-container because only rank 0 binds the API; `/v1/models` serves
+`deepseek-ai/DeepSeek-V4.1-Flash-1017`, `max_model_len` 1048576. `.30` and `.35` read `docker ps -aq`
+**0**, running **0**, volumes **0**; **research containers 0** fleet-wide. Pool: head's
+`beegfs-mgmtd`/`beegfs-meta`/`beegfs-storage` `active` `Result=success` `NRestarts` **0**; the other five
+keep the known 5 s `beegfs-meta` `activating`/`exit-code` loop, `NRestarts` `.31` **73,266**, `.32`
+**73,269**, `.33` **73,272**, `.34` **73,270**, `.35` **73,257** — **+733/+734** per host over `63.8 min`,
+the loop's own growth. `df -B1` on the mount at `11:17:40Z`, byte-identical on the head and on `.35`
+(`11:17:40Z`): used **13,961,325,445,120 B**, avail **10,229,904,310,272 B**, total
+**24,191,229,755,392 B** — used **+130,023,424 B** on the base's `10:13:50Z` read; **102** hub entries on
+both hosts, and `stat -L` on the served snapshot's index answers **7,470,294 B** from both.
+
+**Register and holders.** `mad-science/queue.json` sha256 **`9c62a1f3…`** — byte-identical to the
+snapshot both queue blocks were rendered from, **196 tasks: 155 done, 33 queued, 8 blocked, 0 running —
+41 open**, `task-queue.py check` rc=0, **0 live claims**, graph's counts line **8 blocked, 1 edges,
+7 prose-gated, 0 question-gated, 0 question, 39 rows not drawn (--all)**. `.local/fleet-leases.json`
+**1,999 B** sha **`997acbd7…`**, **0 live leases**, one `fenced` record over `.31`–`.34` whose
+`serve.task_id` `b020d2dd178343a5_9a582e9a0e63` and `started_at` `2026-11-12T18:38:18.872734401Z` match
+this tick's own rank-0 `docker inspect` exactly; no `.local/fleet-window.lock` in this clone or on the
+head. Campaign `h2h-20261107` on the head: unit **inactive**, `MainPID` **0**, `NRestarts` **0**,
+`ExecMainStatus` **0**, `Result` **success**, `InactiveEnterTimestamp` **Thu 2026-11-12 01:27:16 EST**;
+`state.json` 62,990 B at `2026-11-12 01:00:57 ET`; `director status --root` reads **1 pending, 10
+measured, 13 blocked**, one of the blocked rows a reap failure (`cannot list containers on .31
+(rc=255)`) rather than a register verdict.
+
+**Why no board was written.** Composition began on the `06:16 ET` base (content sha `d61965eb…`,
+`ce96efe`, then identical on `origin/main` and disk; its title carried the `10:13:50Z` census). The
+replacement was composed in full from this tick's read — and before it could publish, a peer's
+`3c71031` landed `# Board — generated 2026-11-16 06:39 ET` on `origin/main` carrying a
+**`11:23:51Z`–`11:23:54Z`** census, six minutes newer than this tick's. Publishing then would have put
+an older census under a fresher title, which is the `board-publish-accepts-weaker-replacement` class, so
+`mad-science/STATUS.md` was not touched and this tick's read lands here instead. Evidence:
+`.scratch/tick-0615-449473/census.out` (git-ignored).
+
+**The one measurement worth keeping.** At `11:17:36Z` `MemAvailable` on `.32`/`.33`/`.34` read
+**12,854,560 / 13,104,892 / 13,041,796 kB**, i.e. **3.59–3.73 GiB** below the base's `10:13:50Z` band;
+by the peer's `11:23:51Z` read the same three read **16,398,392 / 16,778,128 / 16,693,360 kB**, back in
+that band. So a ~3.6 GiB `MemAvailable` excursion on the served ranks recovers inside six minutes, and a
+single sample of that depth is not evidence of memory pressure on a GB10 that keeps ~15–17 GiB available
+under the serve. It is recorded because the tick's own first composition had begun to state the drop as
+movement awaiting a mechanism; six minutes later the movement was gone.
+
+**Coordination.** This is the sixth tick of the hour composing the same board (the `06:20 ET` section
+above names the defect). The guards held again — nothing was clobbered, and the only outcome for the
+later read was silence — but a tick whose census is superseded within six minutes adds nothing to the
+board and costs a full read. One tick per hour, or a lease on board composition, remains the fix; this
+tick changed no guards.
+
