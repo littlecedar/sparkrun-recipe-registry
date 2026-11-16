@@ -7,16 +7,17 @@ Every `file.py:line` cite is relative to that package tree, whose line numbers c
 between builds; re-derive a line before trusting it after an upgrade, and let
 `sparkrun --version` name the build you have.
 
-**Cite provenance.** The cites re-derived against 0.4.2 on 2026-10-21 are: every cite in
-§[The one rule](#the-one-rule-that-decides-whether-a-knob-works), and in §Key reference
-under *`sparkrun_version`*, *`recipe_version`*, *`description`*, *`metadata`*,
-*`maintainer`* and *`model_revision`*, plus §[Notes](#notes). Every other cite still
-carries 0.4.0 numbering — re-derive it with `grep -n` on the named symbol before trusting
-it. The module paths themselves (`core/launcher.py`, `core/recipe.py`,
-`core/validation.py`, `models/runtime.py`) are the same in both builds.
+**Cite provenance.** The 2026-11-16 pass re-derived, against the installed
+0.4.3-alpha+g35b208a, every cite in §[The one rule](#the-one-rule-that-decides-whether-a-knob-works)
+and in §Key reference under *Format and identity*. The earlier 0.4.2 pass (2026-10-21)
+covered *`model_revision`* under §Model and serving and all of §[Notes](#notes); it did not
+re-read them. Every other cite still carries 0.4.0 numbering — re-derive it with `grep -n`
+on the named symbol before trusting it. The module paths themselves
+(`core/launcher.py`, `core/recipe.py`, `core/validation.py`, `models/runtime.py`) are the
+same in both builds.
 
 The format is v2 and the authoritative key set is `_KNOWN_KEYS`
-(`core/recipe.py:80-122`): **41 keys**, counted from the literal set. A key outside
+(`core/recipe.py:81-123`): **41 keys**, counted from the literal set. A key outside
 it is either plugin-owned or swept into `runtime_config`.
 
 ## Contents
@@ -45,12 +46,12 @@ it is either plugin-owned or swept into `runtime_config`.
 ## The one rule that decides whether a knob works
 
 `Recipe.build_config_chain` layers CLI overrides → user config → recipe `defaults`
-(`core/recipe.py:1532-1538`). Declaring a default is not wiring it. A `defaults:` value
+(`core/recipe.py:1627-1674`). Declaring a default is not wiring it. A `defaults:` value
 reaches the engine through exactly one of:
 
 1. a `{placeholder}` of the same name in `command:`, in another default's value, or in
    an `env:` value (`core/launcher.py:798-818`);
-2. the runtime's flag map, exposed as `known_config_keys()` (`runtimes/base.py:867-892`;
+2. the runtime's flag map, exposed as `known_config_keys()` (`runtimes/base.py:903-928`;
    per-runtime extras in the runtime table below);
 3. a shared consumed key in `BASE_CONSUMED_CONFIG_KEYS` (`runtimes/base.py:41-86`) —
    parallelism dims, `max_model_len`, `gpu_memory_utilization`, `kv_cache_dtype`,
@@ -66,7 +67,7 @@ declares `known_config_keys() is None` (`core/launcher.py:991-992`); `eugr-vllm`
 exactly that (`runtimes/eugr_vllm_ray.py:54-63`), so nothing warns there.
 
 A top-level typo is the other half: an unknown top-level key is swept into
-`runtime_config` (`core/recipe.py:1393-1400`), where only a by-name consumer reads it.
+`runtime_config` (`core/recipe.py:1386-1392`), where only a by-name consumer reads it.
 `check_unknown_top_level_keys` warns `misplaced-config-key` when the runtime would have
 understood the key under `defaults:`, and suggests `unknown-top-level-key` otherwise
 (`core/validation.py:1196-1275`). When a key is deliberately read by name, declare it
@@ -78,50 +79,50 @@ under `runtime_config:` so it reads as intentional.
 
 - **`sparkrun_version`** — legacy v1 key, unread by `Recipe.__init__`. Only
   `resolve_builder` consults it as a fallback for version detection
-  (`core/recipe.py:897`), and canonical export drops it (`core/recipe.py:2520-2530`).
+  (`core/recipe.py:889`), and canonical export drops it (`core/recipe.py:2512-2522`).
   Omit it in v2.
-- **`recipe_version`** — string, default `"2"` (`core/recipe.py:1297`). `"1"` runs the
+- **`recipe_version`** — string, default `"2"` (`core/recipe.py:1289`). `"1"` runs the
   legacy migration: runtime inferred from the command, `builder: eugr` when the command or
-  `mods:` imply it (`core/recipe.py:573-580`), plus a `deprecated-recipe-format` warning
-  (`core/validation.py:1442-1460`). Omit it in v2 — the default is already `"2"`.
+  `mods:` imply it (`core/recipe.py:705-711`), plus a `deprecated-recipe-format` warning
+  (`core/validation.py:1462-1474`). Omit it in v2 — the default is already `"2"`.
 - **`min_sparkrun_version`** — optional version string, default unset. Parsed with
   `packaging.version.Version`; a range is rejected (`core/version.py:24-34`).
   `validate_structure` fails when the installed core is older
-  (`core/version.py:38-60`; called from `core/recipe.py:1608-1611`).
-- **`name`** — ignored. The name is the source filename stem (`core/recipe.py:1303-1306`);
+  (`core/version.py:38-60`; called from `core/recipe.py:1745`).
+- **`name`** — ignored. The name is the source filename stem (`core/recipe.py:1295-1298`);
   a declared `name:` in a v2 recipe draws `deprecated-recipe-name`, because the value is
-  discarded rather than honored (`core/validation.py:1512-1525`). Rename the file to rename
+  discarded rather than honored (`core/validation.py:1521-1533`). Rename the file to rename
   the recipe.
-- **`description`** — string, default `""`, read from the top level (`core/recipe.py:1307`).
-  When absent it falls back to `metadata.description` (`core/recipe.py:1385-1389`), and
-  export folds it back into `metadata.description` (`core/recipe.py:2574-2576`).
+- **`description`** — string, default `""`, read from the top level (`core/recipe.py:1299`).
+  When absent it falls back to `metadata.description` (`core/recipe.py:1377-1381`), and
+  export folds it back into `metadata.description` (`core/recipe.py:2565-2570`).
   `recipe list` and `recipe search` read the top-level key **and** fall back to
-  `metadata.description` (`core/recipe.py:2933-2936`), so both spellings list.
+  `metadata.description` (`core/recipe.py:2925-2928`), so both spellings list.
 - **`metadata`** — mapping, default `{}`. Feeds VRAM estimation and display, never the
-  serve command (`core/recipe.py:1362-1363`, `1638-1713`). Recognized labels include
+  serve command (`core/recipe.py:1353-1355`, `1676-1725`). Recognized labels include
   `model_params`, `model_dtype`, `kv_dtype`, `quantization`, `quant_bits`, `model_type`,
   `layer_types`, `description`, `maintainer`, and `spark_arena_benchmarks`. A malformed
   value is a **suggestion** (`recipe-metadata`), never a launch blocker
-  (`core/validation.py:1784-1788`). Metadata is excluded from the workload fingerprint
-  (`orchestration/job_metadata.py:340-350`).
+  (`core/validation.py:1794-1798`). Metadata is excluded from the workload fingerprint
+  (`orchestration/job_metadata.py:332-350`).
 - **`maintainer`** — no top-level form. The constructor reads `metadata.maintainer`
-  only (`core/recipe.py:1392`) and export writes it back there
-  (`core/recipe.py:2577-2578`); a top-level `maintainer:` is not in `_KNOWN_KEYS` and is
+  only (`core/recipe.py:1384`) and export writes it back there
+  (`core/recipe.py:2569-2570`); a top-level `maintainer:` is not in `_KNOWN_KEYS` and is
   swept into `runtime_config`.
 - **`include`** — one base recipe: a sibling filename or `@registry/name`. The base is
   loaded recursively (depth cap 8), then merged: mappings merge key by key, scalars and
   lists replace, an explicit `null` deletes, values inside `defaults:` and `env:` are
   atomic, and `overrides:` appends with the includer last (`core/recipe_include.py:1-33`,
-  `102-128`). A `Recipe` built straight from a dict rejects it; load through
-  `Recipe.load()` (`core/recipe.py:1146-1150`, `1783-1786`).
+  `108-143`). A `Recipe` built straight from a dict rejects it; load through
+  `Recipe.load()` (`core/recipe.py:1275`, `1874-1885`).
 - **`overrides`** — list of `{when, defaults|env|container}` layers, default `[]`. Keys in
   one `when` AND; matching layers apply in list order, later wins; precedence is runtime <
   platform < `defaults` < matched overrides < CLI `-o` (`core/recipe_overrides.py:1-52`).
   An unknown selector or operator makes the entry **not match**, with a warning; layer
   keys outside `defaults`/`env`/`container` are structural errors; `port`,
   `served_model_name`, and parallelism keys may not be set by a layer
-  (`core/recipe_overrides.py:69-143`). Selector-only `when.config` keys count as consumed
-  (`core/launcher.py:866-870`).
+  (`core/recipe_overrides.py:123-188`). Selector-only `when.config` keys count as consumed
+  (`core/launcher.py:996-998`).
 
 ### Model and serving
 
