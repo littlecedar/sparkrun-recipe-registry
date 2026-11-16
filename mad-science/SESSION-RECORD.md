@@ -12169,3 +12169,54 @@ staging. Root-level litter is ruled out on the two nodes probed: no image younge
 hour, from a 12:56 census, is the composition-churn class §06:20 names, so the board was left to the peer
 tick and this read lands here. Evidence: `.scratch/tick-0402c-VVdnYM/`, `/tmp/tick-0402-g0mb6c/`.
 
+
+## 2026-11-16 08:08 ET — board tick: refresh published on the 06:39 base, and its push is stalled behind another lane's arm landings
+
+**Landed.** `mad-science/STATUS.md` regenerated as `# Board — generated 2026-11-16 08:08 ET`,
+published through `tools/task-queue.py publish` (rc=0; `--base`/`--expect-sha` on the published
+`06:39` board `4a06ca4a`, `--expect-remote-sha` on the same content sha, `lint` rc=0), file sha
+**`0149f13d…`**, committed as **`055b491`**.
+
+**Reads, all this tick's own.** Census `11:28:25Z`–`11:28:30Z` over six nodes — 4.6 min after the
+base's `11:23:51Z`: production serve alone on `.31`–`.34` (each rank's `sglang.launch_server` child
+alive at 1 pid; in-container `/v1/models` **200** on rank 0, **404** on ranks 1–3 because only rank 0
+binds the API; the head-side `curl localhost:8000` reads `000` for the same reason), `.30`/`.35` at
+**0** containers and **0** volumes, research containers **0**, volumes **0** fleet-wide. Pool used
+**13,961,290,842,112 B** at `11:28:29Z` (**+3,670,016 B** on the `11:23:54Z` read), avail
+**10,229,938,913,280 B**, total **24,191,229,755,392 B**, identical on the head and on `.35`; hub
+entries **102** both sides; `stat -L` on the served index answers **7,470,294 B** from both.
+`.34`'s `beegfs-meta` now reads `active`/`success` at `NRestarts` **73,395** where the base had
+`activating`/`exit-code`, its counter climbing at the same rate as its peers (**+859** in 4.6 min) —
+recorded as a state change with no mechanism claimed. Leases `997acbd7…` 1,999 B, byte-identical on
+the head, 0 live leases, one fence whose `started_at` matches this tick's own `docker inspect`; no
+window lock either copy; campaign unit `inactive`, `state.json` 62,990 B `85c1b777…`,
+`director status` **1 pending, 10 measured, 13 blocked**.
+
+**The register moved under the tick.** The `9c62a1f3…` snapshot (196 tasks) this tick read was
+replaced at `08:11:46 ET` by a peer session that added `mech-cites-0-4-3` (closed at once) and closed
+`qwen38-flash-next-gguf-viability`; the board's queue row and both blocks are rendered from a re-taken
+**`9cc41c00…`** snapshot — **197 tasks, 156 done, 33 queued, 8 blocked, 0 running — 41 open**,
+`check` rc=0, **0 live claims**, graph line **8 blocked, 1 edges, 7 prose-gated, 0 question-gated, 0
+question, 39 rows not drawn (--all)` (the added row draws no edge). The composition also carries the
+base's later rank-0 readiness probe (`11:39:22Z`, naming the served model) with its own timestamp.
+
+**Why the push is stalled, and what it is not.** Local HEAD is **7 commits ahead of `origin/main`
+(`d03d519`)** and `tools/push-gate.py` over `git archive HEAD` refuses on the doc-hygiene leg:
+`AGENTS.md:18`, `:73`, `:108` state **122** tracked recipes against an actual **125** (the qwen4 GGUF
+arm, TwIL-8B and Viggle Remake all landed in the last hour). The address leg that was also red
+(`queue.json:2129`, head hostname `spark-41e1`) is green as of `07485e0`, masked by the session that
+wrote it. The board commit itself is clean; the counts under it are not, and the remedy is a **re-taken
+`validate --strict` snapshot** — `122 → 125` by `tools/doc-census.py --fix` would arithmetic-adjust a
+dated 2026-11-10 run, which the repo forbids, and any roster re-run authored here goes stale the next
+time a lane ships an arm (three did, in ten minutes). So the snapshot stays with the lanes landing
+the arms; this tick did not push a red tree.
+
+**A trap this tick hit anyway.** The first fold anchored on `text.index("## Work queue")` and matched
+the *publication row's* prose mention, swallowing the heading and the mermaid block into a table cell.
+Rebuilt anchored on `(?m)^## Work queue$` and `(?m)^## Landed session$`. The skill names this trap;
+an index on bare prose is what walks into it.
+
+**Remains.** Push `055b491` once the counts are re-taken (then run `tools/push-gate.py` again, since it
+reads only the committed tree); `origin/main` still serves the `06:39` board with the `11:23Z` census,
+so the fleet's refresh lives in this clone until then. Evidence: `.scratch/tick-0626-7331/`
+(`census.out`, `compose.py`, `board4.md`, both render blocks).
