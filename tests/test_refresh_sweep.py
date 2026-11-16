@@ -462,6 +462,26 @@ class Containers(unittest.TestCase):
         self.assertEqual(row["class"], sweep_tool.CONTAINER_NEWER_RELEASE)
         self.assertEqual(row["new_digest"], NEW_DIGEST)
 
+    def test_ghcr_single_image_oci_manifest_needs_its_media_type(self):
+        # ghcr 404s a digest it holds when the manifest type that digest names is
+        # not offered in Accept, so a digest-only pin of a single-image OCI
+        # manifest read as `container-unresolvable` for four live pins
+        # (2026-11-16). The fake registry negotiates like the real one instead of
+        # asserting on the constant, so this fails while the type is missing.
+        ref = "ghcr.io/ns/name@" + NEW_DIGEST
+
+        def registry(url, headers):
+            if "application/vnd.oci.image.manifest.v1+json" in headers.get("Accept", ""):
+                return (200, {"docker-content-digest": NEW_DIGEST}, "{}")
+            raise sweep_tool.FetchError(url, "HTTP 404", 404)
+
+        rules = [("ghcr.io/token?scope=repository:ns/name:pull",
+                  (200, {}, json.dumps({"token": "t"}))),
+                 (f"ghcr.io/v2/ns/name/manifests/{NEW_DIGEST}", registry)]
+        row = self._classify(ref, rules)
+        self.assertEqual(row["class"], sweep_tool.CONTAINER_CURRENT)
+        self.assertEqual(row["observed"], NEW_DIGEST)
+
     def test_unknown_registry_is_unresolvable(self):
         row = self._classify("quay.io/ns/name:t@sha256:" + "0" * 64, [])
         self.assertEqual(row["class"], sweep_tool.CONTAINER_UNRESOLVABLE)

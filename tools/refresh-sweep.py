@@ -365,12 +365,16 @@ def ghcr_token(repo, fetcher):
 
 
 # One accept list for every registry: registry APIs answer with the digest of
-# whatever representation they choose, so all four manifest media types are
-# offered and the caller reads `docker-content-digest` back.
+# whatever representation they choose, so every manifest media type a recipe can
+# pin is offered and the caller reads `docker-content-digest` back. A registry
+# 404s a digest it holds when the type that digest names is missing from this
+# list: ghcr answers 404 for a single-image OCI manifest unless that type is
+# offered, which reported four live pins as `container-unresolvable` (2026-11-16).
 MANIFEST_ACCEPT = (", ".join((
     "application/vnd.oci.image.index.v1+json",
     "application/vnd.docker.distribution.manifest.list.v2+json",
     "application/vnd.docker.distribution.manifest.v2+json",
+    "application/vnd.oci.image.manifest.v1+json",
 )))
 
 
