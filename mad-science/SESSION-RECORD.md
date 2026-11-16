@@ -12136,3 +12136,36 @@ is the node-local image id (`sha256:3f4480818acb…a4d5`), not a registry manife
 `ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb394…`, the only pin for that tag another host can pull.
 The `06:39` board's window cell says "image id", which is right.
 
+## 2026-11-16 09:43 ET — hourly board tick: no board written (peers held the file), and the six roots' fall *is* the pool's intake
+
+**Reads.** Census `12:56:12Z`–`12:56:16Z`, pool `12:56:15Z`, worker-side `df -B1`/`stat -L` `12:56:16Z`,
+serve `12:56:15Z`: production serve alone on `.31`–`.34` (four ranks `Up 3 days (healthy)`, image id
+`3f4480818acb`, each rank's `sglang.launch_server` child, `/v1/models` **200**
+`deepseek-ai/DeepSeek-V4.1-Flash-1017` max_model_len 1048576), `.30`/`.35` at **0** containers and **0**
+volumes, research containers **0**. Pool used **14,052,556,275,712 B** at `12:56:15Z`
+(**+91,269,103,616 B** on the `06:39` board's `11:23:54Z` read), avail **10,138,673,479,680 B**, total
+**24,191,229,755,392 B**; hub entries **103** (base 102), and `stat -L` on the served index answers
+**7,470,294 B** from both the head and `.31`. Register snapshot sha **`21395379…`**: **197 tasks, 155
+done, 34 queued, 8 blocked, 0 running — 42 open**, `check` rc=0, **0 live claims**, graph line **8
+blocked, 1 edges, 7 prose-gated, 0 question-gated, 0 question, 40 rows not drawn (--all)**. Leases
+`997acbd7…` 1,999 B, 0 live leases, fence unchanged; campaign unit **inactive**, `state.json` 62,990 B
+sha **`85c1b777…`**, `MainPID` 0.
+
+**The finding: the fleet root fall and the pool's growth are one quantity.** All six roots fell
+`11:23:51Z`→`12:56:12Z` by `.30` −10,402,545,664, `.31` −12,926,324,736, `.32` −19,605,970,944, `.33`
+−22,332,764,160, `.34` −10,347,945,984, `.35` −15,653,240,832 B — **sum 91,268,792,320 B**, against the
+pool's **+91,269,103,616 B**: agreement to **311,296 B** in 91 GB. So the fall is BeeGFS chunk placement
+on node-local storage, not local litter, which is the 2026-11-07 rule re-measured on a second interval.
+The writer is identifiable at file level: `hub/blobs/95/95b339d0…` is **49,742,117,248 B (46.3 GiB)**,
+mtime `07:04:55 ET`, and its 112 B `.refs` names
+`models--unsloth--Qwen3.8-Flash-Next-GGUF/blobs/e954cb30…` with `refs/main` `f5d175de…` — a peer's GGUF
+staging. Root-level litter is ruled out on the two nodes probed: no image younger than 2026-11-11, no
+`docker pull`/`hf download` process, and the fall had stopped by `13:15:31Z` (`.30` −11 MB, `.35`
+−1.87 MB over 19.3 min).
+
+**Why no board.** Clean-board checks at 08:26 and 09:45 ET each found a peer composition on the path; the
+09:45 check found local HEAD two commits ahead of `origin/main` (`055b491`, `276c149`) with its board
+(sha `0149f13d…`) already published by that tick on an `11:28:25Z` census. A third publish inside one
+hour, from a 12:56 census, is the composition-churn class §06:20 names, so the board was left to the peer
+tick and this read lands here. Evidence: `.scratch/tick-0402c-VVdnYM/`, `/tmp/tick-0402-g0mb6c/`.
+
