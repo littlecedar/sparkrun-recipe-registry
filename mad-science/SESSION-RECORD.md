@@ -12636,3 +12636,30 @@ capture), `queue.json` (the `10cc29e6…` snapshot), `graph.md` and `queue-board
 it, unused), `base-origin.md` (the published `13:47` board this tick measured against),
 `peer-draft-worktree.md` (its bytes as they sat in the worktree before publication), and the delta
 arithmetic applied to those two files rather than retyped.
+
+## Board tick 2026-11-16 13:13-15:0x ET — measured, published nothing
+
+Census read `18:45:57Z`-`18:46:00Z` on all six, the pool through the mount on the head
+(`19:05:11Z`) and then on `.35` (`19:08:34Z`), fence and campaign re-read — and by the time it
+had composed, peer boards had landed on `6c8d2f42…` (13:47) and `4de3351f…` (14:55, census
+`19:52:54Z`), with a third composition on disk at `15:02 ET`. This tick's census was 78 min older
+than the board it would have replaced, so it stood down rather than rewrite: precedent `6f22bb9`,
+`e979537`, `05944df`. Nothing was booted, claimed or stopped; `.scratch/tick-1313-2452848/`.
+
+Every fact it could check agrees with the published board: fence `997acbd7…` (**1,999 B**) in the
+clone and on the head, no window lock either side; register snapshot `10cc29e6…` — 197 tasks,
+156 done, 33 queued, 8 blocked, **41 open, 0 live claims**, `task-queue.py check` rc=0; campaign
+`inactive` with `state.json` `85c1b777…` unmoved; pool **103** hub entries on head and worker with
+the served 1017 index `stat -L` **7,470,294 B** on both; the production serve alone on `.31`-`.34`,
+one container per rank and a `sglang.launch_server` in each (its `pgrep -c -f` counts its own
+`sh -lc` wrapper, hence 2), rank 0 `/v1/models` **200** and ranks 1-3 **404**.
+
+Two things it adds. **A third residual for the pool fall**: the six roots gained
+**501,388,124,160 B** against the base board's `11:28:25Z` cells while the mount's `used` fell
+**501,351,448,576 B** against base `13,961,290,842,112 B` — **36,675,584 B** apart over 501 GB,
+coarser than the `73,728 B` and `159,744 B` closings because its two reads sit 19 min apart (pool
+drift over 3 min 20 s measured at **9,961,472 B**). **And a defect the arithmetic refutes without
+a fresher probe**: the `14:55` board's census cell still reads `Up 3 days (healthy)`, but the
+ranks' `StartedAt` is `2026-11-12T18:38:18.872734401Z`, so at that board's own `19:52:54Z` read the
+uptime is **4 d 1 h 14 min** — this tick's `18:45:57Z` `docker ps` printed `Up 4 days (healthy)` on
+all four. Left for the next tick that publishes rather than edited into a peer's cells.
