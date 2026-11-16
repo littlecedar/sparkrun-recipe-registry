@@ -12495,3 +12495,40 @@ container per rank, rank 0 answering **200** `deepseek-ai/DeepSeek-V4.1-Flash-10
 Evidence: `.scratch/tick-0607-449477/` (`census.raw` `15:47Z`, `pool3.raw` `16:04Z`, `pool-1250.txt`
 the `12:50:43Z` read, `queue.json` at `4873e40a…`, `base3.md` = `0149f13d…`, `board.md` — the
 unpublished composition, kept so the next tick can splice its cells).
+
+## 2026-11-16 13:56 ET — board tick stood down at the publish guard; the nine-root lease enumeration and a GC receipt that the pool identity has to explain
+
+Own read over all six at `16:09:12Z`–`16:09:15Z` (pool `16:09:12Z`, re-read `16:22:56Z`), composed on the
+`08:08 ET` board (`055b491`, bytes `0149f13d…`) — and **`publish` refused it** (`exit 1`) because the disk
+board had moved to `6c8d2f42…` while this tick composed: a peer's `13:47 ET` composition, whose census
+(`18:47:26Z`) is 2 h 38 min fresher than this tick's. Stand-down, not a rewrite: precedent `6f22bb9`,
+`e979537`, and the `14:49 ET` section above. Nothing was booted, claimed or stopped; `.scratch/tick-0906-1210165/`.
+
+**Two intervals, and the difference between them is exactly the peer intake.** This tick's own fall is
+`592,836,034,560 B` (`12:56:15Z` read `14,052,556,275,712 B` → `16:09:12Z` read `13,459,720,241,152 B`),
+which agrees with the `14:49 ET` section's independent `592,962,912,256 B` over `12:50:43Z`→`16:04:22Z` to
+**126,877,696 B** on a 6.4-min-shifted interval. Against the base board's `11:23:54Z` read the *net* is the
+smaller `501,570,600,960 B` — and it is smaller by arithmetic that checks: the `+91,265,433,600 B` peer
+intake the `09:43 ET` section measured ran `11:23:54Z`→`12:56:15Z`, entirely *before* this fall, so
+`592,836,034,560 − 91,265,433,600 = 501,570,600,960` reproduces the net to the byte. This tick's six root
+rows reproduce that same net to **73,728 B**, and a second pool read 13.7 min later (`16:22:56Z`,
+`13,459,612,237,824 B`) bounds the change at **108,003,328 B**, so the fall was complete, not in progress,
+at this sample. Hub entries **103**; served index `stat -L` **7,470,294 B** on the head and all four ranks.
+
+**The one sum this tick cannot close.** The pool-side deleter is named by the `14:5x ET` entry below (the
+pool's `sparkrun/` runtime-cache tree, **LIKELY** the approved GC, 592.8 GB against a 732 GB plan), and a
+separately receipted **root-side** batch ran inside this same interval:
+`.scratch/gc-20261116/run-20261116T153546Z-executed.md` records batch 1 executing at `15:35Z` — 52 named
+items, **554.54 GB freed** on the roots (`.30` 22.53, `.31` 96.38, `.32` 143.49, `.33` 143.68, `.34`
+148.46, `.35` 0.00 GB) — while stating `HF pool untouched`. The roots rose by **592.8 GB** in this
+interval, i.e. by the pool release alone; if the 554.54 GB root deletion were additive to the same avail
+series the rise would be ~1.15 TB. So the two receipts cannot both be incremental to it, and the
+discriminator is a `df -B1` bracket around one known batch-1 item per node (plus BeeGFS target-side
+accounting, which register row `pool-target-probe-beegfs-ctl-absent` still blocks on `.30`). Reported, not
+resolved: both receipts are other sessions' bytes and neither was edited here.
+(3) Corroboration at an earlier stamp: `beegfs-meta` `NRestarts` `.31`-`.35` **76,620 / 76,623 / 76,626 /
+76,623 / 76,610** at `16:09Z`, which puts the `14:49 ET` series' `16:29Z` sample at the same 11.5/min, and
+`.34` reading `activating`/`exit-code` here is a **third** sample against the `08:08` board's `active`
+clause. Serve readiness: one `sglang.launch_server` child per rank, in-container `/v1/models` **200** on
+rank 0 (`deepseek-ai/DeepSeek-V4.1-Flash-1017`), **404** on ranks 1–3, `.30`/`.35` at 0 containers and 0
+volumes, `kho=off` **1** and `CmaTotal/CmaFree` **0/0** on all six.
