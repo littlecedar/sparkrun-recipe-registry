@@ -2123,14 +2123,16 @@
       "estimate_h": 2.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "qwen3.8-flash-next",
       "node_cost": "single",
-      "notes": "BUILD QUESTION ANSWERED, no new image needed: the pinned ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b80... is commit 6023692b1e13 (2026-11-05) and its src/llama-arch.cpp already maps LLM_ARCH_QWEN4EXP to \"qwen4exp\", matching Qwen/Qwen3.8-Flash-Next model_type qwen4_exp (architectures Qwen4ExpForConditionalGeneration, 180B BF16, 48 layers, 24 heads / 2 KV heads, head_dim 256, 12 full-attention + 36 linear layers, 512 experts top-10, max_position 262,144). FIT ARITHMETIC AT TP=1 (llama.cpp has no tensor parallel, so the whole body is resident on one node): KV = 12 full-attn layers x 2 KV heads x 256 head_dim x 2 (K,V) x 2 B = 24,576 B/token = 24 KiB/token, so a 262,144 window costs 6.00 GiB and 32k costs 0.75 GiB; budget from recipes/explore/README.md section Fit arithmetic = kernel-visible 121.69 GiB, measured free at startup 112.33-115.02 GiB, non-KV overhead 1.48-3.05 GiB. Tier bytes measured from the tree (each tier total INCLUDES its bundled n-gram/engram table shard, slot 3/3 or 4/4 per engram/README.md, so no separate side file is needed to serve): UD-Q4_K_XL 103.69 GiB, UD-IQ4_XS 87.24, UD-Q3_K_XL 83.32, UD-IQ3_XXS 77.88, UD-Q2_K_XL 74.12, UD-IQ2_XS 70.62, UD-IQ1_S 61.82, Q8_0 175.30, BF16 329.72. UD-Q4_K_XL is a FIT REJECTION: 103.69 + 3.05 + 6.00 = 112.74 GiB, above the 112.33 low free reading and 2.3 GiB under the best one, matching the earlier 111.3 GB triage figure (row gguf-convert-qwen38-spark2_5-q4km). The Q3-class tiers fit: UD-Q3_K_XL 83.32 + 3.05 + 6.00 = 92.37 GiB leaves ~20 GiB headroom; UD-IQ4_XS 87.24 gives 96.29 GiB. VERDICT: a single-node arm is possible at UD-Q3_K_XL (or UD-IQ4_XS) with a 262k window and no image build; Q4 and above are rejected on arithmetic. Unmeasured risk: 3-bit quality on a 180B MoE. The 208 GiB engram/ directory is a table-SWAP catalog, not required data, so do not download it. Owner directive 2026-11-09 still applies (TP1/TP2 work only where it unblocks a TP4 row), so this row is queued, not booted.",
+      "notes": "ANSWERED BY BOOT, 2026-11-16 on 10.0.4.30 only: viable. UD-Q3_K_XL (4 shards 89,464,948,506 B = 83.32 GiB, shard 4 = bundled IQ4_NL n-gram table) loads and serves at TP=1 with the full 262,144 window: TTR 145 s, decode 32.5-32.7 t/s at C1 (32.73/32.72 n=2), prefill 87-167 t/s, ~95.6 GiB held (MemAvailable 116.2 -> 20.6 GiB), /v1/models returns the declared id, real completions answer (17*23=391 with reasoning split out). The pinned build needed no change: llama.cpp 6023692 loaded qwen4exp. Register arithmetic confirmed: 83.32 + 6.00 KV + ~3 = ~92 GiB of 116.2 free; UD-Q4_K_XL stays rejected. Two traps recorded: the rendered command carries no --no-mmap (flag-map defaults are not appended on the template path), so weights are mmap-backed (11 GiB Cached); and reasoning lands in reasoning_content by default, so a 256-token budget returned empty content with finish=length. Note the brief's node map was inverted: spark-01 is .31 (a live TP=4 rank), .30 is spark-41e1, and the boot named 10.0.4.30 explicitly.",
       "provenance": "HF API /api/models/unsloth/Qwen3.8-Flash-Next-GGUF (+ /tree/main, engram/README.md) and Qwen/Qwen3.8-Flash-Next config.json read 2026-11-10; llama.cpp src/llama-arch.cpp at 6023692b1e13a6d4ee6b93f989c4713e474e6165; register row gguf-convert-qwen38-spark2_5-q4km",
-      "evidence": "",
+      "evidence": "head:~/benchmarks/tp1-gguf-20261116/ (launch.log, watchdog log pid 749307, probe-*.json, meminfo-postload); .scratch/tp1-gguf/ locally; recipe recipes/qwen4/zz-qwen3.8-flash-next-ud-q3k-xl-llamacpp.yaml",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "recipe": "recipes/qwen4/zz-qwen3.8-flash-next-ud-q3k-xl-llamacpp.yaml",
+      "tp": 1
     },
     {
       "id": "lane-survey-webai-official-twil-8b",

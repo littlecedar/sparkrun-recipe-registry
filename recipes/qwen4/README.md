@@ -22,6 +22,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
 - [TP=2 — labquant balanced base (SGLang, 2 nodes)](#tp2--labquant-balanced-base-sglang-2-nodes)
 - [TP=2 — labquant high-concurrency arm (SGLang, 2 nodes, unmeasured)](#tp2--labquant-high-concurrency-arm-sglang-2-nodes-unmeasured)
 - [TP=1 — solo vLLM (1 node)](#tp1--solo-vllm-1-node)
+- [TP=1 — llama.cpp GGUF viability arm (1 node)](#tp1--llamacpp-gguf-viability-arm-1-node)
 - [Attic index](#attic-index)
 
 ## TP=2 — labquant balanced base (SGLang, 2 nodes)
@@ -199,6 +200,36 @@ publishes `sm_121a` for vLLM on DGX Spark.
 serve log shows `Running: 8 reqs, Waiting: 2 reqs` — not because the pool is short: the engine
 granted `14.48 GiB` of KV = `770,455` tokens = `2.94x` at 262,144. The boot was cold, TTR 784.6 s
 port-open (`init engine … 689.80 s` under b12x autotune).
+
+## TP=1 — llama.cpp GGUF viability arm (1 node)
+
+| | |
+|:--|:--|
+| Recipe | `zz-qwen3.8-flash-next-ud-q3k-xl-llamacpp.yaml` |
+| Engine | llama.cpp `llama-server` — `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692@sha256:f2579b80…` (commit `6023692`, 2026-11-05; `src/llama-arch.cpp` maps `LLM_ARCH_QWEN4EXP` → `qwen4exp`, so no image build was needed) |
+| Model | [`unsloth/Qwen3.8-Flash-Next-GGUF`](https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF) — `UD-Q3_K_XL`, dynamic v3.1 tier |
+| Checkpoint pin | `model_revision: f5d175de2cf7f720d45d6064019a81fcf056e986` |
+| Quant bytes | 4 shards, 89,464,948,506 B = **83.32 GiB**; shard `-00004-of-00004` (28,800,138,432 B) is the bundled IQ4_NL n-gram table, so no `engram/` side file is fetched. `mmproj-BF16.gguf` (907,542,944 B) is appended by the runtime's `mmproj` resolution, giving the arm a vision path |
+| Nodes / context | 1 (TP=1, `max_nodes: 1`), full 262,144 window (`--ctx-size 262144`, `n_ctx_slot = 262144`) |
+| Measured (2026-11-16) | **TTR 145 s** (`serve.health_ok`; model load 2m25s) · **decode 32.5–32.7 t/s at C1** (32.73 / 32.72 n=2 at 256 tokens; 32.40–32.51 on short prompts) · prefill 87–167 t/s · `GET /v1/models` returns `unsloth/Qwen3.8-Flash-Next-GGUF` · `17*23` → `391` with the working split into `reasoning_content`. Receipt `~/benchmarks/tp1-gguf-20261116/` on the head, `.scratch/tp1-gguf/` locally, watchdog pid 749307 |
+| Memory | `MemAvailable` 116.2 GiB → 20.6 GiB, i.e. **~95.6 GiB held** against 83.32 GiB of weights, 6.00 GiB KV (262,144 × 24 KiB/token) and the rest non-KV + page cache. No container, no volume, no boot on any other node |
+| Tags / vision | `explore, reasoning, long_context, gguf` — served with the runtime-appended `--mmproj`, vision not exercised |
+| License | Qwen Community License 1.0 (`qwen-community-1.0`), ungated |
+
+**What the arm answers, and what it does not.** It is a viability arm: `UD-Q3_K_XL` loads and serves
+at TP=1 on one GB10, which confirms the register arithmetic (83.32 + 6.00 KV + ~3 overhead ≈ 92 GiB of
+116.2 GiB measured free) and clears the build question (the pinned commit carries `qwen4exp`).
+`UD-Q4_K_XL` stays rejected on the same arithmetic (103.69 GiB weights alone against a 112.33–115.02 GiB
+free pool). Nothing here is a quality measurement: no in-tree instrument has scored a 3-bit quant of
+this checkpoint, and the 32.5 t/s figure is one boot, one window, C1 only.
+
+**Two traps the boot exposed.** (1) The rendered command carries **no** `--no-mmap` even though the
+llama-cpp flag map has a GB10 default `mmap: false`: that tier is only applied on the command-less
+path, so a template command runs llama.cpp's own default (mmap on) — measured only as 11 GiB of
+`Cached` after load. (2) The GGUF template preserves reasoning by default and the engine splits it into
+`reasoning_content`, so a `max_tokens: 256` explainer probe spent the whole budget thinking and returned
+**empty `content` with `finish=length`**. That is a client trap, not a dead serve; budget thinking
+explicitly when measuring this arm.
 
 ## Attic index
 
