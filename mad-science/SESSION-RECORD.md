@@ -12438,3 +12438,60 @@ still blocks it on `.30`).
 clause. Serve readiness: one `sglang.launch_server` child per rank, in-container `/v1/models` **200** on
 rank 0 (`deepseek-ai/DeepSeek-V4.1-Flash-1017`), **404** on ranks 1–3, `.30`/`.35` at 0 containers and 0
 volumes, `kho=off` **1** and `CmaTotal/CmaFree` **0/0** on all six.
+
+## 2026-11-16 14:5x ET — hourly tick stood down; it confirms the pool fall and records a falsifier it got wrong
+
+Read-only census over all six nodes at `2026-11-16T15:47:28Z`–`15:47:30Z`, pool pair at `16:04:22Z`,
+on the board published as `055b491` (content sha `0149f13d…`). **Nothing published**: the disk carried
+a peer's `13:47 ET` composition (`6c8d2f42…`) whose census is `18:47:26Z` — three hours fresher than
+this tick's — so this tick joins the stand-downs `6f22bb9`, `e979537` and `05944df` record. Swapping
+their rows for older numbers is the `board-publish-accepts-weaker-replacement` class. That
+composition has since published as `e3a2839`, and its pool cell still reads *unattributed*, so what
+follows adds evidence to a cell that has not been changed rather than re-deriving it.
+
+**The pool `df` is the six storage targets summed.** The nodes' own `df -B1 /srv/beegfs/storage`
+summed `13,459,782,258,688 B` used at `15:47:28Z` against a `13,459,717,619,712 B` mount read at
+`16:04:22Z` — `64,638,976 B` apart over 17 minutes — so a node cell's root delta and the pool cell are
+one quantity, and a pool write depresses every root's `/` avail. Its own bracket on the fall:
+`14,052,680,531,968 B` used at `12:50:43Z` → `13,459,717,619,712 B` at `16:04:22Z`, i.e.
+`592,962,912,256 B` (`593.0 GB`) off the pool.
+
+**`cc7b292` names what left** — `/mnt/beegfs` lists only `huggingface`, so `sparkrun/` and every
+runtime tree under it are gone. This tick's own read agrees: `ls /mnt/beegfs/sparkrun` answers *No
+such file or directory*, `ls -d /mnt/beegfs/*/runtime-cache` matches nothing, and the hub is intact at
+**103** entries. Register row `runtime-cache-stale-tree-gc` is still **queued** ("APPROVED BUT NEVER
+RUN … 732 GB planned"): `593.0 GB` reclaimed against that plan wants a session to close it on this
+pair.
+
+**The GGUF writer, at file level rather than inferred.** `hub/blobs/95/95b339d0…` (49,742,117,248 B,
+mtime `07:04:55 ET`) carries a 112 B `.refs` naming
+`models--unsloth--Qwen3.8-Flash-Next-GGUF/blobs/e954cb30…`, and that repo's `blobs/` holds symlinks to
+all six fetched bodies (49,742,117,248 / 28,800,138,432 / 10,911,746,208 / 907,542,944 / 904,004,000 /
+10,946,618 B) — the staging `e79b489` ships as `zz-qwen3.8-flash-next-ud-q3k-xl-llamacpp.yaml`.
+
+**A falsifier this tick got wrong, recorded so the next tick does not repeat it.** The first check for
+the approved GC read `${WOPR_USER_CACHE}/sparkrun/runtime-cache`, which resolves to the **node-local**
+`/home/red/.cache/sparkrun/runtime-cache`, found 3 trees with mtimes `2026-10-17`–`2026-11-12`, and
+this tick nearly published "not the approved GCs" on that basis. The pool path is
+`/mnt/beegfs/sparkrun/runtime-cache`; node-local trees surviving says nothing about a pool deletion.
+The same census's `ls -1 /mnt/beegfs` had already printed `huggingface` alone, and the falsifier was
+run against the wrong copy of the thing it was falsifying.
+
+Two instrument notes, both costing a read:
+
+- `ssh -n host 'bash -s' < script.sh` points the remote stdin at `/dev/null`, so six nodes returned
+  **0 bytes at exit 0**. Drop `-n` when the stdin *is* the script; keep it when it is not.
+  `e979537` hit the same trap from the other direction.
+- Parsing a base board document-wide matches **landed rows**: `used \*\*([\d,]+) B\*\*` picked a
+  sentence in a landed row and produced a base figure 501 GB stale. Scope every base-cell regex to the
+  row whose key you mean.
+
+Register at this tick's read: `10cc29e6…`, **197 tasks / 156 done / 33 queued / 8 blocked — 41 open,
+0 live claims**; the fenced production serve alone on `.31`–`.34` (image id `3f4480818acb`, one
+container per rank, rank 0 answering **200** `deepseek-ai/DeepSeek-V4.1-Flash-1017` at
+`max_model_len` 1048576), `.30` and `.35` at 0 containers and 0 volumes, `kho=off` **1** and
+`CmaTotal/CmaFree` **0/0** on all six, kernel `7.0.0-1025-nvidia`.
+
+Evidence: `.scratch/tick-0607-449477/` (`census.raw` `15:47Z`, `pool3.raw` `16:04Z`, `pool-1250.txt`
+the `12:50:43Z` read, `queue.json` at `4873e40a…`, `base3.md` = `0149f13d…`, `board.md` — the
+unpublished composition, kept so the next tick can splice its cells).
