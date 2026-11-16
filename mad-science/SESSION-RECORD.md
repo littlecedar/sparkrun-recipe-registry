@@ -12060,3 +12060,9 @@ lost, and the fleet state now on the board is the `10:13:50Z` read this tick's `
 corroborates within the bounds above. Recorded rather than left implicit, because the paragraph above
 was written at `06:05 ET` and says the newest published base was the `05:17` board; a tracer reading
 only that sentence would think this hour's board never landed.
+
+**Attribution**: this section landed inside a peer's commit, not its own. `e979537` ("Record the tick
+that published nothing behind a peer's board composition") appended its `05:20 ET` section with a
+`git commit -- <paths>` that took the worktree copy, which by then already carried the section above;
+so one commit's message describes one section and its diff carries two. No bytes were lost and the
+shared-head commit was not amended — `a6066dc` is the only commit this tick owns.
