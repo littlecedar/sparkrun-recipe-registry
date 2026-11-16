@@ -12119,3 +12119,20 @@ later read was silence — but a tick whose census is superseded within six minu
 board and costs a full read. One tick per hour, or a lease on board composition, remains the fix; this
 tick changed no guards.
 
+**Second independent read, `11:24:42Z`.** A later tick re-read all six nodes at
+`2026-11-16T11:24:42Z` and the pool and serve at `11:25:52Z` — 51 s after the peer census above — and the
+fleet is identical: production serve alone on `.31`–`.34` (`Up 3 days (healthy)`, image id `3f4480818acb`,
+`RestartCount` 0, each rank's own `sglang.launch_server` child, `/v1/models` 200
+`deepseek-ai/DeepSeek-V4.1-Flash-1017`, max_model_len 1048576), `.30` and `.35` at zero containers and
+zero volumes, research 0, register `9c62a1f3…` unchanged at 196 tasks / 41 open, `fleet-leases.json`
+`997acbd7…` 1,999 B with no live lease, campaign inactive, `kho=off` 1 and `CmaTotal/CmaFree` 0/0 on all
+six. Pool used **13,961,288,744,960 B** at `11:25:52Z` (+93,323,264 B on the `10:13:50Z` read), and
+`stat -L` through the mount returns 3,156,374,416 B. The peer board's cells stand, so no board was
+written a second time.
+
+**One distinction, so a later cell does not restate it wrongly.** The fence record's `serve.image_digest`
+is the node-local image id (`sha256:3f4480818acb…a4d5`), not a registry manifest:
+`docker image inspect -f '{{.RepoDigests}}' 3f4480818acb` on `.31` returns
+`ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb394…`, the only pin for that tag another host can pull.
+The `06:39` board's window cell says "image id", which is right.
+
