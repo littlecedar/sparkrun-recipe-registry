@@ -957,6 +957,36 @@ above; `mad-science/QUEUE.md` §Session protocol; `mad-science/SESSION-RECORD.md
 — provenance: owner 2026-11-11 (oversight thread); `mad-science/queue.json` rows `campaign-leases-tp4-onto-30`,
 `campaign-does-not-honour-the-.30-exclusion`; `AGENTS.md` §"Node hygiene"; `mad-science/TODO.md` `#67` and S2.
 
+## Owner ruling 2026-11-12 — DINOv3 accepted, two eval-only arms authorized
+Three license-class questions were put to the owner in one oversight thread on 2026-11-12 and came back
+answered the same day. The ruling supersedes the "declined for now" half of `#81` and settles the class question
+the two 2026-11-10 survey rows left to the register; it authorizes arms and ships none by itself.
+- **DINOv3 encoder — may `facebook/dinov3-vith16plus-pretrain-lvd1689m` be staged, so the Idol single-image 3DGS
+ arm can run?** *Answered 2026-11-12:* **"accept"** — the Facebook DINOv3 license is accepted, so the arm ships
+ with its notices. It supersedes the 2026-11-09 answer in `#81` ("we will not accept facebook license time") for
+ this encoder only; the FLUX.2-dev and flux-3-image-klein halves of `#81` stand. Consequence: the blocker
+ `media-idol-3dgs-boot` named is gone and the row returns to `queued`.
+- **webAI 8.8B — may the arm ship?** (`webAI-Official/TwIL-8B`, card `license_name:
+ webai-non-commercial-license-ver.-1.0`, non-commercial.) *Answered 2026-11-12:* **"Accept and ship it."**
+- **MiniMax video pipeline — may the arm ship?** (`Viggle/Viggle-Remake`, card `license_name:
+ minimax-h3-community-license`, base `MiniMaxAI/MiniMax-H3`, community-restricted.) *Answered 2026-11-12:*
+ **"Accept and ship it."**
+- **The obligations that follow.** They are the repo rule's, not a paraphrase of the license texts, and they are
+ written wherever the arm is documented: the license banner in the recipe header and the note in the lane
+ `README.md` carry **attribution** to the license holders, the license's **one-time use notice**, and the
+ **eval-only framing** for the two arms whose weights are non-commercial or community-restricted (webAI 8.8B,
+ MiniMax video). The Idol arm's framing does not change: `#81` accepted the FLUX.2 [dev] VAE, whose
+ non-commercial condition binds every output the arm generates, so accepting DINOv3 clears the gate — it does
+ not lift the eval-only presentation.
+- **What this does not do.** No recipe, lane `README.md`, banner or index row is edited by the ruling, and no
+ evidence is claimed for any of the three arms: the two authoring rows below are the work that turns these
+ answers into shipped arms.
+— provenance: `mad-science/QUESTIONS.md` `#81` (settled; its dinov3 half superseded here); `mad-science/queue.json`
+rows `media-idol-3dgs-boot`, `lane-survey-webai-official-twil-8b`, `lane-survey-viggle-viggle-remake` (each survey
+row recorded its class as one the register had to rule on first); owner 2026-11-12 (oversight thread); `AGENTS.md`
+§Recipes "Non-commercial weights ship eval-only arms" and §"Documentation zones";
+`recipes/media/idol-1.8b-bf16-3dgs-script.yaml` header (the two gated encoders and the eval-only banner).
+
 # TODO list
 
 **Standing rules (owner decisions 2026-10-15/18/19, condensed 2026-10-24 — the full original

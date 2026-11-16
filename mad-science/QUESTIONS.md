@@ -19,6 +19,13 @@ current state. What the lift does not touch: a TP1/TP2 row that unblocks no TP4 
 a memory-risky quartet boot to `.31`–`.35` and never `.30`, and `#58` still forbids displacing the production ds4
 TP=4 quartet on `.31`–`.34`.)*
 
+*(Correction 2026-11-12: **`#81`'s dinov3 half is superseded** — the owner's 2026-11-12 oversight thread accepts
+`facebook/dinov3-vith16plus-pretrain-lvd1689m` ("accept") and authorizes two eval-only arms, so the "unanswered"
+cell's "`dinov3` **declined**" reads as the 2026-11-09 answer's state at its date, not as current state. The row
+stays settled and the counts above do not move: an accepted license settles the same question `#81` settled,
+it does not open one. Record and obligations: `TODO.md` §"Settled questions" under
+`## Owner ruling 2026-11-12 — DINOv3 accepted, two eval-only arms authorized`.)*
+
 ## Hardware & authorization
 
 No open rows. The last batch (`#69`–`#83`, 2026-11-09) is settled in `TODO.md` §"Settled questions".
