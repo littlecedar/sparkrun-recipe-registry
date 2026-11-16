@@ -12220,3 +12220,128 @@ an index on bare prose is what walks into it.
 reads only the committed tree); `origin/main` still serves the `06:39` board with the `11:23Z` census,
 so the fleet's refresh lives in this clone until then. Evidence: `.scratch/tick-0626-7331/`
 (`census.out`, `compose.py`, `board4.md`, both render blocks).
+
+## 2026-11-16 13:47 ET — board tick: published on the peer's 08:08 base, and the pool lost half a terabyte while nobody was driving it
+
+Read at `18:47:26Z`–`18:47:30Z` over all six. The fleet is unchanged where it matters: the shipped
+production serve alone on `.31`–`.34` (`Up 3 days (healthy)`, image `3f4480818acb`, `StartedAt`
+`2026-11-12T18:38:18Z`, serve child in every rank, `/v1/models` **200**), `.30` and `.35` empty, zero
+research containers, no live lease, no window lock, campaign inactive since 11-12, `kho=off` and
+`CmaTotal/CmaFree` **0/0** on all six.
+
+**The finding is the pool.** Used fell **501,595,766,784 B** against the base board's `11:23:54Z`
+read, and that net hides two opposite movements: **+91.4 GB** of new shared blobs between the base
+and `12:04:55Z` — a peer's `models--unsloth--Qwen3.8-Flash-Next-GGUF` `UD-Q3_K_XL` fetch, whole at
+**89,464,948,506 B** across four shards with no dangling link and a `xet_download_summary` **200 OK**
+closing it — and then a fall of **592.8 GB** measured between a mid-tick `13:11:41Z` read and the
+composed one. The fall's source is **unattributed**: no path under `huggingface` carries an mtime
+after `13:12Z` (searched to depth 4), no per-repo `blobs` dir was touched, and `hub`'s apparent size
+(7.4 TiB) sits far under the mount's 13.46 TB used, so `du` can neither confirm nor deny a delete.
+What is measured is that the six roots' free space rose by the same sum, within ~1 MB, and that the
+pool's bytes live in `/srv/beegfs/storage` on each rank's root (`storeStorageDirectory`, read on
+`.31`–`.35`) — so the space really was freed, on the volumes that back the pool. The production
+serve's own body is intact: `du -sbL` on `snapshots/08c8657f…` reads **510,311,062,017 B** across
+**57** links with **0** dangling. Worth the next window's attention, not a boot stop: **LIKELY**
+something pruned cache content by a path this mount no longer shows.
+
+**Two compositions were thrown away before this one.** The first carried the `13:11Z` read into a
+`12:08 ET` title twice over, because wall-clock time between compile and publish ran far ahead of the
+probe; the fix was to run probe, compose and publish inside one command so the title stamp and the
+census cannot drift apart. The second was refused by `publish` for passing a git **blob** sha as
+`--expect-remote-sha`, which wants the board's **content** sha — the tool said so by name, and the
+retry with `0149f13d…` went through. Origin advanced `e2ef062 → bf59c0d` with the board content
+unchanged across both tips, which is exactly the case the skill says to quote as a blob-stability
+sentence rather than a tip sha.
+
+**Register moved three times under the tick** (`21395379…` → `9cc41c00…` → `4873e40a…` →
+`10cc29e6…`, one row closed as done by a peer's uncommitted edit), so both queue blocks were rendered
+from the final in-repo snapshot `.scratch/tick-0802/queue.json` and the row names that sha. Evidence:
+`.scratch/tick-0802/` (register snapshot), `/tmp/tick-0802-921736/` (census captures, `node.sh`,
+`final*.sh`, `compose.py`, `board.md`).
+## 2026-11-16 13:52 ET board tick: stood down behind that 13:47 board, on a second sweep of its finding
+Two read-only six-node sweeps this tick, both captured to files rather than transcribed:
+`16:29:26Z`–`16:29:29Z` and `18:44:28Z`–`18:44:31Z`, plus pool reads on the head and on `.35` at
+`17:04:03Z`/`17:04:04Z` and `18:44:33Z`.
+
+**No board written, and the discriminator is the stamp.** `mad-science/STATUS.md` on disk carried the
+peer's `13:47 ET` composition (content sha `6c8d2f42…`) whose census (`18:47:26Z`–`18:47:30Z`) is
+three minutes fresher than this tick's, so publishing would have replaced a fresher board with an
+older read — the churn class the `05:20` and `07:05` ticks stood down for. Every read agrees with it:
+production serve alone on `.31`–`.34` (`Up 3 days (healthy)`, image `3f4480818acb`, `StartedAt`
+`2026-11-12T18:38:18.87Z` on all four ranks), `/v1/models` **200** on rank 0 and **404** on ranks
+1–3, `.30`/`.35` empty, **0 research containers and 0 volumes** fleet-wide, no lease, no window
+lock, campaign inactive since 2026-11-12, `kho=off` with `CmaTotal/CmaFree` **0/0** on all six.
+
+**Its half-terabyte finding, confirmed on a second sweep and with the pool's own baseline.** Root
+avail sum is **+501,657,296,896 B** at `16:29Z` and **+501,397,889,024 B** at `18:44Z** against the
+*published* `08:08` base's `11:28:25Z` read, `.35` the only faller (−15.6 GB, then −15.7 GB). Pool
+`df -B1` at `18:44:33Z` reads used **13,459,893,256,192 B**, which is **−495,377,711,104 B** against
+the ledger's own `06:42:04Z` read (`13,955,270,967,296 B`) — the roots' rise and the pool's fall are
+one quantity, as the 2026-11-07 rule and `ba7b9b3`'s measurement require. The writer stays unnamed,
+and two candidates this tick could cheaply exclude are excluded: `hub` went **102 → 103** entries (an
+add, not a delete), and both ds4 1017 revisions (`08c8657f…`, `1bae0e10…`) still appear under
+`snapshots/`, so neither a repo removal nor the link-farm prune accounts for the bytes.
+
+**Two instrument traps, both paid for this tick.** (1) A delta read against the live
+`mad-science/STATUS.md` mid-tick collapsed to ±11 MB, because a peer replaced the file between the
+census and the parse; the base has to come from `git show 055b491:mad-science/STATUS.md`. "Save the
+base you read" is a rule about a copy, and on this tree the copy is a `git show`, not the worktree
+file. (2) In-container `pgrep -f sglang.launch_server | wc -l` reports **2** in every rank because
+the `sh -c` wrapper's own cmdline carries the pattern; `ps -eo pid,comm,args` shows the single
+`python3 -m sglang.launch_server` (pid 278 on rank 0). Any serve-child count built on `pgrep -f` is
+one too high by construction.
+
+**Register.** Snapshot `10cc29e6…`: **197 tasks, 156 done, 33 queued, 8 blocked, 0 running — 41
+open**, `check` rc=0, **0 live claims**; graph `8 blocked, 1 edges, 7 prose-gated, 0 question-gated,
+0 question, 39 rows not drawn (--all)`, and the board table renders 41 rows — the counts the peer's
+published snapshot carries. Evidence: `.scratch/tick-1054/` (`census.txt`, `census2.txt`, `node.sh`,
+`pool.sh`, `base-0808.md`, `queue2.json`, `graph.md`, `queue-board.md`).
+
+## 2026-11-16 14:49 ET — board tick stood down behind the 13:47 composition; its unattributed pool fall closes to an identity
+
+Own fresh read over all six at `18:43:19Z`–`18:43:21Z` (pool `18:43:22Z`), taken as this tick's census,
+found the 13:47 tick's composition already on disk with a `18:47:26Z` census — four minutes fresher and
+rendered from the same register snapshot (`10cc29e6…`). Published nothing rather than swap fresher
+numbers for older ones; evidence is kept, not discarded, below. Precedent for the stand-down:
+`6f22bb9`, `e979537`.
+
+**The pool fall stops being unattributed arithmetic and becomes an identity.** Base board's pool cell
+reads used **13,961,290,842,112 B**; this tick's own `df -B1` on `/mnt/beegfs` at `18:43:22Z` reads
+**13,459,892,207,616 B**, a fall of **501,398,634,496 B**. Summing this tick's six root reads against
+the same base census (`11:28:25Z`–`11:28:30Z`) gives an avail rise of **501,398,474,752 B** — the two
+independent quantities agree to **159,744 B** across 501 GB. Per node (avail): `.30` +10,878,189,568,
+`.31` +90,537,336,832, `.32` +134,595,579,904, `.33` +131,970,519,040, `.34` +149,102,596,096,
+`.35` **−15,685,746,688**, so `.35` alone moved against the fleet and the net is not a uniform sweep.
+The 13:47 entry's **501,595,766,784 B** is the same series sampled at this session's first pool read
+(`17:04:25Z`, used **13,459,695,075,328 B**, exactly base minus that figure): the pool then re-consumed
+**197,132,288 B** by `18:43:22Z`, which is the whole of the difference between the two sessions'
+numbers. This proves the freed bytes were pool content sitting on the ranks' roots; it does **not**
+name the deleter, and the 13:47 entry's `LIKELY something pruned cache content` stands as the only
+mechanism claim.
+
+**Restart loop unmoved, and the base's `.34` exception was a one-sample transient.** `beegfs-meta`
+`NRestarts` at `16:29Z` → `18:43Z`: `.31` 76,851 → **78,392**, `.32` 76,854 → **78,395**, `.33`
+76,857 → **78,398**, `.34` 76,854 → **78,395**, `.35` 76,840 → **78,381** — **+1,541 on every node**
+in 134 min (11.5/min, one restart per 5.2 s), identical rate, no new failure. The 08:08 board's clause
+that `.34` "now reports `active` `Result=success`" does not hold: both of this tick's reads have `.34`
+`activating`/`exit-code`, so that board carried a single favourable sample as a state.
+
+**Two defects in the 13:47 composition, reported not edited** (its bytes are its author's): its census
+cell reads `Up 3 days (healthy)` for all four ranks, while `StartedAt` `2026-11-12T18:38:18Z` puts both
+that cell's own `18:47Z` read and this tick's `18:43Z` read past the four-day mark (`docker ps` here
+reads **`Up 4 days (healthy)`**), so the phrase looks carried from the base rather than read; and its
+delta reads `443–443 min`, a range with one value.
+
+Readiness re-proved this tick, for the record: one `sglang.launch_server` per rank (`pgrep -af
+'launch_serve[r]'` gives pids 278/323/317/312 on `.31`–`.34`, `--node-rank 0..3`, tp 4, DSPARK block 5,
+`context-length 1048576`), in-container `/v1/models` **200** on rank 0 and **404** on ranks 1–3, all
+four on image `3f4480818acb`; `.30` and `.35` read `docker ps -aq` 0, volumes 0 fleet-wide; campaign
+unit inactive since `2026-11-12 01:27:16 ET` with `state.json` byte-identical (`85c1b777…`, 13 blocked
+/ 10 measured / 1 pending, 0 leases) and **one** `state.json` under the root, so register row
+`campaign-state-copy-re-nests` still does not hold on this tree; leases `997acbd7…` 1,999 B in both
+clones, no window lock. Evidence: `.scratch/tick-1112/` (`census2.txt`, `head2.txt`, `ranks2.txt`,
+`queue.json` at `10cc29e6…`, `graph.txt`, `board-table.txt`, probe scripts).
+
+**Push owed.** Nothing here was pushed: `origin/main` sat at `d03d519` while this clone held nine
+unpushed commits (`e79b489`, `dcf98a2`, `055b491`, `276c149`, `10ed155`, `ba7b9b3`, `07485e0`,
+`e2ef062`, `417ad7e`, `bf59c0d`), i.e. the published board on the remote was still `06:39`.
