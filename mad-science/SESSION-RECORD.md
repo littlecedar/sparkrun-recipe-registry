@@ -11621,3 +11621,47 @@ publish time — `1ac2458`/`c308a3f` landed `2026-11-12 10:42`/`10:46 ET` and mu
 hour. The `## Landed session` table also still reaches back to 11-08 with 891 rows inside a 344 KB board,
 so homing it at session granularity (the ledger already carries the 11-08 pool proof and the 13:13:38
 `state.json` read) remains open work rather than a per-row audit.
+
+## 2026-11-16 — 2026-11-12 session close-out, reconstructed after the host reboot that killed it
+
+The session that started 2026-11-11 23:19 ET (`Start TP<4 session and clean up containers`) never wrote its
+close-out: the workstation rebooted and the process took a `SIGHUP` at `2026-11-12T16:34:19.192Z` (11:34 ET;
+`session_exit {"reason":"sighup","kind":"signal"}` in the session's own JSONL). Its last commit is `c308a3f`
+(10:46 ET). Everything below is reconstructed from its transcript and its workers' reports, not from a
+close-out it wrote, so each claim carries the artefact it was read from.
+
+**Landed before the crash.** `d320106` published the 10:19 ET board, which is still the one on disk
+(`mad-science/STATUS.md:1`). The llama.cpp offload guard landed as `3df3535` plus the mode-only `4aa3d24`
+(`tests/test_llamacpp_offload.py`, `tools/run-arm.sh:1610-1660` `rc=8`, one recipe declaration) and was proven
+by one TP=1 boot on `.35`, task `764ef61b64791742_f150788fcb9d`, watchdog healthy at t=1351 s, `/v1/models`
+200, chat `READY`, offload verdict `evidence=argv --n-gpu-layers 999` (receipt
+`head:~/benchmarks/tp1-20261111/`). The executor gates landed the same day: the metadata-map refusal
+(`3ddd82a`, `9b2bda3`, `tools/run-arm.sh:749-809`), the appearance-window pin (`8260d20`), the readiness
+teardown that follows the launcher (`a2c36de`, `f624690`), the expired-window-lock verdict (`306f9a3`,
+`64d2fde`, plus the foreign count repair `c308a3f`). The production serve was fenced on `.31`-`.34` at
+`2026-11-12T05:05:32Z` (`.local/fleet-leases.json`, 739 B) without being displaced or stopped. The board guard
+rows closed (`ae0e42c`, `c0e50ea`, `db92d39`, `403c7de`) and `201cad7` unblocked the canary row on a design
+decision rather than an external gate.
+
+**Landed off-register.** The fleet janitor sweep reclaimed ~27.2 GB and removed 20.69 GB of `*.incomplete` HF
+blobs, 10 `bisect-mellum` image tags and 552 clone conflict copies on the head, but has no commit and no
+register row; its only record is the worker report behind the 11-12 thread. The hermes workstation GC freed
+8 GB and closed its row in the worktree, which is now committed (`b9e60c3`).
+
+**Died with the session, listed so it is not read as done.** (1) The owner-approved fleet runtime-cache GC:
+plan written at 10:54 ET naming 54 trees / 732.1 GB, and the worker's 29 tool calls contain no delete - it
+was killed mid-verification. Now register row `runtime-cache-stale-tree-gc`. (2) `.35`'s 455.3 GB of
+unreferenced images and 43 GB ComfyUI cache, approved and untouched. Now `n35-unreferenced-image-gc`.
+(3) The owner's durable rule asked in thread t9 at 15:49:13Z - jobs must run from the head unless there is no
+alternative - was never recorded: its worker ended `status="failed"` after 28 m 7 s with a one-sentence
+report, and a grep for the head host's own name across `AGENTS.md`, `recipes/` and `tools/` finds nothing (the
+literal is not quoted here, because the tracked-address guard reds it). It is still unrecorded at this commit. (4) Commit `42990a0` (the owner's DINOv3 ruling, 01:40 ET) was made unreachable by a peer's
+re-cut of `refs/heads/main` and never pushed; its bytes survived only as worktree hunks and are restored in
+`b9e60c3`.
+
+**Two facts the crash left contradicting the record.** The DINOv3 ruling says the idol arm's blocker is gone
+and the row returns to `queued`; the later 10:32 ET probe proves a *second*, manual gate - the HF repo itself
+answers 403 "not in the authorized list" while the same token reads `FLUX.2-dev` at 200 - so the row stays
+`blocked` and its notes are corrected in this cycle. And the board has not moved since 10:19 ET on 11-12: four
+days with no tick, while the nightly refresh sweep has reported `exit 2` ("could not run") on 11-13, 11-14 and
+11-15 and opened one issue for it (`pin-drift`, `sweep-broken`) that no session read.
