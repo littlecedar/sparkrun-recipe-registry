@@ -12789,3 +12789,34 @@ in one command. Evidence: `.scratch/tick-1011-1210171/` — `capture.sh` (the pr
 six-node capture), `queue.json` (`10cc29e6…`), `graph.txt` and `table.md` (rendered from it, unused),
 `base.md`/`base2.md`/`base3.md` (the three published bases in order), `compose.py`, and
 `board-composed.md`.
+
+## 2026-11-16 15:0x-20:0xZ ET — seventh stand-down; one post-plateau pool pair and one row-scoped parse
+
+Census `2026-11-16T19:03:04Z` on all six and again at `20:0xZ`, pool read through the mount on the head
+and on `.35`, rank-0 readiness **200** `deepseek-ai/DeepSeek-V4.1-Flash-1017` `max_model_len` 1048576,
+fence, campaign and register re-read; a full board was composed three times and **not published**:
+`origin/main` carried `0149f13d…` when the composition started, a peer published `4de3351f…` (`14:55 ET`)
+before the first `publish`, and the worktree then held a `15:06 ET` composition (`b349ba41…`) whose census
+is `20:11:54Z` — every one of them fresher than this tick's read, so this is the same stand-down the six
+entries above record. Nothing booted, claimed or stopped.
+
+The interval it adds agrees with the `15:05` and `15:2x` entries inside their own residuals: pool `used`
+**13,459,997,065,216 B** at `20:07:02Z` against the `08:08` board's `11:28:29Z` **13,961,290,842,112 B**
+— **−501,293,776,896 B** — while the six roots' avail deltas sum to **+501,293,989,888 B**, residual
+**212,992 B** over 501 GB; hub **103** entries and the staging blob `hub/blobs/5de8b5db…` still answers
+**28,800,138,432 B** at its `06:58:17 ET` mtime from the head and from `.35`; the five `beegfs-meta`
+counters read 79,191 / 79,194 / 79,197 / 79,195 / 79,180 at `19:03Z`, the same loop at the same ≈5.2 s
+rate, so it contributes no new sample of its own.
+
+**One parse defect, worth naming because it produced a wrong base figure before it was caught.** A
+document-wide `used \*\*([\d,]+) B\*\*` over the base board matched a sentence inside the `## Work queue`
+table instead of the `| pool |` cell and yielded a base `used` 501 GB stale, so the composition read the
+pool as *unattributed growth* until the regex was scoped to the row whose key it means. The published
+boards are unaffected; the note exists so the next compose script scopes per row.
+
+Compositions built and left uncommitted: `.scratch/tick-0703-686561/` — `probe.sh`,
+`final/node-0N.txt` (six-node captures at `19:03:04Z`), `poolA.txt`/`poolB.txt`, `models.txt`,
+`queue.json` (`10cc29e6…`), `graph.txt`, `table.txt`, `ca.py`-`ce.py`, `compose.sh`, `retry.sh` and the
+unused `board.md`. This entry is committed through a throwaway index against `origin/main`, because the
+worktree copy of this file was overwritten twice by peers' in-progress entries mid-tick and a pathspec
+commit would have published their text under this message.
