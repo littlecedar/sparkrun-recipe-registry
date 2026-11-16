@@ -11543,3 +11543,33 @@ not inherit that entry as "branch still blocked".
 added) → `81254066…` → `95e214f5…` (**194 tasks, 39 open, 1 running, 1 claim**). The only surviving claim is
 `media-idol-3dgs-boot` by `sparkrun-session:tp4minus-20261112` (`11:58:39Z`), and `.30` and `.35` both read
 `docker ps -aq` **0** at `14:35:27Z`, 2 h 37 m after that claim, with no receipt newer than `tp1-20261111`.
+
+## 2026-11-16 02:29 ET — board tick over a four-day idle gap
+
+The tree had not moved since `c308a3f` (`2026-11-12 10:46 ET`), so this tick's census is the first live
+read in four days and the board (`9955d27`) names that interval in every delta instead of quoting an
+hourly rate.
+
+**Fleet state, read at `07:11:37Z–07:11:39Z`.** The production serve alone: one container per rank on
+`.31`–`.34` as task `b020d2dd178343a5_9a582e9a0e63`, created `2026-11-12T18:38:18Z` (`Up 3 days
+(healthy)`), image id `3f4480818acb`, `/v1/models` 200 as `deepseek-ai/DeepSeek-V4.1-Flash-1017`
+(`max_model_len` 1048576). `.30` and `.35` read 0 containers, 0 volumes; no research container anywhere.
+Pool serving behind the mount: hub entries **102** (unchanged), used **13,961,047,572,480 B**,
+**+4,632,084,480 B** on the `2026-11-12T15:19:15Z` read. Register `d26c62e3…` unchanged at **194 tasks /
+39 open**, 0 claims, `check` rc=0. Campaign unit `inactive`, `ExecMainStatus` **0**, `state.json`
+`85c1b777…` untouched since 2026-11-12.
+
+**One finding, reported rather than repaired.** `.local/fleet-leases.json` (sha `69f613aa…`, identical on
+both copies) still fences task `…0abd7d020db4` started `2026-11-12T01:34:30Z`, while the live rank-0
+container is `…9a582e9a0e63` created `2026-11-12T18:38:18Z`. Hosts and image are identical, so the fence
+still protects the right ranks; its `task_id` and `started_at` describe a container that no longer exists.
+The tick is read-only on the fleet and the ledger, so the record was left as written and the register row
+`fleet-boot-without-lease-record` stays open. A future tick should re-point the record, or a session should
+decide that task identity is not part of what a fence guards.
+
+**Clock trap, cost one publish.** The first composition stamped `03:23 ET` from a fixed UTC−4 offset and
+`task-queue lint` refused it (`future-stamp: title says 2026-11-16 03:23, clock says 2026-11-16 02:27`):
+November is EST, so the offset is −5 and the board is stamped from `date -u -d '-5 hours'` now. The publish
+itself was refused nothing — the lint caught it before the commit — but the second attempt needed
+`git checkout -- mad-science/STATUS.md` first, because the unrepublished composition on disk reads as peer
+lines dropped by the next `publish` (exit 3).
