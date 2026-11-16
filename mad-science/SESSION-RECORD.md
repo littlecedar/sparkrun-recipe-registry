@@ -12674,7 +12674,7 @@ avail against `.30` **−13,529,088 B** and **−22,966,272 … −23,314,432 B*
 net, not any single root, is the pool's intake.
 
 **`MemAvailable` on the serve ranks is a dip that returns, not a decline.** `.31`–`.34` read
-**+4,032,224 … +4,316,688 kB** (`10.77 → 14.86 GB` on `.31`) against the base's `18:47Z` read, while
+**+4,032,224 … +4,316,688 kB** (`10.77 → 15.08 GB` on `.31`) against the base's `18:47Z` read, while
 `.30` moved **−54,092 kB** and `.35` **−1,484 kB**. The `18:17:01Z` peer probe in the same hour read
 `.31` at **15,053,980 kB**, i.e. the base's `10.77 GB` is the excursion and this read is the level —
 **LIKELY** page-cache occupancy from the pool fetch, unnamed beyond that.
