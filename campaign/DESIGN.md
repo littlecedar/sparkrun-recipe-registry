@@ -67,6 +67,11 @@ name is the recipe's basename, because that is what the receipt window and the s
 on; `env` travels into the lease unchanged. Rows without those fields are authoring, docs or
 analysis work and no scheduler may boot them.
 
+A keyed arm declares `ARM_API_KEY_ENV: <NAME>` in its register row's `env` cell. The key itself
+must be present in the campaign service's environment under that name, and must never be written
+into the register, which is tracked. `tools/run-arm.sh` passes only the variable's name to
+sparkrun through `--api-key-env`, so no secret reaches argv or a log.
+
 Exclusions are named, never truncated:
 
 | Row | Effect |
