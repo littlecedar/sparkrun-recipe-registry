@@ -48,6 +48,11 @@ if [ -n "${ARM_RECEIPTS_ROOT:-}" ]; then
 else
   L="$HOME/benchmarks/tp12-$(date +%Y%m%d)/$NAME"
 fi
+# `L` is used both as `cd "$L"` and as an `--output` path, so a relative ARM_RECEIPTS_ROOT
+# (the campaign's flag is a plain, unresolved string) would make the two disagree inside the
+# suite's subshell and the output would land in `$L/$L/`. Normalize once, against the repo
+# root the script already cd'ed to.
+case "$L" in /*) ;; *) L="$PWD/$L" ;; esac
 # The serve port is the recipe's, not always 8000 -- the decision lane uses
 # 8020 and the ling arm 8030. Probing the wrong port looks exactly like a boot
 # that never becomes ready, which cost two arms a full 22-minute wait on

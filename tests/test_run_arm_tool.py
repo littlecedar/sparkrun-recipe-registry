@@ -1051,14 +1051,27 @@ fi
 """
 
 
-def run_chat_bench_pair(arm: str, key_env: str | None = None, replay: bool = False) -> dict:
+def receipt_root_guard(text: str) -> str:
+    """The line that makes `$L` absolute before `cd "$L"` and `--output` can disagree."""
+    line = 'case "$L" in /*) ;; *) L="$PWD/$L" ;; esac'
+    assert line in text, "the receipt root is never made absolute; cd and --output can disagree"
+    return line
+
+
+def run_chat_bench_pair(
+    arm: str,
+    key_env: str | None = None,
+    replay: bool = False,
+    relative_receipt: bool = False,
+    normalize: bool = True,
+) -> dict:
     """Execute one chat arm in a temp receipt; return argv/CWD/state for both calls."""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
-        receipt = tmp / "receipt"
-        receipt.mkdir()
         repo = tmp / "repo"
         repo.mkdir()
+        receipt = (repo / "receipt") if relative_receipt else (tmp / "receipt")
+        receipt.mkdir()
         records = tmp / "records"
         records.mkdir()
         bins = tmp / "bin"
@@ -1067,10 +1080,15 @@ def run_chat_bench_pair(arm: str, key_env: str | None = None, replay: bool = Fal
         stub.write_text(BENCH_RECORDER_STUB)
         stub.chmod(0o755)
         script = tmp / "arm.sh"
+        root_line = "L=receipt\n"
+        if relative_receipt and normalize:
+            root_line += receipt_root_guard(read_tool()) + "\n"
+        elif not relative_receipt:
+            root_line = f"L={receipt}\n"
         script.write_text(
             "#!/usr/bin/env bash\nset -uo pipefail\n"
-            f"L={receipt}\n"
-            "RECIPE=recipes/ds4/picom.yaml\nNAME=chat-arm\nHOSTS=head.test\n"
+            + root_line
+            + "RECIPE=recipes/ds4/picom.yaml\nNAME=chat-arm\nHOSTS=head.test\n"
             "BENCH_VERBOSE=\nrc=0\n" + artifacts_function(read_tool()) + "\n"
             + arm + 'echo "rc=$rc"\n'
         )
@@ -1131,6 +1149,10 @@ def chat_bench_errors(state: dict, key_env: str | None = None) -> list[str]:
         errors.append(f"suite CWD is {state['run_cwd']}, not the receipt")
     if "data/benchmarks.sqlite" not in state["receipt_files"]:
         errors.append("suite state missing from the receipt (CWD is the caller's)")
+    if "house.yaml" not in state["receipt_files"]:
+        errors.append(
+            f"house.yaml is not in the receipt: {sorted(state['receipt_files'])}"
+        )
     return errors
 
 
@@ -1192,6 +1214,22 @@ class ChatBenchInvocation(BashArmHarness):
         self.assertTrue(
             any("suite CWD" in e for e in chat_bench_errors(state)),
             "a suite run from the caller's CWD must fail the guard",
+        )
+
+    def test_a_relative_receipt_root_still_puts_the_output_in_the_receipt(self):
+        """`--receipts-root receipts` is a plain string; `cd "$L"` and `--output` must agree."""
+        state = run_chat_bench_pair(chat_arm(read_tool()), relative_receipt=True)
+        self.assertEqual(chat_bench_errors(state), [], state["out"])
+        self.assertIn("house.yaml", state["receipt_files"])
+        self.assertNotIn("receipt/house.yaml", state["receipt_files"], "the output was doubled")
+
+    def test_dropping_the_receipt_root_normalization_reddens_the_guard(self):
+        state = run_chat_bench_pair(
+            chat_arm(read_tool()), relative_receipt=True, normalize=False
+        )
+        self.assertTrue(
+            any("house.yaml is not in the receipt" in e for e in chat_bench_errors(state)),
+            "a relative $L without normalization must fail the guard",
         )
 
 
