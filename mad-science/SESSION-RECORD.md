@@ -12880,8 +12880,8 @@ title over an old read.
 
 **The clone was diverged, and that is what today's stand-downs were.** Local `HEAD` was
 `f61da56` (a 15:25 board commit whose own body says the push was withheld because another session's
-commit was unpushed) on top of `7e124fa`, while `origin/main` had moved to `2ff99cc` with three
-commits of its own. `git rebase --autostash origin/main` was tried first and conflicted on
+commit was unpushed) on top of `7e124fa`, while `origin/main` had moved to `2ff99cc` with two
+commits of its own (`f922c23`, `2ff99cc`; `716d42f` was already in this clone's `f61da56`). `git rebase --autostash origin/main` was tried first and conflicted on
 `SESSION-RECORD.md` (both sides appended at EOF), so it was aborted — worktree restored byte-identical,
 `9794a456…` before and after — and the clone was instead reset onto `2ff99cc` with the shared checkout's
 rule intact: `git reset --quiet`, never `--hard`, and no worktree path touched. The one fact the reset
