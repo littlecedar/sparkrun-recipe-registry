@@ -89,6 +89,10 @@ WEIGHTS="${ROOT}/weights/rank${R}.dsw"
 ENGRAM="${ROOT}/engram"
 MIN_AVAIL_GIB="${PICOM_MIN_AVAIL_GIB:-100}"
 MIN_DISK_GIB="${PICOM_MIN_DISK_GIB:-150}"
+# Re-convert peak is one extra copy, not two: dsw_convert writes ${WEIGHTS}.new
+# beside the old 72.38 GiB file and itself demands "72.38 GiB + 2" (74.4 GiB),
+# then the mv -f frees the old file before engram_pack's 50.7 GB check runs.
+MIN_DISK_RECONVERT_GIB=78
 READY_S="${PICOM_ENGINE_READY_S:-900}"
 
 log() { echo "[picom-launcher] $*" | tee -a "${LOG}"; }
@@ -104,6 +108,24 @@ chmod 600 "${KEY}"
 #####################################################################
 # Markers carry the resolved snapshot path ($MODEL includes the revision): an empty
 # marker from a cache written before this change is a miss and re-converts once.
+# Two cases, two totals: a fresh convert lays the weight file and then the Engram
+# shards down from nothing, while a re-convert runs beside the artifacts already
+# here — dsw_convert writes ${WEIGHTS}.new and engram_pack writes .part shards,
+# both renamed into place — so it needs one extra copy at a time, never both.
+disk_gate() {
+  local avail need why
+  avail=$(df -Pk "${ROOT}" | awk 'NR==2 {print int($4/1048576)}')
+  if [[ -s "${WEIGHTS}" ]]; then
+    need="${MIN_DISK_RECONVERT_GIB}"
+    why="re-convert beside the existing artifact (72.38 GiB new weight file, then a 50.7 GB Engram shard copy)"
+  else
+    need="${MIN_DISK_GIB}"
+    why="fresh convert (72.38 GiB weight file, then 50.7 GB Engram, from nothing)"
+  fi
+  [[ "${avail}" -ge "${need}" ]] ||
+    die "rank ${R}: ${why} needs ${need} GiB free but ${ROOT} has ${avail} GiB"
+}
+
 prepare_weights() {
   if [[ -s "${WEIGHTS}" && -f "${WEIGHTS}.ok" ]]; then
     local wmarker
@@ -112,10 +134,7 @@ prepare_weights() {
     log "rank ${R}: weight marker names '${wmarker}', not ${MODEL}: re-converting"
   fi
   command -v dsw_convert >/dev/null || die "dsw_convert missing from the image"
-  local avail
-  avail=$(df -Pk "${ROOT}" | awk 'NR==2 {print int($4/1048576)}')
-  [[ "${avail}" -ge "${MIN_DISK_GIB}" ]] ||
-    die "rank ${R} weight file needs ~78 GiB (and Engram ~51 GB) but ${ROOT} has ${avail} GiB free"
+  disk_gate
   log "rank ${R}: converting ${MODEL} -> ${WEIGHTS} (72.38 GiB; one-time, in sparkrun's runtime cache)"
   dsw_convert --ckpt "${MODEL}" --rank "${R}" --plan ||
     die "dsw_convert --plan refused the checkpoint ${MODEL}"

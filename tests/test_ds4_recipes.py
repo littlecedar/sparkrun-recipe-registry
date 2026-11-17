@@ -2634,6 +2634,62 @@ def _assert_rank0_clears_stale_sockets(tc, launch: str) -> None:
                    "front.table is dsfront's session table and must survive")
 
 
+def _picom_disk_gate(tc, launch: str) -> str:
+    """Slice the launcher's disk gate out so it can be run under a fake `df`.
+
+    The gate is fail-closed in two cases with different totals; a guard that
+    only greps the source cannot tell a lowered total from a working one.
+    """
+    tc.assertIn("disk_gate() {", launch, "the disk gate vanished")
+    start = launch.index("disk_gate() {")
+    end = launch.index("\n}\n", start) + 3
+    return launch[start:end]
+
+
+def _run_picom_disk_gate(tc, launch: str, avail_gib: int, artifact: bool,
+                         snippet: str | None = None):
+    """Run the extracted gate with `df` stubbed to report avail_gib of 1K blocks.
+
+    `artifact` decides the case: a non-empty weights/rank0.dsw means the
+    re-convert branch, its absence the fresh one. Returns the finished process.
+    """
+    import os
+    import subprocess
+    import tempfile
+
+    tc.assertIn("MIN_DISK_RECONVERT_GIB=", launch,
+                "the re-convert total vanished: the gate is fresh-only again")
+    fresh = int(re.search(r'MIN_DISK_GIB="\$\{PICOM_MIN_DISK_GIB:-(\d+)\}"',
+                          launch).group(1))
+    reconvert = int(re.search(r"MIN_DISK_RECONVERT_GIB=(\d+)", launch).group(1))
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d) / "picom"
+        (root / "weights").mkdir(parents=True)
+        if artifact:
+            (root / "weights" / "rank0.dsw").write_bytes(b"x")  # `-s` is size>0
+        fake = Path(d) / "bin"
+        fake.mkdir()
+        df = fake / "df"
+        df.write_text("#!/bin/sh\n"
+                      "echo 'Filesystem 1024-blocks Used Available Capacity Mounted on'\n"
+                      f"echo '/dev/fake 1 1 {avail_gib * 1048576} 1% {root}'\n")
+        df.chmod(0o755)
+        script = Path(d) / "gate.sh"
+        script.write_text(
+            "set -u\n"
+            'die() { echo "FATAL: $*" >&2; exit 2; }\n'
+            f"MIN_DISK_GIB={fresh}\n"
+            f"MIN_DISK_RECONVERT_GIB={reconvert}\n"
+            f"ROOT={root}\n"
+            'WEIGHTS="${ROOT}/weights/rank0.dsw"\n'
+            "R=0\n"
+            + (snippet if snippet is not None else _picom_disk_gate(tc, launch))
+            + "\ndisk_gate\n")
+        return subprocess.run(["bash", str(script)],
+                              env={"PATH": f"{fake}:{os.environ.get('PATH', '/usr/bin:/bin')}"},
+                              capture_output=True, text=True)
+
+
 class PicomLaneContract(unittest.TestCase):
     """The picom arm's launch contract, as far as it can be checked without
     four GPUs (the arm booted and was smoke-verified on 2026-11-17; the
@@ -2722,6 +2778,36 @@ class PicomLaneContract(unittest.TestCase):
     def test_artifact_markers_carry_the_snapshot_identity(self):
         _assert_markers_name_the_snapshot(self, self.launch)
 
+    def test_disk_gate_separates_fresh_convert_from_re_convert(self):
+        """A marker-mismatched re-convert must not be gated as a fresh convert.
+
+        Pinned numbers: 150 GiB for a fresh convert (today's default, unchanged),
+        78 GiB beside an existing weight file. The re-convert runs with the old
+        72.38 GiB rank0.dsw still in place, so 78 — not 150 — is the room it needs.
+        """
+        self.assertIn('MIN_DISK_GIB="${PICOM_MIN_DISK_GIB:-150}"', self.launch,
+                      "the fresh-convert total moved off 150 GiB")
+        self.assertIn("MIN_DISK_RECONVERT_GIB=78", self.launch,
+                      "the re-convert total moved off 78 GiB")
+        # Fresh convert: under 150 still refuses, at 150 it proceeds.
+        low = _run_picom_disk_gate(self, self.launch, 149, artifact=False)
+        self.assertEqual(low.returncode, 2, "a fresh convert ran under 150 GiB")
+        self.assertIn("fresh convert", low.stderr)
+        self.assertIn("needs 150 GiB free", low.stderr)
+        self.assertIn("has 149 GiB", low.stderr)
+        ok = _run_picom_disk_gate(self, self.launch, 150, artifact=False)
+        self.assertEqual(ok.returncode, 0, f"a fresh convert at 150 GiB died: {ok.stderr}")
+        # Re-convert: room for the one extra weight file is enough.
+        reok = _run_picom_disk_gate(self, self.launch, 78, artifact=True)
+        self.assertEqual(reok.returncode, 0,
+                         f"a re-convert with room for its one extra file died: {reok.stderr}")
+        relow = _run_picom_disk_gate(self, self.launch, 77, artifact=True)
+        self.assertEqual(relow.returncode, 2, "a re-convert ran under 78 GiB")
+        self.assertIn("re-convert beside the existing artifact", relow.stderr)
+        self.assertIn("needs 78 GiB free", relow.stderr)
+        self.assertNotIn("fresh convert", relow.stderr,
+                         "the re-convert refusal must name its own case")
+
     def test_fleet_renderer_executes_and_fails_closed(self):
         """Run the renderer, not a regex over it: the fleet file is the engine's
         only wiring, and a wrong shape kills a rank at start, not at boot."""
@@ -2808,6 +2894,50 @@ class PicomLaneNegativeControls(unittest.TestCase):
         stripped = launch.replace(anchor, "    if true; then return 0; fi\n", 1)
         with self.assertRaises(AssertionError):
             _assert_markers_name_the_snapshot(self, stripped)
+
+    def test_control_dropped_reconvert_branch(self):
+        """Remove the incremental branch: the re-convert guard must redden.
+
+        The branch condition is swapped for `false`, so the gate falls back to
+        the fresh total — the exact fail-closed self-lock the fix removes.
+        """
+        launch = (PICOM_MOD_DIR / "launch.sh").read_text()
+        anchor = 'if [[ -s "${WEIGHTS}" ]]; then'
+        self.assertIn(anchor, launch, "control anchor for the re-convert branch vanished")
+        dead = _picom_disk_gate(self, launch).replace(anchor, "if false; then", 1)
+        proc = _run_picom_disk_gate(self, launch, 78, artifact=True, snippet=dead)
+        self.assertNotEqual(proc.returncode, 0,
+                            "a gate without the re-convert branch accepted 78 GiB")
+        self.assertIn("needs 150 GiB free", proc.stderr,
+                      "the dead branch must fall back to the fresh total")
+        with self.assertRaises(AssertionError):
+            self.assertEqual(proc.returncode, 0,
+                             f"a re-convert with room for its one extra file died: {proc.stderr}")
+
+    def test_control_prefix_gate_was_fresh_only(self):
+        """Execute the pre-fix gate (the inline 150 GiB check) against the guard.
+
+        Quoted from launch.sh before this change: it compared every convert to
+        MIN_DISK_GIB, so a node holding the old 72.38 GiB artifact and 78 GiB
+        free refused a re-convert it could physically perform.
+        """
+        launch = (PICOM_MOD_DIR / "launch.sh").read_text()
+        prefix = (
+            "disk_gate() {\n"
+            "  local avail\n"
+            "  avail=$(df -Pk \"${ROOT}\" | awk 'NR==2 {print int($4/1048576)}')\n"
+            "  [[ \"${avail}\" -ge \"${MIN_DISK_GIB}\" ]] ||\n"
+            "    die \"rank ${R} weight file needs ~78 GiB (and Engram ~51 GB) "
+            "but ${ROOT} has ${avail} GiB free\"\n"
+            "}\n")
+        proc = _run_picom_disk_gate(self, launch, 78, artifact=True, snippet=prefix)
+        self.assertNotEqual(proc.returncode, 0,
+                            "the pre-fix gate accepted a re-convert at 78 GiB")
+        self.assertNotIn("re-convert beside the existing artifact", proc.stderr,
+                         "the pre-fix gate cannot name the re-convert case")
+        with self.assertRaises(AssertionError):
+            self.assertEqual(proc.returncode, 0,
+                             f"the pre-fix gate refused a re-convert it could perform: {proc.stderr}")
 
 
 if __name__ == "__main__":
