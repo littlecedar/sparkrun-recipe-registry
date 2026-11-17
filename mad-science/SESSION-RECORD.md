@@ -13453,3 +13453,33 @@ both queue blocks re-rendered from the snapshot. **The register is dirty
 against `origin/main` (`ab4cd961…`)** — three rows carry a peer's
 uncommitted edits, byte-identical here and on the head's clone, so the
 board's table shows text no commit carries yet.
+
+## Board correction 03:31 ET (2026-11-17) — the churn instrument was blind, and the ranks were booting
+
+The 03:18 ET tick published *"0 docker `create`/`start`/`task-delete` events in the hour"* from
+`journalctl -u docker`. **That instrument cannot see container lifecycle**: dockerd logs it only at
+debug level, and the unit's journal held **1 line in 65 min**. The zero was right by luck.
+
+Re-measured with `docker events --filter type=container`, which carries its own positive control —
+the same probe returns **76** events on `.30` for `05:50Z`–`06:15Z`, the window the 02:00 board found
+churn in, so the replay reaches back an hour and reports what is there. The six-node window
+`07:02:53Z`–`08:29Z`:
+
+- **Nothing anywhere until `08:13:26Z`** — the "quiet hour" half of the claim stands.
+- Then the four leased ranks ran the picom arm: `.32`/`.33`/`.34` each **2 create, 2 start, 2 die,
+  2 destroy, 2 kill** (last `08:24:29Z`), `.31` **13 create, 13 start, 14 die, 14 destroy, 1 kill**
+  (last `08:26:51Z`), all on `ghcr.io/littlecedar/dgx-picom-ds41f` — local tag
+  `ds41f-7c123ad4-pr15-pr7` and pinned `@sha256:5b09a688…`.
+- `.30` and `.35` logged **0** events for the same window, so the churn is the lease's, not the fleet's.
+
+A `die` is the engine exiting, not a harness tearing down a healthy serve: the arm booted and did not
+stay up. Both of the tick's point-in-time reads (0 containers on all six) had fallen between attempts,
+which is why the first composition read *nothing is serving under the lease yet*. Board cells and the
+lease row are corrected, and the lesson is the general one the 02:00 run already paid for in a
+different currency: **a zero from a probe is a claim about the probe until a positive control says
+otherwise** — `docker events` on a known-churn window is that control here.
+
+Also filed this cycle: **`mad-science/QUESTIONS.md` `#85`** — who deleted the production fence over
+`.31`–`.34` at `08:06:52Z`, and was it owner-authorized. The ledger records who *installed* and
+*corrected* a fence but nothing about a deletion, so the removal has no attribution and cannot be
+recovered from the file.
