@@ -13384,4 +13384,72 @@ task the census measures absent a third hour — freeing them is an owner call.
 board's **git blob** id; the tool hashes board **content**. The publication cell
 now says which of the two it means.
 
+## Board tick 03:18 ET (2026-11-17) — a lean hour, then the fence vanished mid-tick
 
+Census swept `2026-11-17T08:04:50Z`-`08:04:52Z` on the `02:00 ET` base
+(`1 h 02 min` apart) and re-read containers at `08:13:44Z`-`08:13:46Z`,
+because the lease ledger changed between the two. **Both reads find all
+six nodes empty** (0 `docker ps -aq`, 0 running, 0 volumes) and this hour
+is quiet in kind, not only in count: `journalctl -u docker --since -65min`
+returns 0 `create`, 0 `Starting container`, 0 `task-delete` on all six,
+against the 19 `create` events `.30` logged the hour before. Kernel OOM
+lines 0; the `earlyoom` matches are its once-per-second `mem avail`
+heartbeat (`.30` `95.32%`), not kills.
+
+**The production fence was deleted and a quartet lease taken two minutes
+after the sweep.** `.local/fleet-leases.json` went 2,120 B sha
+`44b4804b…` (one `fenced` record over `.31`-`.34`, naming task
+`b020d2dd178343a5_510ded98367b`) to 482 B sha `45b625b4…` with
+`fenced: []` and one live lease: `session:picom-boot-20261117`, window
+`picom-tp4-boot-20261117`, arm
+`zz-deepseek-v4.1-flash-1017-picom-tp4-1m`, hosts `.31`-`.34`, TTL
+14,400 s, issued `08:06:52Z`, expires `12:06:52Z`. The file's mtime is
+that same second, and **the ledger keeps no record of who removed the
+fence** — so the removal is unattributed, and the board says so rather
+than crediting the owner directive that installed it. Seven minutes after
+issuance the four leased ranks still held 0 containers: recorded as an
+escalation on the tick's first cycle, not as a boot in flight.
+
+Three probe defects, two of them re-hits of known traps:
+
+- **A nested heredoc behind `ssh -n` returns nothing.** The first census
+  printed six empty node blocks with `rc=0` in seconds — `-n` reopens fd 0
+  to `/dev/null`, discarding the here-doc the shell had just attached, so
+  the remote `bash -s` read an empty script. Fixed by sending the probe as
+  an inline command string; `-n` stays on the inner hop (nothing needs
+  stdin) and the outer hop has no `-n`, since the script itself arrives on
+  stdin.
+- **`timeout 40 find -L /home/red` is a probe artifact, not a fact.** It
+  returned 0 while the same find without a deadline returned 21; `-L`
+  follows every symlink on a workstation of source trees and does not
+  finish in 40 s. The `21` is also not a campaign count: 11 are foreign
+  repo-tooling state files (`.swival/audit`, `.git/rewrite-observer-v16-s2`)
+  and 1 is a peer tick's scratch copy, byte-identical to
+  `h2h-20261107/state.json` (both sha `85c1b777…`) — that copy is what
+  supplies the 24-arm row, because `find -L` cannot walk `h2h-20261107`
+  itself: its `tp12-window` is a symlink to `.` and reports *File system
+  loop detected*. The campaign fact that holds is
+  `find /home/red/benchmarks -maxdepth 2 -name state.json` = **9 roots**,
+  38 arms, 0 live leases.
+- **The compose dropped the `## In flight` heading and nothing would have
+  caught it.** `sect()` returns the body after the heading, and the
+  assembly re-added the title without it; `inflight_problems` returns `[]`
+  when `inflight_keys(text)` is empty (`tools/task-queue.py:781-802`), and
+  `cmd_publish` gates only on `lint_markdown` + address + inflight rules —
+  so a heading-less board publishes cleanly and the next tick's
+  `sect("## In flight")` raises. Caught by review before publish; the
+  in-flight table now has a structural check in this tick's compose step.
+  The landed row was likewise first placed above the table header and
+  `publish`'s own markdown lint refused it — the guard that works.
+
+Everything else re-proved carried: `beegfs-meta` `NRestarts`
+87,608/87,611/87,615/87,612/87,596 on `.31`-`.35 (`+712` each over
+3,719 s, one per `5.223` s, the known loop), hub **103** entries and the
+ds4 arm's `config.json` **3,311 B** identical across two snapshots through
+the mount on the head, `df -B1` used **13,473,555,152,896 B**
+(`+108,527,616 B` on the base pair — pool growing, no deletion), nine
+campaign roots / 38 arms / 0 leases, register `e5e8445b…` unchanged with
+both queue blocks re-rendered from the snapshot. **The register is dirty
+against `origin/main` (`ab4cd961…`)** — three rows carry a peer's
+uncommitted edits, byte-identical here and on the head's clone, so the
+board's table shows text no commit carries yet.
