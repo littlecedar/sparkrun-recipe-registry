@@ -13483,3 +13483,39 @@ Also filed this cycle: **`mad-science/QUESTIONS.md` `#85`** — who deleted the 
 `.31`–`.34` at `08:06:52Z`, and was it owner-authorized. The ledger records who *installed* and
 *corrected* a fence but nothing about a deletion, so the removal has no attribution and cannot be
 recovered from the file.
+
+## 2026-11-17 — picom arm recovery: two boots, the cache fact, and the socket fix
+A crashed session left the picom arm uncommitted and its index split: the shared index held
+the pre-fix bytes (image `5b09a688`, Dockerfile without the RDMA-provider fix, `launch.sh`
+without `require_rdma_devices`) while the worktree carried the later edits. Nothing picom had
+a commit, so recovery committed the **worktree** bytes and then restored the index entries,
+not the reverse.
+Recovery established two boots from `head:~/benchmarks/picom-20261117/` (a per-session
+receipt, not tracked): boot 1 (task `d1bde80396f656bb_158f604f1049`) on `5b09a688` logged
+`libibverbs: Warning: couldn't open config directory '/etc/libibverbs.d'.`, then
+`RDMA device rocep1s0f0 not found`, then `Aborted (core dumped) dsgb10_rank`, then the
+launcher's `FATAL: the engine died before its socket appeared`, and its containers were
+killed at `08:24:29Z` (exit 137); boot 2 (task `58cddf1c62ba6578_c7d4546af373`) on
+`1e529c67` reused boot 1's runtime-cache artifacts, had four ranks ready in 13–17 s,
+`/v1/models` at 1048576, one chat reply in 0.20 s, streamed tool-call arguments, and one
+image in 11.01 s (all HTTP 200), and was killed at `08:47:44Z` (exit 137).
+**The false belief and its origin.** The arm was documented as "`/cache` is container-local,
+so every boot re-converts" because `volumes: null` in the job yaml says nothing about
+sparkrun's injected binds, and `rank.N.log` is append-only: boot 1's `dsw_convert` /
+`engram_pack` banners sit above boot 2's ready lines, so boot 2's log reads as if boot 2
+converted. `/cache/runtime` is a launcher bind (`core/runtime_cache.py:47`,
+`core/launcher.py:2102-2126`), and the per-runtime cache leaf holds 152 G per node on
+`.31`–`.34`, intact from boot 1's `03:17–03:19 ET`.
+**Landed.** `ddb7d80` carries the arm's worktree (12 paths: recipe pin `1e529c67`, the two
+PR patches, launcher mod, Dockerfile, lane README, root README, AGENTS counts, test
+contracts) and states the two boots, what the receipt proves (gate 4) and what it does not
+(gates 1–3 by name). `6d99354` fixes the hazard that fact exposes: a persisted
+`run/engine.sock` made rank 0's `-S` readiness test true at t=0, so rank 0 now removes
+`run/engine.sock` and `run/front.admin` before starting the engine, leaves `front.table`
+(dsfront's session table), and the launcher dies if the unlink fails.
+**Remaining.** No benchmark cell. Gates 1–3 are still unexercised (`ring_test`,
+`dsw_convert --plan` by name, CF-MLP acceptance). QUESTIONS #85 (who deleted the production
+fence, and was it owner-authorized) is open. The expired `session:picom-boot-20261117` lease
+row is still in `.local/fleet-leases.json` and needs clearing. Boot 1's pid-1 survival is
+unresolved: rank 0's launcher printed `FATAL` yet the container was killed by the watchdog
+rather than exiting itself.
