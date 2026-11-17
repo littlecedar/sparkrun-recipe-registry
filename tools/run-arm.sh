@@ -15,6 +15,11 @@
 # x 15 s) drives the poll count together with ARM_POLL_SLEEP; a boot still loading at the
 # ceiling exits 4 and the message names the effective ceiling. GLM-753B's measured TTR is
 # 2538.9 s (~42 min, recipes/glm/README.md), so a campaign sets 3000 for that arm.
+#
+# Credential opt-in: ARM_API_KEY_ENV names the environment variable holding a keyed
+# front-end's API key. When it is set and non-empty, both benchmark calls pass
+# `--api-key-env <name>` and the CLI reads the key itself -- the value never enters argv,
+# `-b` or a log. Unset leaves every invocation byte-identical to the unkeyed wrapper.
 set -uo pipefail
 
 # Resolve the recipe's relative path before anything reads it: the campaign passes manifest paths
@@ -1225,11 +1230,26 @@ if [ "$ready" = yes ]; then
       artifacts "$L/ladder.yaml"
       ;;
     *)
+      # A keyed front-end answers 401 to every request; without this the wrapper records
+      # `ladder failed`/`suite failed` for a serve that measured nothing. Opt-in, so an
+      # unkeyed arm's argv stays exactly as it was.
+      key_args=()
+      if [ -n "${ARM_API_KEY_ENV:-}" ]; then
+        key_args=(--api-key-env "$ARM_API_KEY_ENV")
+      fi
+      # `benchmark run` writes `data/benchmarks.sqlite` and `runs/YYYY/MM/` relative to the
+      # process CWD, so it runs from the receipt or the arm's own record lands outside it.
+      # Recipe and profile are made absolute for that invocation only; the subshell leaves
+      # the wrapper's CWD untouched for the rest of the loop.
+      suite_profile="$PWD/benchmarking/standard-suite.yaml"
+      case "$RECIPE" in /*) suite_recipe=$RECIPE ;; *) suite_recipe="$PWD/$RECIPE" ;; esac
       sparkrun ${BENCH_VERBOSE:+-v} benchmark performance "$RECIPE" --profile benchmarking/concurrency-ladder.yaml \
-        --skip-run --fresh -H "$HOSTS" --cluster WOPR --output "$L/ladder.yaml" > "$L/ladder.log" 2>&1 \
+        --skip-run --fresh -H "$HOSTS" --cluster WOPR --output "$L/ladder.yaml" \
+        ${key_args[@]+"${key_args[@]}"} > "$L/ladder.log" 2>&1 \
         || { echo "ladder failed for $NAME"; rc=2; }
-      sparkrun ${BENCH_VERBOSE:+-v} benchmark run "$RECIPE" --profile benchmarking/standard-suite.yaml \
-        --skip-run --fresh -H "$HOSTS" --cluster WOPR --output "$L/house.yaml" > "$L/house.log" 2>&1 \
+      ( cd "$L" && sparkrun ${BENCH_VERBOSE:+-v} benchmark run "$suite_recipe" \
+        --profile "$suite_profile" --skip-run --fresh -H "$HOSTS" --cluster WOPR \
+        --output "$L/house.yaml" ${key_args[@]+"${key_args[@]}"} ) > "$L/house.log" 2>&1 \
         || { echo "suite failed for $NAME"; rc=3; }
       # A state-key match means the engine was never asked: sparkrun re-emits the previous cells and
 # writes no per-cell artefact. Reporting that as a measurement is worse than reporting nothing --

@@ -1021,6 +1021,180 @@ class PoolingReceiptNegativeControls(BashArmHarness):
         )
 
 
+# ---------------------------------------------------------------------------
+# The chat pair: a keyed front-end, and where the suite's own record lands.
+# ---------------------------------------------------------------------------
+
+# Records the invocation sparkrun actually receives, then writes `--output` the way its
+# exporter does. The `run` leg also writes the state file tool-eval-bench creates relative
+# to CWD, so a test can assert it landed in the receipt rather than the caller's directory.
+BENCH_RECORDER_STUB = """#!/usr/bin/env bash
+verb=$2
+printf '%s\\n' "$PWD" > "$RECORD_DIR/cwd-$verb"
+printf '%s\\n' "$@" > "$RECORD_DIR/argv-$verb"
+if [ -n "${REPLAY:-}" ]; then
+  echo "Prior benchmark state for $verb is COMPLETE" >&2
+fi
+out=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --output) out=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+[ -n "$out" ] || exit 0
+printf 'runs: []\\n' > "$out"
+if [ "$verb" = run ]; then
+  mkdir -p data
+  printf 'state\\n' > data/benchmarks.sqlite
+fi
+"""
+
+
+def run_chat_bench_pair(arm: str, key_env: str | None = None, replay: bool = False) -> dict:
+    """Execute one chat arm in a temp receipt; return argv/CWD/state for both calls."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        receipt = tmp / "receipt"
+        receipt.mkdir()
+        repo = tmp / "repo"
+        repo.mkdir()
+        records = tmp / "records"
+        records.mkdir()
+        bins = tmp / "bin"
+        bins.mkdir()
+        stub = bins / "sparkrun"
+        stub.write_text(BENCH_RECORDER_STUB)
+        stub.chmod(0o755)
+        script = tmp / "arm.sh"
+        script.write_text(
+            "#!/usr/bin/env bash\nset -uo pipefail\n"
+            f"L={receipt}\n"
+            "RECIPE=recipes/ds4/picom.yaml\nNAME=chat-arm\nHOSTS=head.test\n"
+            "BENCH_VERBOSE=\nrc=0\n" + artifacts_function(read_tool()) + "\n"
+            + arm + 'echo "rc=$rc"\n'
+        )
+        env = {**os.environ, "PATH": f"{bins}:{os.environ['PATH']}", "RECORD_DIR": str(records)}
+        if key_env is not None:
+            env["ARM_API_KEY_ENV"] = key_env
+        if replay:
+            env["REPLAY"] = "1"
+        proc = subprocess.run(
+            ["bash", str(script)], cwd=str(repo), capture_output=True, text=True,
+            check=False, env=env, timeout=120,
+        )
+        state = {
+            "out": proc.stdout + proc.stderr,
+            "receipt_path": str(receipt),
+            "repo": str(repo),
+            "perf_argv": (records / "argv-performance").read_text().splitlines(),
+            "run_argv": (records / "argv-run").read_text().splitlines(),
+            "perf_cwd": (records / "cwd-performance").read_text().strip(),
+            "run_cwd": (records / "cwd-run").read_text().strip(),
+            "receipt_files": {
+                p.relative_to(receipt).as_posix() for p in receipt.rglob("*") if p.is_file()
+            },
+        }
+    return state
+
+
+def chat_bench_errors(state: dict, key_env: str | None = None) -> list[str]:
+    """Every way an unkeyed/keyed chat invocation breaks its contract."""
+    errors: list[str] = []
+    receipt, repo = state["receipt_path"], state["repo"]
+    key = ["--api-key-env", key_env] if key_env else []
+    want_perf = [
+        "benchmark", "performance", "recipes/ds4/picom.yaml",
+        "--profile", "benchmarking/concurrency-ladder.yaml",
+        "--skip-run", "--fresh", "-H", "head.test", "--cluster", "WOPR",
+        "--output", f"{receipt}/ladder.yaml",
+    ] + key
+    want_run = [
+        "benchmark", "run", f"{repo}/recipes/ds4/picom.yaml",
+        "--profile", f"{repo}/benchmarking/standard-suite.yaml",
+        "--skip-run", "--fresh", "-H", "head.test", "--cluster", "WOPR",
+        "--output", f"{receipt}/house.yaml",
+    ] + key
+    if state["perf_argv"] != want_perf:
+        errors.append(f"performance argv changed: {state['perf_argv']!r}")
+    if state["run_argv"] != want_run:
+        errors.append(f"suite argv changed: {state['run_argv']!r}")
+    for name, argv in (("performance", state["perf_argv"]), ("suite", state["run_argv"])):
+        has_flag = "--api-key-env" in argv
+        if key_env and not has_flag:
+            errors.append(f"no --api-key-env in {name}")
+        if key_env is None and has_flag:
+            errors.append(f"unexpected --api-key-env in {name}")
+    if state["perf_cwd"] != repo:
+        errors.append(f"performance CWD moved to {state['perf_cwd']}")
+    if state["run_cwd"] != receipt:
+        errors.append(f"suite CWD is {state['run_cwd']}, not the receipt")
+    if "data/benchmarks.sqlite" not in state["receipt_files"]:
+        errors.append("suite state missing from the receipt (CWD is the caller's)")
+    return errors
+
+
+class ChatBenchInvocation(BashArmHarness):
+    """The chat pair's argv, credential and state directory, executed.
+
+    A keyed front-end answers 401 to every request, so the unkeyed wrapper records
+    `ladder failed`/`suite failed` and an empty or absent artifact — a confident wrong
+    answer. The key is opt-in because the contract is that an unkeyed arm's argv does
+    not move. Independently, `benchmark run` writes `data/benchmarks.sqlite` and
+    `runs/YYYY/MM/` under its CWD, so the receipt, not the caller's directory, must be it.
+    """
+
+    def test_an_unkeyed_arm_keeps_the_old_argv(self):
+        """ARM_API_KEY_ENV unset is the backward-compatibility contract, byte for byte."""
+        state = run_chat_bench_pair(chat_arm(read_tool()))
+        self.assertEqual(chat_bench_errors(state), [], state["out"])
+        self.assertNotIn("--api-key-env", state["perf_argv"] + state["run_argv"])
+
+    def test_a_keyed_arm_names_the_variable_on_both_calls(self):
+        """The CLI reads the key itself; only the variable's name reaches argv."""
+        state = run_chat_bench_pair(chat_arm(read_tool()), key_env="PICOM_API_KEY")
+        self.assertEqual(chat_bench_errors(state, "PICOM_API_KEY"), [], state["out"])
+        for argv in (state["perf_argv"], state["run_argv"]):
+            self.assertEqual(argv[argv.index("--api-key-env") + 1], "PICOM_API_KEY")
+
+    def test_the_suite_state_lands_in_the_receipt(self):
+        state = run_chat_bench_pair(chat_arm(read_tool()))
+        self.assertEqual(state["run_cwd"], state["receipt_path"], state["out"])
+        self.assertIn("data/benchmarks.sqlite", state["receipt_files"])
+        self.assertFalse(
+            (Path(state["repo"]) / "data").exists(),
+            "the suite's state landed in the caller's CWD, outside the receipt",
+        )
+        self.assertIn("rc=0", state["out"].strip().splitlines()[-1])
+
+    def test_the_replay_backstop_still_reads_both_logs(self):
+        arm = chat_arm(read_tool())
+        self.assertIn('for f in "$L/ladder.log" "$L/house.log"; do', arm)
+        state = run_chat_bench_pair(arm, replay=True)
+        self.assertIn("REPLAYED, NOT MEASURED", state["out"])
+        self.assertEqual(state["out"].strip().splitlines()[-1], "rc=7", state["out"])
+
+    def test_dropping_the_key_flag_reddens_the_guard(self):
+        arm = chat_arm(read_tool())
+        anchor = 'key_args=(--api-key-env "$ARM_API_KEY_ENV")'
+        self.assertIn(anchor, arm, "the control anchor vanished; the control proves nothing")
+        state = run_chat_bench_pair(arm.replace(anchor, "key_args=()"), key_env="PICOM_API_KEY")
+        self.assertTrue(
+            any("no --api-key-env" in e for e in chat_bench_errors(state, "PICOM_API_KEY")),
+            "a keyed arm without the flag must fail the guard",
+        )
+
+    def test_dropping_the_directory_change_reddens_the_guard(self):
+        arm = chat_arm(read_tool())
+        anchor = '( cd "$L" && sparkrun'
+        self.assertIn(anchor, arm, "the control anchor vanished; the control proves nothing")
+        state = run_chat_bench_pair(arm.replace(anchor, "( sparkrun"))
+        self.assertTrue(
+            any("suite CWD" in e for e in chat_bench_errors(state)),
+            "a suite run from the caller's CWD must fail the guard",
+        )
+
+
 class TeardownReapsEveryRank(BashArmHarness):
     """A TP=2 stop that misses rank 1 must not end `ARM DONE rc=0`.
 
