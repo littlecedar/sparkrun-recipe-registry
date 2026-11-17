@@ -12857,3 +12857,15 @@ takes `--file` at the *parent* level; `graph` accepts it after the subcommand, a
 to render the same register here. Captures: `/tmp/tick-1112-1834453/` — `census.sh`/`census.txt`,
 `probe.sh`/`probe.txt`, `repos.txt` (98 `models--` entries), `queue.json`, `graph.md`,
 `board-table.md`, `compose.py`, `board.md` (unpublished), `clone/` (the throwaway).
+
+
+## 2026-11-16 15:2x ET — durable record: `112f1f7`'s message and its diff describe two different ticks
+
+`112f1f7` reached `origin/main` before it could be dropped locally, so it stands. Its body describes
+this session's stand-down, but those bytes had already landed inside a peer's `7651da1` (whose own
+close-out, `716d42f`, discloses that it carried four concurrent ticks' sections). Its entire diff is
+one line of another session's correction: `MemAvailable` on `.31`–`.34` reading `10.77 → 14.86 GB`
+becomes `10.77 → 15.08 GB` in the dip paragraph. No bytes were lost and no shared history rewritten,
+because amending a pushed shared head is worse than a wrong message. A tracer reading `112f1f7` for
+the stand-down should read `7651da1`; reading it for the dip paragraph should look for whichever
+session owns that correction.
