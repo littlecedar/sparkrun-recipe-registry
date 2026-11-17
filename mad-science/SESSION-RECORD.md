@@ -13705,6 +13705,15 @@ Raw captures for both reads — `census.out`, `census2.out`, `pool2.out`, the qu
 rendered blocks, `base.md`/`base2.md` and the two composed boards — are in
 `.scratch/tick-1100-423769/`; they are this tick's evidence, not litter.
 
+**One correction to that evidence, since the script would be reused.** `pool2.sh` probes the head's
+window lock at `/home/red/.local/fleet-window.lock`, which is the **home** copy; the repo-scoped path
+`AGENTS.md` means — and the one a campaign or a session actually writes — is
+`/home/red/src/sparkrun-recipe-registry/.local/fleet-window.lock`. The claim above is unaffected and
+is now verified at the right path: `test -e` on the repo-scoped file on the head returns **ABSENT**,
+and so does the home copy, so *no lock anywhere* stands. (The registry's ledger read was already the
+repo-scoped file, `/home/red/src/sparkrun-recipe-registry/.local/fleet-leases.json`.) Anyone reusing
+the script should move that one path before trusting its `lock` line.
+
 ## 2026-11-17 11:32 ET board tick — published after re-basing twice on peers' boards
 
 **What landed.** `c863c54` (board rebuild) and `37021f3` (the one commit that arrived during the
