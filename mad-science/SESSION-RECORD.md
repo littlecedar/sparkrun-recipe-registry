@@ -13724,10 +13724,12 @@ carries 16:04:24 Z, newer than this read's 16:03:37 Z"* — correct behaviour, s
 led with the **earlier** sweep while the cell's real read was the `16:09:17Z` re-read; leading with
 the newest ISO read fixed it, which is the same ordering `board_stamp` uses.
 
-**Two instrument facts worth carrying.** (1) My own first follow-up probe sent `ssh spark-head` from
-*inside* the head and got `Host key verification failed` on three of its sections — the head's
-name-keyed aliases carry stale host keys (register row `head-mesh-cannot-reach-30`), so a script fed
-to `ssh spark-head bash -s` must address the head as `localhost` afterwards, never by its own alias.
+**Two instrument facts worth carrying.** (1) My own first follow-up probe sent `ssh` to the head's
+own name from *inside* the head and got `Host key verification failed` on three of its sections — the
+head's name-keyed aliases carry stale host keys (register row `head-mesh-cannot-reach-30`), so a
+script fed to the head over ssh must address the head as `localhost` afterwards, never by its own
+alias.
+
 (2) `docker inspect $(docker ps -q)` inside a quoted remote command reports *"requires at least 1
 argument"* when the boot has already been torn down, which reads like a syntax error and is an empty
 set — check the count first.
