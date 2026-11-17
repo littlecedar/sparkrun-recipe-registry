@@ -1,4 +1,4 @@
-# Board — generated 2026-11-17 11:29 ET
+# Board — generated 2026-11-17 11:32 ET
 ## In flight
 | where | owner | what |
 |---|---|---|
@@ -150,3 +150,4 @@ flowchart LR
 | 11:17 | `e8754d9` | key the picom recipe's artifact markers to the served snapshot, guarded by 30 new test lines in `tests/test_ds4_recipes.py` |
 | 11:18 | `b2f9009` | record the picom peak caveat and the reaped boot in `recipes/ds4/README.md`, with the stated recipe count re-taken in `AGENTS.md` |
 | 11:29 | — | measurement: a re-read `16:09:17Z`–`16:09:19Z` five minutes after the base's census keeps the fleet quiet and the memory back — all six `0` containers / `0` volumes, `MemAvailable` `122.3`–`123.4 GB` on every node (`.31`–`.33` had sat at `≈19.0 GB` under the boot), and the mount's `used` drifting to **14,168,249,335,808 B**, `524,288 B` above the base's own second read |
+| 11:32 | `9529a6b` | let a keyed arm name its key in `tools/run-arm.sh` and keep the suite's state in the receipt — 174 new test lines in `tests/test_run_arm_tool.py`, stated suite total 1727 → 1733 in `AGENTS.md` |
