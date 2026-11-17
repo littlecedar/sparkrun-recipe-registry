@@ -2137,7 +2137,10 @@ stopped by `tools/boot-watchdog.py` while healthy, because the serve-pid pattern
 `3e4a090`, whose default pattern names this engine. The 4/4-ready boots are the arm's behaviour;
 that reap was the monitor's.
 
-Still unexercised: `ring_test`, `PICOM_VERIFY=1`, and the vision path.
+Still unexercised: `ring_test`, `PICOM_VERIFY=1`, and the vision encoder's supervised life — its
+restart ladder, survival across an engine restart, and behaviour under text-only load; the image
+path itself is exercised on two boots, with its cost in `vision.log` (`loaded 266 tensors in 10.0 s;
+cuda allocated 0.90 GiB`) and gate 4's receipt.
 
 ### Upstream PRs integrated
 
