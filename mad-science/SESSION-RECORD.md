@@ -13034,6 +13034,14 @@ least the 340 s the fixture aged, keeps the ceiling and launcher-kill verdict,
 and leaves the negative control intact. `push-gate` green, module re-run
 194/194 locally.
 
+**Live gate rescheduled (owner, 2026-11-17).** This was a targeted session, so the
+pre-registered +3 h/+24 h census reads were cancelled before they could fire — the
+armed capture on rank 0 and its reader were stopped, no receipt was written — and
+moved to the next declared TP>=4 window. The lane README's gate now says so, and
+the comparison stays against the saved baseline
+(`control/baseline-census.txt`), so any log with ≥ ~1M steady-state prefilled
+tokens qualifies, including one from a boot restarted since.
+
 ## Board tick 23:11 ET (2026-11-16) — same task, no relaunch, fence corrected
 
 Read-only: one six-node sweep `2026-11-17T04:02:20Z`–`04:02:23Z`, `0 h 59 min`

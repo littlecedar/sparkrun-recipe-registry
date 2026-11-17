@@ -413,10 +413,14 @@ C8 150.71 / C16 128.88 t/s — C4/C8/C16 at −0.8 %/−5.6 %/−15.1 % against 
 Warm-prefix probe: a 28,459-token prompt's second send reports
 `cached_tokens=28,160` (98.9 %).
 
-Live gate (pre-registered 2026-11-17, not yet read): re-run
+Live gate (pre-registered 2026-11-17, **rescheduled by the owner the same day to
+the next declared TP>=4 window** — this was a targeted session, so the read is not
+tied to wall-clock hours from this boot): re-run
 `python3 ~/benchmarks/ds4-prefix-cache-20261117/census.py <` a fresh
-`docker exec <new task>_node_0 cat /tmp/sparkrun_serve.log` at +3 h and +24 h,
-after the boot window's own gate traffic has scrolled out. PASS = `share` ≤ 0.40
+`docker exec <task>_node_0 cat /tmp/sparkrun_serve.log` in that window, on a log
+carrying ≥ ~1M steady-state prefilled tokens. A boot restarted since is equally
+valid — the comparison is against the saved baseline, not a particular boot.
+PASS = `share` ≤ 0.40
 and `big_per_million` ≤ 3.67 with `kv_evictable_tokens` reaching ≥ 90 % of
 `max_total_num_tokens` at some point; NOT YET (share high, pool never saturates)
 = the loss is not eviction: first the cheap discriminator
