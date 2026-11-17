@@ -13322,3 +13322,50 @@ Root avail moved the same way: `.30` fell **7,075,631,104 B** on my sweep agains
 the peer's `-7,057,227,776 B` one minute earlier, an 18 MB difference on the same
 falling root.
 
+## Board tick 02:00 ET (2026-11-17) — the fleet read idle while `.30` was building
+
+Published on the `01:07 ET` base (content sha256 `be8ad4e5…`, git blob
+`07ebcbd6…` at tip `292e377`), census `2026-11-17T07:02:53Z`–`07:02:56Z`,
+`1 h 01 min` after the base's `06:01:57Z` read. Folded `e7d8179` and `292e377`.
+
+**The finding the point-in-time census hides.** All six nodes read `docker ps -aq`
+**0**, running **0**, volumes **0** and head's `sparkrun status` lists every host
+idle — true at `07:02`, and false as a description of the hour. `.30` created
+**15 containers between `05:53:45Z` and `06:12:27Z`**, each started, died within
+**1–7 s** and destroyed, with one `task-delete` still logged at `06:19:17Z`.
+`docker events` names them: 4 of the local `picom-build-test`, 5 of
+`ghcr.io/littlecedar/dgx-picom-ds41f@sha256:3713022…`, 2 of `…@sha256:5b09a68…`,
+2 of the tag `ds41f-7c123ad4-pr15-pr7`, 3 of `sha256:58cbf7f9…`. No lease was
+taken, no rank booted, and the image names match the uncommitted
+`recipes/ds4/Dockerfile.picom-ds41f` + `mods/picom-launcher/` work in this clone,
+so the attribution is **LIKELY** a peer's build/smoke loop — not a boot. `.30`'s
+root fell `4,941,504,512 B` and the pool gained `5,063,049,216 B` in the same
+hour; whether the build explains either is **unattributed**, since no inode or
+process was traced, and the board states the pair apart for that reason.
+
+**The probe defect this tick nearly shipped.** The first census passed
+`journalctl --since "2026-11-17 05:50:00"` bare. These nodes run **UTC−5**
+(`date +%z` `-0500`), so that stamp meant `10:50Z` — ~3.8 h *ahead* of the read —
+and `grep -c` over no entries printed `0` for both the OOM count and the
+task-delete count. That is the same bug the board's own `00:30` row records, and
+it would have published "no OOM, no container churn" over a window in which
+`.30` churned 15 containers. Re-probed with the zone explicit
+(`--since 2026-11-17T05:50:00Z`, `--until …T07:10:00Z`): **0 OOM kills and 0
+earlyoom kills on all six** (earlyoom's per-second heartbeat shows at `95.3%`
+avail), **15 `task-delete` on `.30`, 0 on the other five.** Lesson: on this fleet
+a bare `--since` is never the window you meant — write the `Z`.
+
+Everything else re-proved rather than carried: `beegfs-meta` `NRestarts` +700/+701
+on `.31`–`.35` over `3,657` s (one per `5.217` s, the known loop), hub **103**
+entries and the ds4 `config.json` **3,311 B** through the mount on head and
+`.35`, `df -B1` used `13,473,446,625,280 B`, lease ledger `44b4804b…` identical
+here and on the head with one fence record and no window lock, nine campaign
+roots / 38 arms / 0 live leases, register `e5e8445b…` unchanged with both queue
+blocks re-rendered from the snapshot. The fence still refuses `.31`–`.34` for a
+task the census measures absent a third hour — freeing them is an owner call.
+
+`publish` refused the first attempt because `--expect-remote-sha` was handed the
+board's **git blob** id; the tool hashes board **content**. The publication cell
+now says which of the two it means.
+
+
