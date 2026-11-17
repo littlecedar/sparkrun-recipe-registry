@@ -70,7 +70,7 @@ The guards that hold these are [Testing & QA](#testing--qa).
 
 ## Project Overview
 
-- **Recipes** (`recipes/`, 126 tracked recipe files in 12 family dirs) — v2 recipe definitions consumed by
+- **Recipes** (`recipes/`, 128 tracked recipe files in 12 family dirs) — v2 recipe definitions consumed by
   `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
 - **Mods** (`mods/`, 5 shared + `mod-template`; single-lane mods live in `recipes/<lane>/mods/`) —
   pre-launch container hooks that patch or stage files inside the serving image before the engine
@@ -105,7 +105,7 @@ Load-bearing contracts:
   (`sparkrun/core/recipe.py:1264-1270`), where only a by-name consumer reads it, and draws
   `misplaced-config-key` or `unknown-top-level-key` (`sparkrun/core/validation.py:1176-1272`). The full
   41-key rule set is in [`recipes/MECHANICS.md`](recipes/MECHANICS.md).
-- **`command:` is YAML folded `>`** (all 126 tracked recipe files). JSON-shaped defaults must keep their shell
+- **`command:` is YAML folded `>`** (all 128 tracked recipe files). JSON-shaped defaults must keep their shell
   quotes inside the fold — `limit_mm_per_prompt: >-` with `'{"image": 4, "video": 1}'` — or
   word-splitting hands the engine four arguments.
 - **`mods:` is an ordered dependency chain, not a set.** Recipe comments
@@ -256,7 +256,7 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
 
 - **Plain `validate` is the gate, not `--strict`**: every tracked recipe passes plain `validate`, and
   `--strict` prints exactly the findings in the roster below — it adds none of its own and only exits
-  non-zero on the rows whose findings include a `warning`. Re-measured 2026-11-16 over the current 125
+  non-zero on the rows whose findings include a `warning`. Re-measured 2026-11-16 over the current 128
   tracked recipes, so the snapshot was re-taken rather than
   adjusted: thirty-three rows carry `unpinned-model-revision` — the pin never reaches the engine as
   `--revision` — one carries `deprecated-topology` instead, and every other row carries suggestions
