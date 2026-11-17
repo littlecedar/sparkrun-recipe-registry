@@ -45,6 +45,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
   - [Run it](#run-it-2)
   - [Fabric contract (why NEXT_DEV* == PREV_DEV*)](#fabric-contract-why-next_dev--prev_dev)
   - [Open boot gates](#open-boot-gates)
+  - [Probe arms: prefill chunk budget and Engram read batch (queued 2026-11-17, neither booted)](#probe-arms-prefill-chunk-budget-and-engram-read-batch-queued-2026-11-17-neither-booted)
   - [License](#license-2)
 - [External stack: spark-ds41f (survey, 2026-11-08)](#external-stack-spark-ds41f-survey-2026-11-08)
 - [Upgrade candidates (measured elsewhere, not queued)](#upgrade-candidates-measured-elsewhere-not-queued)
@@ -2307,6 +2308,25 @@ L2 domain (the QP's `hop_limit` is 1); jumbo frames plus PFC/ECN on the switch; 
 8. **Open hazard — pid-1 survival**: boot 1's rank-0 launcher printed `FATAL` yet its container was
    killed by the watchdog at 08:24:29Z (exit 137) instead of exiting itself; pid-1 survival through
    its helper children is unresolved.
+
+### Probe arms: prefill chunk budget and Engram read batch (queued 2026-11-17, neither booted)
+
+- `zz-ds4-1017-picom-prefill16k.yaml` appends `--prefill-rows 16384 --snap-every 2048` to the
+  shipped argv, which sizes the prefill buffers for 16384-row chunks instead of 8192
+  (`engine/model/prefill.cu:50`, reported at `:184`; the pair is mandatory because
+  `prefill_rows / snap_every` must stay ≤ `kMaxSnaps` = 8, `engine/server/serve.cpp:1572`) at
+  ~+3.2 GiB a rank. The cap is per request (`R = min(prefill_rows, n - pos)`,
+  `engine/server/serve.cpp:1076`), so the predicted gain is long-prompt prefill only: upstream
+  measures 2.6 % less per token at 16384 (`docs/experiments.md:70`). Falsifier: needle/longctx
+  prefill cells at 128k and 1M against the shipped arm on the same image, with a `pp 2048` cell
+  that must come out unchanged.
+- `zz-ds4-1017-picom-engram-batch8.yaml` sets `PICOM_ENGRAM_READ_BATCH=8`, the fleet file's
+  `RANK<r>_ENGRAM_READ_BATCH` (`engine/comm/fleet.cpp:116-120`), which batches each rank's SSD
+  reads of the Engram expert shards and changes no arithmetic. Upstream's own fleet runs 8 on
+  ranks 2-3 (`fleet/homelab.conf`) while our renderer writes one value to all four
+  (`mods/picom-launcher/fleet-render.sh:41`), so this arm tests the uniform value, not their
+  split. Falsifier: the same long-prefill cells plus the c16 aggregate against
+  `PICOM_ENGRAM_READ_BATCH=1` on the same image.
 
 ### License
 

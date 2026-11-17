@@ -1,0 +1,131 @@
+# ===========================================================================
+# Probe arm (`zz-`) — NOT booted. It changes one thing against
+# `zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml`: PICOM_ENGRAM_READ_BATCH=8
+# instead of the renderer's 1. That is the fleet file's
+# RANK<r>_ENGRAM_READ_BATCH (engine/comm/fleet.cpp:68,116-120; the field
+# defaults to 1 at engine/comm/ring_config.h:28), the SSD read batching for
+# that rank's Engram expert shards — read batching, not arithmetic, so the
+# serve stays lossless. Upstream's own fleet file runs 8 on ranks 2 and 3
+# (fleet/homelab.conf). Our renderer writes one value to all four ranks
+# (recipes/ds4/mods/picom-launcher/fleet-render.sh:41), so this arm cannot
+# express the per-rank split upstream uses.
+#
+# The engine is NOT SGLang/vLLM: it is a from-scratch C++/CUDA TP=4 engine
+# with its own Rust front-end (dsfront) and its own RDMA ring. It runs one
+# process per node, all four with the same argv except --rank, so the
+# recipe borrows the vLLM family as a *distribution contract only*:
+# `runtime: vllm` resolves to `vllm-distributed` by default (no Ray hint;
+# core/recipe.py:777), and sparkrun's tensor_parallel default of 1 makes
+# every node an independent replica — no torch world, no rendezvous gate,
+# and no flags appended to the command. One container per rank is exactly
+# what the engine needs. The media lane's script arms use the same pattern.
+# ===========================================================================
+recipe_version: "2"
+model: deepseek-ai/DeepSeek-V4.1-Flash-1017
+runtime: vllm
+# Same pin as the lane's shipped arms. Upstream validated the engine at
+# 1bae0e10; 08c8657f differs only in chat_template.jinja (all 48 shards
+# byte-identical), which this engine never reads — dsfront tokenises and
+# chats from its own encoding (--encoding 1017).
+model_revision: 08c8657f02291e11b6f6b63e0e16014f8e748518
+# Built from Picom-code/pico-dgx-ds4@7c123ad4 plus the two tracked PR
+# patches (recipes/ds4/Dockerfile.picom-ds41f); the image carries dsgb10_rank,
+# dsfront, the weight/Engram converters, the vision encoder and the
+# draft-gate weights. Weights live in the HF cache, never in the image.
+container: ghcr.io/littlecedar/dgx-picom-ds41f@sha256:1e529c67f268806bbf3468e176d39f6ee6907ca3ee118e96a10e7072200883a4
+min_nodes: 4
+max_nodes: 4
+description: >-
+  Probe, not booted: the shipped picom (dsgb10) TP=4
+  DeepSeek-V4.1-Flash-1017 arm with PICOM_ENGRAM_READ_BATCH=8 on all four
+  ranks instead of 1 — the fleet file's RANK<r>_ENGRAM_READ_BATCH
+  (engine/comm/fleet.cpp:116-120), i.e. SSD read batching for the Engram
+  expert shards, so the serve stays lossless. Upstream's own fleet runs 8 on
+  two ranks, but our renderer
+  (recipes/ds4/mods/picom-launcher/fleet-render.sh:41) writes one value to
+  all four, so this arm tests the cheaper fix rather than upstream's split.
+  Falsifier: the long-prefill cells (needle/longctx at 128k and 1M) plus the
+  c16 aggregate, against this image with PICOM_ENGRAM_READ_BATCH=1; a cell
+  outside the shard-read path that moves is not this knob. Everything else
+  (1M context, 16 slots, DSpark drafts, vision, streamed tool args) is the
+  shipped arm, whose per-rank weight and Engram artifacts are warm on the
+  fleet.
+metadata:
+  model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: mxfp4
+  kv_dtype: fp8
+  tags: ds4, reasoning, agent, probe
+mods:
+  - "mods/picom-launcher"
+executor_config:
+# The image has no ENTRYPOINT; clear it so the recipe's command is the process.
+  entrypoint: ""
+env:
+# Per-node, rendered by sparkrun from the launch host list:
+# rank 0 runs the engine and dsfront; ranks 1-3 run the engine only.
+  PICOM_NODE_RANK: "{launch.node_rank}"
+  PICOM_NODE_HOST: "{launch.node_host}"
+# REQUIRED at launch — no default is possible: cluster addresses are
+# forbidden in tracked files (tests/test_tracked_address_hygiene.py).
+# The four fabric address tails, rank 0-3, comma-separated; the
+# launcher renders them into the engine's fleet file as
+# <PICOM_FABRIC_A>.<tail> / <PICOM_FABRIC_B>.<tail>.
+#   -o env.PICOM_RANK_TAILS=30,31,32,33
+  PICOM_RANK_TAILS: ""
+# The fabric's two /24s and the two f0 RDMA devices (both PCI domains).
+# f1 is down on this fleet: a switched ring rides the same two devices in
+# both directions, which the engine accepts (one QP per role).
+  PICOM_FABRIC_A: "192.168.0"
+  PICOM_FABRIC_B: "192.168.1"
+  PICOM_DEV_A: "rocep1s0f0"
+  PICOM_DEV_B: "roceP2p1s0f0"
+  PICOM_GID_INDEX: "3"
+# DSGB10_RING_DIRECT=2 is the switch mode: every rank writes to all three
+# peers itself (no ring relay); bits-identical results, +1.3-1.8 % upstream.
+  PICOM_RING_DIRECT: "2"
+# The fleet file's RANK<r>_ENGRAM_READ_BATCH for every rank (renderer default
+# 1): SSD read batching for the Engram shards, not arithmetic. Upstream's
+# fleet file runs 8 on ranks 2-3 only; fleet-render.sh:41 has one value.
+  PICOM_ENGRAM_READ_BATCH: "8"
+# Upstream's production engine line (README "run it", 2026-11-11) minus
+# DSGB10_OEA, which is their lossy batch-aware MoE re-route: this arm stays
+# strictly lossless by default (set PICOM_OEA=4,12,9 to opt in).
+# The Launcher reads this as one space-separated argv list.
+  PICOM_ENGINE_ARGS: >-
+    --max-ctx 1048576 --slots 16 --big-slots 4
+    --setenv DSGB10_BUDGET=1
+    --setenv DSGB10_DRAFT1=6 --setenv DSGB10_WIDE=64
+    --setenv DSGB10_WIDE_COST=24,2.2,57,1.1
+    --draft-head4 --draft-markov8 --setenv DSGB10_HEAD4_C1=1
+    --setenv DSGB10_CF_ALPHA=1.0 --setenv DSGB10_CERT=1
+  PICOM_OEA: ""
+# Upstream PR #15 (integrated in the image): the vision encoder as part of the
+# serve. It runs the checkpoint's own ViT on rank 0 and costs ~1 GiB of its
+# GPU; dsfront gets --vision-addr. 0 = off (image requests then answer 400).
+  PICOM_VISION: "1"
+  PICOM_VISION_PORT: "18950"
+# Upstream PR #7 (integrated in the image): a stream carries each tool call's
+# name when it parses and its arguments as they arrive, as OpenAI streams them.
+# Upstream ships it opt-in; this arm turns it on for agent clients.
+  PICOM_STREAM_TOOL_ARGS: "1"
+defaults:
+  port: 8000
+# One GPU per node; the engine's TP=4 is its own four processes, not a torch
+# world. sparkrun's tensor_parallel default is 1, which is exactly what this
+# arm needs — writing it here would only draw an inert-default finding.
+  served_model_name: deepseek-ai/DeepSeek-V4.1-Flash-1017
+command: >
+  bash /workspace/mods/picom-launcher/launch.sh
+  --model {model}
+  --revision {model_revision}
+  --served-model-name {served_model_name}
+  --port {port}
+readiness:
+# No chat surface to probe before the engine's socket exists; the launcher
+# binds dsfront only after the engine is up. First boot also converts this
+# rank's 72.38 GiB weight file and packs its 50.7 GB Engram shards.
+  inference: false
+  port_timeout_s: 10800
+  health_timeout_s: 3600

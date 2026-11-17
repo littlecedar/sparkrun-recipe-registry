@@ -15,7 +15,7 @@ executed) and fails naming the stale line, so the number cannot rot — `tools/d
 and rewrites both statements from that same discovery; only its skip count needs a run,
 which is why that half carries a date. What only a run can know stays a *dated snapshot*: **2026-11-17
 — every tracked recipe passes plain `validate`, and `--strict` prints exactly the roster below over
-the whole tracked tree (re-measured 2026-11-17, the date on this line: 126 tracked recipes scanned,
+the whole tracked tree (re-measured 2026-11-17, the date on this line: 128 tracked recipes scanned,
 70 of them printing a finding, 34 with a warning and the rest suggestions only; the LiquidAI arms
 still add no row, because an accuracy declaration belongs inside `metadata:` where
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
