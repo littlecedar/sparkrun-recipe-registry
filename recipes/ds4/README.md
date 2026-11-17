@@ -2166,7 +2166,12 @@ keep top 4, prefer the batch's core among top 12, from 9 rows` (B `rank.0.log:19
 
 llama-benchy re-run at the comparable shape (depth 0, c16, tg 512, `-b extra_body=temperature=0`) reads
 **tg 159.6 tok/s** (`boot-a/cell5-benchy.txt`). The ladder's 141.0 at c16 is not contradicted by it: same
-instrument, 128-token sampled window instead of 512-token greedy, and neither is `bench.py`'s total.
+instrument, 128-token sampled window instead of 512-token greedy. Nor does 159.6 sit beside their 325.9,
+and not because the two instruments window differently — both divide a wall clock that includes prefill,
+`bench.py` starting its timer before it spawns its threads and llama-benchy's aggregate doing the same —
+but because of how much prefill is in that window: sixteen 2048-token prompts here against roughly twenty
+tokens each there. The ladder's c16 run prices it at 6.1 s of a 14 s per-run window (41.9 s for three runs;
+engine's own `e2e_ttft` steps, 0.38 → 6.14 s), ~44 %, where upstream's prefill is a rounding error.
 
 **Verdict, LIKELY:** their 16-user figure was taken with `DSGB10_OEA=4,12,9` on. Our c1 medians match
 theirs within ~1 % (worst 1.4 %) with it off, so the engine is not the slower one; turning it on
