@@ -13033,3 +13033,59 @@ a wall-clock race in the test, not a regression. Fixed at the mechanism in
 least the 340 s the fixture aged, keeps the ceiling and launcher-kill verdict,
 and leaves the negative control intact. `push-gate` green, module re-run
 194/194 locally.
+
+## Board tick 23:11 ET (2026-11-16) — same task, no relaunch, fence corrected
+
+Read-only: one six-node sweep `2026-11-17T04:02:20Z`–`04:02:23Z`, `0 h 59 min`
+after the `22:11 ET` base. The production arm is the **same task** the base
+carried — `b020d2dd178343a5_510ded98367b`, rank-0 `StartedAt`
+`2026-11-17T02:48:56.905658501Z` — with all four containers `running`/`healthy`,
+one `sglang.launch_server` child per rank under the bracketed pattern, and rank
+0 answering `/v1/models` **200** naming `deepseek-ai/DeepSeek-V4.1-Flash-1017`.
+`.30` and `.35` empty; research containers 0, volumes 0 fleet-wide.
+
+**New since the base.** `MemAvailable` fell 4.39/4.89/5.21/3.61 GB on
+`.31`–`.34` while `.30` and `.35` held flat (−25,952 kB at worst). LIKELY the
+served engine's KV/radix pool filling under the 6,138,368-token budget, but no
+measurement this tick separates pool growth from page-cache churn — the
+`DSV41_FAST_LOAD=0` much larger pool is the change, and nothing else on the four
+ranks moved.
+
+**Pool.** Head units `active`/`active`/`active` with `beegfs-meta` `NRestarts`
+**0**; the five non-head hosts still carry the ~5 s restart loop (`+688`/`+689`
+per host over 3,369 s, one restart per 4.897 s — the loop's own growth). Reads
+answer through the mount on the head and on `.35` (103 hub entries each, the ds4
+arm's `config.json` 3,311 B each). Head and `.35` now report the pool's **same
+server-side counter to the byte** when sampled together, so the paired read is
+one quantity sampled twice; growth against the base board's own head read is
+`+114,819,072 B` over 3,369 s (~33 KB/s). That rate does not explain the base
+board's own wider pair spread, and nothing this tick tied that spread to an
+inode or a process — the `pool-content-fall-20261116` row still owns the 501 GB
+question.
+
+**Fence corrected, and the base board's clause retired.** `.local/fleet-leases.json`
+is now 2,120 B (sha `44b4804b…`, byte-identical on this clone and on the head's):
+session `ds4-prefix-cache-pool-restore` re-stamped it at `2026-11-17T03:23:28Z`
+to task `…_510ded98367b`, `started_at` `2026-11-17T02:48:56Z`, `image_id`
+`3f4480818acb`, keeping the previous task as `previous_*`. The `22:11` board's
+"the fence still names the previous launch" clause no longer holds, so it was
+replaced rather than carried.
+
+**Claims.** Nine distinct campaign roots, 38 arms, **0 live leases**;
+`sparkrun-campaign` inactive since 2026-11-12 01:27:16 ET. `find` counts 49
+`state.json` files on the head, 40 of them the `h2h-20261107/tp12-window`
+nesting chain — the defect register row `campaign-state-copy-re-nests` owns, not
+a new root. Register `e5e8445b…` (198 tasks, 41 open, 8 blocked, 0 live claims,
+`check` rc=0), unchanged under the tick; both queue blocks re-rendered from that
+snapshot. Six commits folded from their own subjects.
+
+**One defect owned, caught before publish.** The first composition took the
+head's pool "used" from the census's `HEAD_DF`, which holds `--output=avail` — a
+2.72 TB phantom fall on the very quantity `pool-content-fall-20261116` tracks.
+An advisory caught it against my own raw `size/used/avail` read; the fix reads
+both hosts with identical field semantics and derives the deltas from the parsed
+capture instead of a retyped value.
+
+**Remains.** The ds4 lane's pre-registered live gate (census at +3 h and +24 h)
+belongs to that session, not to the tick. Nothing else outstanding from this
+tick.
