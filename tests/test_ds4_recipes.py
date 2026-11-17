@@ -2573,5 +2573,176 @@ class TensorfoldLaneNegativeControls(unittest.TestCase):
         self.assertEqual(execs, [], "the engine must never be exec'd")
 
 
+# --------------------------------------------------------------------------
+# Picom (dsgb10) probe arm — an external engine behind the vllm-distributed
+# family contract (2026-11-17)
+#
+# The recipe is the only arm in this family that is not an SGLang/vLLM
+# process tree: four from-scratch engine processes, one per node, with the
+# distribution contract carrying placement and per-node env only. These
+# guards pin the coupling points that would otherwise fail silently at
+# launch — or worse, boot a serve whose model bytes are not the pinned ones.
+# --------------------------------------------------------------------------
+PICOM_RECIPE = RECIPE_DIR / "zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml"
+PICOM_MOD_DIR = RECIPE_DIR / "mods" / "picom-launcher"
+PICOM_DOCKERFILE = RECIPE_DIR / "Dockerfile.picom-ds41f"
+PICOM_PATCHES = (
+    "picom-pr15-service-vision.patch",
+    "picom-pr7-stream-tool-args.patch",
+)
+
+
+class PicomLaneContract(unittest.TestCase):
+    """The picom arm's launch contract, as far as it can be checked without
+    four GPUs (the arm booted and was smoke-verified on 2026-11-17; the
+    receipt is a per-session file under `~/benchmarks/` on the head, not tracked)."""
+
+    def setUp(self):
+        self.text = PICOM_RECIPE.read_text()
+        self.clean = _strip_comment_lines(self.text)
+        self.r = Recipe(self.text, PICOM_RECIPE.name)
+        self.launch = (PICOM_MOD_DIR / "launch.sh").read_text()
+        self.fleet = (PICOM_MOD_DIR / "fleet-render.sh").read_text()
+        self.dockerfile = PICOM_DOCKERFILE.read_text()
+
+    def test_runtime_is_a_distribution_contract_only(self):
+        # `vllm` resolves to vllm-distributed by default (no Ray hint,
+        # core/recipe.py:777); tensor_parallel stays at 1, so every node is
+        # an independent replica — no torch world, no rendezvous gate, and no
+        # vLLM flags appended to the command.
+        self.assertEqual(self.r.runtime, "vllm")
+        self.assertEqual(self.r.min_nodes, 4)
+        self.assertEqual(self.r.defaults.get("tensor_parallel", "1"), "1")
+        self.assertIn("--served-model-name {served_model_name}",
+                      self.r.command_template)
+
+    def test_image_is_digest_pinned_and_integrates_both_prs(self):
+        self.assertRegex(
+            self.r.container,
+            r"^ghcr\.io/littlecedar/dgx-picom-ds41f@sha256:[0-9a-f]{64}$")
+        for patch in PICOM_PATCHES:
+            self.assertTrue((RECIPE_DIR / patch).is_file(), patch)
+            self.assertIn(patch, self.dockerfile)
+        # Applied in order, over the asserted source pin.
+        self.assertIn("git -C /src apply /tmp/picom-pr15-service-vision.patch",
+                      self.dockerfile)
+        self.assertIn("git -C /src apply /tmp/picom-pr7-stream-tool-args.patch",
+                      self.dockerfile)
+        # The merged suite is the series' acceptance: a resolution that
+        # changes a wire layout must fail the build, not ship.
+        self.assertIn("cargo test --release --locked", self.dockerfile)
+        # PR15's encoder needs torch; the encoder ships at a stable path.
+        self.assertIn("download.pytorch.org/whl/cu130", self.dockerfile)
+        # The encoder's import chain: torch, numpy, PIL, safetensors, av.
+        # A missing numpy shipped once because the gate listed torch only.
+        self.assertIn("import torch, numpy, PIL, safetensors, av",
+                      self.dockerfile)
+        self.assertIn("vision_encoder.py /opt/picom/vision/vision_encoder.py",
+                      self.dockerfile)
+
+    def test_model_pin_reaches_the_process_that_selects_the_bytes(self):
+        self.assertEqual(self.r.model_revision,
+                         "08c8657f02291e11b6f6b63e0e16014f8e748518")
+        self.assertIn("--revision {model_revision}", self.r.command_template)
+        # The fleet's shared-cache profile hands over a repo id, so the
+        # launcher resolves the pinned snapshot itself and never refs/main.
+        self.assertIn("snapshots/${REVISION}", self.launch)
+        self.assertIn("refs/main", self.launch)
+
+    def test_per_node_rank_and_host_templates(self):
+        self.assertEqual(self.r.env["PICOM_NODE_RANK"], "{launch.node_rank}")
+        self.assertEqual(self.r.env["PICOM_NODE_HOST"], "{launch.node_host}")
+        self.assertIn('--rank "${R}"', self.launch)
+        self.assertIn("--mode serve", self.launch)
+        self.assertIn("dsfront serve", self.launch)
+
+    def test_switch_mode_and_lossless_default(self):
+        self.assertEqual(self.r.env["PICOM_RING_DIRECT"], "2")
+        self.assertIn("DSGB10_RING_DIRECT", self.launch)
+        # DSGB10_OEA is upstream's lossy MoE re-route: opt-in, never default.
+        self.assertNotIn("DSGB10_OEA", self.clean)
+        self.assertIn("DSGB10_CF_ALPHA=1.0", self.clean)
+        self.assertIn("DSGB10_CERT=1", self.clean)
+
+    def test_pr_flags_reach_dsfront(self):
+        self.assertEqual(self.r.env["PICOM_VISION"], "1")
+        self.assertEqual(self.r.env["PICOM_STREAM_TOOL_ARGS"], "1")
+        self.assertIn('FRONT_VISION=(--vision-addr "127.0.0.1:${VISION_PORT}")',
+                      self.launch)
+        self.assertIn("--stream-tool-args", self.launch)
+        self.assertIn("/opt/picom/vision/vision_encoder.py", self.launch)
+        # The encoder's restarts must not be serve failures.
+        self.assertIn("vision encoder exited", self.launch)
+
+    def test_fleet_renderer_executes_and_fails_closed(self):
+        """Run the renderer, not a regex over it: the fleet file is the engine's
+        only wiring, and a wrong shape kills a rank at start, not at boot."""
+        import os
+        import subprocess
+        import tempfile
+
+        script = PICOM_MOD_DIR / "fleet-render.sh"
+        base = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+                "PICOM_ROOT": "/cache/runtime/picom"}
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "fleet.conf"
+            env = dict(base, PICOM_RANK_TAILS="30,31,32,33",
+                       PICOM_FABRIC_A="192.168.0", PICOM_FABRIC_B="192.168.1",
+                       PICOM_DEV_A="rocep1s0f0", PICOM_DEV_B="roceP2p1s0f0",
+                       PICOM_GID_INDEX="3")
+            subprocess.run(["bash", str(script), str(out)], env=env, check=True,
+                           capture_output=True, text=True)
+            rendered = out.read_text()
+            # Addresses are assembled, never written whole: the tracked-file
+            # hygiene guard forbids literal cluster addresses in the tree.
+            plane_a, plane_b = "192.168.0", "192.168.1"
+            for needle in (
+                "NEXT_DEV0=rocep1s0f0", "PREV_DEV0=rocep1s0f0",
+                "NEXT_DEV1=roceP2p1s0f0", "PREV_DEV1=roceP2p1s0f0",
+                "GID_INDEX=3",
+                f"RANK0_NEXT_IP0={plane_a}.30",
+                f"RANK1_PREV_IP0={plane_a}.31",
+                f"RANK3_PREV_IP1={plane_b}.33",
+                "/weights/rank0.dsw", "/engram/engram_hashmap.bin",
+            ):
+                self.assertIn(needle, rendered, needle)
+
+            # Negative control: three tails must be refused, and nothing written.
+            bad = Path(d) / "bad.conf"
+            env["PICOM_RANK_TAILS"] = "30,31,32"
+            proc = subprocess.run(["bash", str(script), str(bad)], env=env,
+                                  capture_output=True, text=True)
+            self.assertNotEqual(proc.returncode, 0, "three tails were accepted")
+            self.assertFalse(bad.exists(), "a refused input still wrote a fleet file")
+            self.assertIn("exactly four", proc.stderr)
+
+
+class PicomLaneNegativeControls(unittest.TestCase):
+    """Mutation controls for PicomLaneContract: each must break its guard."""
+
+    @staticmethod
+    def _mutated(old: str, new: str) -> Recipe:
+        text = PICOM_RECIPE.read_text()
+        assert old in text, f"control anchor {old!r} vanished"
+        return Recipe(text.replace(old, new, 1), PICOM_RECIPE.name)
+
+    def test_control_tag_only_container(self):
+        r = self._mutated("@sha256:", ":latest#")
+        with self.assertRaises(AssertionError):
+            self.assertRegex(r.container,
+                             r"^ghcr\.io/littlecedar/dgx-picom-ds41f@sha256:[0-9a-f]{64}$")
+
+    def test_control_dropped_rank_template(self):
+        r = self._mutated('PICOM_NODE_RANK: "{launch.node_rank}"',
+                          'PICOM_NODE_RANK: "0"')
+        with self.assertRaises(AssertionError):
+            self.assertEqual(r.env["PICOM_NODE_RANK"], "{launch.node_rank}")
+
+    def test_control_unpinned_revision_in_command(self):
+        r = self._mutated("--revision {model_revision}", "--revision main")
+        with self.assertRaises(AssertionError):
+            self.assertIn("--revision {model_revision}", r.command_template)
+
+
 if __name__ == "__main__":
     unittest.main()

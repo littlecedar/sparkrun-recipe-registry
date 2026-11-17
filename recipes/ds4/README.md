@@ -38,6 +38,13 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
   - [Launch caveats](#launch-caveats-1)
 - [deepseek-v4.1-flash-1017-gsq-rco-coder-gguf-llamacpp](#deepseek-v41-flash-1017-gsq-rco-coder-gguf-llamacpp)
 - [SM121 survey arms (zz-, DeepGEMM gate cleared 2026-11-07)](#sm121-survey-arms-zz--deepgemm-gate-cleared-2026-11-07)
+- [zz-deepseek-v4.1-flash-1017-picom-tp4-1m (booted 2026-11-17)](#zz-deepseek-v41-flash-1017-picom-tp4-1m-booted-2026-11-17)
+  - [What the engine brings](#what-the-engine-brings)
+  - [Upstream PRs integrated](#upstream-prs-integrated)
+  - [Run it](#run-it-2)
+  - [Fabric contract (why NEXT_DEV* == PREV_DEV*)](#fabric-contract-why-next_dev--prev_dev)
+  - [Open boot gates](#open-boot-gates)
+  - [License](#license-2)
 - [External stack: spark-ds41f (survey, 2026-11-08)](#external-stack-spark-ds41f-survey-2026-11-08)
 - [Upgrade candidates (measured elsewhere, not queued)](#upgrade-candidates-measured-elsewhere-not-queued)
 - [Quality benchmarks](#quality-benchmarks)
@@ -2062,6 +2069,148 @@ Receipts: `head:~/benchmarks/arm5-fi073c-20261111/` — `RECEIPT-canary-fi073d.m
 verify-route build/probe and the blocked-serve record in
 `head:~/benchmarks/arm5-verify-route-20261111/`; the clean-fleet five-run C16 line in
 `head:~/benchmarks/arm5-c16-20261111/README.md`.
+
+## zz-deepseek-v4.1-flash-1017-picom-tp4-1m (booted 2026-11-17)
+
+| | |
+|:--|:--|
+| Recipe | `recipes/ds4/zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` |
+| Engine | [Picom-code/pico-dgx-ds4](https://github.com/Picom-code/pico-dgx-ds4) @ `7c123ad4e4c49e…` (2026-11-16), MIT — a from-scratch C++/CUDA TP=4 engine (`dsgb10_rank`) with its own Rust front-end (`dsfront`), its own RDMA ring and its own chat encoding. Not SGLang, not vLLM, no NCCL, no PyTorch |
+| Model | `deepseek-ai/DeepSeek-V4.1-Flash-1017`, pin `08c8657f…` — the lane's pin. Upstream validated at `1bae0e10`, whose 48 shards are byte-identical to this one (the only delta is `chat_template.jinja`, which this engine never reads: `dsfront` tokenises and chats from its own `--encoding 1017`) |
+| Image | `ghcr.io/littlecedar/dgx-picom-ds41f@sha256:1e529c67…` (tag `ds41f-7c123ad4-pr15-pr7`) — built from source on `.30` 2026-11-17, linux/arm64, 7.47 GB; **rebuilt the same day with the full RDMA user space (`ibverbs-providers`, `librdmacm1t64`, `ibverbs-utils`) after the first build shipped a lone `libibverbs1` and its engine aborted, and probe-verified in a `--device /dev/infiniband` container: `ibv_get_device_list` returns 4 and `ibv_devices` lists `rocep1s0f0` and `roceP2p1s0f0`**; the encoder's import chain (torch 2.11.0+cu130, numpy 2.5.5, PIL, safetensors, av) is an in-image gate, and the encoder itself was started against the real snapshot in a container. `recipes/ds4/Dockerfile.picom-ds41f` pins the upstream commit, the two PR patches and both CUDA 13.0.1 base digests; the build gate is the binaries existing as AArch64 **and** the merged front-end's own suite (49 tests, `cargo test --release --locked`) passing |
+| Topology | TP=4: four engine processes, one per node, same argv except `--rank`; sparkrun runs one container per rank (`runtime: vllm` resolves to the vllm-distributed family, `tensor_parallel` at its default 1 — a distribution contract only: no torch world, no rendezvous gate) |
+| Context / slots | 1,048,576 (`--max-ctx`), 16 slots of which 4 hold the full window, 32 GiB disk spill tier |
+| Fabric | switched RoCE, `DSGB10_RING_DIRECT=2` (no relay); ring TCP bootstrap 18620; engine↔front-end over an AF_UNIX socket |
+| Artifacts | per rank, built from the checkpoint on first boot under `/cache/runtime/picom/`: 72.38 GiB `.dsw` weight file (`dsw_convert`), 50.7 GB Engram shards (`engram_pack`), 518,048 B hash map; ~150 GB free per node and a one-time cost |
+| Status | **Booted 2026-11-17, smoke-verified; no benchmark cell yet.** Two boots under the `session:picom-boot-20261117` lease: boot 1 (task `d1bde80396f656bb_158f604f1049`, image `5b09a688`, launcher with no pre-start RDMA gate) logged `RDMA device rocep1s0f0 not found` then `Aborted (core dumped) dsgb10_rank` and the launcher's `FATAL: the engine died before its socket appeared`, and its four containers were killed by the watchdog at 08:24:29Z (exit 137); boot 2 (task `58cddf1c62ba6578_c7d4546af373`) on this recipe's pin `1e529c67` reused boot 1's per-rank artifacts under `/cache/runtime/picom/`, had four ranks engine-ready in 13–17 s, `/v1/models` naming the checkpoint at `max_model_len` 1048576, one chat reply in 0.20 s, a streamed tool call whose first delta carried `function.name` (PR #7) before its arguments, and one image answered `Red` in 11.01 s (PR #15 + the supervised encoder), then was killed at 08:47:44Z (exit 137) by the launching session. Receipt `head:~/benchmarks/picom-20261117/` (per-session, not tracked). Upstream's 2026-11-11 numbers are theirs, on their bench, not ours: 84.6 chat / 144.0 code c1 tok/s, 376 tok/s at 16 distinct users, ~10k tok/s prefill, 1M context, images |
+| License | MIT (upstream `LICENSE`/`NOTICE` unchanged) |
+
+### What the engine brings
+
+- 1M context via a 17-bit block index in the sparse-attention indexer; 16 slots, 4 of them big,
+  smallest-fit admission — a different shape from the knapcio line's 16 uniform slots.
+- Draft-side levers the lane has no equivalent of: a budget shared across sessions
+  (`DSGB10_BUDGET=1`), one-pass drafting (`DSGB10_DRAFT1=6`), a wide step of 17-64 rows
+  (`DSGB10_WIDE=64` + the cost gate `DSGB10_WIDE_COST=24,2.2,57,1.1`), a 4-bit draft head
+  and FP8 Markov head (`--draft-head4 --draft-markov8`, one-user drafts only), a learned
+  verify gate (`DSGB10_CF_MLP`, the shipped `tools/stack4/cfmlp_cml.bin`) and a certified
+  LM head (`DSGB10_CERT=1`). Every one is upstream's production line, not a lane experiment.
+- `DSGB10_RING_DIRECT=2` is stack5: on a switch each rank writes to all peers itself.
+  Upstream measured +1.3-1.8 % single-user with the same bits. This arm is the only place
+  in the lane where that mode is exercised.
+- Vision runs through the checkpoint's own ViT as a side encoder, not a separate multimodal
+  server. Upstream PR #15 (integrated below) makes the serve own its life: it is on by default,
+  costs ~1 GiB of rank 0's GPU, and is one knob off (`-o env.PICOM_VISION=0`).
+- `DSGB10_OEA` — their lossy batch-aware MoE re-route — ships **off** here. The arm defaults
+  to strictly lossless; `-o env.PICOM_OEA=4,12,9` opts into upstream's production setting.
+
+### Upstream PRs integrated
+
+Two open upstream PRs are not in `main`, so the image applies them as a tracked patch series over
+the pin — `recipes/ds4/picom-pr15-service-vision.patch`, `picom-pr7-stream-tool-args.patch`, both
+COPYed into the build and applied in that order. Both PR branches conflict with the pin, so the
+patches carry the merge resolutions; the series is verified to apply to `7c123ad4` and the merged
+frontend's own tests are the acceptance (run in the build stage, not assumed).
+
+- **PR #15 @ `8031b928` — the vision encoder as part of the service.** Images need a Python side
+  encoder on rank 0, and upstream's `service.sh` now owns its life. This arm's launcher replaces
+  `service.sh`, so `launch.sh` starts the encoder before the engine, gives `dsfront`
+  `--vision-addr 127.0.0.1:18950`, restarts it with a widening delay (2/10/60/300/900 s), keeps it
+  through engine restarts and stops it with the serve. `protocol.rs` keeps this tree's validated
+  image-part decode (main gained it after the PR was written); the PR's looser decode is dropped,
+  and its `roundtrip_and_layout` fixture is rewritten to the layout that ships (a well-formed
+  1-image part), so the test exercises the decoder it is merged with rather than the one it was
+  written against.
+  Cost: ~1 GiB of rank 0's GPU and 36-43 s of encoder weight load, both paid while the engine
+  loads. The image ships torch 2.11.0+cu130, Pillow, safetensors and PyAV for it; the encoder runs
+  the checkpoint's own `inference/` code from the mounted snapshot.
+- **PR #7 @ `5063f5c3` — `--stream-tool-args`.** A stream carries each tool call's name when it
+  parses and its arguments as they arrive, in OpenAI's streaming shape. Upstream ships it opt-in;
+  this arm turns it on (`PICOM_STREAM_TOOL_ARGS=1`) for agent clients. A call that is cut off
+  leaves its client unfinished arguments — the reason it is opt-in upstream, and the residual
+  risk accepted here.
+
+Both are one-knob rollbacks without a rebuild: `-o env.PICOM_VISION=0` (images then answer 400,
+text unaffected) and `-o env.PICOM_STREAM_TOOL_ARGS=0`.
+
+### Run it
+
+```bash
+# the fabric tails are cluster-internal and never committed; supply ranks 0-3 in rank order.
+sparkrun run recipes/ds4/zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml \
+  --cluster WOPR -H <ip0>,<ip1>,<ip2>,<ip3> -o env.PICOM_RANK_TAILS=30,31,32,33
+```
+
+- First boot writes this rank's weight file and Engram shards (one-time, `port_timeout_s`
+  10800 covers it); later boots start in minutes. `PICOM_VERIFY=1` adds a full byte compare.
+- `/health` is keyless and is what sparkrun probes; `/v1/*` needs the bearer key the mod
+  generates at `/cache/runtime/picom/run/api-key` on rank 0.
+- Images work by default (`PICOM_VISION=1`): rank 0 runs the checkpoint's ViT as a supervised
+  side encoder and `dsfront` gets `--vision-addr`; the encoder's log is `logs/vision.log`.
+  Tool-call streams carry arguments as they arrive (`PICOM_STREAM_TOOL_ARGS=1`).
+- Logs: `/cache/runtime/picom/logs/rank.<r>.log` and, on rank 0, `front.log` and `vision.log`.
+  No `/metrics` on this engine, so cells are taken from the client side (`benchmarking/`),
+  never scraped.
+
+### Fabric contract (why NEXT_DEV* == PREV_DEV*)
+
+Upstream's reference fleet is a cabled ring: port f0 faces rank r+1, f1 faces r-1, two RDMA
+devices per port. This fleet's f1 ports are **down** (probed on `.30` and `.31`, 2026-11-17:
+`rocep1s0f1`/`roceP2p1s0f1` `PORT_DOWN`), and both f0 devices are up on `192.168.0.x` /
+`192.168.1.x`. So the ring's two directions ride the same two devices; the engine accepts one
+QP per role, and its GID check passes because each address named for a role is on the device
+named for it. `recipes/ds4/mods/picom-launcher/fleet-render.sh` emits that shape and fails
+closed on a wrong tail count.
+
+Hard preconditions, each a start gate the 2026-11-17 smoke depended on (the receipt records the engine
+starting under them, not a per-condition probe): one IPv4 per netdev;
+`GID_INDEX=3` matching the RoCEv2 IPv4 GID on all four devices; all four `PREV_IP0`s in one
+L2 domain (the QP's `hop_limit` is 1); jumbo frames plus PFC/ECN on the switch; `kho=off`
+(already fleet-wide); ≥100 GiB `MemAvailable` after the page-cache drop.
+
+### Open boot gates
+
+1. `ring_test` over the switched fabric — **still open**: upstream has no switch deployment, and the
+   receipt carries no `ring_test` run; the engine starting is not a link test.
+2. `dsw_convert --plan` on `08c8657f` — **not exercised by name**: the conversion ran on the
+   2026-11-17 boots and wrote the rank file, but the receipt carries no `--plan` line.
+3. The CF MLP gate accepted by all four ranks and the engine's AF_UNIX socket appearing — **only the
+   socket is evidenced**: all four ranks reached engine-ready; no CF-MLP acceptance test is recorded.
+4. `/v1/models` naming `deepseek-ai/DeepSeek-V4.1-Flash-1017`, one chat reply, and one image
+   request through the supervised encoder (its ~1 GiB on rank 0 is the first real fit check) —
+   **crossed**: `/v1/models`, the chat reply, the streamed tool call and the image all answered
+   HTTP 200 on the boot 2 receipt (0.20 s chat, 11.01 s image).
+5. **Cleared 2026-11-17 — the image was `internal` after the push**: the GHCR package
+   `dgx-picom-ds41f` held the pinned digest but minted no anonymous pull token (`ghcr.io/token`
+   answered 401), so the "published artifacts must be public" rule was unsatisfied. Closed the
+   same day by the two-call probe AGENTS.md §"Published artifacts must be public" prescribes:
+   the anonymous token answers 200, and `DOCKER_CONFIG=$(mktemp -d) docker manifest inspect` of
+   the pinned digest resolves it with no credentials — re-probe that against whatever digest the
+   recipe pins when you read this, since the manifest and config identity change with every
+   rebuild. Anonymous pull is the acceptance, not the tag's existence; `tools/refresh-sweep.py`
+   re-checks it nightly.
+6. **Partly cleared 2026-11-17 — the first image shipped `libibverbs` without `ibverbs-providers`**:
+   boot 1 (image `5b09a688`, launcher without a pre-start gate) logged
+   `libibverbs: Warning: couldn't open config directory '/etc/libibverbs.d'.`, then
+   `RDMA device rocep1s0f0 not found`, then `Aborted (core dumped) dsgb10_rank`, then the
+   launcher's `FATAL: the engine died before its socket appeared`. The runtime stage now installs
+   `ibverbs-providers`, `librdmacm1t64` and `ibverbs-utils`; the build gates `ibv_devinfo -l` on the
+   provider-config warning and asserts `/etc/libibverbs.d/mlx5.driver` plus `libmlx5-rdmav*.so`; the
+   launcher has a fail-closed pre-start gate naming any missing
+   `${PICOM_DEV_A}`/`${PICOM_DEV_B}`. Boot 2 (`1e529c67`) prints `[picom-launcher] rank N: RDMA
+   devices visible: rocep1s0f0 roceP2p1s0f0` before starting the engine. Re-probe on every rebuild —
+   a new digest is a new image, not this receipt.
+7. House/needle and one ladder cell against the knapcio line — the only comparison this lane
+   can quote, and the reason the arm exists.
+8. **Open hazard — pid-1 survival**: boot 1's rank-0 launcher printed `FATAL` yet its container was
+   killed by the watchdog at 08:24:29Z (exit 137) instead of exiting itself; pid-1 survival through
+   its helper children is unresolved.
+
+### License
+
+MIT: upstream's `LICENSE` and `NOTICE` are unchanged and cover the fork. The draft-gate
+weights `tools/stack4/cfmlp_cml.bin` (5,536 B, fitted on this checkpoint) ship in the image
+under the same license. The checkpoint carries its own license.
 
 ## External stack: spark-ds41f (survey, 2026-11-08)
 

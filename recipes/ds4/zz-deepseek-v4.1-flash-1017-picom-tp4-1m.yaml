@@ -1,0 +1,122 @@
+# ===========================================================================
+# Probe arm (`zz-`) — booted and smoke-verified 2026-11-17 on `.31`–`.34`
+# (receipt `head:~/benchmarks/picom-20261117/`, a per-session receipt, not a
+# tracked file): image 1e529c67 answered /v1/models, one chat and one image.
+# The first attempt, image 5b09a688, aborted with
+# `RDMA device rocep1s0f0 not found` before its engine socket appeared.
+# No benchmark cell exists, so the numbers below are upstream's expected
+# ones (Picom-code/pico-dgx-ds4 README, 2026-11-11), not ours.
+#
+# The engine is NOT SGLang/vLLM: it is a from-scratch C++/CUDA TP=4 engine
+# with its own Rust front-end (dsfront) and its own RDMA ring. It runs one
+# process per node, all four with the same argv except --rank, so the
+# recipe borrows the vLLM family as a *distribution contract only*:
+# `runtime: vllm` resolves to `vllm-distributed` by default (no Ray hint;
+# core/recipe.py:777), and sparkrun's tensor_parallel default of 1 makes
+# every node an independent replica — no torch world, no rendezvous gate,
+# and no flags appended to the command. One container per rank is exactly
+# what the engine needs. The media lane's script arms use the same pattern.
+# ===========================================================================
+recipe_version: "2"
+model: deepseek-ai/DeepSeek-V4.1-Flash-1017
+runtime: vllm
+# Same pin as the lane's shipped arms. Upstream validated the engine at
+# 1bae0e10; 08c8657f differs only in chat_template.jinja (all 48 shards
+# byte-identical), which this engine never reads — dsfront tokenises and
+# chats from its own encoding (--encoding 1017).
+model_revision: 08c8657f02291e11b6f6b63e0e16014f8e748518
+# Built from Picom-code/pico-dgx-ds4@7c123ad4 plus the two tracked PR
+# patches (recipes/ds4/Dockerfile.picom-ds41f); the image carries dsgb10_rank,
+# dsfront, the weight/Engram converters, the vision encoder and the
+# draft-gate weights. Weights live in the HF cache, never in the image.
+container: ghcr.io/littlecedar/dgx-picom-ds41f@sha256:1e529c67f268806bbf3468e176d39f6ee6907ca3ee118e96a10e7072200883a4
+min_nodes: 4
+max_nodes: 4
+description: >-
+  DeepSeek-V4.1-Flash-1017 served by the picom (dsgb10) from-scratch
+  TP=4 engine on 4x DGX Spark (GB10) over a switched RoCE fabric:
+  1M context, 16 slots, DSpark drafts with the stack4/stack5 levers,
+  OpenAI chat/completions, streamed tool-call arguments and images
+  (the checkpoint's own ViT as a supervised side encoder, upstream
+  PR #15) through dsfront. Booted and smoke-verified on `.31`–`.34`
+  2026-11-17, with no benchmark cell; upstream's
+  2026-11-11 build reports ~80-85 chat / ~140-145 code c1 tok/s and
+  ~376 tok/s at 16 users, on its own bench, not ours. Per-rank weight
+  and Engram artifacts are built from the checkpoint on first boot
+  (one-time, ~130 GB per node). Fabric inputs ride env:
+  PICOM_RANK_TAILS is required.
+metadata:
+  model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: mxfp4
+  kv_dtype: fp8
+  tags: ds4, reasoning, agent, probe
+mods:
+  - "mods/picom-launcher"
+executor_config:
+# The image has no ENTRYPOINT; clear it so the recipe's command is the process.
+  entrypoint: ""
+env:
+# Per-node, rendered by sparkrun from the launch host list:
+# rank 0 runs the engine and dsfront; ranks 1-3 run the engine only.
+  PICOM_NODE_RANK: "{launch.node_rank}"
+  PICOM_NODE_HOST: "{launch.node_host}"
+# REQUIRED at launch — no default is possible: cluster addresses are
+# forbidden in tracked files (tests/test_tracked_address_hygiene.py).
+# The four fabric address tails, rank 0-3, comma-separated; the
+# launcher renders them into the engine's fleet file as
+# <PICOM_FABRIC_A>.<tail> / <PICOM_FABRIC_B>.<tail>.
+#   -o env.PICOM_RANK_TAILS=30,31,32,33
+  PICOM_RANK_TAILS: ""
+# The fabric's two /24s and the two f0 RDMA devices (both PCI domains).
+# f1 is down on this fleet: a switched ring rides the same two devices in
+# both directions, which the engine accepts (one QP per role).
+  PICOM_FABRIC_A: "192.168.0"
+  PICOM_FABRIC_B: "192.168.1"
+  PICOM_DEV_A: "rocep1s0f0"
+  PICOM_DEV_B: "roceP2p1s0f0"
+  PICOM_GID_INDEX: "3"
+# DSGB10_RING_DIRECT=2 is the switch mode: every rank writes to all three
+# peers itself (no ring relay); bits-identical results, +1.3-1.8 % upstream.
+  PICOM_RING_DIRECT: "2"
+# Upstream's production engine line (README "run it", 2026-11-11) minus
+# DSGB10_OEA, which is their lossy batch-aware MoE re-route: this arm stays
+# strictly lossless by default (set PICOM_OEA=4,12,9 to opt in).
+# The Launcher reads this as one space-separated argv list.
+  PICOM_ENGINE_ARGS: >-
+    --max-ctx 1048576 --slots 16 --big-slots 4
+    --setenv DSGB10_BUDGET=1
+    --setenv DSGB10_DRAFT1=6 --setenv DSGB10_WIDE=64
+    --setenv DSGB10_WIDE_COST=24,2.2,57,1.1
+    --draft-head4 --draft-markov8 --setenv DSGB10_HEAD4_C1=1
+    --setenv DSGB10_CF_ALPHA=1.0 --setenv DSGB10_CERT=1
+  PICOM_OEA: ""
+# Upstream PR #15 (integrated in the image): the vision encoder as part of the
+# serve. It runs the checkpoint's own ViT on rank 0 and costs ~1 GiB of its
+# GPU; dsfront gets --vision-addr. 0 = off (image requests then answer 400).
+  PICOM_VISION: "1"
+  PICOM_VISION_PORT: "18950"
+# Upstream PR #7 (integrated in the image): a stream carries each tool call's
+# name when it parses and its arguments as they arrive, as OpenAI streams them.
+# Upstream ships it opt-in; this arm turns it on for agent clients.
+  PICOM_STREAM_TOOL_ARGS: "1"
+defaults:
+  port: 8000
+# One GPU per node; the engine's TP=4 is its own four processes, not a torch
+# world. sparkrun's tensor_parallel default is 1, which is exactly what this
+# arm needs — writing it here would only draw an inert-default finding.
+  served_model_name: deepseek-ai/DeepSeek-V4.1-Flash-1017
+command: >
+  bash /workspace/mods/picom-launcher/launch.sh
+  --model {model}
+  --revision {model_revision}
+  --served-model-name {served_model_name}
+  --port {port}
+readiness:
+# No chat surface to probe before the engine's socket exists; the launcher
+# binds dsfront only after the engine is up. First boot also converts this
+# rank's 72.38 GiB weight file and packs its 50.7 GB Engram shards.
+  inference: false
+  port_timeout_s: 10800
+  health_timeout_s: 3600
