@@ -2122,9 +2122,20 @@ Prefill: 49.4k tok/s at c1 (41.6 ms estimated); the c4+ prefill aggregate reads 
 it is wave-serialized, not queueing. Standard suite: **93/100**, **28/30**, no transport errors,
 per category 5/6, 6/6, 6/6, 6/6, 5/6, with partials TC-03 and TC-14 named.
 
+Peak is not measured: dsfront ignores `return_token_ids` (200, no token ids in the body), so
+llama-benchy falls back to its "no complete token_ids … using stream usage token count" path —
+totals and per-stream/aggregate throughput are exact usage counts, but token arrival times are
+interpolated and `peak` and the timeseries derive from those.
+
 Vision off is the comparable setting (the knapcio line runs no side encoder); the production
 shape keeps `PICOM_VISION=1`. Upstream's 376 tok/s at 16 distinct users is **not reproduced
 here** — that is their harness, not ours: a gap to close, not a verdict.
+
+One boot was lost to the instrument, not the arm: boot `…f6e2d245df66` (`PICOM_VISION=0`) was
+stopped by `tools/boot-watchdog.py` while healthy, because the serve-pid pattern did not name
+`dsgb10_rank`/`dsfront` and the endpoint probe read the keyed 401 as down; both are fixed in
+`3e4a090`, whose default pattern names this engine. The 4/4-ready boots are the arm's behaviour;
+that reap was the monitor's.
 
 Still unexercised: `ring_test`, `dsw_convert --plan` by name, `PICOM_VERIFY=1`, and the vision
 path.
