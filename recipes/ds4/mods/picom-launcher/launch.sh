@@ -102,8 +102,15 @@ chmod 600 "${KEY}"
 #####################################################################
 # One-time per-rank artifacts from the shared checkpoint
 #####################################################################
+# Markers carry the resolved snapshot path ($MODEL includes the revision): an empty
+# marker from a cache written before this change is a miss and re-converts once.
 prepare_weights() {
-  [[ -f "${WEIGHTS}.ok" && -s "${WEIGHTS}" ]] && return 0
+  if [[ -s "${WEIGHTS}" && -f "${WEIGHTS}.ok" ]]; then
+    local wmarker
+    wmarker=$(cat "${WEIGHTS}.ok")
+    if [[ "${wmarker}" == "${MODEL}" ]]; then return 0; fi
+    log "rank ${R}: weight marker names '${wmarker}', not ${MODEL}: re-converting"
+  fi
   command -v dsw_convert >/dev/null || die "dsw_convert missing from the image"
   local avail
   avail=$(df -Pk "${ROOT}" | awk 'NR==2 {print int($4/1048576)}')
@@ -120,21 +127,25 @@ prepare_weights() {
     dsw_verify --ckpt "${MODEL}" --file "${WEIGHTS}" --threads 4 ||
       die "dsw_verify failed for rank ${R}: the weight file is not this checkpoint's"
   fi
-  : > "${WEIGHTS}.ok"
+  printf '%s\n' "${MODEL}" > "${WEIGHTS}.ok"
   log "rank ${R}: weight file ready"
 }
 
 prepare_engram() {
-  [[ -f "${ENGRAM}/rank${R}.ok" ]] &&
-    [[ -s "${ENGRAM}/engram-l1-r${R}of4.bin" && -s "${ENGRAM}/engram-l14-r${R}of4.bin" ]] &&
-    return 0
+  if [[ -f "${ENGRAM}/rank${R}.ok" ]] &&
+    [[ -s "${ENGRAM}/engram-l1-r${R}of4.bin" && -s "${ENGRAM}/engram-l14-r${R}of4.bin" ]]; then
+    local emarker
+    emarker=$(cat "${ENGRAM}/rank${R}.ok")
+    if [[ "${emarker}" == "${MODEL}" ]]; then return 0; fi
+    log "rank ${R}: Engram marker names '${emarker}', not ${MODEL}: re-packing"
+  fi
   command -v engram_pack >/dev/null || die "engram_pack missing from the image"
   log "rank ${R}: packing Engram shards into ${ENGRAM} (50.7 GB; one-time, in sparkrun's runtime cache)"
   engram_pack "${MODEL}" "${ENGRAM}" "${R}" ||
     die "engram_pack failed for rank ${R}"
   python3 /opt/picom/bin/make_hashmap_stdlib.py "${MODEL}" "${ENGRAM}/engram_hashmap.bin" ||
     die "engram hash map failed"
-  : > "${ENGRAM}/rank${R}.ok"
+  printf '%s\n' "${MODEL}" > "${ENGRAM}/rank${R}.ok"
   log "rank ${R}: Engram shards ready"
 }
 

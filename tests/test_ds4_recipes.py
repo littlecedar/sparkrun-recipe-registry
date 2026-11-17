@@ -2592,6 +2592,25 @@ PICOM_PATCHES = (
 )
 
 
+def _assert_markers_name_the_snapshot(tc, launch: str) -> None:
+    """A reused artifact must belong to the snapshot the launcher was asked to serve.
+
+    The runtime cache persists across boots and a revision bump reuses the same ROOT,
+    so an identity-free marker would serve the previous snapshot's bytes.
+    """
+    needles = (
+        'printf \'%s\\n\' "${MODEL}" > "${WEIGHTS}.ok"',
+        'printf \'%s\\n\' "${MODEL}" > "${ENGRAM}/rank${R}.ok"',
+        'wmarker=$(cat "${WEIGHTS}.ok")',
+        '"${wmarker}" == "${MODEL}"',
+        'emarker=$(cat "${ENGRAM}/rank${R}.ok")',
+        '"${emarker}" == "${MODEL}"',
+    )
+    for needle in needles:
+        tc.assertIn(needle, launch,
+                    f"an artifact marker lost its snapshot identity: {needle}")
+
+
 def _assert_rank0_clears_stale_sockets(tc, launch: str) -> None:
     """Rank 0 must unlink the previous boot's sockets before it waits for one.
 
@@ -2700,6 +2719,9 @@ class PicomLaneContract(unittest.TestCase):
     def test_rank0_clears_the_previous_boots_socket_before_waiting(self):
         _assert_rank0_clears_stale_sockets(self, self.launch)
 
+    def test_artifact_markers_carry_the_snapshot_identity(self):
+        _assert_markers_name_the_snapshot(self, self.launch)
+
     def test_fleet_renderer_executes_and_fails_closed(self):
         """Run the renderer, not a regex over it: the fleet file is the engine's
         only wiring, and a wrong shape kills a rank at start, not at boot."""
@@ -2778,6 +2800,14 @@ class PicomLaneNegativeControls(unittest.TestCase):
         stripped = launch.replace(block, "", 1)
         with self.assertRaises(AssertionError):
             _assert_rank0_clears_stale_sockets(self, stripped)
+
+    def test_control_dropped_marker_identity(self):
+        launch = (PICOM_MOD_DIR / "launch.sh").read_text()
+        anchor = '    if [[ "${wmarker}" == "${MODEL}" ]]; then return 0; fi\n'
+        self.assertIn(anchor, launch, "control anchor for the marker identity vanished")
+        stripped = launch.replace(anchor, "    if true; then return 0; fi\n", 1)
+        with self.assertRaises(AssertionError):
+            _assert_markers_name_the_snapshot(self, stripped)
 
 
 if __name__ == "__main__":
