@@ -54,6 +54,12 @@ env:
   # Metrics rollout 2026-11-08: /metrics on the API port, engine flags ride
   # EXTRA_SGLANG_ARGS because the launcher owns argv (launcher.py:471-502).
   EXTRA_SGLANG_ARGS: "--enable-metrics"
+  # Long-lived production serve: the stock weight loader profiles the measured
+  # 6.99M-token budget at this mem fraction (pin 6,849,792, no clamp); the fast
+  # loader profiled 2.79M here (2026-11-12) and has ranged 2.79-6.79M across
+  # boots, which saturates the radix cache and re-prefills whole agent sessions.
+  # Boot time is paid once per restart.
+  DSV41_FAST_LOAD: "0"
 
 defaults:
   port: 8000

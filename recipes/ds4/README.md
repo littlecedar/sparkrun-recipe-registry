@@ -362,6 +362,44 @@ whereas the historical 69.28 came from a different node set. The clean test is a
 run in this window. C10 (116.86) is at the historical 116.27, so the shortfall is concentrated at
 low concurrency, which is what a busy head rank would cost first.
 
+### Measured: ds4 prefix-cache remediation (2026-11-17)
+
+Symptom, read from the 4-day production serve (`b020d2dd…`, up 2026-11-12T18:38Z):
+`max_total_num_tokens=2,792,704` with `kv_evictable_tokens` at 100 % of the pool
+and `evicted_tokens_total=2.18e8`. A census of node_0's prefill lines over 103.5 h
+(2026-11-12 18:44:06 → 2026-11-17 02:30:03) reads: 35,490 prefill batches;
+256,663,726 new tokens; 2,128,067,584 cached tokens; 3,342 cold runs, of which
+**1,884 are "big" (>3,000 new tokens), totalling 196,760,289 tokens = 76.7 % of
+everything prefilled**; 7.34 big cold runs per 1M prefilled tokens; 64 hours
+carried at least one, p50 14/hour, max 135. A cold run is a radix-cache miss on a
+whole agent session's prefix — the pool had evicted it between turns.
+
+Attribution: the recipe's `env:` carried no loader override, so the launcher's
+`DSV41_FAST_LOAD=1` default ran; the fast loader's post-load `MemAvailable`
+profile budgeted 6.59 GB and the engine sized `full_token=2,792,704` from it
+(`bytes_per_full_token=1670.75`). The stock loader at the same
+`mem_fraction_static=0.78` profiles 6,999,040, and the launcher's
+`MAX_TOTAL_TOKENS_STOCK` pin clamps to the measured 6,849,792 (11.44 GB of KV) —
+the pool the 2026-10-22 baseline table above served.
+
+Decision (2026-11-17): production `env:` sets `DSV41_FAST_LOAD: "0"`, so the
+pool rises 2.45× and boot time (544 s TTR vs ~290 s) is paid once per restart. HiCache
+is the **deferred second lever, not the first**: on GB10 the host tier is the same
+unified LPDDR5X, so it adds no capacity — it converts eviction loss into
+restore-by-copy at ratio × device-KV bytes — and DSV4 accepts only
+`--hicache-ratio` (not `--hicache-size`), through
+`build_deepseek_v4_hicache_stack` (`mem_cache/hybrid_cache/hybrid_pool_assembler.py`,
+pinned tree `sglang 0.0.0.dev1+gda64c5cbb`).
+
+Boot gate (2026-11-17 window; TBD): pool `max_total_num_tokens`, `full_token`,
+MemAvailable floor, ladder, house, needle.
+
+Live gate (TBD): census at +3 h / +24 h → `share`, `big_per_million`.
+
+Receipts: `~/benchmarks/ds4-prefix-cache-20261117/{control,boot,live}/` on the
+head and `.scratch/ds4/prefix-cache-20261117/` locally; `control/baseline-census.txt`
+holds the pre-change census and `census.py` the parser.
+
 ### Measured: the `aff52fa5` overlay survey arms (2026-10-26 window 4)
 
 All four speedup-survey flag arms measured on this lane's shipped line (boots on `.31`–`.34`,
@@ -491,18 +529,20 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
   measured cost **17–28 %** of ladder throughput at C2/C5/C10, and it is a
   multi-user latency feature (`-o env.PREFILL_DECODE_INTERVAL=2` to enable). Both
   are `AB_ENV` keys, and `0` omits the flag rather than passing it.
-- **`DSV41_FAST_LOAD` lives in the launcher, not the recipe** — there is no
-  recipe-side knob (the recipe's only `env:` key is the metrics rollout's
-  `EXTRA_SGLANG_ARGS`; everything else is the launcher's `RECIPE_ENV`). Shipped `"1"` as of 2026-10-22 (owner decision:
+- **`DSV41_FAST_LOAD` lives in the launcher, not the recipe's serve flags.** The
+  launcher's `RECIPE_ENV` default is `"1"` (shipped 2026-10-22, owner decision:
   ~220 s saved per boot over the pool). The eager path cuts engine start from
   343 s to ~124 s but shrinks the host's allowed KV budget; upstream's own docs
   quote 3–6 % at EP2 (`docs/fast-load.md`) and the older 3–13 % in its README
   summary, while the EP1 slab rework "gave back ~0.7M tokens". The lane's EP1
-  delta is unmeasured, so the pin is **not** pre-scaled: it stays at 6.85M for
-  the first fast-loader boot and is re-derived from that boot's `full_token` if
-  it clamps. `"0"` is the rollback. At the old 9.4M pin's 9.28M pool
-  concurrency was unchanged either way (measured before the 2026-10-18 pin
-  change; not re-taken since).
+  observed delta is far larger and boot-variable: 2.79M (2026-11-12) to 6.79M
+  (2026-10-02) across boots, which saturates a 16-slot 1M-context serve's radix
+  cache. The key is an `AB_ENV` key, so a recipe `env:` entry wins over the
+  launcher default, and `-o env.DSV41_FAST_LOAD=1` wins over both (`-o env.KEY`
+  writes `recipe.env` directly, `sparkrun/core/resolve.py:150`). The shipped
+  production arm sets `DSV41_FAST_LOAD: "0"` (2026-11-17): a long-lived serve
+  pays boot time once and then needs the stock loader's measured
+  6,849,792-token pool, not the fast loader's campaign-boot latency win.
 - **Rollback for the RDMA transport is one launcher line:**
   `SGLANG_ROCE_ALLREDUCE=0`. RoCEnante is the single largest lever measured on
   this lane (1.23–1.81× over NCCL, outside the 7–25% boot-to-boot spread).

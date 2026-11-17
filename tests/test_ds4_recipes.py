@@ -1013,9 +1013,13 @@ class SglangLaneContract(unittest.TestCase):
         self.assertEqual(self.r.min_nodes, 4)
 
     def test_recipe_env_carries_the_metrics_flag_and_the_pin(self):
-        # The recipe's env: carries two keys: DSV41_MODEL_REVISION (the checkpoint
-        # pin the launcher resolves the HF cache at -- it no longer guesses from
-        # refs/main) and EXTRA_SGLANG_ARGS (2026-11-08 metrics rollout).
+        # The recipe's env: carries three keys: DSV41_MODEL_REVISION (the
+        # checkpoint pin the launcher resolves the HF cache at -- it no longer
+        # guesses from refs/main), EXTRA_SGLANG_ARGS (2026-11-08 metrics rollout)
+        # and DSV41_FAST_LOAD (2026-11-17: this long-lived production serve runs
+        # the stock loader, whose profiled KV pool is 6,849,792 tokens against the
+        # fast loader's measured 2.79M, so the radix cache is not saturated and
+        # agent sessions stop re-prefilling).
         # Everything else -- the production config, and the checkpoint dir derived
         # from the pin -- lives in
         # recipes/ds4/mods/dsv41-sglang-overlay/launcher.py, and the serve
@@ -1027,6 +1031,7 @@ class SglangLaneContract(unittest.TestCase):
         self.assertEqual(self.r.env, {
             "DSV41_MODEL_REVISION": self.r.model_revision,
             "EXTRA_SGLANG_ARGS": "--enable-metrics",
+            "DSV41_FAST_LOAD": "0",
         })
         for key in ("MODEL_PATH", "DSV41_SOURCE", "TP_SIZE", "CONTEXT_LENGTH", "SERVER_PORT"):
             self.assertNotIn(key, self.r.env)
@@ -1045,6 +1050,7 @@ class SglangLaneContract(unittest.TestCase):
         # resolves at, and the launcher persists the port for the probe.
         self.assertEqual(self.r.env, {
             "EXTRA_SGLANG_ARGS": "--enable-metrics",
+            "DSV41_FAST_LOAD": "0",
             "DSV41_MODEL_REVISION": "08c8657f02291e11b6f6b63e0e16014f8e748518",
         })
         launcher = (SGLANG_MOD_DIR / "launcher.py").read_text()
