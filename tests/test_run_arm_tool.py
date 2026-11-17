@@ -2841,7 +2841,13 @@ class OomWatchdog(ExecutedBlock):
             body, env_extra={"ARM_APPEAR_POLL": "0", "ARM_CONTAINER_APPEAR_TIMEOUT": "300"},
             receipt_extra={"launch.log": "launcher output\n"})
         self.assertEqual(rc, 1, out)
-        self.assertIn("no container appeared after 340s (ceiling 300s", out)
+        # `SECONDS` is integer-second, so a slow runner that crosses a tick
+        # between the fixtures' two reads reports 341 (CI, 2026-11-17). Assert
+        # the contract -- the boot's own elapsed time, above the ceiling, with
+        # the ceiling named -- not the race-dependent integer.
+        m = re.search(r"no container appeared after (\d+)s \(ceiling 300s", out)
+        self.assertIsNotNone(m, out)
+        self.assertGreaterEqual(int(m.group(1)), 340, out)
         self.assertIn("launcher was still running, killing it", out)
         self.assertNotIn("seen=", out, "the 300 s window let the loading boot through")
 
