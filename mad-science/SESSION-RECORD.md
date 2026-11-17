@@ -12908,3 +12908,48 @@ byte-identical across the tick, both queue blocks rendered from that snapshot.
 `tools/push-gate.py` green on `770d0002`. Evidence: `.scratch/tick-2101-652215/` (`probe.sh`,
 `census.txt`, `campaigns.py`, `queue.json`, `graph.txt`, `table.txt`, `compose.py`, `board.md`,
 `base-board.md`, `reland.sh`).
+
+## Board tick 2026-11-16 22:11 ET — the relaunch the 21:29 board could not see
+
+**What changed under the board.** The `21:29 ET` board's census described a serve fenced on
+2026-11-12, `Up 4 days`. A fresh six-node read at `03:02:26Z`–`03:02:28Z` found a different launch:
+task `b020d2dd178343a5_510ded98367b` on `.31`–`.34`, rank-0 `StartedAt` `2026-11-17T02:48:56.905658501Z`
+(21:48:56 ET), same image digest `3f4480818acb`, `RestartCount` 0, `running`/`healthy`, serve-child
+count 1 per rank under `[s]glang.launch_server`, and rank 0 answering `/v1/models` **200**
+`03:06:12Z` for `deepseek-ai/DeepSeek-V4.1-Flash-1017` at `max_model_len` 1,048,576. The relaunch is
+`72e292b`'s stock-loader boot (recipe pins `DSV41_FAST_LOAD=0`, live container carries
+`MAX_TOTAL_TOKENS=6849792`, engine granted 6,138,368 tokens at `03:00:39Z`); the board folds it as a
+landed row and the census row names it as the window's headline fact.
+
+**The fence now disagrees with its containers, by evidence field only.** `.local/fleet-leases.json`
+(sha `997acbd7…`, 1,999 B, byte-identical on clone and head) still names
+`…9a582e9a0e63` / `2026-11-12T18:38:18Z` in its `serve` block. Its enforcement key is the host set
+`.31`–`.34`, which is unchanged, so boot refusals still hold and nothing was displaced; the board row
+says so and leaves re-stamping `serve.task_id`/`started_at` to a fence-owner session, the way the
+`2026-11-16T08:46:23Z` census correction did. This tick did not write the shared safety ledger.
+
+**Re-derived, not carried.** Pool: head's three units `active` at `NRestarts` 0/0/0, the other five on
+the known 5 s `beegfs-meta` loop (`.31` `+638` over `3,323 s` = 5.208 s, its own arithmetic), reads
+through the mount on head and `.35` (103 hub entries both, `config.json` 3,311 B on both ds4 snapshot
+revisions on both hosts, Kromoss `README.md` 7,685 B), and `df -B1` used `13,456,460,218,368 B` on
+head against this base's own `13,460,195,246,080 B` — the pool is **falling again** by
+`-3,735,027,712 B`, so its 501 GB register row stays open and no mechanism is claimed. Roots: net
+`+3,746,770,944 B`, `.31` `+2,006,761,472` largest gainer and `.30` `-238,411,776` largest loser;
+`MemAvailable` rose on all four served ranks and moved `-233,316`/`-4,336 kB` on the two empty nodes. Nine
+campaign roots, 38 arms, 0 live leases, unit `inactive` since 2026-11-12 01:27:16 ET; no window lock on
+either side.
+
+**One instrument trap re-hit, and it is the same one the skill names.** The first census pass ran
+`ssh -n … bash -s < probe.sh` and captured **six empty blocks at rc=0** — `-n` discards the script on
+stdin. Dropping `-n` fixed it; the identical shape hit the per-rank probe loop on the second pass. A
+census that returns no lines is a broken instrument, never an idle fleet.
+
+**Verified:** `publish` rc=0 against `--base`/`--expect-sha` `bdd369f2…` and `--expect-remote-sha`
+`bdd369f2…` (origin's board, fetched immediately before), `lint` rc=0 "1 markdown file(s) render",
+`tools/push-gate.py` green at `651637e4`, pushed `72e292b..651637e`. The three paths another session
+holds dirty (`mad-science/queue.json`, this ledger, `.idea/modules.xml`) were left byte-identical, and
+the queue blocks were rendered from a snapshot whose sha `e5e8445b…` equals both the live worktree file
+and the figure the base board published. Evidence: `.scratch/tick-2200-a7f3/` (`probe.sh`,
+`probe-spark-*.txt`, `rank_probe.sh`, `rank-.3*.txt`, `head_facts.sh`, `head.txt`, `worker35.txt`,
+`models.txt`, `commits.txt`, `queue.json`, `graph.txt`, `table.txt`, `build_runtime.py`,
+`runtime.json`, `compose.py`, `base.md`, `board.md`).
