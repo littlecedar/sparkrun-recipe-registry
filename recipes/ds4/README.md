@@ -40,6 +40,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
 - [SM121 survey arms (zz-, DeepGEMM gate cleared 2026-11-07)](#sm121-survey-arms-zz--deepgemm-gate-cleared-2026-11-07)
 - [zz-deepseek-v4.1-flash-1017-picom-tp4-1m (booted 2026-11-17)](#zz-deepseek-v41-flash-1017-picom-tp4-1m-booted-2026-11-17)
   - [What the engine brings](#what-the-engine-brings)
+  - [Measured: depth-0 ladder and standard suite (2026-11-17)](#measured-depth-0-ladder-and-standard-suite-2026-11-17)
   - [Upstream PRs integrated](#upstream-prs-integrated)
   - [Run it](#run-it-2)
   - [Fabric contract (why NEXT_DEV* == PREV_DEV*)](#fabric-contract-why-next_dev--prev_dev)
@@ -2082,7 +2083,7 @@ verify-route build/probe and the blocked-serve record in
 | Context / slots | 1,048,576 (`--max-ctx`), 16 slots of which 4 hold the full window, 32 GiB disk spill tier |
 | Fabric | switched RoCE, `DSGB10_RING_DIRECT=2` (no relay); ring TCP bootstrap 18620; engine↔front-end over an AF_UNIX socket |
 | Artifacts | per rank, built from the checkpoint on first boot under `/cache/runtime/picom/`: 72.38 GiB `.dsw` weight file (`dsw_convert`), 50.7 GB Engram shards (`engram_pack`), 518,048 B hash map; ~150 GB free per node and a one-time cost |
-| Status | **Booted 2026-11-17, smoke-verified; no benchmark cell yet.** Two boots under the `session:picom-boot-20261117` lease: boot 1 (task `d1bde80396f656bb_158f604f1049`, image `5b09a688`, launcher with no pre-start RDMA gate) logged `RDMA device rocep1s0f0 not found` then `Aborted (core dumped) dsgb10_rank` and the launcher's `FATAL: the engine died before its socket appeared`, and its four containers were killed by the watchdog at 08:24:29Z (exit 137); boot 2 (task `58cddf1c62ba6578_c7d4546af373`) on this recipe's pin `1e529c67` reused boot 1's per-rank artifacts under `/cache/runtime/picom/`, had four ranks engine-ready in 13–17 s, `/v1/models` naming the checkpoint at `max_model_len` 1048576, one chat reply in 0.20 s, a streamed tool call whose first delta carried `function.name` (PR #7) before its arguments, and one image answered `Red` in 11.01 s (PR #15 + the supervised encoder), then was killed at 08:47:44Z (exit 137) by the launching session. Receipt `head:~/benchmarks/picom-20261117/` (per-session, not tracked). Upstream's 2026-11-11 numbers are theirs, on their bench, not ours: 84.6 chat / 144.0 code c1 tok/s, 376 tok/s at 16 distinct users, ~10k tok/s prefill, 1M context, images |
+| Status | **Booted 2026-11-17, smoke-verified; one depth-0 ladder cell and the standard suite, no tuning ladder.** Two boots under the `session:picom-boot-20261117` lease: boot 1 (task `d1bde80396f656bb_158f604f1049`, image `5b09a688`, launcher with no pre-start RDMA gate) logged `RDMA device rocep1s0f0 not found` then `Aborted (core dumped) dsgb10_rank` and the launcher's `FATAL: the engine died before its socket appeared`, and its four containers were killed by the watchdog at 08:24:29Z (exit 137); boot 2 (task `58cddf1c62ba6578_c7d4546af373`) on this recipe's pin `1e529c67` reused boot 1's per-rank artifacts under `/cache/runtime/picom/`, had four ranks engine-ready in 13–17 s, `/v1/models` naming the checkpoint at `max_model_len` 1048576, one chat reply in 0.20 s, a streamed tool call whose first delta carried `function.name` (PR #7) before its arguments, and one image answered `Red` in 11.01 s (PR #15 + the supervised encoder), then was killed at 08:47:44Z (exit 137) by the launching session. Receipt `head:~/benchmarks/picom-20261117/` (per-session, not tracked). Upstream's 2026-11-11 numbers are theirs, on their bench, not ours: 84.6 chat / 144.0 code c1 tok/s, 376 tok/s at 16 distinct users, ~10k tok/s prefill, 1M context, images |
 | License | MIT (upstream `LICENSE`/`NOTICE` unchanged) |
 
 ### What the engine brings
@@ -2103,6 +2104,30 @@ verify-route build/probe and the blocked-serve record in
   costs ~1 GiB of rank 0's GPU, and is one knob off (`-o env.PICOM_VISION=0`).
 - `DSGB10_OEA` — their lossy batch-aware MoE re-route — ships **off** here. The arm defaults
   to strictly lossless; `-o env.PICOM_OEA=4,12,9` opts into upstream's production setting.
+
+### Measured: depth-0 ladder and standard suite (2026-11-17)
+
+One boot, `benchmarking/ds4-sglang-depth0-ladder.yaml` (depth 0, pp 2048, tg 128, 3 runs,
+`PICOM_VISION=0` for the comparable cell), all runs cold — no prefix reuse on any 2048-token
+request. Receipt `head:~/benchmarks/picom-ladder-20261117/`.
+
+| cell | aggregate tok/s | per-stream tok/s | peak |
+|:--|--:|--:|--:|
+| C1 | 87.4 (74.8–99.4 spread) | 87.4 | 88 |
+| C4 | 108.6 | 33.6 | 136 |
+| C8 | 120.4 | 22.0 | 180 |
+| C16 | 141.0 | 13.4 | 219 |
+
+Prefill: 49.4k tok/s at c1 (41.6 ms estimated); the c4+ prefill aggregate reads 5.3k because
+it is wave-serialized, not queueing. Standard suite: **93/100**, **28/30**, no transport errors,
+per category 5/6, 6/6, 6/6, 6/6, 5/6, with partials TC-03 and TC-14 named.
+
+Vision off is the comparable setting (the knapcio line runs no side encoder); the production
+shape keeps `PICOM_VISION=1`. Upstream's 376 tok/s at 16 distinct users is **not reproduced
+here** — that is their harness, not ours: a gap to close, not a verdict.
+
+Still unexercised: `ring_test`, `dsw_convert --plan` by name, `PICOM_VERIFY=1`, and the vision
+path.
 
 ### Upstream PRs integrated
 
