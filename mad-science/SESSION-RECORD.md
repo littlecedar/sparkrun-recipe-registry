@@ -13744,7 +13744,14 @@ argument"* when the boot has already been torn down, which reads like a syntax e
 set — check the count first.
 
 **Folded late.** `9529a6b` landed between this tick's read and its commit; it is folded by
-`37021f3` rather than left for the next hour. A peer tick with fresher reads (`16:22:12Z` census)
-stood down behind this board and recorded its own numbers in the entry above; they are not on the
-board and the next tick should re-take them.
+`37021f3` rather than left for the next hour.
+
+**Reconciled with the entry above, not competing with it.** That tick's re-taken read
+(`16:22:12Z`–`16:22:41Z` census, `16:18:50Z` pool) is *newer* than anything on this board, so treat
+it as the hour's latest evidence: this tick's cells (`16:09:17Z`–`16:09:19Z` census, `16:09:19Z`
+pool) are the earlier read of the same state. The two agree — all six nodes `0` containers / `0`
+volumes in both, no container `create` after the `16:03:37Z` teardown, and the mount drifting up by
+tens of megabytes between them — so neither contradicts the other and the board did not need a
+third composition for it. What the later read adds is `.31`'s `NRestarts` at `93,327` against this
+board's `93,178`; the loop period is unchanged.
 
