@@ -13168,10 +13168,12 @@ head. Landed: `7c6aa5f` folded from its own subject.
 
 **Peer disclosed.** A second tick started on the head at `00:00 ET`
 (`.scratch/tick-0000-1290188/`) and had published nothing when this one
-composed; the board it read and the board this tick published are both
-`ae859e28…`, so `publish`'s `--expect-remote-sha` bound the write.
+composed; the board this tick read and `origin/main`'s board were both
+`ae859e28…` — what this tick **published** is a new blob, `cd640aa1…` — so
+`publish`'s `--expect-remote-sha` bound the write against the read, not against
+its own output.
 
-**Remains.** Attribute the teardown; retire or re-point the fence so `.31`–`.34`
+**Remains.** Narrow the teardown's issuer; retire or re-point the fence so `.31`–`.34`
 stop being refused to placement; clear the stale autodiscovery descriptor and
 its surviving follower. The ds4 gate itself moved to the next declared TP≥4
 window in `7c6aa5f`.
@@ -13259,18 +13261,25 @@ my own query aimed at the future, not an absent log. Re-run with an explicit
 apart across the four ranks, which is a launcher-level stop and not a crash:
 no kernel OOM line, no earlyoom kill, and no `.bash_history` write since
 `2026-11-15`. My disappearance window `(04:02:23Z, 05:02:39Z]` stands and
-narrows to **`04:32:25Z`**. The issuer is **LIKELY** the `sparkrun cluster
-monitor` TUI attached on the head (the peer's inference, unproven: it is the one
-surface with a stop action that leaves no shell history). Falsifiers (2)–(4)
-were sound and are unchanged.
+narrows to **`04:32:25Z`**. The issuer is **unidentified**: I first wrote the
+`sparkrun cluster monitor` TUI as **LIKELY**, and the peer's `00:31` withdrawal is
+correct — "the one surface with a stop action that leaves no shell history" is
+false, because an anonymous `ssh <host> 'sparkrun stop …'` leaves no history
+either, and head's sshd accepted off-cluster sessions across the gap. The
+discriminator that would settle it, the head's own auth/journal for the
+`04:32:25Z` second, has not been run. Falsifiers (2)–(4) were sound and are
+unchanged.
 
 **The `40` nested copies do not exist.** The campaign clause I transmitted from
 the base — *"49 `state.json` files, 40 of them the `tp12-window` chain nesting
-one level deeper per run"* — does not reproduce: `h2h-20261107/tp12-window` is a
-**symlink to `.`**, so `tp12-window/state.json` and `h2h/state.json` are one
-inode reached through forty paths, and `find -L` reads **21** files with or
-without `-L`. Register row `campaign-state-copy-re-nests` therefore premises
-copies that were never made (`29dabec`, board cell corrected there).
+one level deeper per run"* — the forty-copy half is **not reproduced**:
+`h2h-20261107/tp12-window` is a **symlink to `.`**, so `tp12-window/state.json`
+and `h2h/state.json` are one inode (`39203529`) reached through forty paths, and
+today `find -L` and plain `find` both read **21** files. The `49` total is
+unreproduced under either predicate and stays **unattributed**, which the peer
+narrowed after I had over-read the symlink as its cause (`29dabec`, then `6fc4454`,
+board cell corrected there). Register row `campaign-state-copy-re-nests` premises
+copies that were not reproduced rather than copies proven absent.
 
 **Lesson worth keeping.** Both defects are the same shape the working agreement
 names: a claim about an instrument ("the journal has nothing") made without
