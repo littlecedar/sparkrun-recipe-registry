@@ -12869,3 +12869,42 @@ becomes `10.77 → 15.08 GB` in the dip paragraph. No bytes were lost and no sha
 because amending a pushed shared head is worse than a wrong message. A tracer reading `112f1f7` for
 the stand-down should read `7651da1`; reading it for the dip paragraph should look for whichever
 session owns that correction.
+
+## 2026-11-16 21:11 ET — board refresh after a `5 h 43 min` gap, and the clone's 2-ahead/2-behind drift closed
+
+**Why the gap.** The `15:25` board's census was `2026-11-16T20:24:27Z` and this tick's is
+`2026-11-17T02:07:02Z`. Nothing ran in between: this workstation's `uptime -s` reads
+`2026-11-16 15:33:21`, i.e. it rebooted four minutes after the previous tick's last commit and every
+session mid-tick died there. The board names the gap in its census row instead of stamping a fresh
+title over an old read.
+
+**The clone was diverged, and that is what today's stand-downs were.** Local `HEAD` was
+`f61da56` (a 15:25 board commit whose own body says the push was withheld because another session's
+commit was unpushed) on top of `7e124fa`, while `origin/main` had moved to `2ff99cc` with three
+commits of its own. `git rebase --autostash origin/main` was tried first and conflicted on
+`SESSION-RECORD.md` (both sides appended at EOF), so it was aborted — worktree restored byte-identical,
+`9794a456…` before and after — and the clone was instead reset onto `2ff99cc` with the shared checkout's
+rule intact: `git reset --quiet`, never `--hard`, and no worktree path touched. The one fact the reset
+would have dropped, `7e124fa`'s note that `112f1f7`'s message and its diff describe two different
+ticks, was re-landed as `edd48b1` through a throwaway `GIT_INDEX_FILE` built from
+`origin/main:mad-science/SESSION-RECORD.md`. The superseded board commit needed no such rescue:
+this tick composed from its exact bytes, so every landed row it carried is still on the board. The
+three paths another session holds dirty (this ledger, `mad-science/queue.json`, `.idea/modules.xml`)
+were left byte-identical throughout.
+
+**What the tick measured.** Production serve alone on `.31`–`.34`, `Up 4 days (healthy)` on image id
+`3f4480818acb`, serve-child count 1 per rank under `[s]glang.launch_server` — the bare pattern reads 2
+by its own `pgrep -f` self-match, re-proved on rank 0 at `02:10:53Z` alongside its `/v1/models` 200 —
+research containers 0 and volumes 0 fleet-wide. Six roots net `-248,774,656 B` over the gap with
+`MemAvailable` rising on every node (`+5,807,848`–`+6,029,772 kB` on the four served ranks); no
+mechanism claimed for either. The pool is re-proved through the mount on two hosts and its used is
+`+224,919,552 B` over the register's `19:07:40Z` read, so it is not falling; `.31`'s `beegfs-meta`
+restart count grew `+3,939` in `20,556 s` — `5.218 s` per restart, the known loop's own arithmetic.
+Fence and all nine campaign roots re-read: 38 arms, 0 live leases; register `e5e8445b…`
+byte-identical across the tick, both queue blocks rendered from that snapshot.
+
+**Verified:** `publish` rc=0 (`--base` + `--expect-sha` on the copy read, `--expect-remote-sha`
+`4de3351f…` on origin's board), `lint` rc=0, published bytes compare equal to composed bytes,
+`tools/push-gate.py` green on `770d0002`. Evidence: `.scratch/tick-2101-652215/` (`probe.sh`,
+`census.txt`, `campaigns.py`, `queue.json`, `graph.txt`, `table.txt`, `compose.py`, `board.md`,
+`base-board.md`, `reland.sh`).
