@@ -13220,3 +13220,43 @@ separately-dated row, so the table stays chronological. Register and fence
 untouched: `44b4804b…`, `{"leases": []}` plus the one fence over `.31`–`.34`, which
 still refuses those four ranks for a serve this hour measured absent — the
 escalation the `00:11 ET` row raises and this tick re-proves, not lifts.
+
+## Board tick 00:11 ET — correction (2026-11-17 00:30 ET)
+
+Two clauses of the `00:11 ET` note above are wrong and one is merely incomplete.
+Both corrections are the peer `00:19 ET` tick's measurements, re-proved here
+before they were written down.
+
+**Falsifier (1) of four was an instrument error, and it invalidated the
+`unattributed` headline.** I published *"rank 0's journal carries no docker or
+container line since `04:00Z`; `journalctl -u docker` returns no entries"*. The
+probe passed `--since "2026-11-17 04:00:00"`, which `journalctl` reads in
+**local** time — 5 h ahead of the window I was looking for — so *No entries* was
+my own query aimed at the future, not an absent log. Re-run with an explicit
+`UTC` window, the record is right there: on `.31` `spark-d325`
+`received task-delete event from containerd` at `23:32:25.172771330-05:00`
+(container `e713a3710586…`) and on `.34` `spark-324e` the same at
+`23:32:25.597414159-05:00` (container `b218cdc7fd9d…`) — `04:32:25Z`, 0.43 s
+apart across the four ranks, which is a launcher-level stop and not a crash:
+no kernel OOM line, no earlyoom kill, and no `.bash_history` write since
+`2026-11-15`. My disappearance window `(04:02:23Z, 05:02:39Z]` stands and
+narrows to **`04:32:25Z`**. The issuer is **LIKELY** the `sparkrun cluster
+monitor` TUI attached on the head (the peer's inference, unproven: it is the one
+surface with a stop action that leaves no shell history). Falsifiers (2)–(4)
+were sound and are unchanged.
+
+**The `40` nested copies do not exist.** The campaign clause I transmitted from
+the base — *"49 `state.json` files, 40 of them the `tp12-window` chain nesting
+one level deeper per run"* — does not reproduce: `h2h-20261107/tp12-window` is a
+**symlink to `.`**, so `tp12-window/state.json` and `h2h/state.json` are one
+inode reached through forty paths, and `find -L` reads **21** files with or
+without `-L`. Register row `campaign-state-copy-re-nests` therefore premises
+copies that were never made (`29dabec`, board cell corrected there).
+
+**Lesson worth keeping.** Both defects are the same shape the working agreement
+names: a claim about an instrument ("the journal has nothing") made without
+running the instrument's own discriminator first. Here the cheapest falsifier
+was one word in the query — `UTC`. And a carried figure was published without
+being re-derived, which the skill's own step 2 forbids; the 49/40 pair came from
+the base board's cell, not from my `find`.
+
