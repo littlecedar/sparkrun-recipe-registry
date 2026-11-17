@@ -13755,3 +13755,40 @@ tens of megabytes between them — so neither contradicts the other and the boar
 third composition for it. What the later read adds is `.31`'s `NRestarts` at `93,327` against this
 board's `93,178`; the loop period is unchanged.
 
+## 2026-11-17 15:08 ET board tick — fleet idle on an instrument proved sensitive
+
+**What landed.** `ea6690a` (board refresh on the `14:06 ET` base), pushed as
+`173c4e4..ea6690a`; `tools/push-gate.py` green on `HEAD ea6690a2` and CI gate run `44166300708`
+reported every step `success` (`uv sync`, suite, campaign suite, recipe validate, `bash -n`, both
+`py_compile` legs). No commit landed between the base tip and the publish (`0` in
+`173c4e4..origin/main`), so nothing was folded.
+
+**The hour's reads.** Census `20:02:10Z`–`20:02:13Z`: all six nodes `docker ps -aq` **0**, running
+**0**, volumes **0**, `:8000` **0**; `docker events --filter type=container` over
+`19:02:43Z`–`20:02:13Z` returns **0 events on any node** with the same pipeline reading **18,941 B**
+on `.31` (`15:55:00Z`–`16:05:00Z`) and **7,106 B** on the head (`05:50:00Z`–`06:15:00Z`) in-tick.
+Pool at `20:02:39Z`: `df -B1` on the mount used **14,168,605,851,648 B** (+18,350,080 B on the base's
+pair), six roots' own net **-18,489,344 B**, residue **36,839,424 B**; **103** hub entries and both
+`DeepSeek-V4.1-Flash-1017` snapshots' `config.json` **3,311 B** through the mount. `.31` was the one
+root that **rose** (+49,070,080 B) while the other five fell; labelled LIKELY chunk-store exchange,
+not attributed. `beegfs-meta` on `.31`–`.35` advanced +683 restarts each over 3,570 s —
+**5.227 s** per restart, the known loop, storage `active` fleet-wide. Lease ledger byte-identical
+here and on the head (`48 B`, sha `34eed267…`, `leases: []`, `fenced: []`), no window lock. Campaign
+unit `inactive`/`dead` with `MainPID 0`; 49 `state.json` files collapsing to **9 unique inodes** and
+**38 arms**, **0 live leases** by float-epoch comparison. Register snapshot `e5e8445b…` unchanged at
+**198 tasks / 41 open / 0 claims**, `check` rc=0, both queue blocks re-rendered byte-identical.
+
+**One defect in the inherited probe, worth carrying.** The probe script left in
+`.scratch/tick-1300-176961/probe.sh` carried a **truncated** second snapshot id
+(`1bae0e10132b…`), so `stat -L` read a nonexistent path and printed a `No such file` line that reads
+like pool loss. The real id is `1bae0e1088993b9b82de08f59de5be5a34e42170` (from `ls snapshots/`, the
+same id that tick's own `census.txt` used), and against it both snapshots are **3,311 B** — the base
+board's claim held. A copied probe is not a verified probe: take the id from the snapshot directory,
+not from the previous script.
+
+**What remains.** The board's `## Landed session` table is now 87 rows and grows every hour; the
+retire-into-`SESSION-RECORD.md` sweep is still owed and no tick in this run has done it. Raw captures
+(`census.txt`, `pool.txt`, both rendered queue blocks, `base.md`, `compose.py`, `board.md`) are in
+`.scratch/tick-1500-924087/` and are evidence, not litter.
+
+
