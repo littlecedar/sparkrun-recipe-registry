@@ -13102,3 +13102,76 @@ capture instead of a retyped value.
 **Remains.** The ds4 lane's pre-registered live gate (census at +3 h and +24 h)
 belongs to that session, not to the tick. Nothing else outstanding from this
 tick.
+
+## Board tick 00:11 ET (2026-11-17) — the production serve is gone and the fleet says nothing about how
+
+Read-only: two six-node sweeps, `2026-11-17T05:02:39Z`–`05:02:42Z` and
+`2026-11-17T05:09:10Z`–`05:09:11Z`, `1 h 00 min` after the `23:16 ET` base read.
+**The production arm the base board carried is gone.** `.31`–`.34` read
+`docker ps -aq` **0**, running **0**, volumes **0** in both sweeps, and head's
+`sparkrun status` reports *No sparkrun containers running* with all six hosts
+listed idle. The base's own read saw four `running`/`healthy` containers of
+`b020d2dd178343a5_510ded98367b` at `04:02:20Z`, so the teardown landed inside
+`(2026-11-17T04:02:23Z, 2026-11-17T05:02:39Z]`.
+
+**Mechanism: unattributed, after four falsifiers.** (1) `journalctl -u docker
+--since 2026-11-17 04:00:00` on rank 0 returns `No entries`, and a wider
+`journalctl --since 03:45:00 | grep -iE 'docker|container|sparkrun'` returns
+nothing. (2) No node rebooted: `uptime -s` is `2026-11-11 20:02:5x` on all six,
+so a fleet-wide teardown driver is ruled out. (3) `git log -S '510ded98367b'`
+names four commits and none is a stop; the last is `ae18343`'s board refresh.
+(4) `last -n 12` on `.31` shows no interactive session since `2026-11-06`, so
+any stop arrived over a non-interactive ssh hop, which leaves no wtmp trace.
+The memory came back rather than being held — `MemAvailable` rose
+**+111,298,792 kB** `.31`, **+110,822,820** `.32`, **+110,258,000** `.33`,
+**+109,208,084** `.34`, and root avail rose 51–60 MB on the same four — so the
+engine exited and its pool was released, not merely idle.
+
+**The fence still holds those ranks for the stopped task.** `.local/fleet-leases.json`
+is unchanged (2,120 B, sha `44b4804b…`, byte-identical in this clone and on
+head's) and still names `…_510ded98367b` as the serve its `fenced` record
+protects; it refuses a boot on `.31`–`.34` by name and under `--takeover`, so
+the fleet's only claim is a fence over four empty ranks. This tick is read-only
+and left the record exactly as its owner wrote it — retiring or re-pointing it
+is the production window owner's call, and until then those ranks are
+unusable.
+
+**Pool.** All six nodes made the through-mount read this tick rather than the
+usual two-host pair: hub **103** entries, `stat -L` of the ds4 arm's
+`config.json` **3,311 B**, `df -B1` used **`13,461,896,036,352 B`** / avail
+**`10,729,333,719,040 B`** on every host, byte-identical because it is one
+server-side counter. Against the base board's own single-host read
+(`13,456,575,037,440 B` at `04:11:11Z`) the pool **grew 5,320,998,912 B in
+3,089 s** (~1.7 MB/s ≈ 5.9 GB/h), so the multi-hour fall `pool-content-fall-20261116`
+tracks is not continuing this hour. Non-head `beegfs-meta` still restart-loops
+(`+694`/`+693` per host over 3,619 s = one per 5.215 s); head's three units
+read `active` at `NRestarts` 0.
+
+**Also observed, and not repaired from a read-only tick.** The head's
+sparkroute autodiscovery has been `degraded` since
+**`2026-11-12T16:04:54Z`** — `last_success` that stamp, `last_attempt`
+`2026-11-17T05:05:28Z`, `last_error` *ProxyUpdateFailed: gateway stored
+configuration did not reach the serving runtime within 30s* — and its
+descriptor still lists the **previous** task `…_0abd7d020db4` at
+the rank-0 serve's port as a `healthy` initial endpoint. With the current serve
+stopped, that stale descriptor is now doubly wrong. A `sparkrun logs` follower
+for that same previous task survives on the head as pid `2721971`
+(`docker exec …_9a582e9a0e63_node_0 tail -F /tmp/sparkrun_serve.log`), aimed at
+a container that no longer exists.
+
+**Queue and claims.** Register `e5e8445b…` unchanged under the tick (198 tasks,
+41 open, 8 blocked, `check` rc=0, 0 live claims), both blocks re-rendered from
+the snapshot. Nine distinct campaign roots, 38 arms, **0 live leases**;
+`sparkrun-campaign` inactive since 2026-11-12 01:27:16 ET; 49 `state.json` files,
+40 of them the known `tp12-window` nesting chain. No window lock here or on
+head. Landed: `7c6aa5f` folded from its own subject.
+
+**Peer disclosed.** A second tick started on the head at `00:00 ET`
+(`.scratch/tick-0000-1290188/`) and had published nothing when this one
+composed; the board it read and the board this tick published are both
+`ae859e28…`, so `publish`'s `--expect-remote-sha` bound the write.
+
+**Remains.** Attribute the teardown; retire or re-point the fence so `.31`–`.34`
+stop being refused to placement; clear the stale autodiscovery descriptor and
+its surviving follower. The ds4 gate itself moved to the next declared TP≥4
+window in `7c6aa5f`.
