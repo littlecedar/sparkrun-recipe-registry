@@ -2137,8 +2137,7 @@ stopped by `tools/boot-watchdog.py` while healthy, because the serve-pid pattern
 `3e4a090`, whose default pattern names this engine. The 4/4-ready boots are the arm's behaviour;
 that reap was the monitor's.
 
-Still unexercised: `ring_test`, `dsw_convert --plan` by name, `PICOM_VERIFY=1`, and the vision
-path.
+Still unexercised: `ring_test`, `PICOM_VERIFY=1`, and the vision path.
 
 ### Upstream PRs integrated
 
@@ -2212,10 +2211,21 @@ L2 domain (the QP's `hop_limit` is 1); jumbo frames plus PFC/ECN on the switch; 
 
 1. `ring_test` over the switched fabric — **still open**: upstream has no switch deployment, and the
    receipt carries no `ring_test` run; the engine starting is not a link test.
-2. `dsw_convert --plan` on `08c8657f` — **not exercised by name**: the conversion ran on the
-   2026-11-17 boots and wrote the rank file, but the receipt carries no `--plan` line.
-3. The CF MLP gate accepted by all four ranks and the engine's AF_UNIX socket appearing — **only the
-   socket is evidenced**: all four ranks reached engine-ready; no CF-MLP acceptance test is recorded.
+2. `dsw_convert --plan` on `08c8657f` — **crossed**: `prepare_weights` in
+   `recipes/ds4/mods/picom-launcher/launch.sh` runs
+   `dsw_convert --ckpt "${MODEL}" --rank "${R}" --plan` under `|| die` immediately before every
+   conversion, so no rank can write a weight file with the plan failing, and the four
+   `weights/rankN.dsw` files on 10.0.4.31–.34 (03:17 ET conversion boot) plus each rank's
+   `picom/logs/rank.N.log` `converting …snapshots/08c8657f…` → `weight file ready` lines with no
+   `FATAL` are that boot's product. A boot that reuses those files does not re-run the plan: it runs
+   only in the conversion branch.
+3. The CF MLP gate accepted by all four ranks and the engine's AF_UNIX socket appearing — **crossed**:
+   each rank's engine log (`/cache/runtime/picom/logs/rank.N.log` in that rank's runtime-cache leaf;
+   the copied extract is `rank-{0,1,2,3}-boot3.log` under `head:~/benchmarks/picom-verify-20261117/`)
+   carries the engine's own startup line `spec: rank N: confidence MLP /opt/picom/cfmlp_cml.bin
+   (hash 44161c51, dbg 0) for one-session drafts` for N = 0,1,2,3, and rank 0 logs
+   `serve: listening on /cache/runtime/picom/run/engine.sock`; the engine naming the file, hash and
+   mode it loaded at startup is the gate's evidence — no separate "CF-MLP acceptance test" exists.
 4. `/v1/models` naming `deepseek-ai/DeepSeek-V4.1-Flash-1017`, one chat reply, and one image
    request through the supervised encoder (its ~1 GiB on rank 0 is the first real fit check) —
    **crossed**: `/v1/models`, the chat reply, the streamed tool call and the image all answered
