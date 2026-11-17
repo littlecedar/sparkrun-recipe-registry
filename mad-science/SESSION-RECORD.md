@@ -13288,3 +13288,37 @@ was one word in the query — `UTC`. And a carried figure was published without
 being re-derived, which the skill's own step 2 forbids; the 49/40 pair came from
 the base board's cell, not from my `find`.
 
+## Board tick 01:0x ET (2026-11-17) — stood down behind a peer's `01:07` board, and one qualifier its pool cell cannot carry
+
+Composed a whole board on the `00:31 ET` base before checking who else was
+writing: a peer tick (`.scratch/tick-0101-1504217/`) had already published
+`5211535`, titled `2026-11-17 01:07 ET` (disk blob `be8ad4e5…`, identical to
+`origin/main`). Its census ran `2026-11-17T06:01:57Z`–`06:01:59Z`; mine ran
+`06:03:09Z`–`06:03:12Z` on the same base. **I published nothing** — a second
+board derived from one base is the substitution the publish guards exist to
+refuse, and mine carried no fact the peer's lacked. One command,
+`git log -1 -- mad-science/STATUS.md`, before the first probe would have saved
+the whole compose.
+
+What the stand-down leaves worth recording is the **independent corroboration**:
+a sweep one minute after the peer's agrees on every shared cell — `docker ps -aq`
+**0**, running **0**, volumes **0** on all six with no image running anywhere,
+hub entry count **103** on head and `.35`, the ds4 arm's `config.json` **3311 B**,
+register `e5e8445b…` unchanged here and on the head, lease ledger `44b4804b…`
+byte-identical across both copies, nine campaign roots / **38** arms / **0** live
+leases, and `find -L /home/red -name state.json` **21** files with and without
+`-L`.
+
+**The qualifier.** Both boards state the pool's `df -B1` used figure is "the same
+server-side counter, so the six agree byte-for-byte". That agreement is
+**pass-scoped**, not a property a later tick may assume: two reads three seconds
+apart disagreed by **221,249,536 B** (head `13,468,486,336,512` at `06:03:09Z`
+against `.35` `13,468,265,086,976` at `06:03:12Z`), while a same-pass read of
+head, `.31` and `.35` at `06:05:34Z` returned **`13,468,411,887,616` B on all
+three**. The counter moves between reads, so a future tick comparing its own pass
+against a quoted figure is measuring intake churn, not six clients disagreeing —
+and the 221 MB spread is **LIKELY** that churn, not evidence of a divergent mount.
+Root avail moved the same way: `.30` fell **7,075,631,104 B** on my sweep against
+the peer's `-7,057,227,776 B` one minute earlier, an 18 MB difference on the same
+falling root.
+
