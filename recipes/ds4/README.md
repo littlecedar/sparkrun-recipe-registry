@@ -2215,7 +2215,7 @@ L2 domain (the QP's `hop_limit` is 1); jumbo frames plus PFC/ECN on the switch; 
    `recipes/ds4/mods/picom-launcher/launch.sh` runs
    `dsw_convert --ckpt "${MODEL}" --rank "${R}" --plan` under `|| die` immediately before every
    conversion, so no rank can write a weight file with the plan failing, and the four
-   `weights/rankN.dsw` files on 10.0.4.31–.34 (03:17 ET conversion boot) plus each rank's
+   `weights/rankN.dsw` files on the four rank hosts (03:17 ET conversion boot) plus each rank's
    `picom/logs/rank.N.log` `converting …snapshots/08c8657f…` → `weight file ready` lines with no
    `FATAL` are that boot's product. A boot that reuses those files does not re-run the plan: it runs
    only in the conversion branch.
