@@ -13562,3 +13562,145 @@ census. Read from `docker events --filter type=container` on each rank, not `jou
   moved the other way (net `+184,889,344 B`), so the retired root-sum identity is not re-asserted.
 - **Remaining.** Register `e5e8445b…` unchanged, 41 open rows, 0 live claims. A peer's 11:10 ET
   append to this file is uncommitted in this clone and this close-out does not carry it.
+## Board landed rows homed (2026-11-17 11:10 ET)
+
+Prepared for the 11:00 ET board tick, which set out to shorten `mad-science/STATUS.md`'s
+`## Landed session` table from the 68 rows it had accumulated since `2026-11-16 08:10 ET` to that
+cycle's own rows, as the board contract requires. **The shortening did not land**: a peer tick
+published its own `11:12 ET` board into this clone's worktree before this one could publish, so
+this tick stood down behind it (close-out below). The homing is recorded anyway, because the check
+is the work — thirty-nine of those 68 rows were not already in this ledger, and they are homed here
+**by exact reference rather than retyped**: the table is the `## Landed session` section of board
+blob `307305001aa0df2ca313894d246e4346a68907ba`, titled `2026-11-17 10:38 ET` and carried by
+commit `0e8e61c`. Recover any row verbatim with
+`git show 0e8e61c:mad-science/STATUS.md` — the blob is immutable, while a hand-copied 15 KB table
+is a transcription risk this ledger has already been bitten by (2026-11-09, a mistyped `df` digit
+that published a 60 000 B phantom delta). The keys below name every retired row so one can be
+located without reading the whole section.
+
+| time ET | row key |
+|---|---|
+| 09:03 | `dcf98a2` |
+| 10:18 | `10ed155` |
+| 13:03 | `417ad7e` |
+| 14:50 | `24aae67` |
+| 08:59 | runtime-cache GC (no commit) |
+| 14:55 | board refresh |
+| 14:59 | `f2344ec` |
+| 07:15 | `2be97f0` |
+| 07:35 | `ae9db99` |
+| 15:08 | `91ed9f7` |
+| 15:23 | board refresh |
+| 15:05 | `f297d2b` |
+| 15:10 | `10790ee` |
+| 15:25 | board refresh |
+| 15:25 | `f922c23` |
+| 21:07 | board refresh |
+| 22:11 | board refresh |
+| 22:15 | `d22633a` |
+| 22:26 | `d3f58a8` |
+| 22:36 | `cd2a0f5` |
+| 22:46 | `5919ef3` |
+| 23:11 | board refresh |
+| 23:16 | board correction |
+| 00:11 | board refresh |
+| 00:30 | board correction |
+| 00:31 | board correction |
+| 01:07 | board refresh |
+| 02:00 | board refresh |
+| 02:20 | board correction |
+| 03:18 | board refresh |
+| 03:31 | board correction |
+| 09:42 | `d3ca094` |
+| 09:42 | `1a8c9ca` |
+| 10:09 | measurement (ssh alias host keys) |
+| 10:18 | measurement (pool `used` vs the six roots) |
+| 10:24 | measurement (picom verify boot) |
+| 10:27 | board correction (pool causal clause) |
+| 10:38 | board correction (pool bound) |
+| 10:38 | measurement (picom ladder, not idle) |
+
+The other 29 rows of that table were already present in this file, checked row by row (by commit
+SHA where the row carried one, by its clause text where it did not).
+
+## 2026-11-17 11:00 ET board tick — stood down behind a peer's 11:12 ET board
+
+The tick read the `10:38 ET` board (content sha256 `5c40b248…`), snapshotted `mad-science/queue.json`
+(`e5e8445b…`, unchanged, 198 tasks / 41 open / 0 live claims), ran its own six-node census
+`16:02:46Z`–`16:05:03Z`, and composed a full board — then found a peer tick's `11:12 ET` board
+already published into this clone's worktree (`mad-science/STATUS.md` 51,339 B, mtime `16:12:25Z`,
+content sha256 `11e9944e…`), whose census read `16:04:24Z` is **fresher** than this tick's.
+Publishing would have clobbered it, so this tick **stood down**: the board on disk is the peer's and
+this cycle lands no board row of its own.
+
+**The fact that board cannot carry, and the next tick must correct.** `.local/fleet-leases.json` was
+released at **`2026-11-17T16:07:25Z`**: the head's copy and this clone's synced copy both read
+**48 B** sha `34eed267…`, content `{"fenced": [], "leases": [], "version": 1}`. The peer's
+`window`/`lease` rows publish the picom lease as live because their ledger read was `16:03:47Z`,
+**3 min 44 s before the release**; `session:picom-verify-20261117` (hosts `.31`–`.34`, would have
+expired `22:52:42Z`) was released **6 h 45 min early**, its last use the watchdog boot below. The
+fleet is unclaimed, no `.local/fleet-window.lock` exists here or on the head, and `fenced: []` still
+carries no production fence since its `2026-11-17T03:23:28Z` deletion (`QUESTIONS.md` `#85` open).
+
+**The peer board's node cells are corrupted and need a recomposition, not a text fix.** Every
+`.30`–`.35` row reads `2026-11-17Tts=2026-11-17T16:04:2xZ`, carries a bare `kernel` where
+`7.0.0-1025-nvidia` belongs, and prefixes the boot time with `up=`; the labels are doubled by the
+peer's own compose path, so the values under them are still its own reads. Its `landed` table also
+keeps the 68 pre-existing rows.
+
+**This tick's measurements, for that recomposition.** Census `16:02:46Z`–`16:05:03Z`: all six nodes
+`docker ps -aq` **0** / running **0** / volumes **0**; `docker system df` head Images **52 / 524.3
+GB**, `.31`–`.35` **29 / 27 / 27 / 40 / 43**. `NRestarts` meta `.31` **93,129** at `16:05:00Z`
+(`+706` on the base over `3,683` s = **`5.217` s** per restart, the loop unchanged), `.32` **93,132**,
+`.33` **93,135**, `.34` **93,132**, `.35` **93,116**, all five `activating` at the probe. Pool
+through the mount at `16:04:28Z`: `/home/red/.cache/huggingface` a symlink to
+`/mnt/beegfs/huggingface`, **103** hub entries, the ds4 arm's `config.json` **3,311 B** in both
+snapshots (`08c8657f`, `1bae0e10`), `df -B1` used **14,168,228,364,288 B** against the base's
+`14,168,421,826,560 B` (**−193,462,272 B**) while the six roots **gained** **185,401,344 B** net
+(`.32` +52,469,760, `.33` +53,211,136, `.34` +64,081,920, `.35` +61,444,096; `.30` −22,827,008,
+`.31` −22,978,560) — **no mechanism claimed**, the causal reading stays withdrawn. The window's boot
+`58cddf1c62ba6578_a0644a22b097` (`15:58:21Z`–`16:03:37Z`, image `986795bc`,
+`ghcr.io/littlecedar/dgx-picom-ds41f@sha256:1e529c67…`): engine ready 17 s on rank 0, sparkrun TTR
+**27.248 s** port-open / **27.275 s** HTTP-ready, **three** watchdog arms (`15:58:5x`, `16:01:1x`,
+`16:03:17`) each `verdict=healthy endpoint=ok serve_pid=alive` at `t=1 s` **with the shipped default
+serve pattern**, smoke models/chat/stream+tools **200** and image **400** by design at
+`PICOM_VISION=0`, then `sparkrun stop` verified `0` containers and `0` volumes on all six hosts —
+receipt `head:~/benchmarks/picom-watchdog-20261117/`.
+
+### Superseded 20 minutes later — and the re-taken read
+
+The peer published again while this tick was linting: `mad-science/STATUS.md` now carries its
+`11:24 ET` board (content sha256 `12fb4a96…`, mtime `16:25:01Z`), and `origin/main` (tip `b2f9009`)
+carries the `11:12` one. **That board already makes two of the three corrections this tick
+intended**: its `window` row records the `488 B → 48 B` release at `16:07:25Z` and drops the lease
+row, and its `.30`–`.35` cells are re-derived (`kernel 7.0.0-1025-nvidia`, a real timestamp, no
+`up=` prefix). Only the `## Landed session` shortening still has not landed, and the homing above
+covers it. A second composition was built over the `11:12` board with a re-taken census and then
+**discarded rather than raced into the same file** — the session published twice in fifteen minutes,
+and a third whole-file replacement buys nothing its own cells do not already say.
+
+**The re-taken read, which is this tick's freshest evidence.** Census `16:22:12Z`–`16:22:41Z`: all
+six nodes `docker ps -aq` **0** / running **0** / volumes **0**; `docker events` since `16:00:00Z`
+carries **36 / 35 / 35 / 35** exec-and-teardown lines on `.31`–`.34` and none on `.30`/`.35`, the only
+non-exec entries being the earlier boot's `kill 16:03:37Z` and `die`/`destroy 16:03:39Z` — **no
+`create` since**. `NRestarts` meta `.31` **93,327** (`+205` on the `11:12` board over `1,074` s =
+`5.239` s per restart), `.32` **93,332**, `.33` **93,336**, `.34` **93,334**, `.35` **93,319**, all
+five `activating`. Pool through the mount at `16:18:50Z` and again `16:18:58Z`: **103** hub entries,
+the ds4 arm's `config.json` **3,311 B** in both snapshots (`08c8657f`, `1bae0e10`), `df -B1` used
+**14,168,255,102,976 B** on both reads against the `11:12` board's `14,168,228,364,288 B`
+(**+26,738,688 B**), avail **10,022,974,652,416 B**. Over that interval the six roots **fell**
+**45,731,840 B** net (`.32` −1,683,456, `.33` −1,683,456, `.34` −1,679,360, `.35` −18,456,576, `.30`
+−12,148,736, `.31` −10,080,256) while `MemAvailable` **rose** on all six (`+74,860` to
+`+194,400 kB`) — **no mechanism claimed**, the causal reading stays withdrawn.
+
+**Two instrument defects this tick found in its own path, worth carrying.** (1) `docker events
+--since X --until Y` with `Y` in the future **streams until `Y`**, so a census built that way blocks
+for the whole remaining window: the first re-run hung the full 300 s job ceiling and returned an
+empty capture. Bound that probe with `timeout`, never with a future `--until`. (2) A restart period
+derived against the *pool* read's timestamp came out `5.03 s` where the known loop is `5.217 s`,
+because the six node reads run seconds apart and each node must divide by **its own** span; taken
+per node it lands at `5.213`–`5.239 s`, which is the loop.
+
+Raw captures for both reads — `census.out`, `census2.out`, `pool2.out`, the queue snapshot with both
+rendered blocks, `base.md`/`base2.md` and the two composed boards — are in
+`.scratch/tick-1100-423769/`; they are this tick's evidence, not litter.
