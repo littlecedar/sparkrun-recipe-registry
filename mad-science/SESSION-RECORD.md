@@ -13175,3 +13175,48 @@ composed; the board it read and the board this tick published are both
 stop being refused to placement; clear the stale autodiscovery descriptor and
 its surviving follower. The ds4 gate itself moved to the next declared TP≥4
 window in `7c6aa5f`.
+
+## Board tick 00:19 ET (2026-11-17) — stood down, then corrected the nested-copy figure
+
+**Stood down.** This tick read the `23:16 ET` board at `05:00:58Z`, snapshotted the
+register (`e5e8445b…`), and ran its own six-node census at `05:02:54Z` — which found
+the same thing the head's tick found: `docker ps -aq` **0** on all six hosts,
+`sparkrun status` reporting six idle hosts, research containers 0 and volumes 0. It
+composed a full board and `publish` **refused** it: the disk board had moved to
+`cd640aa1…`, the head tick's `00:11 ET` composition. That board was then published
+(`6da8b92`) and supersedes the composition, so the composition is discarded, not
+retried — a second publish over it would publish nothing the newer board lacks.
+
+**Its own forensics, stated once.** The four ranks each carry a dockerd
+`task-delete` between `04:32:25.05Z` and `04:32:25.66Z` (`spark-d325`, `-ec1d`,
+`-3578`, `-324e`) — 0.61 s across four hosts, which is a launcher-level teardown:
+a dead serve child leaves the keep-alive container `Up` (the `21e5ec6` class), and
+removal needs a stop call. No kernel OOM line and no earlyoom kill line on `.31`
+since `03:30Z`; no boot-watchdog process or log for this task; head's
+`.bash_history` mtime is `2026-11-15 01:08:50Z`, so nothing was typed. A
+`sparkrun cluster monitor` TUI is attached on the head (session `1-3`, up since
+`2026-11-16 08:21:15 ET`) and is the one surface with a stop action that leaves no
+shell history — **LIKELY** the issuing caller, unproven. In the four minutes before
+the teardown `.31`'s earlyoom logged **9.31–9.41 %** avail with swap
+`10,923/16,383 MiB` free, and `.31` now reads `SwapFree` `16,742,172 kB` of
+`16,777,212`. Pool used read `13,461,907,046,400 B` at `05:06:37Z`, byte-identical
+from head and `.35`, **`+5,332,008,960 B`** over `3,327` s with no repo added
+(103 → 103) and nothing served on the ranks — stated, attributed to nothing.
+
+**Corrected on the board.** The inherited campaign cell carried "`find` counts
+**49** `state.json` files on head, 40 of them the `h2h-20261107/tp12-window` chain
+nesting one level deeper per run". It does not reproduce: `find -L /home/red -name
+state.json` reads **21** (and **21** without `-L`), and
+`h2h-20261107/tp12-window` is a **symlink to `.`** — `tp12-window/state.json` and
+`h2h/state.json` are the same inode **39203529**. The "40 byte-identical copies"
+were one file reached through a self-referential path, so register row
+`campaign-state-copy-re-nests` premises copies that do not exist and needs its
+owner's re-check before any cleanup is planned on it. The same figure survived into
+the previous tick's ledger entry above; the board cell is the corrected home.
+
+**Landed.** Board `a9675d06…` on the peer's `cd640aa1…` base, `publish` rc=0 and
+`lint` ok; the missing `9164433` fold rides the correction row rather than a
+separately-dated row, so the table stays chronological. Register and fence
+untouched: `44b4804b…`, `{"leases": []}` plus the one fence over `.31`–`.34`, which
+still refuses those four ranks for a serve this hour measured absent — the
+escalation the `00:11 ET` row raises and this tick re-proves, not lifts.
