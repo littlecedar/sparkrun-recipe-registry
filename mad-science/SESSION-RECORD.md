@@ -13221,6 +13221,25 @@ untouched: `44b4804b…`, `{"leases": []}` plus the one fence over `.31`–`.34`
 still refuses those four ranks for a serve this hour measured absent — the
 escalation the `00:11 ET` row raises and this tick re-proves, not lifts.
 
+**Narrowed at 00:31 ET (`00:31` board correction row).** Two claims this tick had
+written did not survive review:
+
+- The campaign cell asserted the `tp12-window -> .` symlink *caused* the base's `49`
+  `state.json`. It cannot: today's `find -L` and plain `find` both read **21**, so
+  the `49` is unreproduced under either predicate and stays **unattributed**. What
+  the symlink does explain is the **nested-copy shape** — its mtime `2026-11-07
+  23:06` predates the register row's `2026-11-11` measurement, and
+  `tp12-window/state.json` is inode `39203529`, the same file as its parent — so the
+  row's 40-copy premise is **not reproduced** rather than falsified outright.
+- The teardown's issuer was published as **LIKELY** the attached `sparkrun cluster
+  monitor` TUI, on the strength of its being "the one surface with a stop action
+  that leaves no shell history". That uniqueness claim is false: an anonymous
+  `ssh <host> 'sparkrun stop …'` writes no history either, and head's sshd accepted
+  `red@100.64.23.3` sessions throughout the gap. The issuer is **unidentified**, and
+  the discriminator that would settle it — the head's own auth/journal for the
+  `04:32:25Z` second — has not been run. A `LIKELY` with no falsifier is the shape
+  the board retired at 23:16, so it does not stay.
+
 ## Board tick 00:11 ET — correction (2026-11-17 00:30 ET)
 
 Two clauses of the `00:11 ET` note above are wrong and one is merely incomplete.
