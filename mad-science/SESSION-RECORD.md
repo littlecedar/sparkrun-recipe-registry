@@ -13704,3 +13704,36 @@ per node it lands at `5.213`–`5.239 s`, which is the loop.
 Raw captures for both reads — `census.out`, `census2.out`, `pool2.out`, the queue snapshot with both
 rendered blocks, `base.md`/`base2.md` and the two composed boards — are in
 `.scratch/tick-1100-423769/`; they are this tick's evidence, not litter.
+
+## 2026-11-17 11:32 ET board tick — published after re-basing twice on peers' boards
+
+**What landed.** `c863c54` (board rebuild) and `37021f3` (the one commit that arrived during the
+publish), both pushed; `tools/push-gate.py` green on each and the second push read
+`c863c54..37021f3`. The board's own cells are this tick's reads: a post-teardown six-node re-read
+`16:09:17Z`–`16:09:19Z` (all six `0` containers / `0` volumes, `MemAvailable` 122.3–123.4 GB after
+`.31`–`.33` sat at ≈19.0 GB under the boot), `df -B1` on the mount `14,168,249,335,808 B`, and the
+lease ledger at **48 B** sha `34eed267…` — `leases: []` and `fenced: []`, i.e. the picom lease ended
+at `16:07:25Z`, four minutes after the `11:12` board's read and 6 h 45 min before its `22:52:42Z`
+expiry. The ranks it named had just run the four-rank boot the `11:12` board proved healthy, so it is
+a finished window, not an abandoned one, and the fleet is unclaimed for the first time this window.
+
+**Three bases, not one.** The `10:38 ET` board was superseded while composing (`f140f25`, then the
+`11:24` rebuild `12fb4a96`), so the composition was re-based on the newest published board each time
+and carries only what the later read adds. `publish` then refused the first attempt with *"on disk
+carries 16:04:24 Z, newer than this read's 16:03:37 Z"* — correct behaviour, since the census cell
+led with the **earlier** sweep while the cell's real read was the `16:09:17Z` re-read; leading with
+the newest ISO read fixed it, which is the same ordering `board_stamp` uses.
+
+**Two instrument facts worth carrying.** (1) My own first follow-up probe sent `ssh spark-head` from
+*inside* the head and got `Host key verification failed` on three of its sections — the head's
+name-keyed aliases carry stale host keys (register row `head-mesh-cannot-reach-30`), so a script fed
+to `ssh spark-head bash -s` must address the head as `localhost` afterwards, never by its own alias.
+(2) `docker inspect $(docker ps -q)` inside a quoted remote command reports *"requires at least 1
+argument"* when the boot has already been torn down, which reads like a syntax error and is an empty
+set — check the count first.
+
+**Folded late.** `9529a6b` landed between this tick's read and its commit; it is folded by
+`37021f3` rather than left for the next hour. A peer tick with fresher reads (`16:22:12Z` census)
+stood down behind this board and recorded its own numbers in the entry above; they are not on the
+board and the next tick should re-take them.
+
