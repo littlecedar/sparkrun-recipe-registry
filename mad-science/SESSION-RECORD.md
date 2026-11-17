@@ -13021,3 +13021,15 @@ head and `.scratch/ds4/prefix-cache-20261117/` on the workstation —
 ladder.yaml,house.{json,log},needle.{json,log},warmprobe.{py,log}}`, `live/mem-spark-0*.log`.
 Peer hunks already dirty in this ledger and in `mad-science/queue.json` were left
 byte-identical; only the section above was appended.
+
+**Red push, owned.** `8be3fba` went red on gate run 44010081933:
+`test_a_340s_distribution_with_a_live_launcher_is_not_a_failure` asserted the
+literal string `after 340s` while the tool reports `SECONDS - appear_start` and
+`SECONDS` is integer-second, so CI's runner crossed a tick and printed `341s`.
+The commit touches no tool code and the sibling launcher-exit case at
+`tests/test_run_arm_tool.py:2790` already matches its elapsed value by regex —
+a wall-clock race in the test, not a regression. Fixed at the mechanism in
+`9b7b476`: the case now matches the report, requires the elapsed value to be at
+least the 340 s the fixture aged, keeps the ceiling and launcher-kill verdict,
+and leaves the negative control intact. `push-gate` green, module re-run
+194/194 locally.
