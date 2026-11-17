@@ -2592,6 +2592,29 @@ PICOM_PATCHES = (
 )
 
 
+def _assert_rank0_clears_stale_sockets(tc, launch: str) -> None:
+    """Rank 0 must unlink the previous boot's sockets before it waits for one.
+
+    The runtime cache persists, so a stale `run/engine.sock` makes the `-S`
+    readiness test true in the first instant; the removal has to sit after the
+    ranks-1-3 `exec` branch (which never returns) and before the wait.
+    """
+    ready = 'until [[ -S "${SOCK}" ]]'
+    cleanup = 'rm -f "${SOCK}" "${ROOT}/run/front.admin"'
+    tc.assertIn(ready, launch, "rank 0's readiness wait vanished")
+    tc.assertIn(cleanup, launch, "the stale-socket removal vanished")
+    tc.assertIn('die "rank 0: cannot remove the stale', launch,
+                "the stale-socket removal must fail closed")
+    tc.assertLess(launch.index('exec dsgb10_rank --rank "${R}"'),
+                  launch.index(cleanup),
+                  "the removal must sit after the ranks-1-3 exec branch")
+    tc.assertLess(launch.index(cleanup), launch.index(ready),
+                  "the stale socket must be cleared before the readiness wait")
+    tail = launch.split(cleanup, 1)[1].split("VISION=", 1)[0]
+    tc.assertNotIn("front.table", tail,
+                   "front.table is dsfront's session table and must survive")
+
+
 class PicomLaneContract(unittest.TestCase):
     """The picom arm's launch contract, as far as it can be checked without
     four GPUs (the arm booted and was smoke-verified on 2026-11-17; the
@@ -2674,6 +2697,9 @@ class PicomLaneContract(unittest.TestCase):
         # The encoder's restarts must not be serve failures.
         self.assertIn("vision encoder exited", self.launch)
 
+    def test_rank0_clears_the_previous_boots_socket_before_waiting(self):
+        _assert_rank0_clears_stale_sockets(self, self.launch)
+
     def test_fleet_renderer_executes_and_fails_closed(self):
         """Run the renderer, not a regex over it: the fleet file is the engine's
         only wiring, and a wrong shape kills a rank at start, not at boot."""
@@ -2742,6 +2768,16 @@ class PicomLaneNegativeControls(unittest.TestCase):
         r = self._mutated("--revision {model_revision}", "--revision main")
         with self.assertRaises(AssertionError):
             self.assertIn("--revision {model_revision}", r.command_template)
+
+    def test_control_dropped_stale_socket_cleanup(self):
+        launch = (PICOM_MOD_DIR / "launch.sh").read_text()
+        block = ('rm -f "${SOCK}" "${ROOT}/run/front.admin" ||\n'
+                 '  die "rank 0: cannot remove the stale ${SOCK} or '
+                 '${ROOT}/run/front.admin"')
+        self.assertIn(block, launch, "control anchor for the cleanup vanished")
+        stripped = launch.replace(block, "", 1)
+        with self.assertRaises(AssertionError):
+            _assert_rank0_clears_stale_sockets(self, stripped)
 
 
 if __name__ == "__main__":

@@ -201,6 +201,11 @@ fi
 # the shell stays pid 1 so a container stop ends them in the service's
 # order (front-end and encoder first, rank 0 last so it stops 1-3).
 #####################################################################
+# The runtime cache persists, so the previous boot's socket is still on disk
+# and the `-S` wait below would report the engine ready at once. Drop the stale
+# engine and admin sockets; front.table is dsfront's session table and survives.
+rm -f "${SOCK}" "${ROOT}/run/front.admin" ||
+  die "rank 0: cannot remove the stale ${SOCK} or ${ROOT}/run/front.admin"
 VISION="${PICOM_VISION:-1}"
 VISION_PORT="${PICOM_VISION_PORT:-18950}"
 STREAM_ARGS=()
