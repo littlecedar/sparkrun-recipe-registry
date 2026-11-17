@@ -893,26 +893,41 @@ def cmd_lint(args, path: Path) -> None:
 
 
 _STAMP = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}(?::\d{2})?) ET")
+_ISO_STAMP = re.compile(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)")
 
 
 def _stamp(text: str) -> dt.datetime:
     return dt.datetime.strptime(text, "%Y-%m-%d %H:%M:%S" if text.count(":") == 2 else "%Y-%m-%d %H:%M")
 
 
-def board_stamp(text: str) -> dt.datetime:
+def board_stamp(text: str) -> tuple[dt.datetime, str]:
     """The board's own measurement time: newest `| census |` row stamp, the title as fallback.
 
     Census first, deliberately: the title is when the tick wrote and the census is what it measured, so
     a board can carry a fresh title over a stale read (measured 2026-11-06, three ticks inside 50 minutes).
+
+    Two census conventions exist, and the ISO one wins when a row carries both. Boards have written the
+    census read as `2026-11-17T06:01:57Z` since 2026-11-16, but their cells also cite the base board by
+    title (`… on the '2026-11-17 00:31 ET' base`), so an ET-first search compared *base titles one tick
+    behind* and never the read it means — measured 2026-11-17 01:07, `publish` reporting the title of the
+    board it replaced instead of the census of the one it wrote.
+
+    shortcut: a Z stamp and an ET stamp compare as naive datetimes, so a board composed ET against a disk
+    board carrying Z reads 5 h stale; the two conventions stop mixing one tick after the change.
     """
-    stamps = [_stamp(m.group(1)) for line in text.splitlines() if line.startswith("| census |")
+    lines = text.splitlines()
+    iso = [dt.datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%SZ")
+           for line in lines if line.startswith("| census |") for m in _ISO_STAMP.finditer(line)]
+    if iso:
+        return max(iso), "Z"
+    stamps = [_stamp(m.group(1)) for line in lines if line.startswith("| census |")
               for m in _STAMP.finditer(line)]
     if not stamps:
         title = board_title(text)
         if not title:
             raise QueueError("no census or title timestamp: cannot tell which board is newer")
         stamps.append(_stamp(title))
-    return max(stamps)
+    return max(stamps), "ET"
 
 
 def dropped_peer_lines(disk_text: str, base_text: str, incoming: str) -> list[str]:
@@ -992,18 +1007,18 @@ def cmd_publish(args, path: Path) -> None:
             "refusing publish: pass --expect-sha <sha256 you read> (exit 1 on a move) or "
             "--base <file you read> (exit 3 on a dropped peer line), so the write is not unchecked")
     base_text = Path(args.base).read_text(encoding="utf-8") if use_base else ""
-    incoming = board_stamp(text)
+    incoming, incoming_zone = board_stamp(text)
     board = Path(args.board)
     lock = Path(args.lock)
     lock.parent.mkdir(parents=True, exist_ok=True)
     with open(lock, "w") as handle:
         _lock(handle, args.lock_wait)
         disk_text = board.read_text(encoding="utf-8") if board.exists() else ""
-        disk = board_stamp(disk_text) if disk_text else None
+        disk, disk_zone = board_stamp(disk_text) if disk_text else (None, "ET")
         if disk is not None and disk > incoming:
             raise QueueError(
-                f"refusing publish: {board} on disk carries {disk} ET, newer than this read's "
-                f"{incoming} ET — re-read the census, do not overwrite it")
+                f"refusing publish: {board} on disk carries {disk} {disk_zone}, newer than this "
+                f"read's {incoming} {incoming_zone} — re-read the census, do not overwrite it")
         if args.expect_sha:
             # Fail closed when the board is gone too: an absent file cannot be proved unmoved.
             moved = (hashlib.sha256(board.read_bytes()).hexdigest()
@@ -1034,7 +1049,8 @@ def cmd_publish(args, path: Path) -> None:
         tmp = board.with_name(board.name + ".tmp")
         tmp.write_text(text, encoding="utf-8")
         os.replace(tmp, board)
-    print(f"published {board}: {incoming} ET" + (f" (disk was {disk} ET)" if disk else ""))
+    print(f"published {board}: {incoming} {incoming_zone}"
+          + (f" (disk was {disk} {disk_zone})" if disk else ""))
 
 
 def cmd_render(args, path: Path) -> None:

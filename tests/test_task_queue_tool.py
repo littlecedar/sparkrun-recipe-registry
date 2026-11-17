@@ -1111,6 +1111,34 @@ def board_text(census, title=None):
             "## Landed session\n\n| time ET | commit | one clause |\n|---|---|---|\n")
 
 
+def iso_board_text(read, cited_base="2026-11-17 00:31 ET"):
+    """A board whose census cell carries the live convention: an ISO read plus a cited base *title*.
+
+    Every real board since 2026-11-16 has this shape, and the cited title is what an ET-first search
+    found instead of the read — the defect `test_iso_census_read_wins_over_the_cited_base_title` pins.
+    """
+    return board_text(f"{read} on the `{cited_base}` base")
+
+
+class BoardStampConvention(unittest.TestCase):
+    """Which timestamp `publish` orders boards by — the read, never the base board's title."""
+
+    def test_iso_census_read_wins_over_the_cited_base_title(self):
+        """Measured 2026-11-17 01:07: publish reported the replaced board's title as its own stamp.
+
+        The census cell cites the base by title (`on the '2026-11-17 00:31 ET' base`) and carries its
+        own read as `2026-11-17T06:01:57Z`; matching ET first returned 00:31, so the monotonic guard
+        compared titles one tick behind the read it exists to order.
+        """
+        stamp, zone = tq.board_stamp(iso_board_text("2026-11-17T06:01:57Z"))
+        self.assertEqual((stamp, zone), (dt.datetime(2026, 11, 17, 6, 1, 57), "Z"))
+
+    def test_negative_control_a_board_without_the_iso_read_falls_back_to_the_et_citation(self):
+        """The ISO branch is not vacuous: an ET-only census still parses, as the fallback it is."""
+        stamp, zone = tq.board_stamp(board_text("2026-11-06 16:02:09"))
+        self.assertEqual((stamp, zone), (dt.datetime(2026, 11, 6, 16, 2, 9), "ET"))
+
+
 class BoardPublish(unittest.TestCase):
     """`publish`: a board older than the one on disk is refused, never written.
 
