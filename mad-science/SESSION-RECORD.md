@@ -13045,11 +13045,16 @@ one `sglang.launch_server` child per rank under the bracketed pattern, and rank
 `.30` and `.35` empty; research containers 0, volumes 0 fleet-wide.
 
 **New since the base.** `MemAvailable` fell 4.39/4.89/5.21/3.61 GB on
-`.31`–`.34` while `.30` and `.35` held flat (−25,952 kB at worst). LIKELY the
-served engine's KV/radix pool filling under the 6,138,368-token budget, but no
-measurement this tick separates pool growth from page-cache churn — the
-`DSV41_FAST_LOAD=0` much larger pool is the change, and nothing else on the four
-ranks moved.
+`.31`–`.34` while `.30` and `.35` held flat (−25,952 kB at worst). This tick
+first wrote that as LIKELY KV/radix pool fill; **that claim was then falsified
+by one read and is retired.** Rank 0's `/metrics` at `2026-11-17T04:15:19Z` and
+again at `04:16:04Z` reads `sglang:num_used_tokens` **0.0**, `token_usage`
+**0.0**, `num_running_reqs` **0.0**, `cache_hit_rate` **0.0** against
+`max_total_num_tokens` **6.138368e+06**, and `.31`'s own `MemAvailable` *rose*
+`+4,088 kB` across those 45 s — an empty pool cannot carry a 4.4 GB hourly fall,
+and the serve was idle at both reads. The fall therefore has no measured
+carrier; page cache is the remaining LIKELY candidate and a future tick must
+attribute it rather than assume it. Board row replaced accordingly.
 
 **Pool.** Head units `active`/`active`/`active` with `beegfs-meta` `NRestarts`
 **0**; the five non-head hosts still carry the ~5 s restart loop (`+688`/`+689`
