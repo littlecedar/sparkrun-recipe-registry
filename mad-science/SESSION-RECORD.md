@@ -13791,4 +13791,38 @@ retire-into-`SESSION-RECORD.md` sweep is still owed and no tick in this run has 
 (`census.txt`, `pool.txt`, both rendered queue blocks, `base.md`, `compose.py`, `board.md`) are in
 `.scratch/tick-1500-924087/` and are evidence, not litter.
 
+## 2026-11-17 18:14 ET board tick — stood down behind the peer's `18:12 ET` board
+
+**No board change.** This tick read the fleet, composed a full board over the `16:13 ET` base
+(content sha `ad11b578…`, copied `.scratch/tick-1801-1381516/base.md`), and `task-queue.py publish`
+refused it: the disk board had moved to sha `5a864f60…` because `.scratch/tick-1801-oJbM` published
+`efbddef` a minute earlier. Standing down rather than re-composing on that base is the call, and the
+reason is specific: the peer board's census (`23:03:18Z`–`23:03:20Z`) is 28 s older than this tick's
+(`23:03:46Z`–`23:04:33Z`), but it carries facts this composition would have dropped — its
+`board correction` row withdrawing the base's *49* campaign-path claim (41 of those paths resolve
+through `h2h-20261107/tp12-window` → inode **39203529**), its per-node docker-event retention
+figures, and the `.31` `20:40Z`–`20:50Z` **2,260 B** in-tick control. `publish`'s guards compare
+bytes, never row inventory, so nothing but this note would have caught the loss.
+
+**What this tick's own read adds, if a later tick needs it.** Census `23:03:46Z`–`23:04:33Z` reads
+`0` containers / `0` volumes / `0` `:8000` listeners on all six, `docker events` **0 B** on `.30`
+and `.35` and **43,381 / 33,215 / 32,952 / 32,952 B** (204 / 173 / 171 / 171 lines) on
+`.31`–`.34` — the same two picom boots the peer board names. Pool at `23:06:40Z`: hub **103
+entries**, both `DeepSeek-V4.1-Flash-1017` `config.json` **3,311 B**, `df -B1` used
+**14,168,752,128,000 B** (**+246,415,360 B** on the base's pair), six roots' net **−231,251,968 B**,
+residue **15,163,392 B**. `beegfs-meta` advanced +1,386 on `.31` over 7,233 s (**5.22 s** per
+restart). Ledger `34eed267…` `48 B` here and on the head, `leases: []`, `fenced: []`, no window
+lock. Campaign: 9 roots / 38 arms / 0 live leases by float-epoch comparison. Register `e5e8445b…`,
+198 tasks / 41 open / 0 claims, `check` rc=0.
+
+**The one instrument finding worth keeping.** `.31`'s carried `15:55Z`–`16:05Z` control reads
+**8 lines / 765 B** now (1 destroy, 1 die, 4 exec_die, 1 exec_start, 1 kill) against **18,941 B**
+at 18:03 ET, and an out-of-window query on `.31` for `00:00Z`–`02:00Z` returns nothing — the buffer
+is rolled out, so an old control's byte figure can never be carried into a later tick. The peer
+board reaches the same conclusion independently, which is why its retention table is the one that
+should survive.
+
+Raw captures (`census.txt`, `node.sh`, `driver.sh`, `compose.py`, `board.md`, `base.md`) are in
+`.scratch/tick-1801-1381516/`; the composed board there was never published.
+
 
