@@ -13519,3 +13519,46 @@ fence, and was it owner-authorized) is open. The expired `session:picom-boot-202
 row is still in `.local/fleet-leases.json` and needs clearing. Boot 1's pid-1 survival is
 unresolved: rank 0's launcher printed `FATAL` yet the container was killed by the watchdog
 rather than exiting itself.
+
+## Board tick 2026-11-17 11:12 ET — three boots under a live lease, and a census that read as idle
+
+Census `16:04:24Z`–`16:04:27Z` on the `10:38 ET` base, `1 h 00 min` after its `15:03:37Z` read.
+All six nodes empty at the read (`docker ps -aq` 0, volumes 0, `ss -ltn :8000` 0), and that is
+point-in-time only: `.31`–`.34` ran **three** four-rank picom boots under the live lease since the
+base read — `…_bc56b2cc8c0b` (ladder) destroyed `15:31:37Z`, and `…_a0644a22b097` created
+`15:58:21Z`, started `15:58:22Z`, killed `16:03:37Z`, destroyed `16:03:39Z`, 27 s before the
+census. Read from `docker events --filter type=container` on each rank, not `journalctl -u docker`
+(whose log carries one line in 65 min).
+
+- **`ssh -n` also discards a `< file` redirect, not only a heredoc.** The first census returned six
+  blank `##NODE` blocks at rc=0 in 3.4 s, because the inner hop was `ssh -n … 'bash -s' < probe.sh`
+  — an empty script that exits 0. Dropping `-n` on that hop returned all six nodes in 4.5 s. Both
+  hops of a script-fed census must be `-n`-free; `-n` is safe only where the remote command is an
+  argument string that never reads stdin.
+- **The lease holder was working, not idle.** Boot `…_a0644a22b097` reached TTR **27.248 s**
+  port-open / **27.275 s** HTTP-ready, watchdog verdict `healthy` at t=1 s with `serve_pid=alive`
+  under the shipped serve pattern, text and streaming tool call **200**, image **400** by design at
+  `PICOM_VISION=0`, teardown verified 0 containers / 0 volumes / 0 listeners on all six hosts
+  (`~/benchmarks/picom-watchdog-20261117/`).
+- **The lease was released four minutes after this tick's read.** `.local/fleet-leases.json` went
+  from **488 B** sha `8eda89eb…` holding one lease to **48 B** sha `34eed267…` at mtime
+  `2026-11-17 11:07:25 -0500` (`16:07:25Z`), content `{"fenced": [], "leases": [], "version": 1}` —
+  byte-identical in this clone and on the head's copy — **6 h 45 min** before that lease's own
+  `22:52:42Z` expiry, with no audit of who released it. The fleet is unclaimed, and `fenced: []` has
+  carried no production fence since its `2026-11-17T03:23:28Z` deletion (`QUESTIONS.md` `#85`).
+- **The queue blocks do not depend on the peer's mid-edit tool.** Rendered again with
+  `git show HEAD:tools/task-queue.py` against the same register snapshot, the dependency graph and
+  the board table are byte-identical (`diff` rc=0 on both), so the uncommitted hunks in
+  `tools/task-queue.py` change nothing this tick published.
+- **A compose defect I published, then corrected.** The first composition wrote the raw `ts=` /
+  `up=` / `kernel=` census lines into the timestamp, uptime and kernel fields of all six node rows,
+  and its `lease` row described a ledger four minutes out of date. My own check verified the row set
+  and the numbers and never looked at a field value; the defect was caught by a peer tick reading
+  the published board. Corrected and republished in the same hour, with the node rows rebuilt from
+  the parsed census.
+- **Pool.** Serving on every host; 103 hub entries, the ds4 arm's `config.json` 3,311 B in both
+  snapshots read through the mount, `df -B1` used `14,168,228,364,288 B` — `−193,462,272 B` on the
+  base pair — with a `+20,447,232 B` bounce between two reads minutes apart. The six node roots
+  moved the other way (net `+184,889,344 B`), so the retired root-sum identity is not re-asserted.
+- **Remaining.** Register `e5e8445b…` unchanged, 41 open rows, 0 live claims. A peer's 11:10 ET
+  append to this file is uncommitted in this clone and this close-out does not carry it.
