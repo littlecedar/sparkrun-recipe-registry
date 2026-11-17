@@ -378,12 +378,14 @@ Attribution: the recipe's `env:` carried no loader override, so the launcher's
 `DSV41_FAST_LOAD=1` default ran; the fast loader's post-load `MemAvailable`
 profile budgeted 6.59 GB and the engine sized `full_token=2,792,704` from it
 (`bytes_per_full_token=1670.75`). The stock loader at the same
-`mem_fraction_static=0.78` profiles 6,999,040, and the launcher's
-`MAX_TOTAL_TOKENS_STOCK` pin clamps to the measured 6,849,792 (11.44 GB of KV) —
-the pool the 2026-10-22 baseline table above served.
+`mem_fraction_static=0.78` profiled 6,999,040 on the 8,192-token chunk line the
+2026-10-22 boot ran, and the launcher's `MAX_TOTAL_TOKENS_STOCK` pin clamps to
+the measured 6,849,792 (11.44 GB of KV) — the pool that baseline table above
+served.
 
 Decision (2026-11-17): production `env:` sets `DSV41_FAST_LOAD: "0"`, so the
-pool rises 2.45× and boot time (544 s TTR vs ~290 s) is paid once per restart. HiCache
+pool rises 2.20× (measured) and boot time (544-637 s TTR vs ~290 s) is paid once
+per restart. HiCache
 is the **deferred second lever, not the first**: on GB10 the host tier is the same
 unified LPDDR5X, so it adds no capacity — it converts eviction loss into
 restore-by-copy at ratio × device-KV bytes — and DSV4 accepts only
@@ -399,8 +401,10 @@ swa=100,864, c4=1,534,592, c128=47,956), so the pin **clamped** (one
 `max_total_tokens=6849792 is larger than the profiled value 6138368` line,
 never a refusal) and `sglang:max_total_num_tokens=6.138368e+06` is what serves —
 **2.20×** the 2,792,704 baseline. The 2026-10-22 stock boot's 6,849,792 came at
-8,192-token chunks; the shipped 16,384 line profiles less, and the 16,384 line
-was kept because the needle below passes without it. `MemAvailable` after boot
+8,192-token chunks; this boot's 16,384 line profiled lower, and 16,384 was kept
+because the needle below passes without it. Chunk size is the untested candidate
+for the difference, not a demonstrated cause — no 8,192-token re-boot was run.
+`MemAvailable` after boot
 15.4–16.8 GiB per rank; the 940k needle dipped `.31` to 5.59 GiB and recovered
 to 12.0 GiB. Depth0 ladder (n=3, decode rows): C1 **61.17** / C4 115.24 /
 C8 150.71 / C16 128.88 t/s — C4/C8/C16 at −0.8 %/−5.6 %/−15.1 % against the
@@ -415,10 +419,19 @@ Live gate (pre-registered 2026-11-17, not yet read): re-run
 after the boot window's own gate traffic has scrolled out. PASS = `share` ≤ 0.40
 and `big_per_million` ≤ 3.67 with `kv_evictable_tokens` reaching ≥ 90 % of
 `max_total_num_tokens` at some point; NOT YET (share high, pool never saturates)
-= the loss is not eviction, file a queue row; FAIL (share high, pool saturated)
-= escalate to HiCache (Step 4A in the plan of record: `--hicache-ratio` only,
-host bytes ≈ ratio × device KV, ratio ≤ 0.5 under this pool, with a 1.5M-token
-mechanism-proof boot first). Baseline for both numbers:
+= the loss is not eviction: first the cheap discriminator
+`-o env.SWA_PREFIX_TAILS=0` (upstream SGLang #35129 records an SWA tombstone veto
+on multi-chunk prefixes, and this serve runs SWA-bounded-replay + 128 tails +
+16,384 chunks — `mad-science/DEEPSEEK.md:807-818`), then a queue row; FAIL (share
+high, pool saturated) = escalate to HiCache. HiCache sizing is **derived, not
+pre-committed**: after a warm ~999k prefill, read `MemAvailable` on all four
+ranks and set
+`ratio = floor_to_0.1((MemAvailable_gib − 7.0) × 1.0737e9 / device_KV_bytes)`
+clamped to [0.1, 0.5] (`device_KV_bytes` = `max_total_num_tokens` × 1,670.75 B;
+the head rank binds), with a 1.5M-token mechanism-proof boot first.
+`--hicache-ratio` is the only DSV4 sizing knob, and on a unified pool each GiB
+of host tier is a GiB the next device profile cannot use — 1.0737e9 / 1,670.75 B
+= **641k device tokens per GiB**. Baseline for both numbers:
 `.scratch/ds4/prefix-cache-20261117/control/baseline-census.txt`.
 
 Receipts: `~/benchmarks/ds4-prefix-cache-20261117/{control,boot,live}/` on the
@@ -535,9 +548,11 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
   overlay launcher pins `MAX_TOTAL_TOKENS` per mode (6,849,792 on the stock
   loader; unpinned under the fast loader, where the engine's own profile is the
   only accurate number) at `mem_fraction_static=0.78` and
-  `chunked_prefill_size=16384`; the stock-loader engine profiles **6,849,792**
-  at that line and the pin must stay under the *measured* budget — a larger pin
-  is *clamped* (6,993,408 at a 7.5M pin), never refused. Re-derive it by reading
+  `chunked_prefill_size=16384`. The pin must stay under the *measured* budget —
+  a larger pin is *clamped* to the engine's own profile, never refused
+  (measured 2026-11-17 at 16,384 chunks: profiled **6,138,368** under the 6.85M
+  pin; the 2026-10-22 8,192-chunk line served 6,849,792; 6,993,408 was a 7.5M
+  pin's clamp). Re-derive it by reading
   `max_total_num_tokens=` on every boot (§"Measured: the v2.4 serve line" has the
   method); `-o env.MAX_TOTAL_TOKENS=0` unpins.
   The pool is **page-shared, not extent-reserved**: 16 concurrent requests
