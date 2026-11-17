@@ -13825,4 +13825,10 @@ should survive.
 Raw captures (`census.txt`, `node.sh`, `driver.sh`, `compose.py`, `board.md`, `base.md`) are in
 `.scratch/tick-1801-1381516/`; the composed board there was never published.
 
+**How this entry landed.** Pushed as `efbddef..632c3fe`; `tools/push-gate.py` green on
+`HEAD 632c3fe0` (POSIX shells, stated counts, tracked addresses, executable modes), and CI run
+`44198404259` (`gate`, `headSha 632c3fe`) plus `44198404024` (`Push on main`) both `success`.
+The commit carried `1 file changed, 34 insertions(+)` — this section and nothing else, so no peer's
+half-written ledger text rode along.
+
 
