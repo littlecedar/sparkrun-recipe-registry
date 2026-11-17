@@ -2181,10 +2181,10 @@ sparkrun run recipes/ds4/zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml \
   10800 covers it); later boots start in minutes. `PICOM_VERIFY=1` adds a full byte compare.
 - `/health` is keyless and is what sparkrun probes; `/v1/*` needs the bearer key the mod
   generates at `/cache/runtime/picom/run/api-key` on rank 0.
-- Keyed front-end: `sparkrun benchmark performance <recipe> --profile benchmarking/concurrency-ladder.yaml
-  --api-key-env PICOM_API_KEY`, with `PICOM_API_KEY` read from rank 0's runtime-cache leaf
-  `~/.cache/sparkrun/runtime-cache/vllm/DeepSeek-V4.1-Flash-1017-*/picom/run/api-key`. Never pass the
-  key via `-b`/`-o`: `-b api_key=…` is rejected, and either form leaks a secret into argv and logs.
+- Measurement commands (`sparkrun benchmark performance` and `benchmark run`) need
+  `--api-key-env PICOM_API_KEY`, read on rank 0 from the runtime-cache leaf
+  `~/.cache/sparkrun/runtime-cache/vllm/DeepSeek-V4.1-Flash-1017-*/picom/run/api-key`. Never pass
+  the key via `-b`/`-o` — `-b api_key=…` is rejected, and both leak it into argv and logs.
 - Images work by default (`PICOM_VISION=1`): rank 0 runs the checkpoint's ViT as a supervised
   side encoder and `dsfront` gets `--vision-addr`; the encoder's log is `logs/vision.log`.
   Tool-call streams carry arguments as they arrive (`PICOM_STREAM_TOOL_ARGS=1`).
