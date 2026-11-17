@@ -10,7 +10,11 @@ while the endpoint never returns — a keep-alive that MASKS a dead serve. A
 session then sits on a boot that will never be ready. This watchdog makes the
 distinction explicit and acts on it:
 
-  * endpoint answers (`GET /v1/models` 200)                    -> healthy
+  * endpoint answers (keyless `/health` 2xx, or any <500 on `/v1/models`, so a
+    401 from a keyed front-end counts)                        -> healthy
+  * serve pattern matched nothing while the container is up and the endpoint
+    answers                                                    -> loading (a fingerprint
+    miss is not death; one log line names the miss)
   * the probe itself failed (ssh/exec error, no `LOGSIZE`)     -> no_probe: no evidence
     either way. Silence is never death: a loading boot's endpoint is *also* down, so
     reading a 30 s ssh timeout as a sighting would kill a healthy boot.
@@ -71,20 +75,46 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-SERVE_PATTERN = "tensorfold|llama-server|sglang|vllm|python3|python"
+SERVE_PATTERN = "dsgb10_rank|dsfront|tensorfold|llama-server|sglang|vllm|python3|python"
+
+
+def http_status(url: str, timeout: float = 5.0) -> int | None:
+    """HTTP status `GET url` returned, or None when nothing answered.
+
+    A 4xx is an answer from a live server, which is why it is a status and not a
+    failure here: the model path of a keyed front-end answers 401 to a keyless probe.
+    """
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:
+            return resp.status
+    except urllib.error.HTTPError as exc:
+        return exc.code
+    except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException):
+        return None
 
 
 def http_ok(url: str, timeout: float = 5.0) -> bool:
     """True when GET url returns 2xx."""
-    try:
-        with urllib.request.urlopen(url, timeout=timeout) as resp:
-            return 200 <= resp.status < 300
-    except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException):
-        # A serve that answers with something un-HTTP (measured 2026-10-30: a vLLM
-        # pooling arm raised `BadStatusLine`) is DOWN, not a reason to kill the
-        # monitor -- an uncaught HTTPException ends the watchdog and the boot loses
-        # its only liveness evidence.
-        return False
+    status = http_status(url, timeout)
+    return status is not None and 200 <= status < 300
+
+
+def endpoint_reachable(endpoint: str, timeout: float = 5.0) -> bool:
+    """Whether the serve is demonstrably answering (reachable, not necessarily 200).
+
+    `/health` is keyless and is the honest 200 test where the engine has one; on a
+    keyed front-end `/v1/models` answers 401/403 to this probe, which is a live server
+    and must not read as `endpoint=down`. Any HTTP answer below 500 counts as reachable.
+    """
+    for path in ("/health", "/v1/models"):
+        status = http_status(endpoint + path, timeout=timeout)
+        if status is None:
+            continue
+        if path == "/health" and 200 <= status < 300:
+            return True
+        if path == "/v1/models" and 200 <= status < 500:
+            return True
+    return False
 
 
 def parse_io(text: str) -> tuple[int, int] | None:
@@ -101,21 +131,39 @@ def parse_io(text: str) -> tuple[int, int] | None:
     return None
 
 
+def container_up(pid_alive: bool | None, logsize: int | None) -> bool | None:
+    """Whether the sample proved the container exists (pure).
+
+    `LOGSIZE` is emitted by the probe only after its own `sh` ran inside the
+    container, so a number means the container is up even when the serve pattern
+    matched nothing. The "No such container"/"not running" branch returns no
+    LOGSIZE, and a broken probe returns `pid_alive=None`; both are not container-up.
+    """
+    if pid_alive is None:
+        return None
+    return logsize is not None
+
+
 def decide(
     endpoint_ok: bool,
     pid_alive: bool | None,
     consecutive_dead: int,
     seen_alive: bool = False,
     fatal: str | None = None,
+    container_up: bool | None = None,
 ) -> str:
     """One check's classification (pure).
 
-    healthy        : endpoint 200.
+    healthy        : endpoint answers and, if the child was never found, the container is not
+                     up. A reachable endpoint is proof of a live server (401 counts: keyed
+                     front-ends answer the keyless probe that way).
     no_probe       : the probe itself failed (ssh / docker-exec error), so this check has
                      no evidence either way. Silence is never death — a 30 s ssh timeout on
                      a healthy but still-loading boot is exactly when the endpoint is also
                      down, so reading it as a sighting would kill a good boot.
-    loading        : serve child alive (progress is reported separately via io).
+    loading        : serve child alive (progress is reported separately via io); or the
+                     pattern matched nothing while the container is up and the endpoint
+                     answers — a fingerprint miss is not a death signal.
     dead           : the child is gone **and** we watched it alive or its serve log ends on
                      a fatal line, on the second consecutive *observed* absence. Two checks
                      survive one bad sighting (a pgrep miss across a re-exec); the count is
@@ -125,9 +173,12 @@ def decide(
                      meant for loading.
     dead_candidate : child gone and endpoint dead and we never saw it alive — the serve-pid
                      fingerprint miss. Nothing here is evidence of a crash, so it stays
-                     timed by `--dead-grace`.
+                     timed by `--dead-grace`. This is what still reaps a container kept
+                     alive around a dead child when nothing answers.
     """
     if endpoint_ok:
+        if pid_alive is False and container_up and not seen_alive:
+            return "loading"
         return "healthy"
     if pid_alive is None:
         return "no_probe"
@@ -579,10 +630,22 @@ def main(argv: list[str] | None = None) -> int:
     # watched working and then lost is dead, full stop. Only a child we never found
     # (the fingerprint miss) needs a confirmation window.
     seen_alive = False
+    pattern_miss_logged = False
     while True:
-        ok = http_ok(args.endpoint + "/v1/models")
+        ok = endpoint_reachable(args.endpoint)
         samples = [serve_state(node, ctn, args.serve_pattern) for node, ctn in ranks]
         alive, _io, _logsize, _mem, fatal = samples[0]
+        cup = container_up(alive, _logsize)
+        # A fingerprint miss is not a death signal when the container is up and the
+        # server answers; say it once so the next diagnosis starts from the pattern.
+        if alive is False and cup and ok and not seen_alive and not pattern_miss_logged:
+            print(
+                f"WATCHDOG: serve pattern {args.serve_pattern!r} matched nothing in "
+                f"{container}; container is up and the endpoint answers -- holding at loading",
+                file=log,
+                flush=True,
+            )
+            pattern_miss_logged = True
         # Arming is evidence the SERVE exists, never just that some matched process does: the pattern
         # includes plain `python`/`python3` (2026-10-26 ruling), and a mod's `pre_exec` hook is a
         # python process that matches, runs, and exits. Measured 2026-11-11 on ERNIE attempt 1: the
@@ -626,7 +689,8 @@ def main(argv: list[str] | None = None) -> int:
             consecutive_dead += 1
         else:
             consecutive_dead = 0
-        verdict = decide(ok, alive, consecutive_dead, seen_alive=seen_alive, fatal=fatal)
+        verdict = decide(ok, alive, consecutive_dead, seen_alive=seen_alive, fatal=fatal,
+                         container_up=cup)
         elapsed = int(time.time() - started)
         if moved:
             last_progress = time.monotonic()

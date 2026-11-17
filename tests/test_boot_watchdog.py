@@ -223,7 +223,7 @@ class StallIsNotLoading(unittest.TestCase):
 _GONE = (False, None, 0, None, None)
 
 
-def _drive(per_rank, stall="25", ranks=(), dead_grace="0"):
+def _drive(per_rank, stall="25", ranks=(), dead_grace="0", endpoint=False):
     """main() over per-rank serve_state returns on a fake clock that steps 10 s a call.
 
     `per_rank` is `{node: [samples]}` (or a bare list for the single-rank shape); each node's
@@ -269,7 +269,7 @@ def _drive(per_rank, stall="25", ranks=(), dead_grace="0"):
     with (
         mock.patch.object(bw, "time", Clock()),
         mock.patch.object(bw, "subprocess", fake),
-        mock.patch.object(bw, "http_ok", return_value=False),
+        mock.patch.object(bw, "endpoint_reachable", return_value=endpoint),
         mock.patch.object(bw, "serve_state", side_effect=sampler),
     ):
         rc = bw.main([
@@ -503,7 +503,7 @@ class ServeLogIsCapturedBeforeTheStop(unittest.TestCase):
         fake = mock.Mock(run=fake_run, SubprocessError=subprocess.SubprocessError)
         with (
             mock.patch.object(bw, "subprocess", fake),
-            mock.patch.object(bw, "http_ok", return_value=False),
+            mock.patch.object(bw, "endpoint_reachable", return_value=False),
             # Child gone and never seen alive: a `dead_candidate`, which `--dead-grace 0`
             # stops on its first observation — the fast-reap shape this guard is about.
             mock.patch.object(bw, "serve_state", return_value=(False, None, 0, None, None)),
@@ -645,6 +645,100 @@ class HookIsNotAServe(unittest.TestCase):
     def test_the_old_rule_would_have_killed_the_hook(self):
         """Negative control: with seen_alive set by any matched process, the hook's exit is a death."""
         self.assertEqual(bw.decide(False, False, 2, seen_alive=True), "dead")
+
+
+class FingerprintMissIsNotDeath(unittest.TestCase):
+    """2026-11-17 (picom, task `58cddf1c62ba6578_f6e2d245df66`): the serve pattern was
+    `tensorfold|llama-server|sglang|vllm|python3|python`, which matches neither
+    `dsgb10_rank` nor `dsfront`. With vision off nothing matched, so a healthy serve was
+    `serve_pid=gone` from t=1 s and killed on `--dead-grace` while answering requests.
+    A pattern miss is a positive signal's absence, never a death by itself."""
+
+    MISS = (False, None, 0, None, None)       # container up, pattern matched nothing
+    GONE_CONTAINER = (False, None, None, None, None)  # docker says no such container
+    UNPROBED = (None, None, None, None, None)
+
+    def test_a_pattern_miss_with_a_reachable_endpoint_holds_at_loading(self):
+        rc, calls, log = _drive(
+            [self.MISS, self.MISS, self.MISS, self.GONE_CONTAINER],
+            endpoint=True, dead_grace="0",
+        )
+        self.assertEqual(log.count("verdict=loading"), 3, log)
+        self.assertIn("verdict=healthy", log, "a gone container with an answering endpoint must end")
+        self.assertFalse([argv for argv in calls if argv[:2] == ["sparkrun", "stop"]],
+                         "a healthy, answering serve was stopped on a fingerprint miss")
+        self.assertEqual(rc, 0)
+        self.assertIn("matched nothing", log, "the miss is not named in the log")
+        self.assertEqual(log.count("matched nothing"), 1, "the miss line must not repeat every check")
+
+    def test_401_from_the_model_path_is_an_answering_server(self):
+        import urllib.error
+
+        def answer(req, timeout=5.0):  # noqa: ARG001
+            url = getattr(req, "full_url", str(req))
+            code = 200 if url.endswith("/health") else 401
+            raise urllib.error.HTTPError(url, code, "", {}, None)
+
+        with mock.patch("urllib.request.urlopen", side_effect=answer):
+            self.assertTrue(bw.endpoint_reachable("http://x:8000"))
+            self.assertFalse(bw.http_ok("http://x:8000/v1/models"),
+                             "the old 200-only test must still read the keyed path as not-200")
+
+    def test_a_model_path_403_is_reachable_too(self):
+        import urllib.error
+
+        with mock.patch(
+            "urllib.request.urlopen",
+            side_effect=urllib.error.HTTPError("http://x/v1/models", 403, "", {}, None),
+        ):
+            self.assertTrue(bw.endpoint_reachable("http://x:8000"))
+
+    def test_a_pattern_miss_with_an_unreachable_endpoint_still_reaps(self):
+        rc, calls, log = _drive([self.MISS] * 4, endpoint=False, dead_grace="0")
+        self.assertIn("verdict=dead_candidate", log, log)
+        self.assertIn(["sparkrun", "stop", "abc123"], calls,
+                      "a container kept alive around a dead child must still be stopped")
+        self.assertEqual(rc, 3)
+
+    def test_the_default_pattern_names_the_registry_engines(self):
+        self.assertIn("dsgb10_rank", bw.SERVE_PATTERN)
+        self.assertIn("dsfront", bw.SERVE_PATTERN)
+
+    def test_container_up_is_read_from_the_sample_not_guessed(self):
+        self.assertTrue(bw.container_up(False, 0), "a LOGSIZE proves the container is up")
+        self.assertFalse(bw.container_up(False, None), "no LOGSIZE means the container is gone")
+        self.assertIsNone(bw.container_up(None, None), "a broken probe is not container evidence")
+
+    def test_control_the_pre_fix_rule_killed_the_miss(self):
+        """Negative control: the pre-fix `decide` returned healthy for a miss only because the
+        endpoint was 200; with the keyed 401 it stayed dead_candidate and reaped."""
+        pre_fix = lambda endpoint_ok, pid_alive, n, seen_alive=False, fatal=None: (  # noqa: E731
+            "healthy" if endpoint_ok else ("loading" if pid_alive else "dead_candidate"))
+        self.assertEqual(pre_fix(False, False, 2), "dead_candidate")
+        self.assertEqual(bw.decide(False, False, 2, container_up=True), "dead_candidate")
+        self.assertEqual(bw.decide(True, False, 5, container_up=True), "loading")
+        self.assertEqual(pre_fix(True, False, 5), "healthy")
+
+    def test_control_a_never_reaping_rule_loses_the_keep_alive_guard(self):
+        """The dangerous over-correction: treating any container-up miss as loading even with
+        nothing answering would never reap a keep-alive around a dead child."""
+        over_broad = lambda endpoint_ok, pid_alive, n, seen_alive=False, fatal=None, container_up=None: (  # noqa: E731
+            "loading" if (pid_alive is False and container_up) else
+            bw.decide(endpoint_ok, pid_alive, n, seen_alive=seen_alive, fatal=fatal,
+                      container_up=container_up))
+        mutated = over_broad(False, False, 2, container_up=True)
+        self.assertEqual(mutated, "loading")
+        self.assertFalse(bw.should_stop(mutated, dead_grace=0, dead_for=0),
+                         "the over-broad rule would never reap the keep-alive")
+        real = bw.decide(False, False, 2, container_up=True)
+        self.assertEqual(real, "dead_candidate")
+        self.assertTrue(bw.should_stop(real, dead_grace=0, dead_for=0),
+                        "the real rule must still reap when nothing answers")
+
+    def test_control_the_old_pattern_could_not_see_these_engines(self):
+        old = "tensorfold|llama-server|sglang|vllm|python3|python"
+        for name in ("dsgb10_rank", "dsfront"):
+            self.assertNotIn(name, old, "the control pattern no longer reproduces the defect")
 
 
 if __name__ == "__main__":
