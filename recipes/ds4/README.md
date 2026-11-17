@@ -409,7 +409,17 @@ C8 150.71 / C16 128.88 t/s — C4/C8/C16 at −0.8 %/−5.6 %/−15.1 % against 
 Warm-prefix probe: a 28,459-token prompt's second send reports
 `cached_tokens=28,160` (98.9 %).
 
-Live gate (TBD): census at +3 h / +24 h → `share`, `big_per_million`.
+Live gate (pre-registered 2026-11-17, not yet read): re-run
+`python3 ~/benchmarks/ds4-prefix-cache-20261117/census.py <` a fresh
+`docker exec <new task>_node_0 cat /tmp/sparkrun_serve.log` at +3 h and +24 h,
+after the boot window's own gate traffic has scrolled out. PASS = `share` ≤ 0.40
+and `big_per_million` ≤ 3.67 with `kv_evictable_tokens` reaching ≥ 90 % of
+`max_total_num_tokens` at some point; NOT YET (share high, pool never saturates)
+= the loss is not eviction, file a queue row; FAIL (share high, pool saturated)
+= escalate to HiCache (Step 4A in the plan of record: `--hicache-ratio` only,
+host bytes ≈ ratio × device KV, ratio ≤ 0.5 under this pool, with a 1.5M-token
+mechanism-proof boot first). Baseline for both numbers:
+`.scratch/ds4/prefix-cache-20261117/control/baseline-census.txt`.
 
 Receipts: `~/benchmarks/ds4-prefix-cache-20261117/{control,boot,live}/` on the
 head and `.scratch/ds4/prefix-cache-20261117/` locally; `control/baseline-census.txt`
