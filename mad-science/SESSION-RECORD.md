@@ -13330,18 +13330,34 @@ Published on the `01:07 ET` base (content sha256 `be8ad4e5…`, git blob
 
 **The finding the point-in-time census hides.** All six nodes read `docker ps -aq`
 **0**, running **0**, volumes **0** and head's `sparkrun status` lists every host
-idle — true at `07:02`, and false as a description of the hour. `.30` created
-**15 containers between `05:53:45Z` and `06:12:27Z`**, each started, died within
-**1–7 s** and destroyed, with one `task-delete` still logged at `06:19:17Z`.
-`docker events` names them: 4 of the local `picom-build-test`, 5 of
-`ghcr.io/littlecedar/dgx-picom-ds41f@sha256:3713022…`, 2 of `…@sha256:5b09a68…`,
-2 of the tag `ds41f-7c123ad4-pr15-pr7`, 3 of `sha256:58cbf7f9…`. No lease was
+idle — true at `07:02`, and false as a description of the hour. `.30` logged
+**19 container `create` events between `05:53:45Z` and `06:12:27Z`, 15 of them
+started and torn down** — 14 within **0–18 s**, one held **689 s** until its
+`06:19:17Z` delete. By image: 5 of
+`ghcr.io/littlecedar/dgx-picom-ds41f@sha256:3713022…`, 3 of the local
+`picom-build-test` (`05:53:45Z`, `05:53:56Z`, `06:00:54Z`), 3 of
+`sha256:58cbf7f9…`, 2 of `…@sha256:5b09a68…`, 2 of the tag
+`ds41f-7c123ad4-pr15-pr7`, plus 4 classic-builder intermediates carrying no
+`image` attribute. One of the started containers is explicitly named
+`picom-enc-test`. No lease was
 taken, no rank booted, and the image names match the uncommitted
 `recipes/ds4/Dockerfile.picom-ds41f` + `mods/picom-launcher/` work in this clone,
 so the attribution is **LIKELY** a peer's build/smoke loop — not a boot. `.30`'s
 root fell `4,941,504,512 B` and the pool gained `5,063,049,216 B` in the same
 hour; whether the build explains either is **unattributed**, since no inode or
 process was traced, and the board states the pair apart for that reason.
+
+**The count I published first was wrong.** The 02:00 board cell said "15
+short-lived containers … 4 of the local `picom-build-test`, 5 …" — a breakdown
+summing to 16 against a stated total of 15, with the local count off by one. The
+authoritative re-derivation is
+`docker events --filter event=create --format '{{.Actor.Attributes.image}}' | sort | uniq -c`,
+which also surfaces the **4 creates with no image at all** — classic-builder
+intermediates that never became docker tasks, the reason `create` (19) and
+`start`/`task-delete` (15 each) disagree. Lifetimes came from pairing
+`start`/`die` events by container id, which is what turned "1–7 s" into the true
+**0–18 s plus one 689 s hold**. Board and this ledger carry the corrected
+figures.
 
 **The probe defect this tick nearly shipped.** The first census passed
 `journalctl --since "2026-11-17 05:50:00"` bare. These nodes run **UTC−5**
