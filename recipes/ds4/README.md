@@ -2128,8 +2128,8 @@ totals and per-stream/aggregate throughput are exact usage counts, but token arr
 interpolated and `peak` and the timeseries derive from those.
 
 Vision off is the comparable setting (the knapcio line runs no side encoder); the production
-shape keeps `PICOM_VISION=1`. Upstream's 376 tok/s at 16 distinct users is **not reproduced
-here** — that is their harness, not ours: a gap to close, not a verdict.
+shape keeps `PICOM_VISION=1`. Upstream's 376 tok/s at 16 distinct users is a different instrument on
+the same engine: the section below measures it with their harness, on both sides of their shortcut.
 
 One boot was lost to the instrument, not the arm: boot `…f6e2d245df66` (`PICOM_VISION=0`) was
 stopped by `tools/boot-watchdog.py` while healthy, because the serve-pid pattern did not name
@@ -2141,6 +2141,46 @@ Still unexercised: `ring_test`, `PICOM_VERIFY=1`, and the vision encoder's super
 restart ladder, survival across an engine restart, and behaviour under text-only load; the image
 path itself is exercised on two boots, with its cost in `vision.log` (`loaded 266 tensors in 10.0 s;
 cuda allocated 0.90 GiB`) and gate 4's receipt.
+
+### Measured: the 376 gap, two instruments and one knob (2026-11-17)
+
+Two instruments, and only one can be set beside upstream's published figure. The ladder above is
+llama-benchy on a prose corpus: 2048-token prompts, 128-token outputs, sampled at the server's default
+temperature — the shape this lane quotes against the knapcio line. Upstream's own `tools/bench/bench.py`
+(the pin's copy, sha256 `4aff8517…b97967`, unpatched) is the comparable one: 16 distinct code prompts,
+512 output tokens, greedy, thinking off, a random prefix per request so no cache helps, completion
+tokens ÷ wall. Their 376 is that second quantity.
+
+| `bench.py` cell | boot A, lossless | boot B, `PICOM_OEA=4,12,9` | upstream |
+|:--|--:|--:|--:|
+| `distinct 16`, three runs | 321.4 / 325.9 / 327.6 — median **325.9** | 372.6 / 380.1 / 377.5 — median **377.5** | 376 |
+| `copies 16` — prompt-content locality; the random prefix still defeats the cache, so it is not a caching cell and not the published number | 360.4 | 429.0 | 441 |
+| `c1 9`, chat / code medians | 84.5 / 142.5 | 83.4 / 144.3 | 84.6 / 144.0 |
+
+Same image both boots, vision off, tasks `58cddf1c62ba6578_23ca9ac7647c` and `…628c29fd7fb4`, receipts
+`head:~/benchmarks/picom-gap-20261117/{boot-a,boot-b}/`. Within-boot spreads are 6.2 and 7.5 tok/s
+against the +15.8 % median delta, but it is one boot per configuration, not an interleaved A/B. The
+switch is evidenced in B and absent in A by the engine's own line — `moe: DSGB10_OEA re-routing on:
+keep top 4, prefer the batch's core among top 12, from 9 rows` (B `rank.0.log:1965`, grep count 0 in A)
+— and by `--setenv DSGB10_OEA=4,12,9` in B's rank-0 argv.
+
+llama-benchy re-run at the comparable shape (depth 0, c16, tg 512, `-b extra_body=temperature=0`) reads
+**tg 159.6 tok/s** (`boot-a/cell5-benchy.txt`). The ladder's 141.0 at c16 is not contradicted by it: same
+instrument, 128-token sampled window instead of 512-token greedy, and neither is `bench.py`'s total.
+
+**Verdict, LIKELY:** their 16-user figure was taken with `DSGB10_OEA=4,12,9` on. Our c1 medians match
+theirs within ~1 % (worst 1.4 %) with it off, so the engine is not the slower one; turning it on
+reproduces 376 to +0.4 %, and the lossless arm is 325.9 on their own instrument. The gap was two
+instruments and one knob, not a defect.
+
+Quality is why it ships off: upstream documents the re-route as lossy. One 48-token greedy prompt
+returned byte-identical text in both boots (`picom arm online.`, usage 15+6=21), and that is not
+quality parity — gate 7 in Open boot gates is the gate that decides it: house/needle and a ladder cell
+with the switch on.
+
+Not measured: depth > 0, concurrency other than 1 and 16, a second boot per configuration, vision (off
+in both), tool calls. Boot A re-converted weights and Engram (its cache marker read `''`) and reported
+TTR 166.4 s against B's cached 27.7 s, so that readiness delta belongs to the cache, not to OEA.
 
 ### Upstream PRs integrated
 
