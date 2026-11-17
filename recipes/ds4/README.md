@@ -45,7 +45,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
   - [Run it](#run-it-2)
   - [Fabric contract (why NEXT_DEV* == PREV_DEV*)](#fabric-contract-why-next_dev--prev_dev)
   - [Open boot gates](#open-boot-gates)
-  - [Probe arms: prefill chunk budget and Engram read batch (queued 2026-11-17, neither booted)](#probe-arms-prefill-chunk-budget-and-engram-read-batch-queued-2026-11-17-neither-booted)
+  - [Probe arms: prefill chunk budget and Engram read batch (authored 2026-11-17, neither booted)](#probe-arms-prefill-chunk-budget-and-engram-read-batch-authored-2026-11-17-neither-booted)
   - [License](#license-2)
 - [External stack: spark-ds41f (survey, 2026-11-08)](#external-stack-spark-ds41f-survey-2026-11-08)
 - [Upgrade candidates (measured elsewhere, not queued)](#upgrade-candidates-measured-elsewhere-not-queued)
@@ -2309,7 +2309,7 @@ L2 domain (the QP's `hop_limit` is 1); jumbo frames plus PFC/ECN on the switch; 
    killed by the watchdog at 08:24:29Z (exit 137) instead of exiting itself; pid-1 survival through
    its helper children is unresolved.
 
-### Probe arms: prefill chunk budget and Engram read batch (queued 2026-11-17, neither booted)
+### Probe arms: prefill chunk budget and Engram read batch (authored 2026-11-17, neither booted)
 
 - `zz-ds4-1017-picom-prefill16k.yaml` appends `--prefill-rows 16384 --snap-every 2048` to the
   shipped argv, which sizes the prefill buffers for 16384-row chunks instead of 8192
