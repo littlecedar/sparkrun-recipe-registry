@@ -391,8 +391,23 @@ restore-by-copy at ratio × device-KV bytes — and DSV4 accepts only
 `build_deepseek_v4_hicache_stack` (`mem_cache/hybrid_cache/hybrid_pool_assembler.py`,
 pinned tree `sglang 0.0.0.dev1+gda64c5cbb`).
 
-Boot gate (2026-11-17 window; TBD): pool `max_total_num_tokens`, `full_token`,
-MemAvailable floor, ladder, house, needle.
+Boot gate (2026-11-17 window, task `b020d2dd178343a5_510ded98367b`, node_0 on
+`.31`, containers started 02:48:56Z): TTR **637 s**; `DSV41_FAST_LOAD=0` in the
+container env; launcher receipt `MAX_TOTAL_TOKENS=6849792`; the stock loader
+profiled `available_bytes=11.80 GB` → **`full_token=6,138,368`** (pools
+swa=100,864, c4=1,534,592, c128=47,956), so the pin **clamped** (one
+`max_total_tokens=6849792 is larger than the profiled value 6138368` line,
+never a refusal) and `sglang:max_total_num_tokens=6.138368e+06` is what serves —
+**2.20×** the 2,792,704 baseline. The 2026-10-22 stock boot's 6,849,792 came at
+8,192-token chunks; the shipped 16,384 line profiles less, and the 16,384 line
+was kept because the needle below passes without it. `MemAvailable` after boot
+15.4–16.8 GiB per rank; the 940k needle dipped `.31` to 5.59 GiB and recovered
+to 12.0 GiB. Depth0 ladder (n=3, decode rows): C1 **61.17** / C4 115.24 /
+C8 150.71 / C16 128.88 t/s — C4/C8/C16 at −0.8 %/−5.6 %/−15.1 % against the
+2026-10-26 control, inside the 20 % band. House **37/37** (easy 19/19, hard
+18/18). Needle **PASS at depth 90 %**, 939,660 prompt tokens in 467.3 s.
+Warm-prefix probe: a 28,459-token prompt's second send reports
+`cached_tokens=28,160` (98.9 %).
 
 Live gate (TBD): census at +3 h / +24 h → `share`, `big_per_million`.
 
@@ -541,8 +556,9 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
   launcher default, and `-o env.DSV41_FAST_LOAD=1` wins over both (`-o env.KEY`
   writes `recipe.env` directly, `sparkrun/core/resolve.py:150`). The shipped
   production arm sets `DSV41_FAST_LOAD: "0"` (2026-11-17): a long-lived serve
-  pays boot time once and then needs the stock loader's measured
-  6,849,792-token pool, not the fast loader's campaign-boot latency win.
+  pays boot time once and then needs the stock loader's 6.1–6.85M-token pool
+  (measured 6,138,368 at the shipped 16,384 chunks), not the fast loader's
+  campaign-boot latency win.
 - **Rollback for the RDMA transport is one launcher line:**
   `SGLANG_ROCE_ALLREDUCE=0`. RoCEnante is the single largest lever measured on
   this lane (1.23–1.81× over NCCL, outside the 7–25% boot-to-boot spread).

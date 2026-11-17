@@ -12629,6 +12629,16 @@ all four. Left for the next tick that publishes rather than edited into a peer's
   eyeballed), so the composing session repaired it. Two other cells in this window were not sound and
   are worth a guard: the `13:47` census cell read `443–443 min` for a `443 min` gap, and that same
   board's node rows still said `Up 3 days`.
+- **The gate that actually decided this stand-down is the census stamp, not the title.** `board_stamp`
+  (`tools/task-queue.py:902-916`) takes the newest stamp inside the `| census |` row and falls back to
+  the title only when that row carries none, so `publish` would have refused this tick's composition
+  outright: the disk board's census reads `20:01:08Z`-`20:01:12Z` against this tick's `19:52:04Z`. Worth
+  stating because the title argument alone is the weaker one, and because the first base this tick
+  copied was internally skewed in exactly that direction — the board titled `08:08 ET`
+  (`0149f13d`, commit `055b491`) stamped every evidence cell `11:28:25Z`-`11:28:30Z`, i.e. `06:28 ET`,
+  with its publication row citing pool reads at `11:28:29Z`, a title roughly 100 minutes ahead of the
+  captures under it. `publish`'s census-first comparison would have caught that board against a fresher
+  successor; nothing in the tree would have caught it against itself.
 
 ## 2026-11-16 15:05 ET — third stand-down: a clean read eight seconds behind, and a dead compose published as a board
 
@@ -12790,74 +12800,29 @@ six-node capture), `queue.json` (`10cc29e6…`), `graph.txt` and `table.md` (ren
 `base.md`/`base2.md`/`base3.md` (the three published bases in order), `compose.py`, and
 `board-composed.md`.
 
-## 2026-11-16 15:0x-20:0xZ ET — seventh stand-down; one post-plateau pool pair and one row-scoped parse
+## 2026-11-16 15:2x ET — fifth stand-down; only what the entries above do not already carry
 
-Census `2026-11-16T19:03:04Z` on all six and again at `20:0xZ`, pool read through the mount on the head
-and on `.35`, rank-0 readiness **200** `deepseek-ai/DeepSeek-V4.1-Flash-1017` `max_model_len` 1048576,
-fence, campaign and register re-read; a full board was composed three times and **not published**:
-`origin/main` carried `0149f13d…` when the composition started, a peer published `4de3351f…` (`14:55 ET`)
-before the first `publish`, and the worktree then held a `15:06 ET` composition (`b349ba41…`) whose census
-is `20:11:54Z` — every one of them fresher than this tick's read, so this is the same stand-down the six
-entries above record. Nothing booted, claimed or stopped.
+Census `2026-11-16T19:24:38Z`-`19:24:42Z` on all six, the pool read through the mount on the head and on
+`.35`, the fence, campaign and register re-read, a full board composed and **not published**: the
+published board's census (`19:52:54Z`) and the worktree's `15:06 ET` composition are both fresher, and
+`publish` would refuse on `--expect-sha` anyway (`0149f13d…` read, `b349ba41…` on disk). Nothing booted,
+claimed or stopped.
 
-The interval it adds agrees with the `15:05` and `15:2x` entries inside their own residuals: pool `used`
-**13,459,997,065,216 B** at `20:07:02Z` against the `08:08` board's `11:28:29Z` **13,961,290,842,112 B**
-— **−501,293,776,896 B** — while the six roots' avail deltas sum to **+501,293,989,888 B**, residual
-**212,992 B** over 501 GB; hub **103** entries and the staging blob `hub/blobs/5de8b5db…` still answers
-**28,800,138,432 B** at its `06:58:17 ET` mtime from the head and from `.35`; the five `beegfs-meta`
-counters read 79,191 / 79,194 / 79,197 / 79,195 / 79,180 at `19:03Z`, the same loop at the same ≈5.2 s
-rate, so it contributes no new sample of its own.
+Two facts the entries above do not carry. (1) **The serve-child pids are identical at `19:24:39Z` and at
+`20:04:57Z`** — `278 / 323 / 317 / 312` on `.31`-`.34` — so the engine did not restart anywhere in this
+hour, and a later tick may treat the `19:5x`-`20:2x` reads as one continuous serve rather than separate
+samples. (2) **`.local/status-board.lock` is inert**: a 0-byte file at `08:36` with no holder (`lsof`,
+`fuser` and `ps` all silent), and `flock` is per open file description, so a later tick neither waits on
+it nor should delete it — the file is the lock's name, not a held lock.
 
-**One parse defect, worth naming because it produced a wrong base figure before it was caught.** A
-document-wide `used \*\*([\d,]+) B\*\*` over the base board matched a sentence inside the `## Work queue`
-table instead of the `| pool |` cell and yielded a base `used` 501 GB stale, so the composition read the
-pool as *unattributed growth* until the regex was scoped to the row whose key it means. The published
-boards are unaffected; the note exists so the next compose script scopes per row.
-
-Compositions built and left uncommitted: `.scratch/tick-0703-686561/` — `probe.sh`,
-`final/node-0N.txt` (six-node captures at `19:03:04Z`), `poolA.txt`/`poolB.txt`, `models.txt`,
-`queue.json` (`10cc29e6…`), `graph.txt`, `table.txt`, `ca.py`-`ce.py`, `compose.sh`, `retry.sh` and the
-unused `board.md`. This entry is committed through a throwaway index against `origin/main`, because the
-worktree copy of this file was overwritten twice by peers' in-progress entries mid-tick and a pathspec
-commit would have published their text under this message.
-
-## 2026-11-16 15:35 ET — stood down behind a census 1 h 53 m fresher, and a 501 GB pool fall separated from the GC batch that did not cause it
-
-**Nothing published; one register row added.** This tick read the six nodes at
-`2026-11-16T17:59:42Z`–`17:59:45Z` on the `08:08 ET` published base (`0149f13d…`, commit `055b491`),
-composed at `15:13 ET` in a throwaway clone of `origin/main` tip `bf59c0d` because this clone's
-worktree board held a peer's *uncommitted* composition (`6c8d2f42…`) and its HEAD was one commit ahead
-of the remote, so `publish` ran there (`rc=0`, `lint` ok) and its commit `e2d4fff` was **never
-pushed**: `origin/main` moved to `112f1f7` with a peer board whose census reads `19:52:54Z`–`19:52:59Z`,
-1 h 53 m fresher than this tick's read. The `--expect-remote-sha` gate named the move and the push was
-refused by an explicit byte comparison before any remote write, which is the mechanism working as
-designed, not a failure.
-
-**The finding the tick did land.** `df -B1 /mnt/beegfs` reads used `13,459,970,326,528 B` at
-`19:07:40Z`, which is `501,316,845,568 B` **below** the `13,961,287,172,096 B` the `06:39` board
-carried at `11:23:54Z`. It is not HF content vanishing: the hub *gained* a repo (102 → 103,
-`models--unsloth--Qwen3.8-Flash-Next-GGUF`, written 11:49–12:04Z), 98 `models--` entries stand, the
-served arm's snapshot index is `7,470,294 B` through the mount on both the head and `.35`, and no
-depth-2 pool tree moved since that read. The six roots' avail gains sum to `+501,461,008,384 B`, and
-`/srv/beegfs/storage` is on the same device as `/` on `.30`/`.31`/`.35` (`stat -c %d` equal), so a
-storage-target host's root reading carries pool chunk bytes. Cross-reading the peer register rows
-updated the same hour: cache-GC **batch 1** ran `2026-11-16T16:33:28Z` and deleted 52 items / 554.54 GB
-on `.30`–`.34` (`.30` 22.53, `.31` 96.38, `.32` 143.49, `.33` 143.68, `.34` 148.46 GB), which is what
-the root gains are; its own record leaves the **shared HF pool** for later and batch 2 on `.35`
-deleted nothing, so the pool's fall is *not* that batch. Register row `pool-content-fall-20261116`
-carries the measurement, the 47 unresolvable `hub` symlinks (no baseline in hand to date them) and
-the probes that would name the deletion. No mechanism is claimed.
-
-**Instrument notes.** (1) `ssh -n … 'bash -s' <<'EOS'` on the *outer* hop feeds `bash` an empty stdin
-and returns rc=0 with no output — the first census read 0 nodes that way; the outer hop must omit
-`-n`. (2) The address-hygiene red this tick hit at the pushed tip `bf59c0d`
-(`recipes/qwen4/README.md` naming the head machine and the `.31` alias) was fixed by the peer's own
-`112f1f7`, so the local mask commit was reset instead of pushed. (3) `task-queue.py render --board`
-takes `--file` at the *parent* level; `graph` accepts it after the subcommand, and both were checked
-to render the same register here. Captures: `/tmp/tick-1112-1834453/` — `census.sh`/`census.txt`,
-`probe.sh`/`probe.txt`, `repos.txt` (98 `models--` entries), `queue.json`, `graph.md`,
-`board-table.md`, `compose.py`, `board.md` (unpublished), `clone/` (the throwaway).
-
+Its own pool pair is a fourth instance (pool `used` **13,459,926,286,336 B** against the six roots'
+**+501,364,400,128 B**, residual **1,941,504 B**) and adds nothing to `15:20`'s longer interval over the
+same identity, so it is not restated. Instrument note, same shape as the two entries above: this
+session's clock read `09:02` at its first call and `15:06` at its compose, the fleet stepping with it.
+Evidence: `.scratch/tick-1035-1210169/` — `census.sh`, `sample.out` (the one 4-second six-node capture
+carrying the pool and campaign facts), `pool2.out`, `readiness.out`, `facts.txt`, `graph.txt` and
+`table.md` (both rendered from the `10cc29e6…` snapshot, unused), `base.md`, `ticklib.py`, `compose_a.py`
+and the unused `board_a.md`.
 
 ## 2026-11-16 15:2x ET — durable record: `112f1f7`'s message and its diff describe two different ticks
 
@@ -12869,6 +12834,49 @@ becomes `10.77 → 15.08 GB` in the dip paragraph. No bytes were lost and no sha
 because amending a pushed shared head is worse than a wrong message. A tracer reading `112f1f7` for
 the stand-down should read `7651da1`; reading it for the dip paragraph should look for whichever
 session owns that correction.
+## 2026-11-16 15:3x ET — correction: the 13:52 pool baseline was four days old, and the register's two GC rows claimed the work never ran
+
+Two corrections to what this session published two hours ago, both found by re-reading the base
+board's own bytes instead of trusting a slide back through `SESSION-RECORD.md`.
+
+**My baseline was the wrong window.** The `13:52` entry compared my pool read against
+`06:42:04Z` (`13,955,270,967,296 B`) — and that read belongs to the **2026-11-12 05:01 ET** entry, so
+the "fall" it measured spanned four days, not this morning. The same-window pair was already in the
+base board's own pool cell: used **`13,961,290,842,112 B` at `2026-11-16T11:28:29Z`** (byte-identical
+on the head and on `.35`). Against my `18:44:33Z` read of `13,459,893,256,192 B` that is a fall of
+**`501,397,585,920 B`**, which agrees with the six roots' rise (`+501,397,889,024 B`) to
+**`303,104 B`** — the identity, at last on the right interval.
+
+**Neither side of that identity is now unnamed, and the two candidate owners do not add.** A peer's
+approved cache GC executed at `16:33:28Z` inside this window — batch 1, **52 items / 554.54 GB**
+deleted on `.30`–`.34` with **`.35` releasing 0.00 GB**, recorded in
+`.scratch/gc-20261116/census.md` rev 3 §Execution appendix — and per-node its freed-GB ordering
+matches the roots' rise ordering (`.34` highest in both, `.35` zero and the only faller). Those trees
+are node-local, not pool-backed: `readlink -f ~/.cache/sparkrun/runtime-cache` answers a `/home/red`
+path and `df --output=target` on it answers `/` on both `.30` and `.31`, read this tick. The pool's
+own side is separately named: `/mnt/beegfs` now lists **`huggingface` alone** and
+`ls /mnt/beegfs/sparkrun` answers *No such file or directory* from the head at `20:3xZ`, so the
+`sparkrun/` tree `cc7b292` proposes is genuinely gone, and pool chunks sit on the node roots, which is
+what makes pool `used` and root `avail` one quantity. **But the two owners together exceed the
+measured rise** (554.54 GB + 501.40 GB against 501.40 GB observed), so no arithmetic here splits them:
+**LIKELY** the pool-side deletion is the bulk of the rise and the GC's 554.54 GB is a per-tree `du`
+sum that double-counts content shared between trees. That keeps this session's earlier
+"one quantity" sentence right about the identity and wrong about the writer.
+
+**The register was publishing two rows as never run.** `runtime-cache-stale-tree-gc` opened
+"APPROVED BUT NEVER RUN" and `n35-unreferenced-image-gc` "APPROVED, NOT ATTEMPTED", while the receipt
+above records batch 1 deleting 52 items and batch 2 inspecting **44 images on `.35` and deleting
+none** (all 44 held by the any-tree-reference policy: cited tag 26 / 372.7 GB, cited RepoDigest 5 /
+77.6 GB, short-form identity 3 / 0.0 GB, floating identity 9 / 0.4 GB, production container 1 /
+0.34 GB). Both notes now carry their batch outcome, `n35` is `done` because the 455.3 GB "reclaimable"
+figure came from a presence-only sweep, and `runtime-cache-stale-tree-gc` stays `queued` for what
+batch 1 did not take — the CHECK bucket (2131.9 GB nominal), the root-owned NEEDS-ROOT debris, and the
+shared HF pool. Snapshot `e5e8445b…`: **198 tasks, 157 done, 33 queued, 8 blocked — 41 open**, `check`
+rc=0, **0 live claims**; graph `8 blocked, 1 edges, 7 prose-gated, 0 question-gated, 0 question, 39
+rows not drawn (--all)`. The published board's queue cell rendered from `e84d7bf6…` and still shows
+the old wording, so the next render is what carries this; it was not worth taking the board away from
+the peer composition that was landing at the same minute. Evidence: `.scratch/tick-1054/`
+(`base-1520.md`, `queue3.json`, `graph3.md`, `queue-board3.md`).
 
 ## 2026-11-16 21:11 ET — board refresh after a `5 h 43 min` gap, and the clone's 2-ahead/2-behind drift closed
 
@@ -12880,8 +12888,8 @@ title over an old read.
 
 **The clone was diverged, and that is what today's stand-downs were.** Local `HEAD` was
 `f61da56` (a 15:25 board commit whose own body says the push was withheld because another session's
-commit was unpushed) on top of `7e124fa`, while `origin/main` had moved to `2ff99cc` with two
-commits of its own (`f922c23`, `2ff99cc`; `716d42f` was already in this clone's `f61da56`). `git rebase --autostash origin/main` was tried first and conflicted on
+commit was unpushed) on top of `7e124fa`, while `origin/main` had moved to `2ff99cc` with three
+commits of its own. `git rebase --autostash origin/main` was tried first and conflicted on
 `SESSION-RECORD.md` (both sides appended at EOF), so it was aborted — worktree restored byte-identical,
 `9794a456…` before and after — and the clone was instead reset onto `2ff99cc` with the shared checkout's
 rule intact: `git reset --quiet`, never `--hard`, and no worktree path touched. The one fact the reset
@@ -12953,3 +12961,63 @@ and the figure the base board published. Evidence: `.scratch/tick-2200-a7f3/` (`
 `probe-spark-*.txt`, `rank_probe.sh`, `rank-.3*.txt`, `head_facts.sh`, `head.txt`, `worker35.txt`,
 `models.txt`, `commits.txt`, `queue.json`, `graph.txt`, `table.txt`, `build_runtime.py`,
 `runtime.json`, `compose.py`, `base.md`, `board.md`).
+
+## ds4 production serve: stock loader restores the KV pool (2026-11-17)
+
+**What was wrong.** The production serve (`b020d2dd178343a5_9a582e9a0e63`, up
+2026-11-12) ran the fast weight loader, which sized the engine's KV budget from
+the head's post-load `MemAvailable`: `available_bytes=6.59 GB` →
+`full_token=2,792,704` at `mem_fraction_static=0.78`. The radix cache sat 100 %
+evictable. A census of node_0's prefill lines over 103.5 h (2026-11-12 18:44:06
+→ 2026-11-17 02:30:03) read 35,490 batches / 256,663,726 new tokens /
+2,128,067,584 cached tokens and **3,342 cold runs, 1,884 of them >3,000 new
+tokens carrying 196,760,289 tokens = 76.7 % of everything prefilled** (7.34 big
+cold runs per 1M prefilled tokens; 64 hours carried at least one, p50 14/h, max
+135) — whole agent-session prefixes evicted between turns and re-prefilled.
+
+**What landed.** Commit `72e292b` (CI green): the recipe's `env:` gains
+`DSV41_FAST_LOAD: "0"`. The key is in the launcher's `AB_ENV`, so the recipe value
+beats `RECIPE_ENV`'s `"1"` default and `apply_recipe_env` derives
+`MAX_TOTAL_TOKENS=6849792`; `-o env.DSV41_FAST_LOAD=1` still wins for campaign
+boots (`-o env.KEY` writes `recipe.env`, `sparkrun/core/resolve.py:150`). Guards
+updated (two exact-env assertions, docstrings), and both READMEs now state the
+launcher default, the override channel and the measured cost.
+
+**Window (owner-authorized 2026-11-17).** Old task stopped by id (containers gone
+on all four ranks); new task `b020d2dd178343a5_510ded98367b`, node_0 on `.31`,
+containers started `02:48:56.905658501Z`, healthy at **t=637 s** (stock loader;
+fast-loader boots were ~290 s). Launcher receipt `MAX_TOTAL_TOKENS=6849792`;
+`DSV41_FAST_LOAD=0` in the container env. The stock loader profiled
+`available_bytes=11.80 GB` → **`full_token=6,138,368`** (swa=100,864,
+c4=1,534,592, c128=47,956), so the 6.85M pin **clamped** with one
+`larger than the profiled value` line and `max_total_num_tokens=6.138368e+06`
+serves — **2.20×** the baseline. The 2026-10-22 stock boot's 6,849,792 came at
+8,192-token chunks; the shipped 16,384 line profiles lower, and 16,384 was kept
+because the 940k needle passes without it.
+
+**Gates, all measured on the new serve.** Depth0 ladder n=3, decode rows: C1
+61.17 / C4 115.24 / C8 150.71 / C16 128.88 t/s — −0.8 % / −5.6 % / −15.1 %
+against the 2026-10-26 control, inside the pre-registered 20 % band. House
+**37/37** (easy 19/19, hard 18/18). Needle **PASS at depth 90 %**, 939,660
+prompt tokens in 467.3 s (the previously unmeasured stock-loader + 16,384-chunk
+combination does not OOM). Warm prefix: a 28,459-token prompt's second send
+reports `cached_tokens=28,160` (98.9 %). `MemAvailable` after boot 15.4–16.8 GiB
+per rank; the needle dipped `.31` to 5.59 GiB and recovered to 12.0 GiB. The
+fence record was re-stamped to the new task (`serve.task_id`, `started_at`,
+`previous_*`) and stays in force.
+
+**What remains.** The pre-registered live gate: census at +3 h and +24 h. PASS =
+`share` ≤ 0.40 and `big_per_million` ≤ 3.67 with the pool saturating; NOT YET
+(pool unsatured) = the loss is not eviction, file a queue row; FAIL with a
+saturated pool = HiCache escalation (`--hicache-ratio`, host bytes ≈ ratio ×
+device KV, ratio ≤ 0.5 under this pool) via a 1.5M-token mechanism-proof boot
+first. HiCache stays off until that fires: on GB10 its host tier is the same
+unified LPDDR5X, so it adds no capacity, only restore-by-copy.
+
+**Receipts.** `~/benchmarks/ds4-prefix-cache-20261117/{control,boot,live}/` on the
+head and `.scratch/ds4/prefix-cache-20261117/` on the workstation —
+`control/baseline-census.txt` (with `census.py`), `control/serve-node*.log`,
+`control/metrics.txt`, `control/server_args.txt`, `boot/{launch.log,watchdog-*.log,
+ladder.yaml,house.{json,log},needle.{json,log},warmprobe.{py,log}}`, `live/mem-spark-0*.log`.
+Peer hunks already dirty in this ledger and in `mad-science/queue.json` were left
+byte-identical; only the section above was appended.

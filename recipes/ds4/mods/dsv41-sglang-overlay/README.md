@@ -280,9 +280,12 @@ does exactly that (`DSV41_FAST_LOAD: "0"`, 2026-11-17). Measured on the 4-day
 serve before that change: the fast loader had profiled 2,792,704 full tokens at
 the same `mem_fraction_static=0.78`, the radix cache sat 100% evictable, and
 76.7% of all prefilled tokens were inside 1,884 cold runs that re-prefilled
-prefixes the cache had already dropped. The stock loader profiles 6,999,040 and
-the pin clamps to the measured 6,849,792. The cost is boot time (~544 s TTR
-against ~290 s), paid once per restart instead of per campaign boot.
+prefixes the cache had already dropped. The 2026-10-22 stock boot served
+6,849,792 at 8,192-token chunks; the 2026-11-17 stock boot at the shipped
+16,384 chunks profiled 6,138,368, so the launcher's 6.85M pin clamped to that
+(clamped, never refused — the engine's own profiled number is what serves). The
+cost is boot time (measured 637 s TTR against ~290 s), paid once per restart
+instead of per campaign boot.
 
 `/cache/runtime` sits on node-local NVMe (`/dev/nvme0n1p2` here), so the packed
 Engram reads never traverse the network — the same property the old
