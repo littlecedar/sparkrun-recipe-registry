@@ -14288,3 +14288,66 @@ the fleet was touched beyond reads; no file was written on any node.
 was put through `sparkrun recipe validate --strict` at `2026-11-18T07:24:40Z`; it is valid with **no
 finding**, so it adds no roster row and the document's `70 / 34 / 33` figures carry over
 unchanged rather than being asserted over a tree they never scanned.
+
+## 2026-11-18 07:30Z close-out — board tick 02:20 ET: same quartet, no lease a second hour
+
+**Census.** `2026-11-18T07:07:58Z`–`07:08:01Z`, one pass, all six probed from the head (`.30`
+locally in the same script, so no head→self hop was needed). `.31`–`.34` each carry the
+production knapcio arm's rank (`b020d2dd178343a5_9cdb266b5e0d`, `node_0`–`node_3`, image id
+`3f4480818acb`) with `StartedAt` `2026-11-18T05:50:15Z` unchanged, health `healthy`, every
+rank's bracketed `pgrep -c -f '[s]glang.launch_server'` **1**, and rank 0 answering
+`/v1/models` **200** naming `deepseek-ai/DeepSeek-V4.1-Flash-1017`, `max_model_len`
+1048576. `.30`/`.35` read 0 containers, 0 volumes, 0 `:8000` listeners; volumes 0 fleet-wide.
+
+**Instrument bound.** The window's only container events are the launcher's own
+`health`/`tail` exec probes (`.31` 244, `.32`–`.34` 250 each) with no `create`/`start`/
+`die`/`destroy`/`kill`. Each ring's oldest retained event is `06:47:28Z`–`06:49:09Z`, so the
+first ~45 min of the window are unobservable and the continuity verdict rests on the
+unchanged `StartedAt` plus the last ~19 min, not the hour. `.30`'s ring newest
+`2026-11-17T04:55:56Z` precedes the window, so its zero is a bound; `.35`'s ring returned no
+event at all, making its zero vacuous.
+
+**A hung instrument, and what fixed it.** The first census run stopped after `.30` and sat
+for five minutes: the per-node function referenced `WIN_START`/`NOW`, which `declare -f`
+does not carry to the remote bash, so `docker events --since "" --until ""` streamed
+forever. Fixed by passing both explicitly inside the injected block and wrapping the two
+event queries in `timeout 25`; the re-run finished in 5 s. Recording it because the failure
+shape is a silent hang, not an error line.
+
+**Pool.** Same-pass pair `07:08:01Z`: mount `used` **14,168,266,113,024 B** against the six
+roots' **14,168,265,990,144 B**, residue **+122,880 B**. On the base's pair the mount fell
+**97,517,568 B** while the roots' net rose **30,691,328 B**; the drop sits in the residue and
+its mechanism is unmeasured. Head units mgmtd/meta/storage active, meta `NRestarts` 0;
+`.31`–`.35` meta loop +752 each in 3,921 s (5.214 s per restart, rate held). 103 hub
+entries; both ds4 `config.json` 3,311 B.
+
+**Lease.** `.local/fleet-leases.json` 48 B, sha `34eed267…`, `leases: []` and `fenced: []`,
+byte-identical here and on the head; no `.local/fleet-window.lock` either side. The quartet
+therefore holds no lease and no fence for a second consecutive hour.
+
+**Register.** `1b147195…` unmoved (200 tasks, 156 done / 36 queued / 8 blocked, 44 open,
+0 claims), `check` and `lint` rc=0, both blocks rendered from one snapshot. Campaign scan:
+21 `state.json` under `/home/red` in 21 inodes, of which 9 are campaign roots with 38 arms
+and 0 future leases.
+
+**Publish refusal and recompose.** This tick composed on the `01:10 ET` board
+(`19527ff8…`) and `publish` refused it — a peer had written the `02:11 ET` board
+(`04129b69…`, blob `b5aa08ba`) in between — so it re-read and recomposed on the peer's board
+rather than replace their rows. The peer's census (`07:03:27Z`) was older than this one
+(`07:07:58Z`), so the fresher read supersedes. Only this tick's own refresh row was
+appended; the base already carried the eight commits landed since `01:10 ET`.
+
+**Corrections made after publish, in the same session's follow-up commit.** (1) The landed tick
+row still named the `01:10 ET` base and a `1 h 05 min` gap; it now names the `02:11 ET` base
+and the real `0 h 04 min` gap against its `07:03:27Z` census, and says the eight commits were
+already folded rather than folded here. (2) The campaign cell's "no campaign root is a
+symlink" clause was an inference from `islink` over `state.json` parents and is false:
+`h2h-20261107/tp12-window` is still `-> .` (`readlink -f` → `h2h-20261107`, mtime
+`2026-11-07 23:06`), and its `state.json` is inode `39203529`, the same file as the root's —
+so the nested shape reproduces as one inode and the register row's 40-copy premise stays
+false.
+
+Captures stay in `.scratch/tick-0200-734219/` (`census.sh`, `census.out`, `queue.json`,
+`graph.md`, `board-table.md`, `base.md`, `base2.md`, `board.md`, `compose.py`,
+`head-leases.json`). Nothing on the fleet was touched beyond reads; no file was written on
+any node.
