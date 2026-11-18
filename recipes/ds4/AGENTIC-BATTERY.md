@@ -49,6 +49,8 @@ python3 tools/agentic-battery.py \
 - `--tasks fix-failing-test,spec-to-function` takes a subset; `--list` prints the set.
 - `--max-turns` (16) and `--wall-clock` (600 s per task) bound each task.
 - `--resume` skips tasks that already hold a result, so a window can be re-entered.
+- A run stops after **two consecutive** tasks error or time out — the serve is never touched, and
+  the remaining tasks are reported as not run, so a dead endpoint costs two requests, not eight.
 - `--fixture-root` defaults to `.scratch/agentic/` (git-ignored); each task's workspace is re-seeded
   on every non-resumed run, so a receipt can be reproduced.
 - `--selftest` runs the whole loop against a local mock endpoint and proves a solved task passes and
@@ -93,14 +95,22 @@ echo, thinking channel, prefix-cache accounting) — the battery sends the same 
 ## 6. First receipt
 
 2026-11-18, knapcio SGLang production serve (`deepseek-v4.1-flash-knapcio-tp4-1m-sglang`, task
-`b020d2dd178343a5_9cdb266b5e0d`, keyless endpoint on rank 0), two tasks end to end:
+`b020d2dd178343a5_9cdb266b5e0d`, keyless endpoint on rank 0), full eight-task set, single-flight,
+`--max-turns 16`, `--wall-clock 600`, greedy:
 
 | task | verdict | wall | turns | tool calls | tokens |
 |:--|:--|--:|--:|--:|--:|
-| `fix-failing-test` | pass | 7.4 s | 7 | 8 | 9,123 |
-| `two-file-bug-hunt` | pass | 6.8 s | 6 | 7 | 7,150 |
+| `fix-failing-test` | pass | 5.6 s | 5 | 6 | 5,737 |
+| `two-file-bug-hunt` | pass | 6.6 s | 5 | 7 | 6,316 |
+| `spec-to-function` | pass | 12.6 s | 6 | 6 | 7,949 |
+| `refactor-preserve-behavior` | pass | 4.3 s | 4 | 4 | 4,032 |
+| `config-migration` | pass | 4.2 s | 4 | 4 | 4,086 |
+| `csv-to-json-cli` | pass | 7.3 s | 5 | 5 | 5,861 |
+| `mutable-default-bug` | pass | 8.2 s | 7 | 9 | 9,415 |
+| `validation-boundary` | pass | 4.8 s | 4 | 3 | 3,876 |
 
-Median 7.4 s, worst 7.4 s, 14.2 s total — so the full eight-task set is minutes, not a window.
-Receipt: `head:~/benchmarks/agentic-battery-20261118/`. Only two tasks were run on the live serve to
-keep the production lane's load light; the other six checkers are proven solvable and initially red
-offline by `tests/test_agentic_battery.py` plus a reference-solution pass.
+**8/8 pass, median 6.6 s, worst 12.6 s, total 53.6 s.** Receipt
+`head:~/benchmarks/agentic-battery-20261118/knapcio/` (`summary.json` names the endpoint the run
+saw). A two-task timing gate (`fix-failing-test` 7.4 s, `two-file-bug-hunt` 6.8 s) ran first in the
+parent directory and is kept beside it. This is the production reference row: a picom run on the same
+harness compares against it cell by cell, and the ~54 s total means a window can afford repeats.

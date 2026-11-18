@@ -328,6 +328,7 @@ def main(argv: list[str] | None = None) -> int:
     api_key = os.environ.get(args.api_key_env) if args.api_key_env else None
 
     results, rc = [], 0
+    consecutive_errors = 0
     for task_id in wanted:
         receipt = outdir / f"{task_id}.json"
         if args.resume and receipt.exists():
@@ -343,6 +344,11 @@ def main(argv: list[str] | None = None) -> int:
               f" calls={result['tool_calls']:<3} tokens={tok:<7}"
               f"{'  TIMEOUT' if result['timed_out'] else ''}"
               f"{'  ERROR' if result['error'] else ''}")
+        consecutive_errors = consecutive_errors + 1 if result["error"] or result["timed_out"] else 0
+        if consecutive_errors >= 2:
+            print("\nstopping: two consecutive tasks errored or timed out; "
+                  f"{len(wanted) - len(results)} task(s) not run")
+            break
 
     walls = [r["wall_s"] for r in results]
     walls.sort()
