@@ -13946,16 +13946,35 @@ edit and two `state` flips) that no commit of this session may stage. Their arms
 and neither has been booted. The rows sit byte-for-byte in `.scratch/ds4/picom-probe-queue-rows.json`
 (git-ignored, same two ids), which is where a later session reads them.
 
-The apply is these three commands once `git status --porcelain mad-science/queue.json` prints nothing,
+The apply is these steps once `git status --porcelain mad-science/queue.json` prints nothing,
 run from the repo root:
 
-    python3 -c "import json;p='mad-science/queue.json';q=json.load(open(p));rows=json.load(open('.scratch/ds4/picom-probe-queue-rows.json'));have={t['id'] for t in q['tasks']};q['tasks']+=[t for t in rows if t['id'] not in have];open(p,'w').write(json.dumps(q,indent=2,ensure_ascii=False)+'\n')"
+    python3 - <<'PY'
+    import json, subprocess
+    for r in json.load(open('.scratch/ds4/picom-probe-queue-rows.json')):
+        argv = ['uv', 'run', 'python', '-B', 'tools/task-queue.py', 'add',
+                '--id', r['id'], '--title', r['title'], '--estimate-h', str(r['estimate_h']),
+                '--model', r['model'], '--node-cost', r['node_cost'], '--notes', r['notes'],
+                '--provenance', r['provenance'], '--recipe', r['recipe'], '--tp', str(r['tp'])]
+        for k, v in r['env'].items():
+            argv += ['--env', f'{k}={v}']
+        subprocess.run(argv, check=True)
+    PY
     uv run python -B tools/task-queue.py check
     git commit mad-science/queue.json -m "Queue: apply the two picom probe boots"
+    git push origin main
+
+`add` is the tool's own append path, so the write goes through `_save` (`tools/task-queue.py:405`):
+sha256 compare-and-swap against the bytes `load` read, then temp file, then `os.replace` — never a
+truncate-on-write, which on this syncthing-shared file with a live second writer can publish a
+syntactically valid register with rows missing, and never a whole-file replace from a stale snapshot.
+Each row is its own CAS-checked call, so a peer write between them loses loudly with nothing written.
+The row text travels through argv, not through a shell, because the notes carry backticks and
+apostrophes.
 
 `check` is the register validator's subcommand (`validate` is not one); it printed `ok: 198 task(s)`
 against this hour's dirty register and must print `ok: 200 task(s)` after the append. The rows keep
-[`state: queued`, and a later session claims them before any boot. The Engram arm's only cells are
+`state: queued`, and a later session claims them before any boot. The Engram arm's only cells are
 decode ones: all four ranks' `/`, which serves `~/.cache/sparkrun/runtime-cache`, is a
 `SAMSUNG MZALC4T0HBL1-00B07`, the `MZALC4T0HBL1` upstream's table calls PM9C1a, so its 8 is meant
 for this drive — but upstream pads reads only when they arrive sparsely, measured none under deep
@@ -13963,7 +13982,7 @@ prefill (684 padding reads against 642k real, `docs/engram.md:124-125`) and take
 steps (p50 237 → 86 µs, `docs/engram.md:120-124`). So the falsifier is the c1 and c16 decode cells
 of the long-context ladder against `PICOM_ENGRAM_READ_BATCH=1`, a long-prefill cell is expected flat
 and must not be scheduled as the test, and the boot's positive control is the engine's own
-`Engram reads in batches of 8` line (`engine/server/main.cpp:574-575`) — at 1 no cell may be quoted.]
+`Engram reads in batches of 8` line (`engine/server/main.cpp:574-575`) — at 1 no cell may be quoted.
 
 
 
