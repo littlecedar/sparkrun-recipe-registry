@@ -142,54 +142,56 @@ vs 2.7 %.
 `tools/agentic-battery.py --tier all`, 13 tasks (8 easy, 5 hard), fixed `max_tokens: 4096`,
 single-flight:
 
-Three runs of the same battery per configuration, one boot per configuration:
+Three runs of the same battery per configuration, one boot per configuration. All nine runs come
+from the post-fix fixture (the `start_stub.sh` launcher plus the run report's pollution flag), so
+the three configurations are comparable to each other and to nothing measured earlier on this page.
 
 | configuration | run | pass | median | worst | total wall |
 |:--|:--|:--|--:|--:|--:|
-| knapcio production | 1 | 13/13 | 8.8 s | 16.4 s | 127.7 s |
-| | 2 | **12/13** | 12.5 s | 30.0 s | 160.2 s |
-| | 3 | 13/13 | 12.2 s | 19.0 s | 149.4 s |
-| | totals range | — | — | — | **127.7–160.2 s** |
-| picom exact (shipped) | 1 | 13/13 | 10.1 s | 25.9 s | 128.0 s |
-| | 2 | 13/13 | 8.2 s | 25.4 s | 130.0 s |
-| | 3 | **12/13** | 9.3 s | 26.8 s | 132.3 s |
-| | totals range | — | — | — | **128.0–132.3 s** |
-| picom OEA (shipped) | 1 | 13/13 | 8.8 s | 110.4 s | 201.5 s |
-| | 2 | 13/13 | 8.4 s | 81.4 s | 196.8 s |
-| | 3 | 13/13 | 9.7 s | 79.4 s | 191.5 s |
-| | totals range | — | — | — | **191.5–201.5 s** |
+| knapcio SGLang (production) | 1 | 13/13 | 9.2 s | 31.1 s | 152.9 s |
+| | 2 | 13/13 | 11.4 s | 29.7 s | 147.1 s |
+| | 3 | **12/13** | 9.8 s | 30.6 s | 152.9 s |
+| | totals range | — | — | — | **147.1–152.9 s** |
+| picom exact (shipped) | 1 | 13/13 | 10.0 s | 25.5 s | 125.1 s |
+| | 2 | 13/13 | 9.9 s | 31.9 s | 133.4 s |
+| | 3 | **12/13** | 8.6 s | 14.9 s | 110.2 s |
+| | totals range | — | — | — | **110.2–133.4 s** |
+| picom OEA (shipped) | 1 | 13/13 | 9.7 s | 11.8 s | 108.1 s |
+| | 2 | **12/13** | 7.9 s | 45.7 s | 136.7 s |
+| | 3 | **12/13** | 8.7 s | 30.6 s | 131.8 s |
+| | totals range | — | — | — | **108.1–136.7 s** |
 
-Receipts: `head:~/benchmarks/picom-prod-20261118/rerun-20261118/README.md` is the roll-up;
-the underlying summaries are `boot1-knapcio/agentic-run{1,2,3}/summary.json`,
-`boot2-picom-exact/agentic-run{1,2,3}/summary.json` and
-`boot3-picom-oea/agentic-run{1,2,3}/summary.json` beside it, one boot and one summary per run.
+Receipts: knapcio `head:~/benchmarks/picom-prod-20261118/knapcio-newfix-20261118/run{1,2,3}/
+summary.json` (boot `b020d2dd178343a5`, `ttr.txt` 710 s, keyless), exact
+`final-20261118/bootA-exact/agentic-run{1,2,3}/summary.json`, lossy
+`final-20261118/bootB-oea/agentic-run{1,2,3}/summary.json`, one boot and one summary per run. All
+nine `summary.json` files carry `polluted_runs` 0 and `harness_timeouts` 0.
 
-The **total** is the comparable figure here, and the median-of-medians (12.2 / 9.3 / **8.8** s) is
-misleading on this battery: OEA has the best median and the worst total in every run, because its
-median task is uniformly quick while one task pays a cost the other two configurations mostly
-avoided. That task is `stub-service-client` at 12 turns — **79.4 / 81.4 / 110.4 s** on OEA in the
-three runs, against 11.8–19.0 s for the same task on the other two.
+**The totals separate picom from SGLang in this sample, and nothing finer.** The medians are 125.1 s
+(exact) and 131.8 s (OEA) against 152.9 s (SGLang) — 18.2 % and 13.8 % below — and the totals ranges
+are disjoint: 110.2–133.4 s and 108.1–136.7 s against 147.1–152.9 s. That is LIKELY rather than
+established: one boot per arm with three runs each, and the battery's own inter-boot floor is ~7 %,
+so a second boot per arm is what would convert it. Between the two picom arms the totals ranges
+overlap almost completely (medians 125.1 against 131.8, inside either arm's 21–24 % run-to-run
+spread), so exact and lossy stay indistinguishable on total wall clock and the agentic choice still
+rests on the concurrency curve and the lossy construction.
 
-**Those totals are polluted, not an engine comparison.** A repeat of that task on both shipped arms
-puts its wall time in two modes: exact **12.8 / 13.1 / 12.8 s** fast against **109.8 / 120.2 /
-75.3 s** slow (3 of 6 draws), lossy **12.6 / 13.2 / 14.8 s** fast against **76.9 s** slow (1 of 6).
-Every slow draw's wire log carries the harness's own `command timed out after 60s` (5–7 lines) and
-every fast draw has none: the agent starts the stub itself and blocks in `accept()`, the harness
-kills the call at 60 s, and recovery costs about five more turns (the engine's `ttft` stayed
-0.10–0.33 s at 130–160 tok/s throughout, so it was never slow). The three lossy runs of this table
-each carry 7 such lines against 0 for the exact runs. The timeout fires on both arms at a rate this
-pair of boots does not resolve, so no total here is a valid engine comparison until the fixture fix
-lands and a run report carries no `polluted` flag
-(`head:~/benchmarks/picom-prod-20261118/socket-repro-20261118/`).
+### The old fixture's rows (historical)
 
-**The fix holds: six unpolluted runs are the post-fix numbers.** Both shipped arms were re-booted
-after the fixture change, one boot per arm and three runs each: exact
-`head:~/benchmarks/picom-prod-20261118/final-20261118/bootA-exact/` totals **125.1 / 133.4 /
-110.2 s** (median 125.1) at **13/13, 13/13, 12/13**, run 3 missing `golden-regression`; lossy
-`…/bootB-oea/` totals **108.1 / 136.7 / 131.8 s** (median 131.8) at **13/13, 12/13, 12/13**, runs
-2–3 missing `shell-repro-rounding`. All six `summary.json` files carry `polluted_runs` 0 and
-`harness_timeouts` 0, and the socket task now runs **11.4 / 11.1 / 8.7 s** on exact against
-**11.4 / 11.0 / 10.8 s** on lossy: the 75–120 s regime is gone. Arm identity is the engine log, not
+This section used to carry a mixed-instrument table: its knapcio rows **127.7 / 160.2 / 149.4 s**
+(`rerun-20261118/README.md`) came from the pre-fix battery while the picom rows came from the
+post-fix one, and mixing fixtures was the earlier error — it made a ~50 % agentic gap read as an
+engine property. The gap was the harness's own 60 s tool timeout: a repeat of `stub-service-client`
+on both shipped arms puts its wall time in two modes, exact **12.8 / 13.1 / 12.8 s** fast against
+**109.8 / 120.2 / 75.3 s** slow (3 of 6 draws), lossy **12.6 / 13.2 / 14.8 s** fast against
+**76.9 s** slow (1 of 6), every slow draw's wire log carrying `command timed out after 60s` while the
+engine's `ttft` stayed 0.10–0.33 s at 130–160 tok/s throughout
+(`head:~/benchmarks/picom-prod-20261118/socket-repro-20261118/`). The launcher fix removed that path,
+and under it `stub-service-client` now runs **14.9 / 12.6 / 14.6 s** on SGLang against **11.4 / 11.1
+/ 8.7 s** exact and **11.4 / 11.0 / 10.8 s** lossy, so the 75–120 s regime is gone. Those old-fixture
+totals are not comparable to the table above.
+
+Arm identity is the engine log, not
 the run label: rank 0's leaf
 `…/vllm/deepseek-ai__DeepSeek-V4.1-Flash-1017-b03807ac/picom/logs/rank.0.log` on `.31` prints
 `moe: DSGB10_OEA re-routing on: keep top 4, prefer the batch's core among top 12, from 9 rows` at
@@ -197,11 +199,11 @@ line 11405 inside the final boot (lines 11389–12503, its one `starting dsfront
 at 11414), while the exact arm's own boot section (lines 10258–11388, one start line at 10282)
 holds 0 `DSGB10_OEA` lines — that absence is its proof (`final-20261118/bootB-oea/proof.txt`).
 
-Every configuration loses `shell-repro-rounding` exactly once in three runs except OEA, which
-loses none (knapcio run 2, exact run 3, each on the hidden sweep's
-`AssertionError: (75, 1, [89], 88)` on `sum(shares) == due`, visible suite and `repro.py`
-passing). Pass counts therefore do not separate the arms; only the totals do. The probe pair's
-agentic cells remain one boot each (13/13 both, totals 126.2 and 108.1 s,
+Every configuration still loses a task once or twice in three runs — knapcio run 3 and both later
+OEA runs miss `shell-repro-rounding` on the hidden sweep's `AssertionError: (75, 1, [89], 88)` on
+`sum(shares) == due` while the visible suite and `repro.py` pass, and exact run 3 misses
+`golden-regression` — so pass counts do not separate the arms at 12–13 of 13 everywhere. The probe
+pair's agentic cells remain one boot each (13/13 both, totals 126.2 and 108.1 s,
 `phase1`/`phase2` receipts above) and are not comparable to this table.
 
 ### The production window
@@ -220,10 +222,16 @@ lossless boot (`…1f1549d1421d`) was taken only to pair the house battery; then
 `unprobeable=0`, and was torn down to 0 containers, 0 volumes and no `:8000` listener before the next
 start (`post-teardown.txt` beside each phase's cells).
 
-The three-run agentic table is a later window of the same day: one boot per configuration — knapcio
-`…d143959e5792`, exact `…da567c594d37`, OEA `…0b23560656a9` — each torn down to 0 containers, 0
-volumes and no `:8000` listener before the next, and the knapcio boot carried the rerun ladder of
-section 3 (`head:~/benchmarks/picom-prod-20261118/rerun-20261118/README.md`).
+The three-run agentic table is a later window of the same day: one boot per configuration — exact
+`…da567c594d37`, OEA `…0b23560656a9` — each torn down to 0 containers, 0 volumes and no `:8000`
+listener before the next. Its SGLang row was re-measured on the post-fix battery as its own boot,
+`b020d2dd178343a5` (cluster `sparkrun_b020d2dd178343a5_11628c2281a4`) on
+`ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb394…`, launch 12:17:33Z and HTTP-ready 12:29:29Z —
+**TTR 710 s**, keyless, watchdog `unprobeable=0` throughout, torn down to 0 containers, 0 volumes
+and no `:8000` listener. The superseded old-fixture knapcio rows (`…d143959e5792`) and the rerun
+ladder stay in `rerun-20261118/README.md`, and the new boot's own receipts are
+`head:~/benchmarks/picom-prod-20261118/knapcio-newfix-20261118/` (`README.md`, `ttr.txt`,
+`watchdog.log`, `run{1,2,3}/summary.json`).
 
 ## 4. Where each wins and why
 
@@ -234,22 +242,22 @@ section 3 (`head:~/benchmarks/picom-prod-20261118/rerun-20261118/README.md`).
   `phase6/ladder.csv`). Against the rerun boot's own knapcio ladder the shape holds and C1 widens:
   exact **+28.7 / +0.6 / −9.1 / −15.7 %**, lossy **+34.4 / +0.7 / −4.1 / −12.3 %**
   (`rerun-20261118/boot1-knapcio/ladder.csv`). Only the exact-vs-lossy pair is same-window; both
-  knapcio columns are other boots and are read as the shape of the trade, not a margin.
-- **The one-boot agentic ordering is withdrawn, and no agentic speed ranking survives.** A single run
-  per arm put the lossy arm ahead agentically (113.8 s vs 130.1 s total). Three runs of the same
-  battery per configuration, one boot each, reverse that: OEA totals **191.5 / 196.8 / 201.5 s**
-  against exact **128.0 / 130.0 / 132.3 s** and knapcio **127.7 / 160.2 / 149.4 s**
-  (`rerun-20261118/README.md`). The difference is the harness, not the knob: `stub-service-client`
-  wall time is bimodal on both arms because a 60 s tool-timeout path fires on either, and the lossy
-  runs drew it three times out of three while the exact runs drew it none (section 3). With the
-  fixture fixed, six unpolluted runs (section 3) put the arms on top of each other: exact totals
-  **110.2–133.4 s** against lossy **108.1–136.7 s**, ranges overlapping over almost their whole
-  extent, a ~5 % median gap smaller than either arm's own 21–24 % run-to-run spread, and pass counts
-  differing by one task each time on a different task. So with pollution removed the arms are
-  indistinguishable on total wall clock, no agentic difference is established, and the choice rests
-  on the concurrency curve and the lossy construction. Under concurrency OEA is still the faster
-  arm — **+5.4 % at C5, +4.0 % at C10** against exact, one boot per side — and that ladder result is
-  untouched by this.
+  knapcio columns are other boots and are read as the shape of the trade, not a margin — and both
+  come from the old-fixture boot, so these are ladder cells, not the agentic comparison section 3
+  now makes on one battery.
+- **Agentic totals now favour picom over SGLang, and keep the two picom arms tied.** On the single
+  post-fix battery (section 3) one boot per arm, three runs each: SGLang totals **147.1–152.9 s**
+  against exact **110.2–133.4 s** and OEA **108.1–136.7 s**, ranges disjoint, medians 152.9 / 125.1
+  / 131.8 s — 18.2 % and 13.8 % below SGLang. Read as LIKELY, not established: the battery's
+  inter-boot floor is ~7 % and there is one boot per arm, so a second boot per arm is what would
+  convert it. Between the picom arms the ranges overlap over almost their whole extent (a ~5 %
+  median gap smaller than either arm's own 21–24 % run-to-run spread) and pass counts differ by a
+  task or two on different tasks, so exact and lossy are indistinguishable on total wall clock and
+  the choice between them rests on the concurrency curve and the lossy construction. The earlier
+  50 % OEA deficit was the harness, not the knob: a 60 s tool-timeout path fired on either arm
+  (section 3's historical rows), and no ranking from that table survives. Under concurrency OEA is
+  still the faster arm — **+5.4 % at C5, +4.0 % at C10** against exact, one boot per side — and that
+  ladder result is untouched by this.
 - **Probe window, 16 concurrent users: knapcio ahead of the lossless picom arm (354.1 vs 325.9,
   +8.7 %) and 6.6 % behind the lossy one (377.5).** Drafting was **not** off on the picom side: the 16-user window's
   request lines report multi-row verify steps with 3.08–4.90 drafts verified per step
@@ -324,13 +332,16 @@ section 3 (`head:~/benchmarks/picom-prod-20261118/rerun-20261118/README.md`).
 - **No free-form quality metric.** The needle and house cells are exact-match and pass/fail; nothing
   here scores generated code or prose.
 - **OEA's accuracy question is answered on this battery only.** It loses `shell-repro-rounding` in
-  none of three rerun runs where exact and knapcio each lose it once (section 3), which bounds the
-  cost at this fixed task set and says nothing about tasks that are not in it.
-- **One boot per arm plus three passes cannot resolve a gap under the ~7 % inter-boot floor.** The
-  pollution path is gone (`polluted_runs` 0 in all six runs, section 3), but the arms' own spreads
-  are 21 % and 24 % of total wall clock, wider than any difference the pair shows — the battery can
-  rule out a large gap, not a small one, and the observed ranges (110.2–133.4 s exact,
-  108.1–136.7 s lossy) are wider than any arm difference.
+  two of three runs where exact loses `golden-regression` once and knapcio loses
+  `shell-repro-rounding` once (section 3), which bounds the cost at this fixed task set and says
+  nothing about tasks that are not in it.
+- **One boot per arm: the agentic gap is disjoint in sample but not established.** All nine runs
+  are unpolluted (`polluted_runs` 0, section 3) and the totals ranges do not overlap — exact
+  110.2–133.4 s and lossy 108.1–136.7 s against SGLang 147.1–152.9 s — which is why the 18.2 % and
+  13.8 % median gaps read as LIKELY. The battery's own inter-boot floor is ~7 % and each arm was
+  booted once, so a gap of that size would stay unmeasured, and a second boot per arm is what would
+  convert the ordering to established. Within picom, the ~5 % median difference is smaller than
+  either arm's 21–24 % run-to-run spread.
 - **Different budgets by design**: KV pool vs session store, 16 uniform slots vs 4 big + 12 small,
   chunked prefill at 16384 tokens vs whole-request prefill of 16384-row chunks.
 - **Two picom ladder generations and two knapcio ladders, no power/thermal/RDMA capture**, and the
@@ -343,9 +354,11 @@ section 3 (`head:~/benchmarks/picom-prod-20261118/rerun-20261118/README.md`).
 
 1. **Run one interleaved A/B, boot for boot** — exact, lossy, lossy, exact on the same image and
    window, both the ladder's C5 and C10 (where the lossy margin is largest) plus C1, 5 runs/cell,
-   and the agentic battery on the same alternation. The pollution re-run is done (section 3); what
-   remains is that every arm comparison here still rests on a single boot per side, and that is
-   where the shipped +5.5 % / +3.9 % has to settle into the shortcut or the boot order.
+   and the agentic battery on the same alternation, reading total wall clock as the cell that
+   currently separates picom from SGLang. The pollution re-run is done (section 3); what remains is
+   that every arm comparison here still rests on a single boot per side — the agentic ordering is
+   disjoint in sample but LIKELY, not established — and that is where the shipped +5.5 % / +3.9 %
+   has to settle into the shortcut or the boot order.
 2. **Run the BFCL tools leg** on both engines with the same tasks and turn budget. Settles whether
    the client-contract differences in section 2 (thinking channel, token-id echo, unknown-field
    handling) cost anything an agent can feel.
