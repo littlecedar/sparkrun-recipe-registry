@@ -14186,15 +14186,19 @@ ones — the defect class register row `board-publish-accepts-weaker-replacement
 `--expect-sha 19527ff8…` guard refused as designed; `--expect-sha` was **not** relaxed to
 the new disk sha. No board bytes were written and no fleet state was touched.
 
-**One finding the peer board's pool row does not carry.** Its roots-sum residue of
-**+4,096 B** is not reproducible as `red`: on `.31`, `du -sx -B1 /srv/beegfs/storage`
-exits **1** with `Permission denied` on the root-owned mode-700 directory and prints
-`4096`, so a per-node `du` root sum is an artifact of the read failing rather than an empty
-store. The mount's own `df -B1` pair is the only byte evidence a `red` reader gets:
+**One wrong sentence of this note, corrected the same night.** It first said the peer board's
+**+4,096 B** roots-sum residue was "not reproducible as `red`" because
+`du -sx -B1 /srv/beegfs/storage` exits **1** with `Permission denied` on the root-owned
+mode-700 directory and prints `4096`. That is a wrong instrument, not a wrong number: `du`
+needs directory read, `df -B1 --output=used` needs only `statfs`, and it answers on every
+node — re-probed `07:20Z` on all six, the roots read **2,372,972,326,912** /
+**2,242,844,483,584** / **2,075,251,384,320** / **2,160,813,871,104** / **2,689,094,516,736** /
+**2,627,361,550,336 B**, a sum within tens of MB of the mount. So the peer's residue is
+reachable as `red`, a roots sum is not an artifact of the failed `du`, and it is the route a
+tick should use when it quotes one. The mount's own `df -B1` pair this tick read
 **14,168,245,141,504 B** at `07:03:45Z` → **14,168,265,588,736 B** at `07:07:27Z`
 (**+20,447,232 B** in 3 m 42 s), **−98,041,856 B** on the base's `14,168,363,630,592 B`.
-Hub **103** entries; ds4 `config.json` **3311 B** in both snapshots. A future tick quoting a
-roots sum should name the instrument that produced it.
+Hub **103** entries; ds4 `config.json` **3311 B** in both snapshots.
 
 **Register and campaigns.** `mad-science/queue.json` unmoved at `1b147195…` (200 tasks:
 156 done, 36 queued, 8 blocked, 0 running, 44 open, 0 claims), `check` and `lint` rc=0, both
