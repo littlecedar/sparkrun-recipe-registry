@@ -210,6 +210,26 @@ grep "prompt 2048" /cache/runtime/picom/logs/rank.0.log | grep -vc "reused 0 "
 
 It must print 0. A non-zero line means the ladder measured a warm prefix and the decode
 rows are not cache-free.
+
+Two boots per arm, order `P, S, S, P`. A cross-arm delta is quoted only when both boots of
+one arm lie on the same side of both boots of the other, and the smallest gap between the
+arms' per-boot numbers exceeds the larger of that arm's own boot-to-boot drift and
+**10 %** — above the best observed same-arm reproduction, inside the documented 7–25 %
+inter-boot floor (benchmarking/README.md, "Noise").
+Observed spreads to judge the bound by: the paired window's ladder CVs ran 1.7–9.2 % on
+nine of twelve tg rows, and `L2`'s C1 at 20.8 % is the kind of cell this rule rejects.
+
+Same-arm cross-boot drift to judge against, from the ladder receipts: exact picom C1 83.4
+(`phase5`) against 77.3 (`E2`) = **7.3 %**; lossy 87.1 against 91.3 = **4.6 %**; knapcio
+64.8 (`rerun-20261118/boot1-knapcio`) against 66.9 (`K2`) = **3.2 %**.
+The coldness row is one command on the rank-0 engine log of each picom boot:
+
+```bash
+grep "prompt 2048" /cache/runtime/picom/logs/rank.0.log | grep -vc "reused 0 "
+```
+
+It must print 0. A non-zero line means the ladder measured a warm prefix and the decode
+rows are not cache-free.
 ## 6. Ordering, drift, and what invalidates a delta
 
 Two boots per arm, order `P, S, S, P`. A cross-arm delta is quoted only when both boots of
