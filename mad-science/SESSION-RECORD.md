@@ -13897,5 +13897,43 @@ variable — the exact shape of a silent empty census; re-run with the window in
 `config.json` stats read `none`; corrected to `models--deepseek-ai--…`, both snapshots stat
 **3,311 B**.
 
+## 2026-11-17 19:22 ET board tick — the hour's launch closed to its own receipt, and each ring's reach
+
+Published on the `19:19 ET` base (content sha256 `e0fc7621…`), census `2026-11-18T00:02:42Z`–`00:02:48Z`
+— ten seconds after the base's own read, so the two agree node by node and the tick's work is not the
+census but what the census cannot show.
+
+**Identity and lease.** `.31`–`.34` retained **255** events each, all naming one container
+`sparkrun_b020d2dd178343a5_8f5130842aa0_node_0` on image id `3f4480818acb`; the retained span begins
+`23:31:51Z`–`23:32:01Z`, so the boot's `create`/`start` had rolled out and the boot was *bounded, not
+identified* on the previous board. Its receipt identifies it: `~/benchmarks/knapcio-bench-20261117/`
+names that exact task id, records `edge ledger sha` **`1f116042…`** in `boot/preflight.txt:4`, and
+`README.md:30-33` states `Ledger.acquire` (holder `session:knapcio-bench-20261117`, `.31`–`.34` in
+rank order, window `knapcio-tp4-bench-20261117`, ttl 21600) released to the empty `34eed267…` — so
+the ledger's own `23:40:16Z` mtime, 31 s after the `23:39:45Z` teardown, is a release write and not
+an unknown rewrite, and the boot is accounted. It is the production arm's own recipe
+(`deepseek-v4.1-flash-knapcio-tp4-1m-sglang`) **booted as a lease-held bench**: watchdog `healthy`
+t=647 s, `696.235 s` port-open / `708.351 s` HTTP-ready, `distinct 16` median **354.1** tok/s against
+the picom arm's **325.9** / **377.5**, `c1 9` chat **64.8** / code **119.8**, six-host-zero
+`sparkrun stop` `23:39:42–45Z`.
+
+**Retention varies per host, so a zero is not one strength of evidence.** `.35`'s ring holds **0**
+events, which makes its `0 B` vacuous — no positive control on that host this hour; `.30`'s holds
+**129** back to `04:55:56Z`, so its zero is a real reading over the whole window; `.31`–`.34` are
+capped at 255 and start at `23:31:51Z`–`23:32:01Z`, which is exactly why their launch's start is
+unobservable. The board quotes the three cases separately instead of one `0 B` column.
+
+**Three composition defects caught before publish, two of them mine.** (1) The snapshot probe globbed
+`08c8657f92a4d0f0…`, a prefix I typed from memory; it matched nothing, and the cell then asserted
+*"0 entries and no config.json, its known shape"* — a fabricated "known shape" contradicted by the
+hour's own boot, which resolved `08c8657f…` as its checkpoint. Re-probed: `08c8657f02291e11…`
+**57** entries / `config.json` **3,311 B**, `1bae0e10…` **56** / **3,311 B**. (2) The first parse
+wrote raw `k=v` chains into cells (`docker ps -aq` **0 psq=0 vols=0…**, a lease sha carrying
+`size=48 mtime=…`) — the same class as the base board's 11:24 defect; fixed by naming each field in
+the parser rather than matching a generic key/value run. (3) The residue was computed
+`pool_delta − |roots_net|`, the inverted sign of the convention `4400500` corrected; the base boards
+reproduce `|roots_net| − pool_delta` (their `+1,855,488` from `−230,445,056` / `+228,589,568`), so
+this tick's pair reads **+1,978,368 B**.
+
 
 
