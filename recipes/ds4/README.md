@@ -2346,10 +2346,15 @@ starting under them, not a per-condition probe): one IPv4 per netdev;
 `GID_INDEX=3` matching the RoCEv2 IPv4 GID on all four devices; all four `PREV_IP0`s in one
 L2 domain; `kho=off` (already fleet-wide); ≥100 GiB `MemAvailable` after the page-cache drop.
 The 2026-11-18 fabric probe
-(`head:~/benchmarks/picom-prod-20261118/paired-20261118/fabric-probe/`) confirmed jumbo frames
-(MTU 9000 on both RoCE netdevs, pause frames on) and found PFC disabled on all eight priorities,
-so the flow-control clause is withdrawn, not stated; switch-side PFC/ECN was never obtained (no
-switch access) and the picom QP `hop_limit` has no readable surface.
+(`head:~/benchmarks/picom-prod-20261118/paired-20261118/fabric-probe/`) confirmed jumbo frames end
+to end (host MTU 9000, switch `mtu=9000 l2mtu=9500`), and the switch-side re-check
+(`head:~/benchmarks/picom-prod-20261118/fabric-probe-recheck/`) shows the switch statically
+enabling PFC for traffic class 3 only, hardware-offloaded, on all six host ports, while the hosts
+have PFC off on every priority under OS-controlled DCBX (the switch has no DCBX) and all traffic
+classifies to tc1 because host RoCE ToS/DSCP is 0 and every port uses `profile=default`. So
+end-to-end priority flow control is not in effect, and no priority pause frame, CNP or queue-3
+packet has moved, which keeps the flow-control clause withdrawn — now for the right reason — and the
+picom QP `hop_limit` still has no readable surface.
 
 ### Open boot gates
 

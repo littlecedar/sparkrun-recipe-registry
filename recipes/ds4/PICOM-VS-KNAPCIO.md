@@ -87,10 +87,13 @@ The fabric is one switch and both f1 ports are down on this fleet, so a ring's t
 the same two f0 devices (`mods/picom-launcher/README.md:104`). It was probed read-only in the paired
 window (`paired-20261118/fabric-probe/`): MTU **9000** on both RoCE netdevs (`enp1s0f0np0`,
 `enP2p1s0f0np0`, maxmtu 9978), RDMA links ACTIVE, `ethtool -a` autoneg off with RX and TX pause
-**on**, `mlnx_qos` DCBX OS-controlled, priority trust pcp, **PFC disabled on all eight priorities**.
-Two facts are **not obtained** and nothing below rests on them: the switch-side PFC/ECN
-configuration (the switch is not reachable from the hosts) and picom's queue-pair `hop_limit` (no
-log, container env, launcher script or binary string exposes it).
+**on**, `mlnx_qos` DCBX OS-controlled, priority trust pcp, and PFC off on all eight priorities.
+A re-check (`fabric-probe-recheck/`) reached the switch: it statically enables PFC for traffic class
+3 only, hardware-offloaded, on all six host ports, but with host RoCE ToS/DSCP 0 and every port on
+`profile=default` all traffic classifies to tc1, so end-to-end priority flow control is not in
+effect and no priority pause frame, CNP or queue-3 packet has moved. The one fact still **not
+obtained**, and nothing below rests on it, is picom's queue-pair `hop_limit` (no log, container env,
+launcher script or binary string exposes it).
 
 ## How each was measured
 
