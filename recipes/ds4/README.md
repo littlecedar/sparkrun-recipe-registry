@@ -2392,9 +2392,9 @@ L2 domain (the QP's `hop_limit` is 1); jumbo frames plus PFC/ECN on the switch; 
    killed by the watchdog at 08:24:29Z (exit 137) instead of exiting itself; pid-1 survival through
    its helper children is unresolved.
 
-### Probe arms: prefill chunk budget and Engram read batch (authored 2026-11-17; rows queued in the register, neither booted)
+### Probe arms: prefill chunk budget, Engram read batch, output ceiling (authored 2026-11-17; the first two have queued register rows, the third has none; none booted)
 
-Neither arm is booted. Both register rows (`picom-prefill16k-boot`, `picom-engram-batch8-boot`;
+None of the three is booted. The first two have register rows (`picom-prefill16k-boot`, `picom-engram-batch8-boot`;
 `state: queued`, `tp: 4`, `node_cost: quartet`, receipts root
 `/home/red/benchmarks/picom-probes-20261117`) are in the register as of `a43505b` (198 → 200 tasks,
 `check` `ok: 200 task(s)`), and a later session claims them before either boots.
@@ -2420,6 +2420,26 @@ Neither arm is booted. Both register rows (`picom-prefill16k-boot`, `picom-engra
   against `PICOM_ENGRAM_READ_BATCH=1` on the same image — a long-prefill cell is expected flat,
   since upstream pads only sparse reads and measured none under deep prefill
   (`docs/engram.md:124-125`), taking its gain on read steps (`docs/engram.md:120-124`).
+- `zz-ds4-1017-picom-out256k.yaml` sets `PICOM_MAX_TOKENS=262144` (launcher default 32,768,
+  unchanged), which is `dsfront --max-tokens`: the *one* value that is both the default and the
+  hard ceiling on a reply (`frontend/src/main.rs:126`, `server.rs:522-528` clamps, never
+  refuses). Nothing below the front-end caps a reply — the engine bounds each step by
+  `min(slot_ctx, pos0 + max_new)` (`engine/server/cmd.cpp:172-175`) — so what binds at 262,144 is
+  the slot geometry: `--slots 16 --big-slots 4` gives four slots the full 1,048,576 positions and
+  twelve at `max_ctx/8` = 131,072 (`engine/server/main.cpp:296`), and a request is admitted only
+  to a slot holding `prompt + max_new` (`engine/server/serve.cpp:1195`). A 262K reply therefore
+  runs on a big slot and a fifth concurrent one queues silently in `wait_` — a stream sees a
+  keep-alive comment every 5 s, a non-stream request no bytes at all, and there is no server-side
+  timeout. Because the flag is also the default, a client omitting `max_tokens` gets the 262,144
+  budget too, and `prompt + 262,144` never fits a 131,072 slot: **every** omitting request now
+  claims one of the four big slots and an unbounded client can hold it for ~35 min. That is the
+  accepted trade, not a defect to engineer around. Falsifier: cell (a), one
+  `max_tokens: 262144` request on a generating prompt — the grant is `usage.completion_tokens`
+  against `finish_reason`, and `rank 0: starting dsfront ... max_tokens 262144` in `logs/front.log`
+  is the only place the cap itself is printed; cell (b), ~65,536 generated tokens for the sustained
+  rate; cell (c), with four 262K requests generating, a fifth request that omits `max_tokens` —
+  no bytes until one of the four ends, and an explicit `max_tokens: 130000` with a short prompt as
+  the only shape that still lands on a small slot.
 
 ### License
 

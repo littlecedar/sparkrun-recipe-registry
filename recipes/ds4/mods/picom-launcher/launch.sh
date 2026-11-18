@@ -306,7 +306,10 @@ if [[ -z "${LISTEN_IP}" ]]; then
 fi
 
 read -r -a FARGS <<< "${PICOM_FRONT_ARGS:-}"
-log "rank 0: starting dsfront on ${LISTEN_IP}:${PORT} (served name ${SERVED})"
+# dsfront's single value for both the default and the hard cap on one reply's
+# generated tokens (frontend/src/server.rs:522-528 clamps, never refuses).
+MAX_TOKENS="${PICOM_MAX_TOKENS:-32768}"
+log "rank 0: starting dsfront on ${LISTEN_IP}:${PORT} (served name ${SERVED}, max_tokens ${MAX_TOKENS})"
 dsfront serve \
   --listen "127.0.0.1:${PORT}" \
   --listen "${LISTEN_IP}:${PORT}" \
@@ -318,6 +321,7 @@ dsfront serve \
   --tokenizer "${MODEL}/tokenizer.json" \
   --model-name "${SERVED}" \
   --encoding "${PICOM_ENCODING:-1017}" \
+  --max-tokens "${MAX_TOKENS}" \
   "${FRONT_VISION[@]}" \
   "${STREAM_ARGS[@]}" \
   "${FARGS[@]}" \

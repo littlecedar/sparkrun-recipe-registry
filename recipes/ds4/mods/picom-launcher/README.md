@@ -77,6 +77,7 @@ All are env (recipe `env:` or `-o env.KEY=value`):
 | `PICOM_VISION_PORT` | `18950` | encoder's loopback port (same address in `--vision-addr`) |
 | `PICOM_VISION_CMD` | the image's encoder | override the encoder command; `--host 127.0.0.1 --port <PICOM_VISION_PORT>` is appended |
 | `PICOM_STREAM_TOOL_ARGS` | `1` | upstream PR #7: stream a tool call's name early and its arguments as they arrive; `0` is the pre-PR single chunk |
+| `PICOM_MAX_TOKENS` | `32768` | `dsfront --max-tokens`: the default *and* the hard cap on one reply's generated tokens (upstream clamps a larger request, never refuses it) |
 | `PICOM_FRONT_ARGS` | empty | extra `dsfront` args |
 | `PICOM_MIN_AVAIL_GIB` / `PICOM_MIN_DISK_GIB` | `100` / `150` | fail-closed start gates |
 | `PICOM_ENGINE_READY_S` | `900` | rank 0's socket wait |
