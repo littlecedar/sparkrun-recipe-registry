@@ -14988,3 +14988,34 @@ h2h arms appeared twice (62 instead of 38). Corrected on the board by a
 re-published through the tool.
 
 Captures lived in `.scratch/tick-1201-3738469/` (git-ignored, removed).
+
+## 2026-11-18 13:07 ET — 13:00 tick finds the production quartet live under a new lease
+Census `2026-11-18T18:02:09Z`–`18:02:11Z` on the `12:24 ET` base
+(`17:03:08Z`), `0 h 59 min 01 s` later. The hour's one event is the ds4
+production quartet: task `b020d2dd178343a5_4a03b271bb69`, one rank each
+on `.31`–`.34`, `StartedAt` `17:49:50Z`, image id `3f4480818acb`, all
+four healthy, rank 0 `/v1/models` 200 naming
+`deepseek-ai/DeepSeek-V4.1-Flash-1017` (`max_model_len` 1,048,576) at
+`18:02:2xZ`, ranks 1–3 404 (router on rank 0). It runs under
+`.local/fleet-window.lock` (sha `290d21ad`, window `17:40Z`–`20:45Z`)
+and lease `paired-20261118` (issued `17:37:51Z`, expires `21:37:51Z`),
+both byte-identical on head and here; the lock's stated window end and
+the lease's expiry differ by 52 min, both quoted as written. `.30`/`.35`
+read zero with rings older than the window; the four ranks' rings are
+full (256) since `17:56:54Z`, so their `create`/`start` are evicted, not
+absent, and the boot instant comes from `docker inspect`. Pool and roots
+both fell 106.69 GB with `.31`'s root carrying it (`−106,447,126,528 B`)
+while `.34` fell `330,674,176 B` and four roots rose 8.3–30.6 MB —
+mechanism unattributed, no receipt names it. Register unmoved
+(`63a71928`, 200 tasks / 42 open); campaign inactive, 9 roots / 38 arms
+/ 0 live leases; nothing folded from git, the base's tip being `HEAD`.
+
+One trap worth keeping: the first composition stamped the title `13:09`
+against a `13:07` clock, which `publish` accepted and `lint` then flagged
+`future-stamp` — a stamp a tick writes ahead of the clock wedges every
+later tick's title-regression check. Fixed by re-stamping from `date`
+and republishing with `--base` set to the composition just published
+(a second publish against the origin board would refuse exit 3), so
+nothing shipped under the future stamp.
+
+Captures lived in `.scratch/tick-1301-3872537/` (git-ignored, removed).
