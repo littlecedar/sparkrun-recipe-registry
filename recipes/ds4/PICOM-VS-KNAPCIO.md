@@ -441,8 +441,8 @@ Each bar is one boot's median of its three pass totals, `round(median ÷ 3)` cha
 paired window in section 3; an arm's two boots are the two bars under its name.
 
 ```
-            |         |         |         |         |         |
-            0        30        60        90        120       150
+            |         |         |         |         |         |         |
+            0        30        60        90        120       150       180
 E1 exact    ######################################## 119.9
 E2 exact    ######################################### 123.4
 L1 lossy    ######################################### 124.4
@@ -451,7 +451,9 @@ K1 knapcio  ############################################################ 178.6
 K2 knapcio  ###################################################### 161.6
 ```
 
-119.9 → 40 characters, 123.4 → 41, 124.4 → 41, 122.5 → 41, 178.6 → 60, 161.6 → 54. The two
+119.9 → 40 characters, 123.4 → 41, 124.4 → 41, 122.5 → 41, 178.6 → 60, 161.6 → 54. The axis stops
+at **180 s**, six columns past the longest bar, so a future total above 180 s is out of range rather
+than silently clipped. The two
 knapcio bars stay clear of all four picom bars; that non-overlap over two boots per arm is the
 whole of the LIKELY ordering in section 3, and single-flight sequential runs with no cell-level
 interleaving are why it is LIKELY.
