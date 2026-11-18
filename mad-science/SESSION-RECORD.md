@@ -15452,3 +15452,57 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   rewrite-observer `state.json` files as non-campaigns, so no 21-root
   figure was ever published; the 21-path number is the plain `os.walk`
   total on `/home/red`.
+
+## 2026-11-18 18:07 ET — hourly tick finds a tp=4 quartet loading under a declared window that the base board said did not exist
+
+- Base `17:05 ET` board (content sha256 `30c6ed85…`, blob `db55f406…`, tip
+  `2682d68`, unchanged at `origin/main` when this tick fetched). Census read
+  `2026-11-18T23:01:29Z` on all six nodes — **one second**, so the six rows
+  are one pass. Interval from the base: **58 min 43 s** after its first node
+  read (`22:02:46Z`), **58 min 1 s** after its last (`22:03:28Z`).
+- State moved in that hour. The base published **all six hosts empty** and
+  **no declaration and no lease**; this pass finds a **tp=4** knapcio quartet
+  on `.31`–`.34` (`recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`,
+  task `b020d2dd178343a5_6944191a4b29`, image build `3f4480818acb`), **loading**
+  — health `starting`, `:8000` closed on every rank, rank-0 `curl /v1/models`
+  `000`, bracketed `pgrep -c -f '[s]glang.launch_server'` **1** on rank 0 —
+  and a live claim on it: `.local/fleet-window.lock` (241 B, sha `d6d0a1bd…`)
+  held by `session:lossless-roce` for job `fabric-lossless-20261118`, ranks
+  `.31`–`.34`, declared `22:09:43Z`, expiring `2026-11-19T04:09:43Z`, plus one
+  lease `fabric-lossless-20261118` in `.local/fleet-leases.json` (350 B, sha
+  `b355b319…`) expiring the same second. Both files are byte-identical on this
+  clone and on the head. They differ on scope only: the lease's `hosts` spans
+  all six while the lock bounds ranks to `.31`–`.34`, and `.30`/`.35` read
+  `0` containers consistently with the lock.
+- **Standing rule not followed:** no `boot-watchdog` is armed on the head
+  (`pgrep -af boot-watchdog` empty), so a serve child that died would leave
+  four containers up with nobody to stop them. The board's quartet row says
+  so; this tick did not arm one, because the boot is another session's.
+- The boot is **observed**, not inferred: `create` `22:56:41Z`, `start`
+  `22:56:42Z` on all four ranks, immediately after the attempt it replaced was
+  torn down (`kill` `22:55:53Z`, `die`/`destroy` `22:55:55Z`,
+  `sparkrun_58cddf1c62ba6578_2d5dd8b4990b_node_*`). That predecessor's own
+  `create` is **evicted, not absent**: each rank ring holds `256` events whose
+  oldest is only `22:51:28Z`–`22:52:58Z`, so its start stays a bound
+  `(22:51:28Z, 22:55:53Z]`. `.30`/`.35` each hold `256` with oldest
+  `2026-11-17T06:05:11Z`/`2026-11-12T05:50:09Z` and logged `0` events, so their
+  emptiness is not a ring artefact.
+- Pool: head units `active`/`Result=success`/`NRestarts 0`; `findmnt -M
+  /mnt/beegfs` again printed the bogus `SOURCE default`, so serving is proved
+  by reads — **one quantity read seven times** (`14,060,924,436,480 B` on the
+  mount and in all six nodes' own `df -B1 --output=used` at `23:01:29Z`),
+  residue `+253,952 B` over the roots' summed `14,060,924,182,528 B`, and
+  `−25,165,824 B` against the base's pair. Hub `103` entries; the quartet's
+  snapshot `config.json` `3,311 B`.
+- Register `0b28a919…` unchanged (201 tasks — 159 done, 34 queued, 8 blocked,
+  **42 open**; `check` prints `ok: 201 task(s)`), and the live file's sha was
+  re-checked equal to the snapshot's immediately before publish. Campaign
+  service inactive since 2026-11-11 20:03:08 EST; `glob('**/state.json')`
+  returns `49` paths that dedupe by `(st_dev, st_ino)` to `9` files carrying
+  `38` arms with `0` live leases — the fleet's only live lease is the manual
+  one above.
+- Published through the tool (`publish` rc=0, `lint ok: 1 markdown file(s)
+  render`), **refused once** first: the window row quoted the lock's `ranks:`
+  line with its four raw addresses and `publish` rejected the board for
+  `cluster-address` — masked to `.31`–`.34` shorthand and republished. Commit
+  `f5b3199`, push-gate green on that tree, pushed.
