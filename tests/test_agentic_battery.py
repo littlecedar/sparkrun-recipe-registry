@@ -10,11 +10,14 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 import shutil
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOL_PATH = REPO_ROOT / "tools" / "agentic-battery.py"
@@ -50,6 +53,13 @@ class TaskSet(unittest.TestCase):
             self.assertEqual((task["max_turns"], task["wall_s"]), (16, 600))
         for task in hard:
             self.assertEqual((task["max_turns"], task["wall_s"]), (24, 900))
+
+    def test_stub_task_ships_its_launcher(self):
+        """The model must never be told to run the service in the foreground."""
+        task = next(t for t in TOOL.TASKS if t["id"] == "stub-service-client")
+        self.assertEqual(task["launcher"], "start_stub.sh")
+        self.assertIn("bash start_stub.sh", task["prompt"])
+        self.assertIn("start_stub.sh", task["files"])
 
     def test_every_task_carries_a_reference_patch(self):
         for task in TOOL.TASKS:
@@ -119,6 +129,98 @@ class LabelReceipt(unittest.TestCase):
             self.assertEqual(summary["label"], "")
         finally:
             shutil.rmtree(tmp)
+
+
+class Pollution(unittest.TestCase):
+    """A harness timeout must surface in the receipt, never be read as engine slowness."""
+
+    def _run(self, replies: list) -> tuple[dict, str, Path]:
+        tmp = Path(tempfile.mkdtemp())
+        server, base = TOOL._mock_server(replies)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                TOOL.main(["--base-url", base, "--model", "mock",
+                           "--tasks", "fix-failing-test", "--outdir", str(tmp),
+                           "--fixture-root", str(tmp / "fixtures")])
+        finally:
+            server.shutdown()
+            server.server_close()
+        return json.loads((tmp / "summary.json").read_text()), out.getvalue(), tmp
+
+    def test_harness_timeout_marks_run_polluted(self):
+        slow = {"role": "assistant", "content": "", "tool_calls": [{
+            "id": "call_1", "type": "function",
+            "function": {"name": "run_shell",
+                         "arguments": json.dumps({"command": "sleep 5"})}}]}
+        with mock.patch.object(TOOL, "SHELL_TIMEOUT", 1):
+            summary, printed, tmp = self._run(
+                [slow, {"role": "assistant", "content": "done"}])
+        try:
+            result = summary["results"][0]
+            self.assertTrue(result["polluted"])
+            self.assertEqual(result["harness_timeouts"], 1)
+            self.assertEqual(summary["harness_timeouts"], 1)
+            self.assertEqual(summary["polluted_runs"], 1)
+            self.assertGreaterEqual(summary["wall_max_tool_s"], 1.0)
+            self.assertIn("FAIL*", printed)
+            self.assertIn("1/1 runs polluted", printed)
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_clean_run_is_not_polluted(self):
+        """The negative control: one clean task must not be marked or counted."""
+        summary, printed, tmp = self._run([{"role": "assistant", "content": "done"}])
+        try:
+            result = summary["results"][0]
+            self.assertFalse(result["polluted"])
+            self.assertEqual(result["harness_timeouts"], 0)
+            self.assertEqual(summary["harness_timeouts"], 0)
+            self.assertEqual(summary["polluted_runs"], 0)
+            self.assertEqual(summary["wall_max_tool_s"], 0.0)
+            self.assertNotIn("FAIL*", printed)
+            self.assertNotIn("PASS*", printed)
+            self.assertIn("0/1 runs polluted", printed)
+        finally:
+            shutil.rmtree(tmp)
+
+
+class StubLauncher(unittest.TestCase):
+    """The launcher returns the port at once, and the checker kills what it started."""
+
+    def _workspace(self) -> tuple[Path, dict]:
+        task = next(t for t in TOOL.TASKS if t["id"] == "stub-service-client")
+        ws = Path(tempfile.mkdtemp()) / "ws"
+        ws.mkdir()
+        for rel, text in task["files"].items():
+            (ws / rel).write_text(text)
+        # No port, no listener: only the launcher contract is under test.
+        (ws / "service_stub.py").write_text(
+            "from pathlib import Path\n"
+            "import time\n\n"
+            "Path('.stub_port').write_text('43210')\n"
+            "time.sleep(60)\n")
+        return ws, task
+
+    def test_launcher_returns_port_and_stop_kills_it(self):
+        ws, task = self._workspace()
+        try:
+            started = time.time()
+            port = TOOL.start_stub(task, ws)
+            self.assertEqual(port, "43210")
+            self.assertLess(time.time() - started, TOOL.STUB_TIMEOUT)
+            pid = int((ws / ".stub_pid").read_text().strip())
+            TOOL.stop_stub(ws)
+            deadline = time.time() + 5
+            while time.time() < deadline:
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.05)
+            else:
+                self.fail("the launcher's process outlived stop_stub")
+        finally:
+            shutil.rmtree(ws.parent)
 
 
 class SelfTest(unittest.TestCase):

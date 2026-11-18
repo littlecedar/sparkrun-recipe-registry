@@ -49,6 +49,17 @@ skips tasks that already hold a result, so a window can be re-entered. `--label`
 field where a run's serving identity can be recorded, and `summary.json` cannot otherwise say
 which boot produced it: pass `--label "<image>@<digest>, task <id>"`.
 
+Harness pollution
+-----------------
+A tool call that hits `SHELL_TIMEOUT` (60 s) is the harness giving up, not an engine being slow,
+so every result carries `harness_timeouts` (count of `command timed out after` tool results) and
+`wall_max_tool_s`, plus `polluted: true` when the count is nonzero; `summary.json` aggregates
+`harness_timeouts` and `polluted_runs`, and the printed task line is marked `PASS*`/`FAIL*`.
+A task that needs a long-lived process must ship a launcher (the `stub-service-client` task's
+`start_stub.sh`): it daemonises the service, waits for its port and returns at once, and the
+checker starts it before the turn loop and kills its process group after — so no model turn can
+block inside `accept()`.
+
 Usage
 -----
     python3 tools/agentic-battery.py --base-url http://rank0-host:8000 \\
@@ -66,6 +77,7 @@ import argparse
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -125,6 +137,9 @@ TOOLS = [
 ]
 
 SHELL_TIMEOUT = 60
+# The launcher only daemonises a process and waits for its port file; 30 s is ample and bounds
+# the harness itself, never a model turn.
+STUB_TIMEOUT = 30
 READ_LIMIT = 20000
 OUT_LIMIT = 8000
 # One fixed output cap for every request on every engine: an engine whose default (or ceiling)
@@ -172,6 +187,36 @@ def run_tool(ws: Path, name: str, args: dict) -> str:
         return f"error: command timed out after {SHELL_TIMEOUT}s"
     except (OSError, ValueError) as exc:
         return f"error: {exc}"
+
+
+def start_stub(task: dict, ws: Path) -> str | None:
+    """Run the task's launcher so its service is up before the first model turn; return its port.
+
+    The launcher daemonises, waits for the service to report a port and returns immediately, so
+    no model turn can block inside `accept()`.
+    """
+    script = task.get("launcher")
+    if not script:
+        return None
+    try:
+        proc = subprocess.run(["bash", script], cwd=ws, capture_output=True, text=True,
+                              timeout=STUB_TIMEOUT)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    lines = (proc.stdout or "").strip().splitlines()
+    return lines[-1] if proc.returncode == 0 and lines else None
+
+
+def stop_stub(ws: Path) -> None:
+    """Kill the launcher's process group; nothing it started may outlive the task."""
+    try:
+        pid = int((ws / ".stub_pid").read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return
+    try:
+        os.killpg(pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        pass
 
 
 def chat(base_url: str, model: str, api_key: str | None, messages: list, timeout: int) -> dict:
@@ -240,8 +285,14 @@ def run_task(task: dict, base_url: str, model: str, api_key: str | None, root: P
                 {"role": "user", "content": task["prompt"]}]
     tokens = {"prompt": 0, "completion": 0}
     stats = {"turns": 0, "tool_calls": 0, "invalid_args": 0, "truncated": 0,
-             "usage_missing": 0, "finish_reasons": []}
+             "usage_missing": 0, "finish_reasons": [], "harness_timeouts": 0,
+             "wall_max_tool_s": 0.0}
     final_text, timed_out, error = "", False, None
+    port = start_stub(task, ws)
+    if port:
+        messages[1]["content"] += (
+            f"\n\nThe line service is already running: 127.0.0.1:{port}. `bash start_stub.sh` "
+            "restarts it and prints a fresh port if you need one.")
     start = time.time()
     wire = (outdir / f"{task['id']}.wire.jsonl").open("w", encoding="utf-8")
     try:
@@ -291,12 +342,18 @@ def run_task(task: dict, base_url: str, model: str, api_key: str | None, root: P
                     except (json.JSONDecodeError, TypeError):
                         stats["invalid_args"] += 1
                         args = {}
+                tool_start = time.time()
                 result = run_tool(ws, name, args)
+                stats["wall_max_tool_s"] = max(stats["wall_max_tool_s"],
+                                               round(time.time() - tool_start, 1))
+                if "command timed out after" in result:
+                    stats["harness_timeouts"] += 1
                 messages.append({"role": "tool",
                                  "tool_call_id": call.get("id") or f"call_{turn}_{i}",
                                  "content": result})
     finally:
         wire.close()
+        stop_stub(ws)
 
     wall = round(time.time() - start, 1)
     passed, checks = (False, []) if error else grade(task, ws)
@@ -304,6 +361,7 @@ def run_task(task: dict, base_url: str, model: str, api_key: str | None, root: P
         "task": task["id"], "tier": task["tier"], "title": task["title"], "pass": passed,
         "wall_s": wall, "tokens": tokens, **stats,
         "timed_out": timed_out, "error": error, "checks": checks,
+        "polluted": stats["harness_timeouts"] > 0,
         "final_text": final_text[-2000:],
     }
 
@@ -371,9 +429,9 @@ def main(argv: list[str] | None = None) -> int:
                           outdir, args.request_timeout)
         receipt.write_text(json.dumps(result, indent=1), encoding="utf-8")
         results.append(result)
-        tag = "PASS" if result["pass"] else "FAIL"
+        tag = ("PASS" if result["pass"] else "FAIL") + ("*" if result["polluted"] else "")
         tok = result["tokens"]["prompt"] + result["tokens"]["completion"]
-        print(f"{task_id:<24} {tag}  {result['wall_s']:6.1f}s  turns={result['turns']:<3}"
+        print(f"{task_id:<24} {tag:<5} {result['wall_s']:6.1f}s  turns={result['turns']:<3}"
               f" calls={result['tool_calls']:<3} tokens={tok:<7}"
               f"{'  TIMEOUT' if result['timed_out'] else ''}"
               f"{'  ERROR' if result['error'] else ''}")
@@ -385,6 +443,7 @@ def main(argv: list[str] | None = None) -> int:
 
     walls = [r["wall_s"] for r in results]
     walls.sort()
+    timeout_counts = [r.get("harness_timeouts", 0) for r in results]
     summary = {
         "base_url": args.base_url, "model": args.model, "tier": args.tier,
         "label": args.label, "max_tokens": MAX_TOKENS,
@@ -393,12 +452,16 @@ def main(argv: list[str] | None = None) -> int:
         "wall_median_s": walls[len(walls) // 2] if walls else None,
         "wall_worst_s": walls[-1] if walls else None,
         "wall_total_s": round(sum(walls), 1),
+        "wall_max_tool_s": max((r.get("wall_max_tool_s", 0.0) for r in results), default=0.0),
+        "harness_timeouts": sum(timeout_counts),
+        "polluted_runs": sum(1 for r in results if r.get("polluted")),
         "results": results,
     }
     (outdir / "summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
     print(f"\n{summary['passed']}/{summary['tasks']} pass  "
           f"median {summary['wall_median_s']}s  worst {summary['wall_worst_s']}s  "
-          f"total {summary['wall_total_s']}s  -> {outdir}")
+          f"total {summary['wall_total_s']}s  "
+          f"{summary['polluted_runs']}/{summary['tasks']} runs polluted  -> {outdir}")
     if not walls:
         rc = 1
     return rc
@@ -1024,29 +1087,53 @@ TASKS = [
         "id": "stub-service-client",
         "tier": "hard",
         "title": "wire a client to a local line service and test it end to end",
-        "prompt": "Implement `collect(host, port, timeout=5.0)` in `client.py`. The service "
-                  "(`service_stub.py`, started as `python -B service_stub.py <port>`) sends "
-                  "newline-terminated `key=value` lines with integer values, then closes the "
+        "prompt": "Implement `collect(host, port, timeout=5.0)` in `client.py`. The line service "
+                  "`service_stub.py` is started for you by the task-owned launcher "
+                  "`start_stub.sh`: `bash start_stub.sh` daemonises the stub, waits until it is "
+                  "listening, prints the port it was assigned and returns at once, so never start "
+                  "`service_stub.py` in the foreground yourself. The service sends "
+                  "newline-terminated `key=value` lines with integer values and closes the "
                   "connection. Return a dict of ints; raise `ValueError` for a malformed line or a "
-                  "non-integer value. Start the stub yourself and test the round trip.",
+                  "non-integer value. Test the round trip against the running service.",
+        "launcher": "start_stub.sh",
         "files": {
             "service_stub.py": (
-                '"""Line service for client.py: python -B service_stub.py <port>."""\n'
+                '"""Line service for client.py: python3 -B service_stub.py <port-file>."""\n'
                 "import socket\n"
                 "import sys\n\n"
                 "PAYLOAD = {'alpha': 2, 'beta': 5}\n\n\n"
-                "def serve(port):\n"
+                "def serve(port_file):\n"
                 "    listener = socket.socket()\n"
                 "    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\n"
-                "    listener.bind(('127.0.0.1', port))\n"
-                "    listener.listen(1)\n"
-                "    print('listening', flush=True)\n"
-                "    conn, _ = listener.accept()\n"
-                "    with conn:\n"
-                "        conn.sendall(''.join(f'{k}={v}\\n' for k, v in PAYLOAD.items()).encode())\n"
-                "    listener.close()\n\n\n"
+                "    listener.bind(('127.0.0.1', 0))\n"
+                "    listener.listen(8)\n"
+                "    port = listener.getsockname()[1]\n"
+                "    with open(port_file, 'w') as fh:\n"
+                "        fh.write(str(port))\n"
+                "    print('listening', port, flush=True)\n"
+                "    while True:\n"
+                "        conn, _ = listener.accept()\n"
+                "        with conn:\n"
+                "            payload = ''.join(f'{k}={v}\\n' for k, v in PAYLOAD.items())\n"
+                "            conn.sendall(payload.encode())\n\n\n"
                 "if __name__ == '__main__':\n"
-                "    serve(int(sys.argv[1]))\n"
+                "    serve(sys.argv[1])\n"
+            ),
+            "start_stub.sh": (
+                "#!/usr/bin/env bash\n"
+                "# Daemonise service_stub.py, wait until it is listening, print the port and return.\n"
+                "set -eu\n"
+                "cd \"$(dirname \"$0\")\"\n"
+                "if [ -f .stub_pid ]; then kill \"$(cat .stub_pid)\" 2>/dev/null || true; fi\n"
+                "rm -f .stub_port\n"
+                "setsid python3 -B service_stub.py .stub_port >.stub.log 2>&1 </dev/null &\n"
+                "echo $! >.stub_pid\n"
+                "for _ in $(seq 1 100); do\n"
+                "    if [ -s .stub_port ]; then head -1 .stub_port; exit 0; fi\n"
+                "    sleep 0.05\n"
+                "done\n"
+                "echo 'stub did not report a port; see .stub.log' >&2\n"
+                "exit 1\n"
             ),
             "client.py": (
                 "def collect(host, port, timeout=5.0):\n"

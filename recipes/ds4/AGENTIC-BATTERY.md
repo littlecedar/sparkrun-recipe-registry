@@ -16,6 +16,9 @@ Per task, from `tools/agentic-battery.py`:
 | `tokens` | `prompt` + `completion` summed from each response's `usage` |
 | `turns` / `tool_calls` | model turns and executed tool calls; `invalid_args` counts unparsable arguments |
 | `truncated` | turns with `finish_reason: length` — a harness cap, not a model failure |
+| `harness_timeouts` | tool results that hit the 60 s shell cap; nonzero means the harness gave up |
+| `wall_max_tool_s` | the slowest single tool call in the task |
+| `polluted` | `true` when `harness_timeouts` > 0: no arm comparison may use that task |
 
 The task set is fixed, in two tiers. The **easy** floor exercises the loop; the **hard** ceiling is
 where engines separate, because each task has several ways to be partially right.
@@ -40,7 +43,7 @@ Hard tier (`--tier hard`, 5 tasks, 24 turns / 900 s each):
 | `multi-file-refactor` | one money/date helper extracted from three modules into a new fourth; `cli.py` output unchanged | visible suite + golden render output + AST structure: helper defined once in `textfmt.py`, no `_money`/`_day` left, all three modules import it, import graph acyclic |
 | `shell-repro-rounding` | bill split loses cents; the visible test passes, only `python -B repro.py` shows it | visible suite + the repro script + a 3,591-case sweep: exact sum, spread ≤ 1 cent, deterministic, ints |
 | `normalize-edge-table` | canonicalise account keys against a written spec | visible suite + 8 valid and 11 invalid inputs (unicode dashes, padding, separators, signed, non-ASCII) |
-| `stub-service-client` | wire `collect()` to a local line service | end-to-end: harness starts its own socket server with different keys, asserts the parsed dict, then malformed and non-integer payloads must raise `ValueError` |
+| `stub-service-client` | wire `collect()` to a local line service (task ships `start_stub.sh`: daemonises the stub, prints its port, returns; the checker starts it before the loop and kills it after) | end-to-end: harness starts its own socket server with different keys, asserts the parsed dict, then malformed and non-integer payloads must raise `ValueError` |
 | `golden-regression` | add an optional PRIORITY column | three tracked golden outputs byte-identical + two exact expected tables (present and mixed rows) |
 
 Grading is offline and deterministic: `unittest`, exact JSON/string comparison, AST checks, sockets on
@@ -86,7 +89,8 @@ and SGLang returns complete `tool_calls`, and with `stream: false` both answer w
 ## 3. How to read a receipt
 
 `<outdir>/summary.json` carries the run's provenance (`base_url`, `model`, `when`), `passed/tasks`,
-`wall_median_s`, `wall_worst_s` and the per-task results. `<task>.json` is that task's verdict and
+`wall_median_s`, `wall_worst_s`, `wall_max_tool_s`, `harness_timeouts`, `polluted_runs` and the
+per-task results. `<task>.json` is that task's verdict and
 counters; `<task>.wire.jsonl` holds every request and response, so a failed task can be replayed
 without re-running the serve. `<fixture-root>/<task>/workspace` is the finished tree.
 
@@ -101,6 +105,22 @@ should pass `--label "<image>@<digest>, task <id>"`.
 
 ## 4. Known biases
 
+- **Harness timeouts, not engine slowness.** A task that needs a long-lived process can strand the
+  model inside the 60 s `run_shell` cap; the harness then kills the call and recovery costs five more
+  turns. Measured on `stub-service-client` (2026-11-18, `head:~/benchmarks/picom-prod-20261118/socket-repro-20261118/`):
+  both arms were bimodal — picom exact 12.8 / 13.1 / 12.8 s fast against 109.8 / 120.2 / 75.3 s slow,
+  picom `PICOM_OEA=4,12,9` 12.6 / 13.2 / 14.8 s against 76.9 s — and every slow draw's
+  `.wire.jsonl` holds 5–7 `error: command timed out after 60s` lines against zero in every fast draw.
+  Engine time inside a 110 s cell was 2–3 s (`ttft` 0.10–0.33 s, 130–160 tok/s), and `rerun-20261118/`
+  reproduced it: all three lossy runs carried 7 such lines against 0 for the exact arm, so that
+  boot's "~50 % arm difference" was this path, not `PICOM_OEA`. Mitigation: the task ships
+  `start_stub.sh`, which daemonises the service, waits for its port and returns at once, and the
+  checker starts it before the turn loop and kills its process group after, so no turn can block in
+  `accept()`; a polluting run is marked `PASS*`/`FAIL*`, carries `polluted: true` and
+  `harness_timeouts` > 0, and the run summary prints "N/M runs polluted". The 60 s cap stays a single
+  constant (no per-task override) because the blocker was a foreground `accept()`, not a legitimate
+  slow command: the marker protects the comparison, not the budget. **No arm comparison may be drawn
+  from a run whose tasks are polluted** — re-run it.
 - **Three minimal tools.** Shell-only models are not penalised for lacking a structured editor, but a
   serve that formats large `write_file` arguments badly pays for it — the schema is small on purpose.
 - **English prompts, small tasks.** Each task fits one context with room for several turns; nothing
@@ -148,8 +168,9 @@ echo, thinking channel, prefix-cache accounting) — the battery sends the same 
 and grading). Receipt `head:~/benchmarks/agentic-battery-20261118/knapcio-v2/`, whose `summary.json`
 carries `"max_tokens": 4096`, `"tier": "all"` and each task's tier. An earlier run of this same set
 took 171.7 s because the model held the stub task in a foreground shell call until the 60 s tool
-timeout and then retried; that is model behaviour, not a harness stall, and it is visible per turn in
-`<task>.wire.jsonl`. Under two minutes buys repeats in a window.
+timeout and then retried; that is the pollution §4 names — `harness_timeouts` counts it and the task
+line is now marked `FAIL*`/`PASS*`, so a reader cannot mistake it for engine slowness. Under two
+minutes buys repeats in a window.
 
 Nothing failed, so this row is a floor for the comparison rather than a separation: the hard checkers
 are built to fail a patch that passes the visible suite (a local copy left behind, a rounding shortcut,
