@@ -14502,9 +14502,12 @@ byte-identical here and on the head: one lease, `session:picom-rerun-20261118`, 
 `rerun-20261118`, window `picom-rerun-20261118`, hosts `.31`–`.34`, issued
 `09:46:59Z`, ttl 21600 s → expires `15:46:59Z`, `proof: []`. The ledger keeps no
 history, so a release and a re-take both happened between `09:07:24Z` and `10:03:01Z`.
-The lease's own label names a rerun and `~/benchmarks/picom-rerun-20261118/` does not
-exist; the task it covers is the production arm's recipe, so **what the holder is
-measuring is unverified** and stays the holder's to record.
+The label names a rerun whose receipt sits under the picom-prod tree rather than a
+`picom-rerun` root: `~/benchmarks/picom-prod-20261118/rerun-20261118/boot1-knapcio/`
+carries this task id in `task-id.txt`, `ready.txt` `09:59:49Z` (**732 s** from
+`StartedAt`) and a watchdog of **55 `loading`** samples then one `healthy` — so what the
+holder measured is recorded, and the absent same-named root was not evidence of
+anything.
 
 **Three of this tick's own instruments failed before anything published.**
 (1) The first campaign scan used a one-level glob and reported "1 root"; `find
