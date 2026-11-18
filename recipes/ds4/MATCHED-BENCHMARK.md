@@ -57,7 +57,7 @@ plain loop, which engages above batch 8.
 
 If a later window wants the control, it is a **real second recipe per side**, not an `-o`
 override, and it must gate on a boot line proving drafting is off — silently dropping an
-unknown argv token is this launcher's documented failure mode (P `:62-63`).
+unknown argv token is this launcher's documented failure mode (P `:59-60`).
 ### Prefill chunking
 
 Equal already: picom `--prefill-rows 16384` (P `:70`), SGLang `CHUNKED_PREFILL_SIZE`
@@ -81,7 +81,7 @@ finding about the guard, not a ceiling failure, and no cell is voided by it.
 
 Not equalizable. SGLang runs a radix cache with `--enable-cache-report`
 (launcher.py:268,464-468) and the ladder profile asks for `prefix_caching: true`
-(benchmarking/concurrency-ladder.yaml:9); picom matched on shared *text* prefix with a
+(benchmarking/concurrency-ladder.yaml:16); picom matched on shared *text* prefix with a
 64-byte minimum and logged `reused 0 (cold)` on all 88 of the `picom-ladder-20261117`
 2048-token requests, so the same profile flag is not the same behavior.
 
@@ -92,7 +92,7 @@ served warm from run 2 onward.
 ### Weight representation
 
 Structurally different and staying that way: picom converts each rank once to a 72.38 GiB
-`.dsw` and packs 50.7 GB of Engram on that rank's SSD (launch.sh:20-27); SGLang serves the
+`.dsw` and packs 50.7 GB of Engram on that rank's SSD (launch.sh:27-31); SGLang serves the
 native MXFP4 checkpoint with its Engram re-packed on NVMe. Both pins are the same
 checkpoint revision `08c8657f…` (P `:9`, S `:18`), so "same model" means **same checkpoint
 bytes, different on-disk representation**. What bounds the claim is text identity, not
@@ -127,7 +127,7 @@ Out of the grid, and why:
   apples-to-apples window.
 - **No `-o` overrides.** The four boots run the recipes as shipped, so nothing depends on
   an override reaching the engine (benchmarking/README.md rule 8). The single exception is
-  `-o env.PICOM_RANK_TAILS=31,32,33,34`, which the recipe requires on P (P `:60`).
+  `-o env.PICOM_RANK_TAILS=31,32,33,34`, which the recipe requires on P (P `:50`).
 - **No full BFCL leg.** The scoped 100-question leg already reads 87/100 both and
   separates nothing; it is named as unsettled instead of spent here (section 8).
 ## 3. One instrument
@@ -211,25 +211,6 @@ grep "prompt 2048" /cache/runtime/picom/logs/rank.0.log | grep -vc "reused 0 "
 It must print 0. A non-zero line means the ladder measured a warm prefix and the decode
 rows are not cache-free.
 
-Two boots per arm, order `P, S, S, P`. A cross-arm delta is quoted only when both boots of
-one arm lie on the same side of both boots of the other, and the smallest gap between the
-arms' per-boot numbers exceeds the larger of that arm's own boot-to-boot drift and
-**10 %** — above the best observed same-arm reproduction, inside the documented 7–25 %
-inter-boot floor (benchmarking/README.md, "Noise").
-Observed spreads to judge the bound by: the paired window's ladder CVs ran 1.7–9.2 % on
-nine of twelve tg rows, and `L2`'s C1 at 20.8 % is the kind of cell this rule rejects.
-
-Same-arm cross-boot drift to judge against, from the ladder receipts: exact picom C1 83.4
-(`phase5`) against 77.3 (`E2`) = **7.3 %**; lossy 87.1 against 91.3 = **4.6 %**; knapcio
-64.8 (`rerun-20261118/boot1-knapcio`) against 66.9 (`K2`) = **3.2 %**.
-The coldness row is one command on the rank-0 engine log of each picom boot:
-
-```bash
-grep "prompt 2048" /cache/runtime/picom/logs/rank.0.log | grep -vc "reused 0 "
-```
-
-It must print 0. A non-zero line means the ladder measured a warm prefix and the decode
-rows are not cache-free.
 ## 6. Ordering, drift, and what invalidates a delta
 
 Two boots per arm, order `P, S, S, P`. A cross-arm delta is quoted only when both boots of
