@@ -28,7 +28,7 @@ metadata:
   model_params: "552B"
   model_dtype: mxfp4
   kv_dtype: fp8
-  tags: ds4, reasoning, agent, large_context, vision
+  tags: ds4, reasoning, agent, fast, large_context, vision, tools
 mods:
   - "mods/picom-launcher"
 executor_config:

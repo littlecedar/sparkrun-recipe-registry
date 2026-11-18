@@ -30,7 +30,7 @@ metadata:
   model_params: "552B"
   model_dtype: mxfp4
   kv_dtype: fp8
-  tags: ds4, reasoning, agent, large_context, vision
+  tags: ds4, reasoning, agent, fast, large_context, vision
 mods:
   - "mods/picom-launcher"
 executor_config:
@@ -66,11 +66,11 @@ env:
     --draft-head4 --draft-markov8 --setenv DSGB10_HEAD4_C1=1
     --setenv DSGB10_CF_ALPHA=1.0 --setenv DSGB10_CERT=1
     --prefill-rows 16384 --snap-every 2048
-# `4,12,9` is a batch-aware, lossy MoE re-route (moe.cu:1452-1455): measured
-# +7.4 % at C5 and +8.0 % at C10 on one boot per side, −2.7 % at C1 inside its
-# spread. No measured accuracy cost on the lane's cells — house 37/37 both,
-# needles 3/3 at 32k and 131k both, a 40K-token generation byte-identical to the
-# exact arm's — but that is not a quality guarantee beyond those cells.
+# `4,12,9` is a batch-aware, lossy MoE re-route (moe.cu:1452-1455): the shipped
+# pair's own boots read +5.4 % at C5 and +4.0 % at C10, C1 +4.5 % inside the
+# spreads, one boot per side. No measured accuracy loss on this lane's cells —
+# house 37/37, needles 3/3 at 131k and PASS at 983,040 — but one agentic battery
+# boot came out 12/13 (`shell-repro-rounding`, which passed on two other boots).
   PICOM_OEA: "4,12,9"
 # The vision encoder as part of the serve: the checkpoint's own ViT on rank 0,
 # ~1 GiB of its GPU; 0 = off and image requests then answer 400.

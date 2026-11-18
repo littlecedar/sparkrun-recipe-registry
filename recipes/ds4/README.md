@@ -2110,8 +2110,8 @@ verify-route build/probe and the blocked-serve record in
 
 ### Measured: depth-0 ladder and standard suite (2026-11-17)
 
-The cells below are the shipped probe's; the production pair's confirmation boots write
-their own cells under `head:~/benchmarks/picom-prod-20261118/` and are not measured yet.
+The cells below are the shipped probe's; the production pair's confirmed cells are in
+§Production arms, lower in this section.
 
 One boot, `benchmarking/ds4-sglang-depth0-ladder.yaml` (depth 0, pp 2048, tg 128, 3 runs,
 `PICOM_VISION=0` for the comparable cell), all runs cold — no prefix reuse on any 2048-token
@@ -2402,16 +2402,26 @@ The pair that serves. Both are this image digest (`1e529c67…`), 1M context, 16
 (4 big), `PICOM_MAX_TOKENS=262144`, and the shipped engine argv plus
 `--prefill-rows 16384 --snap-every 2048`; the endpoint needs the bearer key rank 0
 writes under `/cache/runtime/picom/run/api-key`, while `/health` is keyless. Receipt
-root `head:~/benchmarks/picom-prod-20261118/`.
+root `head:~/benchmarks/picom-prod-20261118/`; each boot's lane cells are its own
+`phase5/` or `phase6/` directory of that root.
 
 - `deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` — the exact arm, strictly lossless
-  (`PICOM_OEA` empty).
+  (`PICOM_OEA` empty). Confirmed 2026-11-18 on its own boot, 5-run concurrency ladder
+  (d0, pp 2048, tg 128): **C1 83.4, C2 90.8, C5 111.5, C10 129.2** tok/s
+  (`phase5/ladder.csv`); agentic battery **13/13** (median 10.0 s, worst 25.4 s,
+  total 130.1 s), house **37/37**, needle **3/3** at 131,072 in 12.1 s and the
+  983,040-token prefill **PASS** in 97.1 s (980,868 prompt tokens).
 - `deepseek-v4.1-flash-1017-picom-tp4-1m-oea.yaml` — identical plus
-  `PICOM_OEA=4,12,9`, the lossy batch-aware MoE re-route: +7.4 % at C5 and +8.0 % at
-  C10 on one boot per side, −2.7 % at C1 inside its spread, and no measured accuracy
-  cost on this lane's cells (house 37/37 both, needles 3/3 at 32k and 131k both, a
-  40K-token generation byte-identical to the exact arm's) — not a guarantee beyond
-  those cells.
+  `PICOM_OEA=4,12,9`, the lossy batch-aware MoE re-route. Same ladder on its own
+  boot: **C1 87.1, C2 90.9, C5 117.6, C10 134.4** tok/s (`phase6/ladder.csv`), i.e.
+  **+5.4 % at C5 and +4.0 % at C10** and C1 +4.5 % against the exact boot — one boot
+  per side, not a repeated measurement. Accuracy on that boot: agentic **12/13** —
+  `shell-repro-rounding` failed its hidden `sum(shares) == due` sweep while the
+  visible suite and repro passed, with no truncation and no invalid arguments, and
+  the same task passed on the exact boot and on the earlier OEA boot, so it is one
+  miss on one boot and not an arm property — house **37/37**, needles 3/3 at 131,072
+  and PASS at 983,040. No accuracy loss was found on the house or needle cells; that
+  is not a guarantee beyond them.
 
 The three `zz-ds4-1017-picom-*` arms below are the experiment record that selected
 this configuration; the production pair supersedes them for serving.
