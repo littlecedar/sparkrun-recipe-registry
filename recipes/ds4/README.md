@@ -47,6 +47,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
   - [Open boot gates](#open-boot-gates)
   - [Probe arms: prefill chunk budget and Engram read batch (authored 2026-11-17; rows queued in the register, neither booted)](#probe-arms-prefill-chunk-budget-and-engram-read-batch-authored-2026-11-17-rows-queued-in-the-register-neither-booted)
   - [License](#license-2)
+- [picom vs knapcio: one model, two engines on four GB10s](#picom-vs-knapcio-one-model-two-engines-on-four-gb10s)
 - [External stack: spark-ds41f (survey, 2026-11-08)](#external-stack-spark-ds41f-survey-2026-11-08)
 - [Upgrade candidates (measured elsewhere, not queued)](#upgrade-candidates-measured-elsewhere-not-queued)
 - [Quality benchmarks](#quality-benchmarks)
@@ -2189,6 +2190,9 @@ in both), tool calls. Boot A re-converted weights and Engram (its cache marker r
 TTR 166.4 s against B's cached 27.7 s, so that readiness delta belongs to the cache, not to OEA.
 
 ### Measured: one instrument, both engines (2026-11-17)
+
+The engine-by-engine comparison — axis table, mechanisms, and what is not comparable — is
+[`PICOM-VS-KNAPCIO.md`](PICOM-VS-KNAPCIO.md); this section stays the lane's own measurement record.
 
 The same script on both arms — upstream's `tools/bench/bench.py`, sha256 `4aff8517…b97967`, byte-identical
 in both receipts — `distinct 16`, 512 output tokens, greedy, thinking off, a random prefix per request so the
