@@ -14921,3 +14921,17 @@ re-proved independently of `findmnt` (units `active`, `Result=success`,
 up to `/`.
 
 Captures lived in `.scratch/tick-1001b-3432196/` (git-ignored, removed).
+
+## 2026-11-18 10:50 ET — RoCEnante is the engine's own name, not letter salad
+**`RoCEnante` is a real token.** It is the engine's own name for the SGLang
+lane's RDMA one-shot all-reduce/all-gather, and the serve log prints it:
+`RoCEnante ready: world=4 hcas=roceP2p1s0f0,rocep1s0f0 gid_index=3 max_size=2097152`.
+The same family of logs also carries the transport token
+`RoCEv2 gid index 3` — a different thing: `RoCEv2` is the link-layer version,
+`RoCEnante` the collective mechanism running on top of it.
+`e25e099` replaced the name with `RoCEv2` on a false reading of letter salad;
+`ae2f6f6` restored it, so that subject is wrong and the tree is right.
+**Rule:** a dictionary or spell scan cannot distinguish an engine's coined
+identifier from corruption — grep the engine's serve logs before sweeping a
+token across the tree, and never sweep a token that appears inside a quoted log
+line or a frozen `attic/` archive.
