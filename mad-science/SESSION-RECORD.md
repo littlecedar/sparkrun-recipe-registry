@@ -13831,4 +13831,55 @@ Raw captures (`census.txt`, `node.sh`, `driver.sh`, `compose.py`, `board.md`, `b
 The commit carried `1 file changed, 34 insertions(+)` — this section and nothing else, so no peer's
 half-written ledger text rode along.
 
+## 2026-11-17 19:12 ET board tick — one unaccounted four-rank launch in an otherwise idle hour
+
+**What landed.** `11ecb9d` (board refresh on the `18:12 ET` base), pushed as `5fe1a46..11ecb9d`;
+`tools/push-gate.py` green on `HEAD 11ecb9de` before the push. The commit carried `1 file changed`
+— the board and nothing else. The 5 commits the base did not carry (`a705b30`, `f31c0cd`,
+`c6e7ed0`, `1dd4a82`, `5fe1a46`) are folded from their own subjects.
+
+**The hour's reads.** Census `00:02:32Z`–`00:02:34Z` on `2026-11-17T23:03:18Z`–`00:02:32Z`:
+`docker ps -aq` **0**, running **0**, volumes **0**, `:8000` **0** on all six nodes. The event
+instrument again did not return zero everywhere: `.30` and `.35` read **0 B**, `.31`–`.34` read
+**369,727 / 369,728 B and 255 lines** each — the base's own window had carried two picom boots, this
+one carries a single launch.
+
+**That launch, bounded rather than identified.** The lines name one container per rank,
+`sparkrun_b020d2dd178343a5_8f5130842aa0_node_{0..3}`, image
+`littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` (id `3f4480818acb`) — the canary the queued
+`fleet-boot-without-lease-record` row already names for this host set. Earliest retained event is
+the rank children's `python3 -S /opt/dsv41/boot.py health` at `23:32:01Z`; `health_status: healthy`
+lands `23:35:10Z`; `kill`/`die`/`destroy` land `23:39:43Z`–`23:39:45Z`. Docker's event ring has
+rolled the `create`/`start`, so the launch's first second is bounded only by
+`(23:03:20Z, 23:32:01Z]` — the base board's own read found the fleet empty at `23:03:20Z`.
+Accounting: ledger `34eed267…` is `leases: []` and `fenced: []`, byte-identical here and on the
+head; no `.local/fleet-window.lock` in this clone or on the head's; no receipt under
+`~/benchmarks` newer than `2026-11-17T23:00Z` at depth 3; the campaign unit is `inactive` with
+`MainPID 0`; and `sparkrun logs b020d2dd178343a5_8f5130842aa0` answers *no job metadata*, so
+sparkrun itself cannot say how it was launched. Issuer **unidentified**; the discriminator that
+would settle it — the head's auth log (or the launching shell's history) for `23:31Z`–`23:32Z` —
+has not been run.
+
+**Pool, campaign, register.** Through-mount reads on the head at `00:10:36Z`: 103 hub entries, both
+`deepseek-ai/DeepSeek-V4.1-Flash-1017` snapshots' `config.json` **3,311 B**, `df -B1` used
+**14,168,897,355,776 B** (+163,053,568 B on the base's pair) against the six roots' own avail net
+**-149,417,984 B** (`.30` -17,022,976 · `.31` -23,322,624 · `.32`/`.33` -31,653,888 ·
+`.34` -23,531,520 · `.35` -22,233,088); the two series differ by **13,635,584 B**, quoted as
+arithmetic with no mechanism claimed. `beegfs-meta` on `.31`–`.35` advanced +681/+681/+681/+682/+681
+over 3,482 s — **5.11 s** per restart, the known loop, storage `active` fleet-wide. Campaign: 49
+`state.json` paths decomposing 9 real files / 9 roots / 38 arms, **0 leases** with a future epoch
+`expires_at`, the 40 extra paths aliasing one inode through `h2h-20261107/tp12-window -> .`.
+Register snapshot `e5e8445b…` unchanged at **198 tasks / 41 open / 0 claims**, `check` rc=0, both
+queue blocks byte-identical to the base's; the file is still dirty against `origin/main`
+(`ab4cd961…` at tip), so the published table shows rows no commit carries yet.
+
+**Two probe defects caught before they reached the board.** The copied per-node probe read `W`/`U`
+from an unexported shell variable, so its first pass logged `evbytes=0 evlines=0` from an unbound
+variable — the exact shape of a silent empty census; re-run with the window interpolated into the
+`ssh` command it returned the 255 lines above. The copied head probe still named
+`models--nvidia--DeepSeek-V4.1-Flash-1017`, a repo that does not exist in the hub, so its snapshot
+`config.json` stats read `none`; corrected to `models--deepseek-ai--…`, both snapshots stat
+**3,311 B**.
+
+
 
