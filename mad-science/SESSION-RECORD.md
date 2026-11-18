@@ -14351,3 +14351,64 @@ Captures stay in `.scratch/tick-0200-734219/` (`census.sh`, `census.out`, `queue
 `graph.md`, `board-table.md`, `base.md`, `base2.md`, `board.md`, `compose.py`,
 `head-leases.json`). Nothing on the fleet was touched beyond reads; no file was written on
 any node.
+
+## 2026-11-18 08:19Z close-out — board tick 03:15 ET: the quartet was evicted for a leased picom window
+
+**Two passes, because the fleet moved between them.** Pass A `08:03:01Z`–`08:03:04Z` read
+every node at `docker ps -aq` **0** and volumes **0** — a genuine four-second gap between
+containers, not an idle fleet. Pass B `08:07:16Z`–`08:07:19Z` read the successor: one
+container on each of `.31`–`.34`, `sparkrun_58cddf1c62ba6578_b2aaddef7ada_node_0…3`, image
+`ghcr.io/littlecedar/dgx-picom-ds41f@sha256:1e529c67…` (id `986795bcd7f4`), `StartedAt`
+`08:03:05.9…Z`, recipe `recipes/ds4/zz-ds4-1017-picom-out256k.yaml`.
+
+**Displacement by event.** `docker events` over `07:07:58Z`–`08:03:01Z` per rank:
+production knapcio `sparkrun_b020d2dd178343a5_9cdb266b5e0d` (image id `3f4480818acb`,
+`StartedAt` `05:50:15Z`) **kill `07:42:25Z`, destroy/die `07:42:27Z`**; picom boot #1
+`…_9aea1006d19f` **create/start `07:43:15Z`/`07:43:16Z`**, **kill/destroy `07:58:46Z`/`07:58:47Z`**;
+picom boot #2 `…_b2aaddef7ada` **create/start `08:03:05Z`/`08:03:06Z`**. The two cycles of
+"production quartet unleased and unfenced" therefore close by eviction, not by a fence: no
+fence record was ever written for it. `phase1/post-eviction.txt` in the peer's receipts root
+(`/home/red/benchmarks/picom-prod-20261118/`) is the same event from the evicting side and
+states the `07:42:41Z` status that followed.
+
+**Readiness evidence, and its limit.** The picom image ships **no `curl`** and declares **no
+HEALTHCHECK**: the census's in-container `/v1/models` probe fails `exec: "curl": executable
+file not found`, and `docker inspect` has no `.State.Health`. Readiness is therefore a
+head-side `curl http://.31:8000/v1/models` → **401 invalid API key** (the server is serving
+and demanding auth) plus the run's own watchdog line `verdict=healthy endpoint=ok
+serve_pid=alive ranks=4` at `t=1s`. The census's `[s]glang.launch_server` pattern reads **0**
+on every rank — the wrong probe for a picom-launcher engine, so no serve-child number is
+reported at all rather than a misleading zero. `.31` carries 2 `:8000` listeners, other ranks 0.
+
+**Lease.** `.local/fleet-leases.json` sha `c460d3de…`, byte-identical here and on the head,
+now carries one live lease: holder `session:picom-prod-20261118`, arm
+`zz-ds4-1017-picom-out256k`, hosts `.31`–`.34` (`.30` **not** in the set), window
+`picom-tp4-prod-20261118`, issued `1794987722.811` (`07:42:02Z`), `ttl` 43,200 s → expires
+`1795030922.811` (`19:42:02Z`), `proof: ["phase1"]`. `fenced: []`; no `.local/fleet-window.lock`
+on either side.
+
+**Pool.** Head units mgmtd/meta/storage `active`, meta `NRestarts` 0; `.31`–`.35` meta loop
+`NRestarts` `104,193`/`104,195`/`104,197`/`104,195`/`104,178`, +681…683 each in 3,559 s
+(~5.22 s per restart, prior 5.214 — rate held). Same-pass pair `08:07:19Z`: mount `used`
+**14,168,028,086,272 B** against six roots' **14,168,028,114,944 B**, residue **−28,672 B**;
+mount **−238,026,752 B** on the base's pair with roots' net **−237,875,200 B** — the boot
+swap's disk churn, no mechanism claimed. 103 hub entries; both ds4 `config.json` 3,311 B.
+
+**Register and campaign.** `queue.json` sha `1b147195…` unmoved (200 tasks, 156 done /
+36 queued / 8 blocked, 44 open, 0 claims), `check` rc=0, both blocks rendered from one
+snapshot taken at read time. Campaign scan `08:05Z`: 21 `state.json` in 21 inodes, **9**
+campaign roots holding **38 arms / 0 lease objects / 0 future `expires_at`** — the first
+counting attempt reported 998 arms because it summed the nested `tp12-window` copies; the
+per-root top-level `state.json` is the right unit, and `picom-prod-20261118` is a benchmark
+dir, not a campaign root. `h2h-20261107/tp12-window` is still a symlink to `.`.
+
+**Publication.** Base = the `02:20 ET` board (content `5cafbeba…`, git blob `1621080f…`);
+disk, `HEAD` and `origin/main` carried the same blob at read, and the board blob stayed
+identical across `origin/main` `e92c9db`→`e1cc387`, so `--expect-sha` and
+`--expect-remote-sha` both passed on the first `publish`. Landed rows fold `e06e7e3`,
+`e92c9db`, `8109ecf`, `e1cc387` and the displacement measurement. `push-gate` green at
+`HEAD 140a8a6`; pushed `e1cc387..140a8a6` as a fast-forward.
+
+Captures were removed after publish (`.scratch/tick-0300-2831139/`). Nothing on the fleet
+was touched beyond reads; no file was written on any node, and the live picom workload was
+not signalled.
