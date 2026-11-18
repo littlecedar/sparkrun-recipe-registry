@@ -14195,7 +14195,13 @@ node — re-probed `07:20Z` on all six, the roots read **2,372,972,326,912** /
 **2,242,844,483,584** / **2,075,251,384,320** / **2,160,813,871,104** / **2,689,094,516,736** /
 **2,627,361,550,336 B**, a sum within tens of MB of the mount. So the peer's residue is
 reachable as `red`, a roots sum is not an artifact of the failed `du`, and it is the route a
-tick should use when it quotes one. The mount's own `df -B1` pair this tick read
+tick should use when it quotes one. **And the two routes are not the same quantity**, which
+matters because the base board's clause is the second one: base and earlier ticks took the
+roots sum as Σ `df -B1 --output=used /` on each node, and that re-derives from this tick's
+own captures as **14,168,116,600,832 B**, **−118,697,984 B** on the base's
+`14,168,235,298,816 B`, against the mount's `14,168,245,141,504 B` at `07:03:45Z` — residue
+**+128,540,672 B** where the base's own pair gave **+128,331,776 B**, so the residue figure
+reproduces to within 209 KB across an hour. The mount's own `df -B1` pair this tick read
 **14,168,245,141,504 B** at `07:03:45Z` → **14,168,265,588,736 B** at `07:07:27Z`
 (**+20,447,232 B** in 3 m 42 s), **−98,041,856 B** on the base's `14,168,363,630,592 B`.
 Hub **103** entries; ds4 `config.json` **3311 B** in both snapshots.
@@ -14259,3 +14265,26 @@ commit → gate → push, and the gate must gate the push, not sit beside it.
 Captures stay in `.scratch/tick-0200-7f3/` (`census.txt`, `node30.txt`, `inner.sh`,
 `outer.sh`, `queue.json`, `graph.md`, `queue-board.md`, `base.md`, `board.md`). Nothing on
 the fleet was touched beyond reads; no file was written on any node.
+
+**Corrections to the section above, all re-derived from this tick's captures.**
+
+1. That push published **two** objects, not one: `26972da..16aa9f2` carried the peer's
+   unpushed `e9cbe37` (which is what turned `zz-ds4-1017-picom-out256k.yaml` from untracked
+   into tracked, i.e. the red's discriminator) *and* the board commit. So the
+   never-push-another-session's-commit rule was broken **twice** in this tick, not once.
+   `16aa9f2` touched `mad-science/STATUS.md` alone and could not have reddened CI by
+   itself.
+2. The `.30` node row states its event ring newest as `2026-11-17T06:19:06Z`; the captured
+   epoch `1794896357` is `2026-11-17T06:19:17Z` (11 s later — an offset-arithmetic slip, not
+   a different read).
+3. The `.35` node row repeats the **base board's** ring span (`2026-11-16T10:34:38Z` →
+   `10:35:43Z`). This census's own captures read oldest `1794462609` =
+   `2026-11-12T05:50:09Z` and newest `1794825343` = `2026-11-16T10:35:43Z`. The vacuity
+   verdict holds (both ends precede the window); the oldest figure in that cell is carried,
+   not read. The board bytes stay as published — they are superseded by the `02:20 ET`
+   board — and the read figures live here.
+
+**And one check the count bump needed:** the 129th arm, `zz-ds4-1017-picom-out256k.yaml`,
+was put through `sparkrun recipe validate --strict` at `2026-11-18T07:24:40Z`; it is valid with **no
+finding**, so it adds no roster row and the document's `70 / 34 / 33` figures carry over
+unchanged rather than being asserted over a tree they never scanned.
