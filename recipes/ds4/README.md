@@ -2344,9 +2344,12 @@ closed on a wrong tail count.
 Hard preconditions, each a start gate the 2026-11-17 smoke depended on (the receipt records the engine
 starting under them, not a per-condition probe): one IPv4 per netdev;
 `GID_INDEX=3` matching the RoCEv2 IPv4 GID on all four devices; all four `PREV_IP0`s in one
-L2 domain (the QP's `hop_limit` is 1); jumbo frames plus PFC/ECN on the switch; `kho=off`
-(already fleet-wide); ≥100 GiB `MemAvailable` after the page-cache drop. The `hop_limit` and
-jumbo/PFC-ECN clauses are pending a probe, not measured (queue `ds4-fabric-clauses-probe`).
+L2 domain; `kho=off` (already fleet-wide); ≥100 GiB `MemAvailable` after the page-cache drop.
+The 2026-11-18 fabric probe
+(`head:~/benchmarks/picom-prod-20261118/paired-20261118/fabric-probe/`) confirmed jumbo frames
+(MTU 9000 on both RoCE netdevs, pause frames on) and found PFC disabled on all eight priorities,
+so the flow-control clause is withdrawn, not stated; switch-side PFC/ECN was never obtained (no
+switch access) and the picom QP `hop_limit` has no readable surface.
 
 ### Open boot gates
 

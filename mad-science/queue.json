@@ -3245,12 +3245,12 @@
       "estimate_h": 1.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "",
       "node_cost": "",
-      "notes": "recipes/ds4/README.md:2344-2349 fabric contract lists two hard preconditions the 2026-11-17 smoke never probed: 'jumbo frames plus PFC/ECN on the switch' and '(the QP hop_limit is 1)'. Probe three facts, read-only: (1) RoCE device MTU from ip -d link show on a rocep*/roceP* interface on the ranks the ring rides (expect 9000 if jumbo holds); (2) switch-side lossless config (PFC/ECN) - host-side evidence (dcb pfc show, /sys/class/net/<dev>/ecn/roce_np or equivalent peer counters) only if the switch is not reachable, and the notes must say which of the two was obtained; (3) picom QP hop_limit engine-side - a log line or a config read from the launcher/engine, never an inference from topology. No boot required for MTU and QOS parts; scope is read-only on the cluster (ip/dcb/sysfs reads and log reads, no sparkrun/docker boot). Acceptance: the clause becomes a stated fact only if the probe output is recorded in a receipt and quoted beside it in README; otherwise the clause is deleted and the surrounding sentence keeps its other preconditions. Unverified acceptance must not be papered: an absent switch is recorded as host-side-only evidence, not as a pass.",
-      "provenance": "recipes/ds4/README.md:2344-2349 §Fabric contract (hard preconditions); operator decision 2026-11-18 in ViBoard thread t1",
-      "evidence": "",
+      "notes": "Resolved 2026-11-18 as delete, not state: the probe did not back the two clauses, so both were removed from recipes/ds4/README.md 2344-2352 rather than promoted to facts. What it settled: jumbo frames confirmed - MTU 9000 on both RoCE netdevs (enp1s0f0np0, enP2p1s0f0np0), maxmtu 9978, RDMA links ACTIVE, ethtool -a RX/TX pause on; PFC disabled on all eight priorities per mlnx_qos (DCBX OS-controlled, priority trust pcp), so the flow-control precondition is withdrawn. Not obtained: switch-side PFC/ECN (switch unreachable from the hosts) and the picom QP hop_limit (no log line, env var, script or binary string exposes it; /cache/runtime/picom/run/ holds only api-key, engine.sock, front.admin). Receipt: head:~/benchmarks/picom-prod-20261118/paired-20261118/fabric-probe/",
+      "provenance": "recipes/ds4/README.md section Fabric contract (hard preconditions); operator decision 2026-11-18 in ViBoard thread t1",
+      "evidence": "head:~/benchmarks/picom-prod-20261118/paired-20261118/fabric-probe/",
       "claimed_by": "",
       "claimed_at": ""
     }
