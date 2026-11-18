@@ -40,7 +40,7 @@ interleaved.
 | Tool calling, scored | either | BFCL scoped 87/100 both, `transport_errors` 0, per-category 19/17/17/20/14 vs 19/17/18/19/15 | tie; 100 of 1,240 questions |
 | Million-token context | either | 983,040 needle PASS at depth 10 on both shipped arms | PASS measured; decode unmeasured |
 | Vision | knapcio | native in-engine stack; picom needs a supervised child | functional on both, no cost cell |
-| Long-form generation | picom | 40,000 tokens in 207.9 s (192.4 tok/s) under a 262,144 cap | measured on picom; knapcio names 32,768 and enforces neither bound |
+| Long-form generation | picom | 40,000 tokens in 207.9 s (192.4 tok/s) under a 262,144 cap | measured on picom; both engines cap at 262,144, but picom binds a long request to one of four big slots while SGLang spends 4.5 % of a shared KV pool |
 | Restart-sensitive work | picom | 27.7 s warm-cached vs 708.4 s cold | one boot each, not like-for-like |
 
 ## Architecture
@@ -126,7 +126,7 @@ table once read a harness timeout as an engine property (section 3, old fixture'
 | axis | knapcio (SGLang) | picom (dsgb10) |
 |:--|:--|:--|
 | Context budget | 1,048,576 served (`--context-length` from `defaults.max_model_len`); KV pool profiled at boot and pinned to 6,849,792 tokens on the stock loader under `MEM_FRACTION_STATIC` 0.78 (`launcher.py:148,156`, `launcher.py:217-236`) | 1,048,576 for the 4 big slots; the other 12 hold `max_ctx / 8` = 131,072 each (`engine/model/model.cu:79-88`, `kUnitMul` 8 at `engine/model/config.h:39`); no `max_model_len` in the recipe, no KV pool to pin |
-| Output ceiling | **32,768** new tokens, named by the engine's own refusal: `min_tokens` 40000 draws HTTP 400 with `min_new_tokens must be in [0, max_new_tokens(32768)], got 40000`, while `max_tokens` 40000 is accepted silently and the reply self-terminates at 2,001 tokens with `finish_reason: stop`; at 32,768 `min_tokens` is accepted but not enforced (`paired-20261118/K2/ceiling/`) | **262,144** on the production arm (`PICOM_MAX_TOKENS`, `launch.sh:311,324`), which binds each long request to the four big slots — `engine/server/serve.cpp:1195` admits a request only where `prompt + max_new` fits, so a fifth 262k reply queues silently instead of being refused; the front-end's own default stays 32,768 (`frontend/src/main.rs:126`) and clamps a larger value rather than refusing it (`frontend/src/server.rs:522-528`), which is the silent clamp the shipped arm used to report as `finish_reason: length` |
+| Output ceiling | **262,144** new tokens, set by the image's adapter policy rather than the engine: `/opt/dsv41/adapter/encoding_compat.py:42` `DEFAULT_MAX_NEW_TOKENS = 32768`, raised by env `DSV41_MAX_NEW_TOKENS` (`encoding_compat.py:63-71`, 0 = uncapped), which `apply_request_max_tokens()` (`encoding_compat.py:74-93`) applies by filling an omitted `max_tokens` to the cap and clamping a larger one to it — the same silent-clamp shape picom's front end had; `min_tokens` passes through unclamped and is validated against the cap but not enforced. The recipe sets `DSV41_MAX_NEW_TOKENS: "262144"`; `min_tokens` 40000 with `max_tokens` 40000 now draws HTTP 200 (was 400) and the reply self-terminates at 2,001 tokens with `finish_reason: stop` (`head:~/benchmarks/picom-prod-20261118/knapcio-256k/probes/`) | **262,144** on the production arm (`PICOM_MAX_TOKENS`, `launch.sh:311,324`), which binds each long request to the four big slots — `engine/server/serve.cpp:1195` admits a request only where `prompt + max_new` fits, so a fifth 262k reply queues silently instead of being refused; the front-end's own default stays 32,768 (`frontend/src/main.rs:126`) and clamps a larger value rather than refusing it (`frontend/src/server.rs:522-528`), which is the silent clamp the shipped arm used to report as `finish_reason: length` |
 | KV / session memory | one paged KV+SHA pool sized from MemAvailable at boot; fp8 KV; 128 SWA prefix tails reserved inside that budget (`launcher.py:268`, recipe `metadata.kv_dtype: fp8`) | compressed KV + index keys, ~890 B per position across all 40 layers, replicated (`docs/engine.md:90-116`); 12 GiB session-store pool, blocks of 64 KiB, spill to a per-rank 32 GiB disk tier (`docs/engine.md:451-523`) |
 | Scheduler / admission | `MAX_RUNNING_REQUESTS=16` uniform slots; `--cuda-graph-max-bs-decode` follows the same number (`launcher.py:167`, live flags in `head:~/benchmarks/knapcio-live-20261117/README.md`) | 16 slots with 4 big (`--slots 16 --big-slots 4`, `recipes/ds4/mods/picom-launcher/launch.sh:190`); smallest-fit pick, small slots first so big ones stay for long requests (`engine/server/serve.cpp:1198-1205`); more requests than slots take turns of `--slice` 64 tokens (`docs/engine.md:615-700`) |
 | Prefill | chunked at 16384 tokens (`CHUNKED_PREFILL_SIZE`, `launcher.py:178`); decode-between-chunks ships **off** (`PREFILL_DECODE_INTERVAL` 0, `launcher.py:278`) | whole request in `--prefill-rows` chunks: 8192 on the probe arm, 16384 on the shipped arms; decode between chunks not built, so other requests wait one chunk (`docs/engine.md:451-460`) |
@@ -146,13 +146,13 @@ picom front-end read at `7c123ad4` (`frontend/src/server.rs:522-538`, `frontend/
 | axis | knapcio (SGLang) | picom (dsfront) |
 |:--|:--|:--|
 | Defaults when the request omits them | samples: three runs, three distinct answers (`02-defaults.json`) | `temperature` 1.0, `top_p` 0.95, `max_tokens` = its cap, 32,768 with no launcher flag (`frontend/src/main.rs:126,130-131`) |
-| Honored sampling / limits | vendor surface: `temperature`, `top_p`, `stop` (`matched_stop: 1`), `max_tokens` floor-checked with a 400 whose text names the 32,768-new-token ceiling (`paired-20261118/K2/ceiling/`) | `temperature`, `top_p`, `top_k` (approximate past ~256: candidate union capped at 64 logits/rank), `seed` (`mix64(seed) ^ pos`, reproducible), `max_tokens` / `max_completion_tokens`, `stop` (held-back partial tail), `stop_token_ids`, `ignore_eos` (`server.rs:522-545`) |
+| Honored sampling / limits | vendor surface: `temperature`, `top_p`, `stop` (`matched_stop: 1`), `max_tokens` floor-checked with a 400 whose text names the 262,144-new-token ceiling (`head:~/benchmarks/picom-prod-20261118/knapcio-256k/probes/`) | `temperature`, `top_p`, `top_k` (approximate past ~256: candidate union capped at 64 logits/rank), `seed` (`mix64(seed) ^ pos`, reproducible), `max_tokens` / `max_completion_tokens`, `stop` (held-back partial tail), `stop_token_ids`, `ignore_eos` (`server.rs:522-545`) |
 | Silently dropped | none found in the probed set | `min_p`, `presence_penalty`, `frequency_penalty`, `repetition_penalty`, `logit_bias`, `return_token_ids` — hand-written `r.get(...)` list, no unknown-key refusal (`server.rs:522-545`) |
 | Token-id echo | honored: `prompt_token_ids` + `response_token_ids` present (`03-greedy`/probe 3) | ignored: 200 with no ids (`picom-ladder-20261117/preflight-transcript.txt:18,23`) |
 | Thinking / reasoning channel | `chat_template_kwargs.thinking: true` turns it on: non-empty `reasoning_content`, `reasoning_tokens: 25`; the default emits none (`08-reasoning.json`, `09-thinking-true.json`) | the same kwargs select prompt *encoding* only; no reasoning channel is ever emitted, `completion_tokens_details.reasoning_tokens: 0` (`frontend/src/server.rs:510-519`, `frontend/src/main.rs:129`) |
 | Prefix-cache visibility | reports a hit: `cached_tokens: 4608` on the repeat, `null` on the first (`07-long-prefix-cache.json`) | reports 0 and never a hit in our receipts (match needs 64 shared bytes, `session.rs:17`) |
 | Errors | OpenAI-shaped 400 (`BadRequestError` on `max_tokens: -1`); unknown model name served and echoed | 400 with its own message strings; `max_tokens` above the cap is clamped, not refused (`server.rs:523-528`) |
-| Loop guard | none | on by default: truncates 4 repeats of a 32–256-token n-gram, 64 identical tokens, or 8 identical lines (`frontend/src/guard.rs:63-67`; `--no-loop-guard` unset in the launcher) |
+| Loop guard | on by default: `DSV41_LOOP_ABORT` aborts a degenerate reply — a repetition match ended one at 6,136 of 6,232 tokens, a "repeat forever" prompt at 43, a primes list at 256 (`head:~/benchmarks/picom-prod-20261118/knapcio-256k/probes/`) | on by default: truncates 4 repeats of a 32–256-token n-gram, 64 identical tokens, or 8 identical lines (`frontend/src/guard.rs:63-67`; `--no-loop-guard` unset in the launcher) |
 | Against the vendor card (`08c8657f`) | — | matches vendor temperature 1.0, one notch tighter on `top_p` (0.95 vs 1.0); deviates on `max_tokens` (32,768 default and clamp vs ≥256K recommended) only until the launcher's `PICOM_MAX_TOKENS` raises the cap, as the production arm's 262,144 does |
 
 ## 3. The measured cells
@@ -348,14 +348,29 @@ the same 100 questions. Receipts: `paired-20261118/E1/`, `paired-20261118/K1/`.
 
 ### Knapcio output ceiling (probe)
 
-`paired-20261118/K2/ceiling/`, four requests to the same live serve. `max_tokens` 40000 is
-**accepted** — no 400 and no clamp message — and the reply self-terminates at 2,001 tokens with
-`finish_reason: stop` at 152.4 tok/s. `min_tokens` 40000 is **refused** with HTTP 400 in the
-engine's own words, `min_new_tokens must be in [0, max_new_tokens(32768)], got 40000`, which names
-the ceiling: **32,768 new tokens**. At 32,768 both are accepted and `min_tokens` is **not
-enforced** (the reply stops at 2,001 tokens with `stop`). So the ceiling is named, not exercised: no
-32k reply was generated, `max_tokens` above it is accepted silently, and `min_tokens` neither bounds
-the request nor holds a floor.
+`head:~/benchmarks/picom-prod-20261118/knapcio-256k/probes/`, prompt 22 tokens, temperature 0,
+non-streaming, against the live serve with the recipe at `5e7689b`. The 32,768 figure was never an
+engine default: it is the image's adapter policy (`/opt/dsv41/adapter/encoding_compat.py:42`,
+`DEFAULT_MAX_NEW_TOKENS = 32768`), raised by `DSV41_MAX_NEW_TOKENS` (`encoding_compat.py:63-71`,
+0 = uncapped) and applied by `apply_request_max_tokens()` (`encoding_compat.py:74-93`), which fills
+an omitted `max_tokens` and clamps a larger one to the cap. The recipe now sets
+`DSV41_MAX_NEW_TOKENS: "262144"`, so **both shipped engines stand at 262,144**.
+
+The ceiling was exercised, and the control ran first. `max_tokens` 32768 with `ignore_eos: true`
+returns **32,768 tokens, `finish_reason: length`** in 222.9 s (**147.0 tok/s**). `max_tokens`
+262144 with `ignore_eos: true` under the shipped configuration self-terminates at **6,136 tokens,
+`finish_reason: stop`**, the serve log recording `DSV41 loop abort … matched=repetition
+output_tokens=6232 kept=6136`; a "repeat forever" prompt dies at 43 tokens and a primes list at 256.
+Only with a probe-only `-o env.DSV41_LOOP_ABORT=0` does the same 262144 request run to the ceiling:
+**262,144 tokens, `finish_reason: length`** in 1,805.8 s (**145.2 tok/s**).
+
+So the ceiling is 262,144 on both engines and was reached on knapcio, but **a full-262k reply under
+the shipped configuration is not demonstrated** — the loop guard, not the ceiling, ends a degenerate
+reply. `min_tokens` is validated against the cap (`min_tokens` 40000 with `max_tokens` 40000 now
+draws HTTP 200, was 400) and still not enforced (the reply stops at 2,001 tokens, `stop`), so the
+floor is unenforced. KV: the pinned `MAX_TOTAL_TOKENS` 6,849,792 is clamped to an engine-profiled
+**5,909,504 / 5,820,416** tokens on the two boots; a 262,144-token generation is 4.5 % of that pool
+and 16 × 262,144 = 4.19 M still fits. `sglang:num_used_tokens` peaked 236,544 and returned to 0.
 
 ### The old fixture's rows (history)
 
@@ -549,10 +564,15 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
   `completion_tokens` 40,000 and `finish_reason` `length` in 207.9 s (192.4 tok/s) on both
   configurations. Because `engine/server/serve.cpp:1195` admits only where `prompt + max_new` fits,
   every request that budgets 262k needs one of the four big slots, and a fifth waits in `wait_`
-  rather than drawing a refusal or a timeout. Knapcio's own ceiling is now named rather than
-  unknown: **32,768 new tokens**, from the engine's refusal of `min_tokens` 40000, with `max_tokens`
-  above it accepted silently and `min_tokens` unenforced at the ceiling itself — so the engine
-  bounds neither end of a long-form request (section 3, `paired-20261118/K2/ceiling/`).
+  rather than drawing a refusal or a timeout. Knapcio's ceiling is now the same **262,144**, and it
+  is the image's adapter policy rather than an engine default: the `DSV41_MAX_NEW_TOKENS` env knob
+  raises `DEFAULT_MAX_NEW_TOKENS` (`encoding_compat.py:42,63-71`), and `apply_request_max_tokens()`
+  fills an omitted `max_tokens` and clamps a larger one to the cap. Both engines therefore bound the
+  ceiling, and both clamp silently; knapcio refuses a `min_tokens` above the cap, but only the floor
+  is unenforced — `min_tokens` 40000 now returns HTTP 200 and a reply that stops at 2,001 tokens
+  (section 3, `head:~/benchmarks/picom-prod-20261118/knapcio-256k/probes/`). The two still differ in
+  what a long request costs: picom binds it to one of four big slots, SGLang spends 4.5 % of a shared
+  pool.
 - **Prefill chunking is a budget, not a win.** knapcio's 16384-token chunk is 2.35× its 8192 control
   on 1M prefills (`launcher.py:170-178`, `~/benchmarks/tp4-window-20261024/`), and its
   decode-between-chunks feature costs 17–28 % of ladder throughput and therefore ships off
