@@ -14803,3 +14803,33 @@ for the two picom boots above: `grep -rl` for `53694fb117a9`/`fe85dd2b09db` over
 `~/benchmarks` on the head returns **no file**, so they left no per-boot receipt
 in `picom-prod-20261118/` (mtime `07:17 ET`) — consistent with the published
 board's "acquisition leaves no byte once released".
+
+## 2026-11-18 08:13 ET — the 08:00 tick stood down at the publish guard and recomposed on the 08:06 board
+
+Read the board at `13:00:41Z` (content sha256 `69a19e68…`, the `07:12 ET`
+base) and composed on it; `task-queue.py publish` refused with
+`mad-science/STATUS.md on disk is sha256 1052b21e0082, not the 69a19e68e362 this
+board was composed from` — a peer tick had published `2a49521` (08:06 ET) and
+corrected it in `822eefb` inside those five minutes. Nothing was replaced: the
+guard fires before any write, which is the whole point of `--expect-sha`.
+
+The tick then re-fetched, re-read the peer's board as its base and republished
+its own later census (`13:03:23Z`–`13:03:25Z`, 67 s after the base's
+`13:02:16Z`), so the board carries one read and one time, not two.
+
+**The trap it nearly shipped, now measured.** `uptime -s` prints the node's
+**local** time: the probe strings read `2026-11-11 20:02:53` against
+`date -u` `13:0xZ`, so labelling them `Z` puts every boot 5 h early and every
+uptime 18,000 s short — exactly the defect `822eefb` corrected in the peer's own
+08:06 rows, and the same 18,000 s shift this repo's predecessor boards carried.
+The composer now converts each stamp out of `America/New_York` and derives
+uptime from the row's own ISO read (`.30` 561,630 s, `.30`–`.35` within 63 s of
+each other).
+
+The hour's one research boot is accounted for without a retained `create`: each
+rank's event ring holds **256** lines (read on head and `.35`), the boot's own
+82–83 `exec_create`/85–86 `exec_die` health probes fill it, and its oldest line
+is `12:26:55Z`, so `kill 12:38:18Z` → `die`/`destroy 12:38:20Z` is observed while
+create/start are only bounded to `(12:02:39Z, 12:26:55Z]`.
+
+Captures lived in `.scratch/tick-0800-3287140/` (git-ignored).
