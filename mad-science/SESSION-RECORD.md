@@ -15219,3 +15219,16 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   redirect and returns six blank node blocks at rc=0, and
   `{{.Time}}` is epoch seconds, so `ring_oldest` needs `date -d @…` to
   read as a timestamp.
+## 2026-11-18 15:24 ET — four-rank probe of the ceiling boot, and a scope correction to the 15:16 entry
+- This tick's `15:16 ET` entry says the census found "serve child **1** per
+  rank". Only `.31` was probed at `20:08:0xZ`; the other three ranks were
+  read from their container status alone. Correcting the scope adds
+  nothing, because the boot has since answered: probed on all four hosts
+  at `2026-11-18T20:22:38Z`–`20:22:40Z`, every rank of
+  `b020d2dd178343a5_5357c86eb6d8` carries `pgrep -c -f
+  '[s]glang.launch_server'` **1**, docker health **healthy**, and
+  `StartedAt` unchanged at `20:04:11.5xZ`; rank 0 `/v1/models` **200**,
+  ranks 1–3 **404** (the router is on rank 0 only).
+- So the ceiling window's boot reached ready between `20:12:07Z` (rank 0
+  silent, health `starting`) and `20:22:38Z` — an 8–18 min load from
+  `StartedAt`, with no engine-ready line read to narrow it.
