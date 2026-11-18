@@ -15379,6 +15379,52 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   events occupy the same slots, a boot's `create`/`start` can be evicted by traffic unrelated to any
   container — which is why the eviction bound is a bound.
 
+## 2026-11-18 17:10 ET — hourly tick stands down behind the `17:05 ET` board; its own census agrees 26 s earlier
+
+- Composed on the `16:20 ET` board (content sha256 `34a917bd…`, tip
+  `0459cbb`, board blob `ad185721…`). The base moved mid-flight: a peer
+  published the `17:05 ET` board (commit `0288aa4`, content sha256
+  `30c6ed85…`, blob `db55f406…`) while this tick was reading the fleet.
+  Its census (`22:02:46Z`–`22:03:28Z`) begins **26 s** after this tick's
+  (`22:02:20Z`–`22:02:23Z`), and the two passes agree on every state
+  fact they share: `docker ps -aq` **0**, running **0**, volumes **0**,
+  `:8000` listeners **0** on all six hosts; `.local/fleet-window.lock`
+  absent; lease ledger **48 B**, sha `34eed267…`, mtime `20:47:22Z`,
+  `{"fenced":[],"leases":[],"version":1}` on clone and head; register
+  snapshot sha `0b28a919…` (201 tasks — 159 done, 34 queued, 8 blocked,
+  **42 open**); nine campaign roots under `/home/red/benchmarks` carrying
+  **38 arms** and **0 live leases**. **Nothing republished**: a second
+  board three minutes after the peer's would carry no fact theirs lacks,
+  and the peer's In-flight body is correct as published.
+- The window's only container events are already theirs: `.31`'s three
+  one-second picom containers (`intelligent_neumann`, `charming_leakey`,
+  `cool_turing`, image
+  `ghcr.io/littlecedar/dgx-picom-ds41f:ds41f-7c123ad4-pr15-pr7`) at
+  `21:14:26Z`/`21:14:43Z`/`21:14:48Z`, each `create`+`start`+`die`+
+  `destroy` inside 0–2 s. This tick's later window (`21:10:34Z`→
+  `22:02:23Z`) reads the same 21 event lines on `.31` and **0** on every
+  other node, so nothing new ran after the peer's pass.
+- **Second observer, and the pool series interlocks.** This tick's mount
+  `used` reads — `14,060,948,553,728` B `22:02:2x`, `14,060,950,126,592` B
+  `22:04:07Z`, `14,060,951,175,168` B `22:05:57Z` — sit inside the peer's
+  (`14,060,949,078,016` B `22:02:46Z`, `14,060,949,602,304` B `22:03:26Z`).
+  Merged, the five reads are monotone: **+524,288 B per ~40 s**, i.e. a
+  steady ~13 kB/s of pool writes across the whole window with zero
+  research workloads running. Ten reads of one quantity, so the agreement
+  is a consistency check and never corroboration — but the *rate* is a
+  fact neither pass could state alone.
+- Also measured, not on the board: the six nodes' `statfs` on the shared
+  mount in one pass `22:05:55Z`–`22:05:57Z` split into exactly two values
+  one 524,288-byte block apart (**14,060,951,175,168** B on `.30`–`.33`,
+  **14,060,951,699,456** B on `.34`–`.35`), the same single-block skew the
+  merged series shows — the pool was writing while it was being read.
+  And the hub reads **103 entries total / 98 `models--` dirs**, with the
+  ds4 arm's `config.json` **3,311 B** in both snapshots (`08c8657f…`,
+  `1bae0e10…`) through the mount: earlier boards' bare "103 entries" is
+  the *total* count, so the 98 `models--` figure is not a five-entry drop.
+- Deliberately not done: no publish, no board rewrite, no fleet action.
+  The tick's read ran `21:10:34Z`→`22:06Z` and ended in a stand-down.
+
 ## 2026-11-18 16:16 ET — the board's landed table is retired to this ledger, by reference
 - `mad-science/STATUS.md` had grown to 118 KB because every hourly tick
   appended to `## Landed session`, which the board contract forbids: the
