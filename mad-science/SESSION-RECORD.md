@@ -14790,3 +14790,16 @@ fleet. Both traps reproduced here; the pass above is the IP-addressed, `-n`-free
 form.
 
 Captures lived in `.scratch/tick-0700-3202739/` (git-ignored).
+
+**After the push.** Re-read at `2026-11-18T12:19:19Z`, 14 min after this tick's
+census, the fleet is no longer empty: `sparkrun status` on the head shows a
+**knapcio TP=4 quartet** `b020d2dd178343a5_11628c2281a4`, one container per rank
+on `.31`–`.34`, `StartedAt` **`12:17:43Z`** on rank 0 (`.31`) and rank 3 (`.34`),
+image id `3f4480818acb` = `ghcr.io/littlecedar/dgx-spark-dsv41` `canary-roce-aff52fa5`,
+`Up About a minute (health: starting)` at the read. It started **after** the
+`07:12 ET` board's `12:02:36Z` census, so no board row is stale: this is state
+the hour's tick could not have seen, and the next tick inherits it. Also settled
+for the two picom boots above: `grep -rl` for `53694fb117a9`/`fe85dd2b09db` over
+`~/benchmarks` on the head returns **no file**, so they left no per-boot receipt
+in `picom-prod-20261118/` (mtime `07:17 ET`) — consistent with the published
+board's "acquisition leaves no byte once released".
