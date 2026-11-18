@@ -15258,3 +15258,56 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   finding for whoever next clears the board's landed table: **69 of its
   140 sha rows are absent from this ledger**, so the table cannot be
   emptied until they are homed.
+
+## 2026-11-18 16:14 ET — hourly tick stood down behind the `16:10 ET` board; its own census agrees to the second
+- Composed on the `15:22 ET` board (content sha256 `8d525c9c…`, blob
+  `7352c5e7`, tip `51e1e9e`) and read the fleet independently at
+  `2026-11-18T21:03:44Z`–`21:03:47Z`, then found `origin/main` at
+  `b95c5ad` carrying a `16:10 ET` board whose census read
+  `21:02:04Z`–`21:02:06Z` — **98–101 s** before mine. Published nothing:
+  a second board 100 s after a peer's would restate its rows, and the
+  guard's own rule is to compose on the newest published base.
+- Every figure of mine reproduces theirs. All six hosts read **0**
+  containers, **0** volumes and **0** `:8000` listeners; head's
+  `sparkrun status` lists all six idle at `21:09Z`; `MemAvailable` is back
+  on `.31`-`.34` (**122.88/122.85/122.86/122.86 GB** against the base's
+  **41.29/39.56/39.21/39.70 GB** under the boot). Tight pool pair
+  `21:08:44Z`–`21:08:47Z` reads mount **14,060,857,851,904 B** and the six
+  roots **14,060,857,823,232 B**, residue **+28,672 B**, mount
+  **+94,371,840 B** on the base's pair; `103` hub entries and both ds4
+  `config.json` **3,311 B** through the mount at `21:05:39Z`.
+- Teardown confirmed from the ranks' own rings rather than carried: `kill`
+  `20:46:49Z` and `die`/`destroy` `20:46:51Z` on `.31`-`.34` within 2 s,
+  on image `3f4480818acb` (the knapcio `container:` pin), against the
+  peer's 255-event rings at oldest `20:25:58Z` mine read **256** at the
+  same oldest — one arrival between the two reads, not a different ring.
+  `.30`'s ring reaches back to `2026-11-17T06:05:11Z` with **0** events in
+  the window and `.35`'s to `2026-11-12T05:50:09Z` with **0**, so both
+  zeros are measured, not bounded.
+- Lease closed as the peer records it: `.local/fleet-leases.json` **48 B**
+  sha `34eed267…`, mtime **`2026-11-18T20:47:22Z`**, byte-identical here
+  and on the head, `fenced: []`; `.local/fleet-window.lock` absent.
+  Campaign: unit `inactive` since 2026-11-11 20:03:08 EST, and a
+  non-following walk of `/home/red` at `21:07:43Z` returns **9** paths,
+  **9** files, **9** roots, **38** arms, **0** live leases. Register
+  snapshot `0b28a919…` unmoved from the base; `check` `ok: 201 task(s)`,
+  **42** open, graph line unchanged.
+- Two facts this tick owns because the peer's board does not carry them.
+  (1) The served rank-0 container was interrogated from inside before it
+  died: `.31` records `exec_create`/`exec_start` of `bash -lc grep -m1
+  "DSV4 memory calculation" /tmp/sparkrun_serve.log; grep -m1
+  "max_total_tokens\|KV pool\|load weight" …` — one exec, no receipt
+  names it, so the ceiling window's reader is unidentified but it was a
+  container-side read, not a host one. (2) `beegfs-meta`'s restart cadence
+  measured **inside** this tick is **5.207 s** (+82 restarts over 427 s on
+  `.31`, `113123`→`113205`), while the base's node rows imply **5.034 s**
+  (668 over 3,363 s) — the two disagree by 3 %, which is what a base cell
+  carrying a counter read ~113 s before its own row stamp would produce;
+  the loop itself is unchanged and `beegfs-storage` stays `active` on all
+  six. LIKELY the base's counter is the stale half, not the loop.
+- Instrument note, re-hit and avoided: `docker events --since <t>` with no
+  `--until` streams forever and hung two probes past 300 s; and
+  `ssh host "… $(systemctl show …)"` expands on the **local** shell, which
+  answered `NRestarts=0` for a unit this workstation does not have. The
+  rate figure above comes from two reads whose command was single-quoted
+  to run remotely.
