@@ -15554,6 +15554,17 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   aged out entirely within ~5 min. A ring-window absence is therefore a timing
   accident, never evidence that nothing booted; the boot is dated from
   `StartedAt` and the peer's direct observation.
+- **Correction to that bound, from this tick's own two readings.** At
+  `23:01:51Z` `.31`'s ring was `RING 256 OLDEST 22:54:58Z` — older than the
+  `22:56:41Z` `create` — so the boot's events were still **inside** the ring
+  then; the typed per-event counters (`--filter event=create|start|die|kill|
+  destroy`) read **0** at `23:02:33Z`, and the content pass at `23:04:05Z`
+  began at `22:58:08Z`. So the disappearance is bounded
+  `(23:01:51Z, 23:02:33Z]` — **42 s**, not five minutes — after the ring's
+  oldest jumped `22:54:58Z` → `22:58:08Z` in 136 s, which is sparse early
+  events being evicted in a jump rather than any steady rate. The rule the
+  earlier bullet draws is unchanged and stronger for the tighter bound: on
+  this node a five-minute-old `create` can be gone inside a minute.
 - Register `0b28a919…` unchanged and re-checked live before publish (201
   tasks — 159 done, 34 queued, 8 blocked, **42 open**; `check` prints
   `ok: 201 task(s)`). Campaign service `inactive`/`dead`, `ExecMainStatus=0`,
