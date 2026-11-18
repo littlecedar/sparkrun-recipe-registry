@@ -2188,6 +2188,42 @@ Not measured: depth > 0, concurrency other than 1 and 16, a second boot per conf
 in both), tool calls. Boot A re-converted weights and Engram (its cache marker read `''`) and reported
 TTR 166.4 s against B's cached 27.7 s, so that readiness delta belongs to the cache, not to OEA.
 
+### Measured: one instrument, both engines (2026-11-17)
+
+The same script on both arms — upstream's `tools/bench/bench.py`, sha256 `4aff8517…b97967`, byte-identical
+in both receipts — `distinct 16`, 512 output tokens, greedy, thinking off, a random prefix per request so the
+cache cannot help, completion tokens ÷ wall. Same four ranks, same day, one boot per configuration, run back
+to back in the order **picom lossless, picom OEA, knapcio** — not an interleaved A/B, so only each boot's own
+spread bounds its number.
+
+| cell | knapcio SGLang (shipped arm) | picom, lossless | picom, `PICOM_OEA=4,12,9` |
+|:--|--:|--:|--:|
+| `distinct 16`, runs | 354.1 / 352.9 / 368.6 — median **354.1** | 321.4 / 325.9 / 327.6 — median **325.9** | 372.6 / 380.1 / 377.5 — median **377.5** |
+| `copies 16` (content locality; the random prefix still defeats the cache, so not a caching cell) | 334.8 | 360.4 | 429.0 |
+| `c1 9` medians, chat / code | 64.8 / 119.8 | 84.5 / 142.5 | 83.4 / 144.3 |
+| fixed greedy prompt (`max_tokens: 48`, temperature 0) | `picom arm online.` — 16+6 = 22 tokens | same text — 15+6 = 21 | same text — 15+6 = 21 |
+| time to ready (HTTP-ready, container start) | **708.4 s** | 166.4 s cold marker, else **27.7 s** | 27.7 s |
+
+Receipts `head:~/benchmarks/knapcio-bench-20261117/` (task `b020d2dd178343a5_8f5130842aa0`, image
+`7c3cb394…`, keyless endpoint) and `head:~/benchmarks/picom-gap-20261117/{boot-a,boot-b}/` (picom tasks
+`58cddf1c62ba6578_23ca9ac7647c` / `…628c29fd7fb4`).
+
+- **16 users: the shipped SGLang arm is 8.7 % ahead of the lossless picom arm** (354.1 vs 325.9) and 6.6 %
+  behind the OEA run (377.5). The picom boot's spread is the tighter of the two, 6.2 against 15.7 tok/s.
+- **1 user: picom is ahead — +30.4 % chat, +19.0 % code** (84.5 against 64.8; 142.5 against 119.8). That is
+  the arm's character, not a verdict: faster single-stream decode, weaker at concurrency — and the SGLang
+  line's concurrency comes from exactly the batching and chunked-prefill tuning this lane measures
+  (`chunked_prefill_size=16384`, `max_running_requests=16`), which is where to look before calling either
+  engine better.
+- **Not a leaderboard row.** The arms are not the same shape — knapcio carries a 1M-context KV budget under
+  `MEM_FRACTION_STATIC` 0.78 with SGLang's own batching and DSpark k=5, picom runs its own scheduler and 16
+  slots of which 4 hold the full window — and it is one boot per configuration in a fixed order.
+- **The fixed prompt is a smoke check.** Both engines returned `picom arm online.` at temperature 0 (6
+  completion tokens each; the prompt counts differ by one, 16 against 15, because each engine tokenises with
+  its own encoding). One line is not a quality measurement.
+- **Time to ready is a window-sizing fact, not a performance verdict:** 708.4 s against 27.7 s, where 27.7 s
+  is this picom arm on its warm artifact cache and 166.4 s is the same arm cold — not a universal figure.
+
 ### Upstream PRs integrated
 
 Two open upstream PRs are not in `main`, so the image applies them as a tracked patch series over
