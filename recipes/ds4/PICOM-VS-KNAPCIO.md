@@ -640,7 +640,9 @@ _Design._
    margin is largest) inside one alternation at 5 runs/cell. The agentic ordering is disjoint at both
    ends of the per-boot medians over two boots per arm and still LIKELY; an interleaved run is what
    would take it to established, and where the shipped +5.5 % / +3.9 % has to settle into the
-   shortcut or the boot order.
+   shortcut or the boot order. The flags, cells, boot order and admission rules for that
+   window are fixed in [MATCHED-BENCHMARK.md](MATCHED-BENCHMARK.md) — boot it, do not
+   re-improvise it.
 2. **Run the full BFCL leg** — all 1,240 questions, same fixture revision and turn budget on both
    engines. The scoped 100-question leg is a dead heat at 87/100 (section 3), so it settles nothing
    about whether the client-contract differences in section 2 (thinking channel, token-id echo,
