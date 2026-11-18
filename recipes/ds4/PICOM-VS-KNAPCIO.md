@@ -17,15 +17,16 @@ interleaved.
 - **Five to ten users: knapcio.** 111.5 against **122.6 and 127.3** tok/s at C5, and 129.2 against
   **153.3 and 160.9** at C10 (same-day rerun, then October); the direction holds on either column.
 - **Agentic tool loop: picom.** Per-boot median totals 119.9–123.4 s and 122.5–124.4 s against
-  159.5–178.6 s over two boots per arm, ranges disjoint — LIKELY, two boots per arm.
+  159.5–178.6 s over two boots per arm, disjoint at the per-boot median level — LIKELY, two boots
+  per arm.
 - **Fast restart matters: picom.** 27.7 s to HTTP-ready against 708.4 s.
 - **Client contract matters: knapcio.** It echoes token ids, has a real thinking channel and
   reports prefix-cache hits; picom drops unknown fields silently and clamps `max_tokens`.
 - **Exact vs lossy picom: a tie on this evidence.** Same wall clock inside either arm's spread;
   the lossy arm is ahead **+5.5 % at C5 and +3.9 % at C10** (section 5).
 - **What would change the answer: cell-level interleaving.** The agentic ordering now rests on two
-  boots per arm, disjoint in sample and still LIKELY; every ladder ordering rests on one boot per
-  side.
+  boots per arm, disjoint at the per-boot median level and still LIKELY; every ladder ordering rests
+  on one boot per side.
 
 ## Which engine, by workload
 
@@ -265,13 +266,13 @@ nine `summary.json` files carry `polluted_runs` 0 and `harness_timeouts` 0.
 
 **The totals separate picom from SGLang in this sample, and nothing finer.** The medians are 125.1 s
 (exact) and 131.8 s (OEA) against 152.9 s (SGLang) — 18.2 % and 13.8 % below — and the totals ranges
-are disjoint: 110.2–133.4 s and 108.1–136.7 s against 147.1–152.9 s. That is LIKELY rather than
-established: one boot per arm with three runs each, and the battery's own inter-boot floor is ~7 %,
-so a second boot per arm is what would test it — the paired window below takes that boot, and it
-keeps the verdict LIKELY. Between the two picom arms the totals ranges
-overlap almost completely (medians 125.1 against 131.8, inside either arm's 21–24 % run-to-run
-spread), so exact and lossy stay indistinguishable on total wall clock and the agentic choice still
-rests on the concurrency curve and the lossy construction.
+are disjoint in that one-boot-per-arm sample: 110.2–133.4 s and 108.1–136.7 s against
+147.1–152.9 s. That is LIKELY rather than established: one boot per arm with three runs each, and
+the battery's own inter-boot floor is ~7 %, so a second boot per arm is what would test it — the
+paired window below takes that boot, and it keeps the verdict LIKELY. Between the two picom arms
+the totals ranges overlap almost completely (medians 125.1 against 131.8, inside either arm's
+21–24 % run-to-run spread), so exact and lossy stay indistinguishable on total wall clock and the
+agentic choice still rests on the concurrency curve and the lossy construction.
 
 ### The paired window: two boots per arm
 
@@ -301,18 +302,24 @@ boot armed its watchdog with `ranks=4 unprobeable=0`.
 | picom lossy (L) | L1 (3rd), L2 (4th) | 75/78 | 8.1 s / 8.0 s | 124.4 / 122.5 s | **122.5–124.4 s** |
 | knapcio (K) | K1 (2nd), K2 (5th) | 78/78 | 9.0 s / 9.8 s | 178.6 / 159.5 s | **159.5–178.6 s** |
 
-**Verdict: picom leads SGLang on agentic wall clock, ranges disjoint across both boots of each arm —
-LIKELY, not established.** At the ranges' ends: (159.5 − 119.9) ÷ 159.5 = **24.8 %** and
-(178.6 − 123.4) ÷ 178.6 = **30.9 %** less wall clock, i.e. knapcio takes 1.33× to 1.45× the time.
+**Verdict: picom leads SGLang on agentic wall clock, disjoint at the per-boot median level across
+both boots of each arm — LIKELY, not established.** Individual passes do overlap, though: K1's
+fastest pass was 122.7 s, inside the picom arms' per-pass band (E 118.6–130.4 s, L 100.0–126.3 s),
+so the ordering rests on central tendency across two boots per arm, not on every run. At the
+ranges' ends: (159.5 − 119.9) ÷ 159.5 = **24.8 %** and (178.6 − 123.4) ÷ 178.6 = **30.9 %** less
+wall clock, i.e. knapcio takes 1.33× to 1.45× the time.
 Alternation changed no ordering: same-arm boots differ by ≤ 0.9 s in median and ≤ 19 % in total,
 and the differences do not track boot order — the pair adjacent in time, L1→L2, agrees to 0.1 s,
 while the pair furthest apart in the window, K 2nd against 5th, moves most. It stays LIKELY because
 these are single-flight sequential runs of a 13-task set, two boots per arm, with no cell-level
 interleaving.
 
-**Pass counts separate nothing.** E 75/78, L 75/78, K 78/78: the exact arm's misses are
-`shell-repro-rounding` on all three E1 runs plus one task each on two E2 runs, none reproducible
-across boots, and that miss is the one the lane doc already records for this arm.
+**Pass counts give SGLang a small accuracy edge in this window.** K 78/78 against E 75/78 and
+L 75/78: SGLang passed every pass, while each picom arm missed three — E1 12/13 on all three
+passes, and L1 12/13 once, 11/13 once and 13/13 once. None of the misses is reproducible across
+boots, and `shell-repro-rounding` is the miss the lane doc already records for the exact arm.
+Three misses across 78 passes is a small sample and no single task repeats across boots, so this is
+a small edge rather than a parity finding, and no significance is claimed.
 
 **Ladder, still one boot per arm.** Only each arm's second boot carries the depth-0 ladder — the
 requirement arrived mid-window — and E1, K1 and L1 have none: missing, not substituted.
@@ -454,9 +461,9 @@ K2 knapcio  ###################################################### 161.6
 119.9 → 40 characters, 123.4 → 41, 124.4 → 41, 122.5 → 41, 178.6 → 60, 161.6 → 54. The axis ends
 at **180 s**, which is where the longest boot (K1, 178.6 s, 60 characters) lands, so the scale has
 no headroom above today's data and a future total over 180 s would run past the last tick. The two
-knapcio bars stay clear of all four picom bars; that non-overlap over two boots per arm is the
-whole of the LIKELY ordering in section 3, and single-flight sequential runs with no cell-level
-interleaving are why it is LIKELY.
+knapcio bars stay clear of all four picom bars; that per-boot median non-overlap over two boots
+per arm is the whole of the LIKELY ordering in section 3, and single-flight sequential runs with no
+cell-level interleaving are why it is LIKELY.
 
 ### Readiness, one character = 0.05 in log10 of seconds
 
@@ -486,9 +493,10 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
   now makes on the paired battery.
 - **Agentic totals favor picom over SGLang across two boots per arm, and keep the two picom arms
   tied.** On the paired window (section 3) the per-boot median totals are SGLang **159.5–178.6 s**
-  against exact **119.9–123.4 s** and lossy **122.5–124.4 s**, disjoint at both ends, so picom is
-  **(159.5 − 119.9) ÷ 159.5 = 24.8 %** to **(178.6 − 123.4) ÷ 178.6 = 30.9 %** faster — knapcio
-  takes 1.33× to 1.45× the wall clock (lossy: 23.2 % to 30.3 %). That is **LIKELY, not established**:
+  against exact **119.9–123.4 s** and lossy **122.5–124.4 s**, disjoint at both ends of the
+  per-boot medians, so picom is **(159.5 − 119.9) ÷ 159.5 = 24.8 %** to **(178.6 − 123.4) ÷**
+  **178.6 = 30.9 %** faster — knapcio takes 1.33× to 1.45× the wall clock (lossy: 23.2 % to
+  30.3 %). That is **LIKELY, not established**:
   single-flight sequential runs of a 13-task set, two boots per arm, no cell-level interleaving. The
   earlier one-boot window's 18.2 % and 13.8 % medians are the same direction on a weaker design and
   are no longer the claim. Between the picom arms the ranges overlap in 122.5–123.4 s and both arms
@@ -566,8 +574,9 @@ _Instrument._
 - **No cell-level interleaving.** The paired window alternates boots (`E, K, L, L, K, E`), but every
   cell inside a boot runs single-flight and sequentially, and no two engines were ever measured at
   the same time; the shipped ladder boots ran back to back and never alternated.
-- **Two boots per arm: the agentic gap is disjoint at both ends and still LIKELY.** All 18 passes are
-  unpolluted (`polluted_runs` 0, section 3) and the per-boot median totals do not overlap — exact
+- **Two boots per arm: the agentic gap is disjoint at both ends of the per-boot medians and still
+  LIKELY.** All 18 passes are unpolluted (`polluted_runs` 0, section 3) and the per-boot median
+  totals do not overlap — exact
   119.9–123.4 s and lossy 122.5–124.4 s against SGLang 159.5–178.6 s — which is why the 24.8 % and
   30.9 % range-end gaps read as LIKELY rather than established. What stays uncontrolled is the
   absence of cell-level interleaving on a 13-task single-flight set. Within picom, the two ranges
@@ -609,9 +618,9 @@ _Design._
    (`E, K, L, L, K, E`, section 3), so what is left is running the same 13-task battery in
    interleaved turns against both engines, and putting the ladder's C1, C5 and C10 (where the lossy
    margin is largest) inside one alternation at 5 runs/cell. The agentic ordering is disjoint at both
-   ends over two boots per arm and still LIKELY; an interleaved run is what would take it to
-   established, and where the shipped +5.5 % / +3.9 % has to settle into the shortcut or the boot
-   order.
+   ends of the per-boot medians over two boots per arm and still LIKELY; an interleaved run is what
+   would take it to established, and where the shipped +5.5 % / +3.9 % has to settle into the
+   shortcut or the boot order.
 2. **Run the full BFCL leg** — all 1,240 questions, same fixture revision and turn budget on both
    engines. The scoped 100-question leg is a dead heat at 87/100 (section 3), so it settles nothing
    about whether the client-contract differences in section 2 (thinking channel, token-id echo,
