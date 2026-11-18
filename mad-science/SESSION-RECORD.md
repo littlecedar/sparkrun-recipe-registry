@@ -15364,3 +15364,6 @@ and `destroy`ed `19:07:29Z` on all four hosts.
 - Instrument traps re-hit and avoided: `ssh -n` on a hop whose stdin is the script ran empty and returned six
   blank blocks at rc=0 (re-run without `-n`); and `arms` in a campaign `state.json` is a **dict keyed by arm
   name**, so a first pass that iterated it as a list reported 0 arms before the shape was read.
+- Disclosure: the commit carrying this entry also publishes a peer's uncommitted `16:18 ET` block that sat
+  above it in the worktree. That block is that tick's work, not this one's; it was left byte-for-byte intact
+  and only the subject line is misleading.
