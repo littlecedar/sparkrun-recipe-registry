@@ -105,9 +105,9 @@ prompts, 128-token replies, 5 runs/cell, `--skip-run --fresh`.
 | C10 | 125.8 | 135.8 | 160.9 |
 
 Receipts: `head:~/benchmarks/picom-prod-20261118/phase1/ladder.csv` (exact) and
-`~/benchmarks/picom-prod-20261118/phase2/ladder.csv` (OEA), each with `ladder.json` and
+`head:~/benchmarks/picom-prod-20261118/phase2/ladder.csv` (OEA), each with `ladder.json` and
 `ladder.log`. The knapcio column is its recorded row in [the lane README](README.md)
-(`~/benchmarks/ds4-1017-parity-20261027/armC/armC-ladder.csv`), a different window, so only the
+(`head:~/benchmarks/ds4-1017-parity-20261027/armC/armC-ladder.csv`), a different window, so only the
 two picom columns are same-window. Within-boot spread: C1 14.3 % exact vs 8.6 % OEA, C10 1.8 %
 vs 2.7 %.
 
@@ -123,21 +123,24 @@ single-flight:
 | worst wall | 26.0 s | 12.0 s | 15.3 s |
 | total wall | 126.2 s | 108.1 s | 117.7 s |
 
-Receipts: `~/benchmarks/picom-prod-20261118/phase1/agentic-exact/summary.json` and
-`…/phase2/agentic-oea/summary.json`; the knapcio reference is quoted in
-`…/phase1/README.md` §3 from `~/benchmarks/agentic-battery-20261118/knapcio-v2/`. Same verdicts
-throughout; the per-task walls differ run to run in every boot and nothing here separates the
-configurations.
+Receipts: `head:~/benchmarks/picom-prod-20261118/phase1/agentic-exact/summary.json` and
+`head:~/benchmarks/picom-prod-20261118/phase2/agentic-oea/summary.json`; the knapcio reference is
+`head:~/benchmarks/agentic-battery-20261118/knapcio-v2/summary.json` (13 tasks, fixed
+`max_tokens: 4096`). Same verdicts throughout; the per-task walls differ run to run in every boot
+and nothing here separates the configurations.
 
 ### The production window
 
-`head:~/benchmarks/picom-prod-20261118/` holds both phases plus the extra boot. All cells ran the
-256K arm on `ghcr.io/littlecedar/dgx-picom-ds41f@sha256:1e529c67…` over ranks `.31`–`.34`, in
-this order: one exact boot (`…9aea1006d19f`) ran the ladder, agentic battery, both needle rungs
-and the 40,000-token grant; one OEA boot (`…b2aaddef7ada`) repeated the same four groups; a third,
-lossless boot (`…1f1549d1421d`) was taken only to pair the house battery. Every boot reached
-HTTP-ready in 25.4–26.3 s, armed its watchdog with `unprobeable=0`, and was torn down to 0
-containers, 0 volumes and no `:8000` listener before the next start (`post-teardown.txt` beside
+Every receipt in this section is on the head: `head:~/benchmarks/picom-prod-20261118/` holds both
+phases plus the extra boot, and `head:~/benchmarks/agentic-battery-20261118/knapcio-v2/` holds the
+knapcio reference — the one cell measured from a workstation against the remote endpoint, so its
+files were created locally and archived there, while every other receipt was written on the head
+itself. All cells ran the 256K arm on `ghcr.io/littlecedar/dgx-picom-ds41f@sha256:1e529c67…` over
+ranks `.31`–`.34`, in this order: one exact boot (`…9aea1006d19f`) ran the ladder, agentic battery,
+both needle rungs and the 40,000-token grant; one OEA boot (`…b2aaddef7ada`) repeated the same four
+groups; a third, lossless boot (`…1f1549d1421d`) was taken only to pair the house battery. Every
+boot reached HTTP-ready in 25.4–26.3 s, armed its watchdog with `unprobeable=0`, and was torn down
+to 0 containers, 0 volumes and no `:8000` listener before the next start (`post-teardown.txt` beside
 each phase's cells).
 
 ## 4. Where each wins and why
