@@ -189,7 +189,13 @@ after the fixture change, one boot per arm and three runs each: exact
 `…/bootB-oea/` totals **108.1 / 136.7 / 131.8 s** (median 131.8) at **13/13, 12/13, 12/13**, runs
 2–3 missing `shell-repro-rounding`. All six `summary.json` files carry `polluted_runs` 0 and
 `harness_timeouts` 0, and the socket task now runs **11.4 / 11.1 / 8.7 s** on exact against
-**11.4 / 11.0 / 10.8 s** on lossy: the 75–120 s regime is gone.
+**11.4 / 11.0 / 10.8 s** on lossy: the 75–120 s regime is gone. Arm identity is the engine log, not
+the run label: rank 0's leaf
+`…/vllm/deepseek-ai__DeepSeek-V4.1-Flash-1017-b03807ac/picom/logs/rank.0.log` on `.31` prints
+`moe: DSGB10_OEA re-routing on: keep top 4, prefer the batch's core among top 12, from 9 rows` at
+line 11405 inside the final boot (lines 11389–12503, its one `starting dsfront … max_tokens 262144`
+at 11414), while the exact arm's own boot section (lines 10258–11388, one start line at 10282)
+holds 0 `DSGB10_OEA` lines — that absence is its proof (`final-20261118/bootB-oea/proof.txt`).
 
 Every configuration loses `shell-repro-rounding` exactly once in three runs except OEA, which
 loses none (knapcio run 2, exact run 3, each on the hidden sweep's
