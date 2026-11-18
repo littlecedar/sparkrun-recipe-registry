@@ -2224,6 +2224,48 @@ Receipts `head:~/benchmarks/knapcio-bench-20261117/` (task `b020d2dd178343a5_8f5
 - **Time to ready is a window-sizing fact, not a performance verdict:** 708.4 s against 27.7 s, where 27.7 s
   is this picom arm on its warm artifact cache and 166.4 s is the same arm cold — not a universal figure.
 
+### Behavioural traps (client-facing)
+
+- **Sampling is the default.** A request naming neither gets `temperature` 1.0 and `top_p` 0.95, and
+  `top_p: 0` is rewritten to temperature 0 with top_p 1; `presence_penalty` and `frequency_penalty`
+  are never read at all (`frontend/src/main.rs:24`, `frontend/src/server.rs:531-538`).
+- **Unread fields are dropped, not refused.** The parser looks up a fixed key list, so
+  `return_token_ids` does nothing and the response is still 200 — our exact llama-benchy measurement
+  payload came back `has_token_ids=False` (`frontend/src/server.rs:548`,
+  `picom-ladder-20261117/preflight-transcript.txt:18,23`).
+- **Sessions are matched by text, not named.** The longest shared prompt prefix picks the session and
+  a match needs 64 shared bytes; below that the log reads `shares N bytes (under 64)` and the request
+  starts cold (`frontend/src/session.rs:3-21,61`).
+- **The session table is disk state, and in our receipts it was never written.** `run/front.table` is
+  saved at stop and taken back next start, both reported in the launch log; every boot we hold printed
+  `session table: none saved at /cache/runtime/picom/run/front.table`
+  (`frontend/src/server.rs:87-101`, `docs/engine.md:1186`, `picom-ladder-20261117/launch.log:64`).
+- **Admission is 16 slots, 4 of them big, and overflow waits instead of failing.** The picker fills
+  small slots first and never takes a slot too small for the request; queued requests rotate in
+  64-token turns (observed `2 slices, paused 0.77 s`)
+  (`recipes/ds4/mods/picom-launcher/launch.sh:190`, `engine/server/serve.cpp:1200-1206`,
+  `engine/server/main.cpp:301`, `picom-gap-20261117/boot-a/rank.0.log:557`).
+- **Vision is a separate supervised child.** Rank 0 runs the encoder and the front-end reaches it by
+  `--vision-addr`; with `PICOM_VISION=0` an image request is a 400, measured as
+  `"image, audio and video input are not supported"`. Its 2/10/60/300/900 s restart ladder has never
+  fired — no receipt carries a `vision encoder exited` line
+  (`recipes/ds4/mods/picom-launcher/launch.sh:257,271`, `picom-watchdog-20261117/smoke-transcript.txt:19-20`).
+- **Drafting verifies 5 tokens per step, and poor acceptance only costs speed.** `kDraft` is 5 and the
+  rank log prints verified and accepted per step (`5.00 drafts verified and 4.00 accepted per step`);
+  no error path exists for low acceptance (`engine/dspark/dspark.h:27`,
+  `picom-20261117/rank-logs-boot2.txt:17`).
+- **Tool-call arguments stream as deltas with the name first.** Our PR #7 patch turns that on; the
+  smoke stream carries `function.name` with empty `arguments` in its first chunk, then argument
+  fragments (`recipes/ds4/picom-pr7-stream-tool-args.patch`,
+  `picom-verify-20261117/smoke-transcript.txt:9-17`).
+- **No reasoning tokens.** Usage always reports `completion_tokens_details.reasoning_tokens: 0`
+  (`picom-verify-20261117/smoke-transcript.txt:5`).
+
+Checked and dropped: presence/frequency-penalty defaults (the front-end has no such fields),
+`chat_template_kwargs` as an ignored field (it is read for the thinking switch), `DSGB10_DRAFT1=6` as
+the verify count (it selects wide drafting; the count is `kDraft`), and observed `under 64` and
+saved-table log lines (neither appears in our receipts, so both are cited from code).
+
 ### Upstream PRs integrated
 
 Two open upstream PRs are not in `main`, so the image applies them as a tracked patch series over
