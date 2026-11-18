@@ -74,8 +74,12 @@ python3 tools/agentic-battery.py \
   reference patch, plus a scripted mock proving the loop passes a solved task and fails an
   unsolved one — offline. A red cell is then the model's, not the harness's.
 
-Requests are **non-streaming**. That is deliberate: picom assembles its streamed argument deltas and
-SGLang returns complete `tool_calls`, and with `stream: false` both answer with whole
+Protocol, identical on every engine: **fixed output cap per request** (`max_tokens: 4096`, set
+unconditionally, never the engine's default or ceiling — picom's is 262,144 and would otherwise be
+measured as a configuration change, not as work), `temperature: 0`, `tool_choice: auto`, and
+**non-streaming** requests. The cap is written into `summary.json` as `max_tokens`, so a receipt
+proves its own protocol. Non-streaming is deliberate: picom assembles its streamed argument deltas
+and SGLang returns complete `tool_calls`, and with `stream: false` both answer with whole
 `message.tool_calls`, so the parser difference cannot dominate the result. The three tools are
 `read_file`, `write_file` and `run_shell`, all sandboxed to the task workspace.
 
@@ -113,31 +117,34 @@ echo, thinking channel, prefix-cache accounting) — the battery sends the same 
 ## 6. Reference run
 
 2026-11-18, knapcio SGLang production serve (`deepseek-v4.1-flash-knapcio-tp4-1m-sglang`, task
-`b020d2dd178343a5_9cdb266b5e0d`, keyless endpoint on rank 0), `--tier all`, single-flight, greedy:
+`b020d2dd178343a5_9cdb266b5e0d`, keyless endpoint on rank 0), `--tier all`, single-flight,
+`temperature 0`, non-streaming, **fixed `max_tokens: 4096` on every request** (the value
+`summary.json` records):
 
 | tier | task | verdict | wall | turns | tool calls | tokens |
 |:--|:--|:--|--:|--:|--:|--:|
-| easy | `fix-failing-test` | pass | 7.5 s | 7 | 8 | 9,287 |
-| easy | `two-file-bug-hunt` | pass | 6.3 s | 6 | 7 | 7,034 |
-| easy | `spec-to-function` | pass | 11.5 s | 5 | 5 | 6,723 |
-| easy | `refactor-preserve-behavior` | pass | 4.4 s | 4 | 4 | 4,032 |
-| easy | `config-migration` | pass | 4.4 s | 4 | 4 | 4,121 |
-| easy | `csv-to-json-cli` | pass | 7.9 s | 5 | 5 | 6,018 |
-| easy | `mutable-default-bug` | pass | 6.0 s | 5 | 8 | 6,021 |
-| easy | `validation-boundary` | pass | 5.1 s | 4 | 3 | 3,899 |
-| hard | `multi-file-refactor` | pass | 11.4 s | 6 | 13 | 11,542 |
-| hard | `shell-repro-rounding` | pass | 12.3 s | 6 | 8 | 9,178 |
-| hard | `normalize-edge-table` | pass | 7.4 s | 4 | 3 | 4,410 |
-| hard | `stub-service-client` | pass | 78.9 s | 9 | 9 | 16,962 |
-| hard | `golden-regression` | pass | 8.6 s | 6 | 6 | 7,323 |
+| easy | `fix-failing-test` | pass | 7.3 s | 7 | 8 | 9,286 |
+| easy | `two-file-bug-hunt` | pass | 6.2 s | 6 | 7 | 7,039 |
+| easy | `spec-to-function` | pass | 14.2 s | 7 | 7 | 10,504 |
+| easy | `refactor-preserve-behavior` | pass | 4.0 s | 4 | 4 | 4,006 |
+| easy | `config-migration` | pass | 4.1 s | 4 | 4 | 4,091 |
+| easy | `csv-to-json-cli` | pass | 7.4 s | 5 | 5 | 5,980 |
+| easy | `mutable-default-bug` | pass | 9.2 s | 7 | 9 | 9,724 |
+| easy | `validation-boundary` | pass | 4.8 s | 4 | 3 | 3,876 |
+| hard | `multi-file-refactor` | pass | 13.1 s | 6 | 13 | 11,779 |
+| hard | `shell-repro-rounding` | pass | 10.1 s | 6 | 8 | 9,122 |
+| hard | `normalize-edge-table` | pass | 6.9 s | 4 | 3 | 4,422 |
+| hard | `stub-service-client` | pass | 15.1 s | 6 | 6 | 9,249 |
+| hard | `golden-regression` | pass | 15.3 s | 9 | 9 | 16,011 |
 
-**13/13 pass, median 7.5 s, worst 78.9 s, total 171.7 s** (2 m 54 s wall including fixtures and
-grading). Receipt `head:~/benchmarks/agentic-battery-20261118/knapcio-v2/`; the earlier eight-task
-run and its two-task timing gate stay in the parent directory. The stub task's 78.9 s is model
-behaviour — it held the stub in a foreground shell call until the 60 s tool timeout, then retried —
-not a harness stall; the wire receipt is the witness. This is reference v2: a picom run on the same
-harness compares cell by cell, and under three minutes buys repeats in a window.
+**13/13 pass, median 7.4 s, worst 15.3 s, total 117.7 s** (1 m 59 s wall including fixture seeding
+and grading). Receipt `head:~/benchmarks/agentic-battery-20261118/knapcio-v2/`, whose `summary.json`
+carries `"max_tokens": 4096`, `"tier": "all"` and each task's tier. An earlier run of this same set
+took 171.7 s because the model held the stub task in a foreground shell call until the 60 s tool
+timeout and then retried; that is model behaviour, not a harness stall, and it is visible per turn in
+`<task>.wire.jsonl`. Under two minutes buys repeats in a window.
 
-The floor and ceiling differ in kind: easy cells finish in 4–12 s with 3–8 calls, hard cells in
-7–79 s with 3–13 calls, and the hard checkers fail a patch that passes the visible suite
-(`shell-repro-rounding` and `multi-file-refactor` are the two with the largest hidden surface).
+Nothing failed, so this row is a floor for the comparison rather than a separation: the hard checkers
+are built to fail a patch that passes the visible suite (a local copy left behind, a rounding shortcut,
+a hard-coded table, a hard-coded socket payload, a shifted column), and `--selftest` proves each one
+red before its reference patch and green after.

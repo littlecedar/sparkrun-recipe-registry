@@ -74,6 +74,21 @@ class TaskSet(unittest.TestCase):
                     shutil.rmtree(tmp)
 
 
+class Protocol(unittest.TestCase):
+    def test_every_request_carries_the_fixed_cap(self):
+        """Two engines with different defaults must not be measured on their defaults."""
+        seen: list = []
+        server, base = TOOL._mock_server([{"role": "assistant", "content": "ok"}], seen)
+        try:
+            TOOL.chat(base, "mock", None, [{"role": "user", "content": "hi"}], 10)
+        finally:
+            server.shutdown()
+            server.server_close()
+        self.assertEqual(seen[0]["max_tokens"], TOOL.MAX_TOKENS)
+        self.assertEqual(TOOL.MAX_TOKENS, 4096)
+        self.assertIs(seen[0]["stream"], False)
+
+
 class SelfTest(unittest.TestCase):
     def test_selftest_loop_passes_and_fails(self):
         self.assertEqual(TOOL.selftest(), 0)

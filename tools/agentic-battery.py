@@ -32,8 +32,10 @@ this lane needs.
 Engine contract
 ---------------
 One base URL, one served model name, an optional API key from `--api-key-env` (unset means no
-Authorization header — the knapcio SGLang serve is keyless). Requests are non-streaming, so
-both engines' tool-call transport collapses to the same shape: picom assembles its streamed
+Authorization header — the knapcio SGLang serve is keyless). Every request sets `max_tokens` to 4096 unconditionally — one fixed output cap, never the engine's
+default or ceiling — so two engines with different defaults are measured on their work, not on their
+configuration; the value is recorded in `summary.json`. Requests are non-streaming, so both engines'
+tool-call transport collapses to the same shape: picom assembles its streamed
 argument deltas and SGLang returns complete `tool_calls` deltas, and both answer with whole
 `message.tool_calls`. No delta assembly is needed here; a `length` finish is counted and
 reported because it is a harness cap, not a model failure.
@@ -123,6 +125,9 @@ TOOLS = [
 SHELL_TIMEOUT = 60
 READ_LIMIT = 20000
 OUT_LIMIT = 8000
+# One fixed output cap for every request on every engine: an engine whose default (or ceiling)
+# differs would otherwise be measured on its configuration, not its work.
+MAX_TOKENS = 4096
 
 
 def _safe_path(ws: Path, raw: str) -> Path:
@@ -174,7 +179,7 @@ def chat(base_url: str, model: str, api_key: str | None, messages: list, timeout
         "tools": TOOLS,
         "tool_choice": "auto",
         "temperature": 0.0,
-        "max_tokens": 8192,
+        "max_tokens": MAX_TOKENS,
         "stream": False,
     }
     headers = {"Content-Type": "application/json"}
@@ -377,6 +382,7 @@ def main(argv: list[str] | None = None) -> int:
     walls.sort()
     summary = {
         "base_url": args.base_url, "model": args.model, "tier": args.tier,
+        "max_tokens": MAX_TOKENS,
         "when": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "passed": sum(1 for r in results if r["pass"]), "tasks": len(results),
         "wall_median_s": walls[len(walls) // 2] if walls else None,
@@ -1342,7 +1348,7 @@ for _task in TASKS:
 # Offline self-test: every task is red unsolved and green with its reference patch, and a
 # scripted mock proves the loop passes a solved task and fails an unsolved one.
 # ---------------------------------------------------------------------------
-def _mock_server(replies: list[dict]) -> tuple[ThreadingHTTPServer, str]:
+def _mock_server(replies: list[dict], seen: list | None = None) -> tuple[ThreadingHTTPServer, str]:
     state = {"n": 0}
 
     class Handler(BaseHTTPRequestHandler):
@@ -1350,7 +1356,9 @@ def _mock_server(replies: list[dict]) -> tuple[ThreadingHTTPServer, str]:
             pass
 
         def do_POST(self):
-            self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            raw = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            if seen is not None:
+                seen.append(json.loads(raw or b"{}"))
             reply = replies[min(state["n"], len(replies) - 1)]
             state["n"] += 1
             body = json.dumps({
