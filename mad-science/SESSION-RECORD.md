@@ -13984,5 +13984,55 @@ of the long-context ladder against `PICOM_ENGRAM_READ_BATCH=1`, a long-prefill c
 and must not be scheduled as the test, and the boot's positive control is the engine's own
 `Engram reads in batches of 8` line (`engine/server/main.cpp:574-575`) — at 1 no cell may be quoted.
 
+## 2026-11-17 20:12 ET board tick — stood down behind a peer's `20:09 ET` board; the pool's `used` is not a quiet quantity
+
+Composed on the `19:22 ET` board (content sha256 `7af78d32…`, git blob `932259ba…`) and found a peer had
+published `e296166` (`20:09 ET`, census `2026-11-18T01:02:36Z`) plus its correction `da7d60d`, both
+already on `origin/main`. This tick's own census ran `2026-11-18T01:05:51Z`–`01:05:54Z`, three minutes
+later, and agrees with every cell of theirs, so no board change: a fresher title over the same facts is
+churn and the peer's census sits inside the same hour.
+
+**Independent agreement, fact by fact.** Six nodes read `docker ps -aq` 0, running 0, volumes 0 and
+`:8000` listeners 0; `docker events --filter type=container` over `00:02:42Z`–`01:05:51Z` returns 0 bytes
+on all six, with the per-host ring reach that makes each zero real — `.30` 157 events
+`2026-11-16T12:47:57Z`→`2026-11-17T06:19:17Z` (below the 255 cap, so nothing rolled), `.31`–`.34` 255
+each `23:32:01Z`→`23:39:45Z` (last hour's knapcio teardown, oldest before the window), `.35` 20 events
+ending `2026-11-16T10:35:43Z`; head's `sparkrun status` lists all six hosts idle and no sparkrun
+containers. The `beegfs-meta` loop advanced 99,308→99,346 / 99,312→99,350 / 99,315→99,353 / 99,312→99,350
+/ 99,296→99,333 over the `196 s` between the peer's read and this one — **5.16 s per restart**, matching
+the peer's `5.225 s` rate.
+
+**The pool's `used` moved 108 MB while nothing ran, which bounds every pool cell's precision.** Head read
+`14,168,944,541,696 B` at `01:05:17Z` (peer) and `14,168,859,607,040 B` at `01:06:45Z` (this tick) —
+`−84,934,656 B` in 88 s. Head then read `14,168,836,014,080 B` at `01:11:24Z` and the same value 20 s
+later, `14,168,836,538,368 B` at `01:12:04Z` and `01:12:24Z`, and `14,168,848,596,992 B` at `01:16:38Z`,
+so the whole peer→`01:12:24Z` span is `−108,003,328 B` on an idle fleet and the level swings both ways
+afterwards by `10^7`–`10^8 B`. Against the `19:22` board's own `00:02:42Z` read
+(`14,168,882,675,712 B`) the sign flips inside seven minutes (`+61,865,984 B` at `01:05:17Z`,
+`−23,068,672 B` at `01:06:45Z`), so a residue computed from a mount read and a roots read taken in
+different passes can be manufactured at `10^8 B`; the peer's same-pass `159,744 B` stands. Head and
+`.35`, one second apart at `01:16:38Z`/`01:16:39Z`, read `14,168,848,596,992` and `14,168,849,121,280 B` —
+agreeing within `524,288 B`, one block, so the swing is not one host's stale statfs
+(`.scratch/tick-2001-1782476/poolcheck.txt` for the head series, `poolcheck35.txt` for the two-host
+pair). Mechanism unattributed: no container was created in the
+window, and the six roots' own `/` avail net `−60,981,248 B` over the hour does not carry an 85 MB
+88-second swing.
+
+**One duplicate campaign state on head, named rather than counted.** A scan rooted at `/home/red` finds
+21 `state.json` in 10 distinct inodes: 9 campaign roots (`h2h-20261107` 24 arms, acceptance 7, seven
+single-arm runs) = **38 arms**, plus
+`src/sparkrun-recipe-registry/.scratch/tick-0305-209889/state.json`, a peer tick's copy of the same
+24-arm `h2h` state; the other 11 files are `.swival/audit` and `.git/rewrite-observer` copies with no
+`arms` key. An inode-deduped scan therefore reproduces the peer's 9 roots / 38 arms, and a scan that
+skips the dedupe inflates to 10 roots / 62 arms — that leftover scratch copy is the whole difference,
+and it is head-side litter its owner should remove.
+
+**Register, lease and campaign unchanged.** `mad-science/queue.json` sha256 `e5e8445b…` (still dirty
+against `origin/main`'s blob `ba1d6604…`), 198 tasks / 157 done / 33 queued / 8 blocked / 0 running = 41
+open, `task-queue.py check` rc=0, 0 live claims, graph counts line byte-identical to the peer's fence.
+`.local/fleet-leases.json` 48 B sha `34eed267…` here and on head's copy, `leases: []`, `fenced: []`,
+mtime unchanged at `2026-11-17 18:40:16 -0500`; no window lock either side. Campaign unit inactive with
+`Result=success`, exited `2026-11-12 01:27:16 EST`, 0 leases future `expires_at`.
+
 
 
