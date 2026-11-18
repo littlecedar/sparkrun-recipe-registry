@@ -265,8 +265,10 @@ temperatures disagree is reported with that caveat.
 - **Steady-state cache value.** The shared-prefix cell measures a second request's TTFT,
   not a long session's reuse pattern, and the ranked decode rows are cache-free by the
   time they are counted.
-- **Power, thermal and fabric state.** No switch-side PFC/ECN, no picom QP `hop_limit`, no
-  per-rank power capture. Two engines cannot serve one four-rank set at once, so there is
-  no cell-level interleaving either — only boot alternation.
+- **Power, thermal and fabric state.** The switch statically enables PFC on traffic class 3,
+  but every host port classifies its RoCE traffic to tc1, so no priority pause, CNP or tc3
+  packet has moved; picom's QP `hop_limit` still has no readable surface, and no rank's power
+  is captured. Two engines cannot serve one four-rank set at once, so there is no cell-level
+  interleaving either — only boot alternation.
 - **Quality beyond identity.** The scoped BFCL leg separates nothing at 87/100 both, and
   no cell here scores free-form code or prose.
