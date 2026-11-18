@@ -3210,13 +3210,13 @@
       "node_cost": "quartet",
       "notes": "Booted 2026-11-17: PASS, a capability enabler. A 983,040-token prefill succeeded in 96.5 s at 10.2k tok/s and the C1 decode cell stayed flat within its spread, so the pair of flags was adopted into the production arm. Raises the engine's prefill row budget to 16384 with --snap-every 2048 (16384 alone dies at startup, engine/server/serve.cpp:1572, kMaxSnaps=8 in engine/server/cmd.h:53) for ~+3.2 GiB of prefill buffers a rank (engine/model/prefill.cu:50, reported at :184). The cap is per request (serve.cpp:1076, R = min(prefill_rows, n - pos)), so the predicted effect is long-prompt prefill only: upstream measures 2.6 % less per token, two 8192 chunks vs one 16384 (docs/experiments.md:70). Falsifier: needle/longctx prefill cells at 128k and 1M against recipes/ds4/zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml on the same image; a pp 2048 cell must come out unchanged. Positive control: the rank's log must print `prefill buffers and gathered weights for 16384-row chunks` with its GiB above the 8192 arm's 4.89 (engine/model/prefill.cu:184, printed at the first prefill, not at startup); a line that still says 8192 means the flag never reached the engine and the cell is void. Launch needs `-o env.PICOM_RANK_TAILS=<four tails>` exactly like the shipped picom arm (addresses stay out of tracked files); per-rank weight and Engram artifacts are warm on .31-.34. Run 2026-11-17: confirmed PASS — the 16384-row buffers printed 6.92 GiB against 4.89, a 983,040-token prefill completed in 96.5 s at 10.2k tok/s, and the C1 decode cell stayed flat within its spread; the flag pair was adopted into the production arm.",
       "provenance": "owner 2026-11-17 probe request; upstream Picom-code/pico-dgx-ds4@7c123ad4 engine/server/serve.cpp:1076,1572, engine/server/cmd.h:53, engine/model/prefill.cu:50,184, docs/experiments.md:70; recipes/ds4/README.md probe subsection",
-      "evidence": "/home/red/benchmarks/picom-probes-20261117/ (prefill16k boot): 983,040-token prefill PASS in 96.5 s, 10.2k tok/s, C1 decode flat within its spread; PASS, capability enabler",
+      "evidence": "/home/red/benchmarks/picom-prod-20261118/phase3/ (prefill16k boot): 983,040-token prefill PASS in 96.5 s, 10.2k tok/s, C1 decode flat within its spread; PASS, capability enabler",
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/ds4/zz-ds4-1017-picom-prefill16k.yaml",
       "tp": 4,
       "env": {
-        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/picom-probes-20261117"
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/picom-prod-20261118"
       }
     },
     {
@@ -3230,13 +3230,13 @@
       "node_cost": "quartet",
       "notes": "Booted 2026-11-17: FLAT, not adopted. C1 came out 89.0 against the batch-1 control's 87.5 tok/s and C10 124.2 against 125.8, inside the spreads, with the batch-8 proof line present on all four ranks, so the runs are valid and the lever bought nothing on this drive. Sets PICOM_ENGRAM_READ_BATCH=8, the fleet file's RANK<r>_ENGRAM_READ_BATCH (engine/comm/fleet.cpp:68,116-120; field default 1, engine/comm/ring_config.h:28): SSD read batching for each rank's Engram expert shards, read batching and not arithmetic, so the serve stays lossless. Upstream's 8 is a drive condition: their ranks 2-3 hold a Samsung PM9C1a (MZALC4T0HBL1) and ranks 0-1 an ESL01TBTLCZ (docs/engram.md:68-72; fleet/homelab.conf:49,63,77,91), so their 1,1,8,8 split is drive heterogeneity, not rank position. All four ranks here are SAMSUNG MZALC4T0HBL1-00B07 on the `/` that serves ~/.cache/sparkrun/runtime-cache, so uniform 8 matches all four and the renderer's single-value limit (recipes/ds4/mods/picom-launcher/fleet-render.sh:41) is inert. Positive control: rank.N.log must print `Engram reads in batches of 8` at startup (engine/server/main.cpp:574-575); at 1 the flag never reached the engine and no cell from that boot may be quoted. The falsifier is decode-side, not prefill: the c1 and c16 decode cells of the long-context ladder (the depth-0 shape the lane already measures) against a PICOM_ENGRAM_READ_BATCH=1 control on the same image, and a long-prefill cell is expected flat because deep prefill needs no padding on this drive (684 padding reads against 642k real, docs/engram.md:124-125) with upstream's gain on read steps, p50 237 -> 86 us / p99 256 -> 169 us on rank 3 (docs/engram.md:120-124). Launch needs `-o env.PICOM_RANK_TAILS=<four tails>` like the shipped arm; artifacts are warm on .31-.34. Run 2026-11-17: FLAT — the batch-8 proof line appeared on all four ranks, C1 came out 89.0 against 87.5 and C10 124.2 against 125.8 tok/s; not adopted.",
       "provenance": "owner 2026-11-17 probe request; upstream Picom-code/pico-dgx-ds4@7c123ad4 engine/comm/fleet.cpp:68,116-120, engine/comm/ring_config.h:28, engine/server/main.cpp:574-575, docs/engram.md:68-72,120-125, fleet/homelab.conf:49,63,77,91; read-only lsblk/nvme list on the quartet (all four SAMSUNG MZALC4T0HBL1-00B07); recipes/ds4/mods/picom-launcher/fleet-render.sh:41; recipes/ds4/README.md probe subsection",
-      "evidence": "/home/red/benchmarks/picom-probes-20261117/ (engram-batch8 boot): C1 89.0 vs 87.5, C10 124.2 vs 125.8 tok/s against the batch-1 control, batch-8 proof line on all four ranks; FLAT",
+      "evidence": "/home/red/benchmarks/picom-prod-20261118/phase4/ (engram-batch8 boot): C1 89.0 vs 87.5, C10 124.2 vs 125.8 tok/s against the batch-1 control, batch-8 proof line on all four ranks; FLAT",
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/ds4/zz-ds4-1017-picom-engram-batch8.yaml",
       "tp": 4,
       "env": {
-        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/picom-probes-20261117"
+        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/picom-prod-20261118"
       }
     }
   ],
