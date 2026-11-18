@@ -13955,10 +13955,15 @@ run from the repo root:
 
 `check` is the register validator's subcommand (`validate` is not one); it printed `ok: 198 task(s)`
 against this hour's dirty register and must print `ok: 200 task(s)` after the append. The rows keep
-`state: queued`, and a later session claims them before any boot. The Engram arm's header now carries
-the drive fact that bounds its expectation — all four ranks' `/`, which serves
-`~/.cache/sparkrun/runtime-cache`, is a `SAMSUNG MZALC4T0HBL1-00B07`, the `MZALC4T0HBL1` upstream's
-table calls PM9C1a — plus the engine's own `Engram reads in batches of 8` line as its positive control.
+[`state: queued`, and a later session claims them before any boot. The Engram arm's only cells are
+decode ones: all four ranks' `/`, which serves `~/.cache/sparkrun/runtime-cache`, is a
+`SAMSUNG MZALC4T0HBL1-00B07`, the `MZALC4T0HBL1` upstream's table calls PM9C1a, so its 8 is meant
+for this drive — but upstream pads reads only when they arrive sparsely, measured none under deep
+prefill (684 padding reads against 642k real, `docs/engram.md:124-125`) and takes its gain on read
+steps (p50 237 → 86 µs, `docs/engram.md:120-124`). So the falsifier is the c1 and c16 decode cells
+of the long-context ladder against `PICOM_ENGRAM_READ_BATCH=1`, a long-prefill cell is expected flat
+and must not be scheduled as the test, and the boot's positive control is the engine's own
+`Engram reads in batches of 8` line (`engine/server/main.cpp:574-575`) — at 1 no cell may be quoted.]
 
 
 

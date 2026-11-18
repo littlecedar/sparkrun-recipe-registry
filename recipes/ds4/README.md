@@ -2368,9 +2368,12 @@ in `.scratch/ds4/picom-probe-queue-rows.json` pending the register; the apply co
   (`docs/engram.md:120-121`), and ranks 2-3 of their fleet hold a Samsung PM9C1a (`MZALC4T0HBL1`)
   where ranks 0-1 hold an ESL01TBTLCZ (`docs/engram.md:68-72`); all four of our ranks' `/`, which
   serves `~/.cache/sparkrun/runtime-cache`, is `SAMSUNG MZALC4T0HBL1-00B07`, so the renderer's
-  single value (`mods/picom-launcher/fleet-render.sh:41`) fits this fleet. Falsifier: the c16
-  aggregate first, then the same long-prefill cells, against `PICOM_ENGRAM_READ_BATCH=1` on the
-  same image.
+  single value (`mods/picom-launcher/fleet-render.sh:41`) fits this fleet. Control: `rank.N.log`
+  prints `Engram reads in batches of 8` at startup (`engine/server/main.cpp:574-575`); at 1 the
+  flag never reached the engine. Falsifier: the c1 and c16 decode cells of the long-context ladder
+  against `PICOM_ENGRAM_READ_BATCH=1` on the same image — a long-prefill cell is expected flat,
+  since upstream pads only sparse reads and measured none under deep prefill
+  (`docs/engram.md:124-125`), taking its gain on read steps (`docs/engram.md:120-124`).
 
 ### License
 
