@@ -61,8 +61,9 @@ flowchart LR
 ```
 
 knapcio (`deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`) is SGLang `sglang.launch_server` from
-the image's `dev-dsv41` build (`da64c5cb`, staged tree `f80c91a4b`), TP=4 / EP=1 over RoCEv2
-RDMA, 1M context, DSpark k=5, driven by a lane mod that owns the memory line and the extra flags
+the image's `dev-dsv41` build (`da64c5cb`, staged tree `f80c91a4b`), TP=4 / EP=1 over 2×
+ConnectX-7 RoCEv2, with RoCEnante doing the one-shot all-reduce and all-gather, 1M context,
+DSpark k=5, driven by a lane mod that owns the memory line and the extra flags
 (`mods/dsv41-sglang-overlay/launcher.py`). It optimizes the production serve line: one long-lived
 process holding a 1M-token KV pool, 16 uniform request slots, a 16384-token prefill chunk, and
 SGLang's paged attention, radix prefix cache and in-process multimodal stack as the tuning surface
@@ -387,7 +388,7 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
   knapcio columns are other boots and are read as the shape of the trade, not a margin — and both
   come from the old-fixture boot, so these are ladder cells, not the agentic comparison section 3
   now makes on one battery.
-- **Agentic totals now favour picom over SGLang, and keep the two picom arms tied.** On the single
+- **Agentic totals now favor picom over SGLang, and keep the two picom arms tied.** On the single
   post-fix battery (section 3) one boot per arm, three runs each: SGLang totals **147.1–152.9 s**
   against exact **110.2–133.4 s** and OEA **108.1–136.7 s**, ranges disjoint, medians 152.9 / 125.1
   / 131.8 s — 18.2 % and 13.8 % below SGLang. Read as LIKELY, not established: the battery's
