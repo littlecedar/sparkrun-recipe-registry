@@ -15019,3 +15019,53 @@ and republishing with `--base` set to the composition just published
 nothing shipped under the future stamp.
 
 Captures lived in `.scratch/tick-1301-3872537/` (git-ignored, removed).
+
+## 2026-11-18 13:22 ET — the pool's `df` used is a host-disk aggregate, not pool content
+
+The `13:00 ET` tick stood down behind that peer board: its own read at
+`18:02:25Z` agreed with the published `18:02:09Z` one on every cell (the
+quartet's `StartedAt`, image id, rank 0 `200` and ranks 1–3 `404`, the
+lease, the register), so it published nothing and removed its captures.
+
+It also falsified the instrument every board's `pool` cell leans on. Four
+reads on the head, one pass at ~`13:20 ET`:
+
+- `df -B1 --output=source,used /mnt/beegfs / /srv/beegfs/storage` →
+  `default 14,061,521,600,512`, `/dev/nvme0n1p2 2,373,141,827,584`,
+  `/dev/nvme0n1p2 2,373,141,827,584` — **the storage path is the node's
+  root filesystem**, so a per-node `df` on it reports the whole root.
+- `sudo -n du -sb /srv/beegfs/storage` = **1,258,348,110,692 B** against
+  that root's **2,373,141,827,584 B**: the chunk store is ~53 % of the
+  host root, and `df` cannot separate the two.
+- The six roots' `used` summed **14,061,524,193,280 B** (`~18:10Z`) and
+  the mount read **14,061,518,454,784 B** (`18:03:44Z`) — a 2.6 MB gap
+  across 14.06 TB, which no two independent quantities produce. The
+  near-identity is the mechanism: a BeeGFS client's `used` is built from
+  the storage servers' own device usage, and each server's storage dir
+  sits on its node root, so **pool used ≡ Σ node-root used**.
+
+Consequences, none of which the base boards could see:
+
+1. Every `pool` cell's residue (`+376,832 B`, `−24,576 B`, `+864,256 B`, …)
+   compared one quantity with itself. A residue is not evidence of
+   coverage; it is the arithmetic of a single reading. It belongs out of
+   the cell, not tightened.
+2. `pool-content-fall-20261116` (*pool used fell 501 GB in 6.5 h*) is
+   node-root housekeeping, not pool content leaving: the 2026-11-16
+   `runtime-cache-stale-tree-gc` batch deleted **554.54 GB** across
+   `.30`–`.34` in the same window. Its discriminator — "every HF repo
+   entry stayed" — was right for the wrong reason: entries stayed because
+   no HF repo was involved.
+3. Today's `−106.69 GB` pool fall is `.31`'s root freeing
+   `+106,447,106,048 B` of files; the mount moved because the root did.
+   The knapcio boot's `MemAvailable` fall of the same magnitude on the
+   same host is a separate reading, not a second witness to it.
+4. True pool content costs `sudo -n du -sb /srv/beegfs/storage` per host
+   (the dir is `drwx------ root root`, so `du` as `red` is denied — the
+   `df` read needs no permission, which is why it "works") or `beegfs-ctl`
+   on a host that has it, which `.30` does not
+   (`pool-target-probe-beegfs-ctl-absent`).
+
+Recorded rather than fixed: the pool cell's shape is a board-schema
+decision, and a `du`-based replacement is a six-host root-only walk that
+does not belong in an hourly tick.
