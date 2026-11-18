@@ -14480,6 +14480,50 @@ board's own pair (`14,168,028,086,272 B` mount / `14,168,028,114,944 B` roots /
 residue `−28,672 B`) and all six nodes from its `08:07:16Z`–`08:07:19Z` census, so the
 board's base and its numbers now describe the same cycle.
 
+## 2026-11-18 10:10Z close-out — board tick 05:08 ET: boot 7 of the knapcio quartet under a new lease
+
+**What the tick found.** Census `2026-11-18T10:03:01Z`–`10:03:05Z` (pool pair
+`10:04:05Z`–`10:04:07Z`, register scan `10:05:45Z`) on the `04:28 ET` base: the
+production knapcio quartet is live again as boot 7 `b020d2dd178343a5_d143959e5792`,
+all four ranks `StartedAt 2026-11-18T09:47:37Z`, `Up 15 minutes (healthy)`, rank 0
+answering `/v1/models` **200** naming `deepseek-ai/DeepSeek-V4.1-Flash-1017`
+(`max_model_len` 1,048,576) on image id `3f4480818acb` =
+`ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb394…`, and its serve log decoding at
+`10:04:38Z` (accept len 5.25, rate 0.85) — under live load. The base's boot 6
+`…_053127e6543a` is gone, and because every rank's `docker events` ring now reaches
+back only to `09:56:23Z`–`09:56:28Z`, the teardown and relaunch are **bounded** to
+`(09:07:24Z, 09:47:37Z]` and unobserved. `.30`/`.35` read true zero-event windows —
+their rings hold only older events, newest retained `2026-11-17T06:19:17Z` and
+`2026-11-16T10:35:43Z`.
+
+**Lease changed inside the window.** `.local/fleet-leases.json` moved from the base's
+`c460d3de…` (`session:picom-prod-20261118`, expiry `19:42:02Z`) to `da855a59…` (429 B),
+byte-identical here and on the head: one lease, `session:picom-rerun-20261118`, arm
+`rerun-20261118`, window `picom-rerun-20261118`, hosts `.31`–`.34`, issued
+`09:46:59Z`, ttl 21600 s → expires `15:46:59Z`, `proof: []`. The ledger keeps no
+history, so a release and a re-take both happened between `09:07:24Z` and `10:03:01Z`.
+The lease's own label names a rerun and `~/benchmarks/picom-rerun-20261118/` does not
+exist; the task it covers is the production arm's recipe, so **what the holder is
+measuring is unverified** and stays the holder's to record.
+
+**Three of this tick's own instruments failed before anything published.**
+(1) The first campaign scan used a one-level glob and reported "1 root"; `find
+-maxdepth 8` gives the real shape — **21 `state.json` = 9 roots + 12 foreign**, 38 arms,
+0 live leases, 9 files with 9 parents (no nested copies). (2) The pool cell first
+asserted a base-board contradiction between 14,168,169,992,192 B and
+14,167,996,915,712 B; that is 16 min of pool intake — the base's pool pair reads
+`09:19:52Z`–`09:19:53Z` while its node rows are `09:03:17Z` census-instant reads — and
+the sentence was replaced before commit. (3) The first composition dropped the In
+flight delimiter row, which `lint` caught (`table-missing-delimiter`) and the recompose
+fixed. One publish carrying (2) landed at content sha `f2e57b4e…`; the corrected board
+superseded it at `6a1206bd…` **before any commit**, so only the corrected bytes are in
+git.
+
+**Publication.** `publish` accepted against `--expect-sha` and `--expect-remote-sha`
+`35516a62…` (base content sha, blob `2fb80ca4…`) at `origin/main` `a95284f`. Captures
+live in `.scratch/tick-0500-2530597-3022402/` (git-ignored). Nothing on the fleet was
+touched beyond reads; no node-side file written, no workload signalled.
+
 ## 2026-11-18 10:07Z close-out — board tick 05:00 ET, stood down behind a peer's 05:07 ET board
 
 **Stand-down.** This tick read the `04:28 ET` board at `10:00:49Z` and censused the fleet
@@ -14514,8 +14558,8 @@ a commit, so they are recorded here rather than left in a receipt tree.
    read. Receipt `~/benchmarks/picom-prod-20261118/rerun-20261118/boot1-knapcio/`.
    The same tree's seven earlier `watchdog-58cddf1c62ba6578_*.log` files each hold **one**
    verdict sample, which is the unarmed-instrument finding the `04:28` board already
-   carries; the knapcio boot's watchdog — started from the runner rather than the phase
-   scripts — is the only one with a full sample series.
+   carries; only `rerun-20261118/boot1-knapcio/watchdog.log` has a full sample series —
+   an observation about the files, since no capture names what armed either instrument.
 
 **Additive reads, 50–100 s after the peer's.** Same-pass pool pair: six roots' own `used`
 at `10:04:4xZ` summing **14,168,181,256,192 B**, mount `used` **14,168,181,702,656 B** at
@@ -14530,3 +14574,49 @@ empty, so their zeros are vacuous. `.31`–`.35` `beegfs-meta` `NRestarts`
 `realpath` to **9 roots / 38 arms / 0 live leases**; unit `inactive`.
 
 Captures live in `.scratch/tick-0500-3022403/` (git-ignored).
+
+## 2026-11-18 05:01 ET — board tick stood down behind the peer's `05:08 ET` board
+
+The hourly tick composed a full board and published nothing, because a peer tick
+(`.scratch/tick-0500-3022403/`, close-out above) held an uncommitted `05:08 ET` board
+reading a census at `10:03:01Z`–`10:03:05Z` while this tick's census read
+`10:02:18Z`–`10:02:23Z`. Both tick off the same base (`35516a62…` at `origin/main`
+`a95284f`); the peer's read is 43 s fresher, so publishing over it would replace a
+better-grounded table with a weaker one — the class the `board-publish-accepts-weaker-
+replacement` row exists for. The composition is kept at `.scratch/tick-0501-3022405/`
+(`board.md`, `census.txt`, `pass2.txt`, `base.md`) and never published.
+
+This tick's independent reads, taken before it saw the peer's draft, agree with the
+peer's on every figure they share, and add no claim the board did not already carry:
+
+- the running task is the **production knapcio** quartet
+  `sparkrun_b020d2dd178343a5_d143959e5792` on `.31`–`.34`, `StartedAt`
+  `2026-11-18T09:47:37Z` on all four ranks (27 ms spread), image id `3f4480818acb`
+  resolving to `ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb394…`, rank 0
+  `/v1/models` **200** from the head *and* in-container naming
+  `deepseek-ai/DeepSeek-V4.1-Flash-1017`, engine child `[s]glang.launch_server` **1**
+  per rank, volumes **0** fleet-wide;
+- the ledger lease `session:picom-rerun-20261118` (sha `da855a59…`, 429 B, identical
+  on this clone and the head) is issued `09:46:59Z`, expires `15:46:59Z`, `proof: []`,
+  over `.31`–`.34` — 38 s before that boot started. Its `arm` field says
+  `rerun-20261118` while the running recipe is the knapcio production arm; the
+  receipt directory `rerun-20261118/boot1-knapcio` shows the field names the window,
+  not the recipe. Recorded as a mismatch, not a fault;
+- `docker events` ring retention re-measured per node rather than assumed: `.31`
+  begins `09:57:40Z` at `10:07Z` (the peer read `09:56:08Z`–`09:56:13Z` at `10:04Z`),
+  so a rank's lifecycle zero is a **~10 min bound**, and the picom window's boot 6
+  death stays bounded to `(09:03:17Z, 09:47:37Z)` rather than timed; `.30`/`.35` rings
+  are empty over a 6 h query, so their zeros are vacuous;
+- register `dd27dfd9…` unmoved (200 tasks, 158 done / 34 queued / 8 blocked / 0
+  running, 42 open, 0 live claims, `check` rc=0), both queue blocks rendered from one
+  snapshot; campaign unit `inactive`, `find` over `/home/red/benchmarks` resolving
+  **9** `state.json` → **9 roots / 38 arms / 0 live leases**, plus **12** files
+  outside `benchmarks/` so the board's **21** total reproduces;
+- pool serving: head units `active`/`success`, `.31`–`.35` `beegfs-meta` still
+  `activating` with `NRestarts` **105,516/105,518/105,520/105,518/105,501**
+  (**+679** each over 3,542 s = **5.216** s per restart), six roots' own `used` sum
+  **14,168,177,356,800 B** against the mount's **14,168,178,032,640 B** at
+  `10:02:49Z` → residue **+675,840 B**, hub **103** entries, ds4 `config.json`
+  **3,311 B** in both snapshots.
+
+Captures live in `.scratch/tick-0501-3022405/` (git-ignored).
