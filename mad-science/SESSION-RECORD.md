@@ -15368,3 +15368,26 @@ and `destroy`ed `19:07:29Z` on all four hosts.
 - Disclosure: the commit carrying this entry also publishes a peer's uncommitted `16:18 ET` block that sat
   above it in the worktree. That block is that tick's work, not this one's; it was left byte-for-byte intact
   and only the subject line is misleading.
+
+## 2026-11-18 16:16 ET — the board's landed table is retired to this ledger, by reference
+- `mad-science/STATUS.md` had grown to 118 KB because every hourly tick
+  appended to `## Landed session`, which the board contract forbids: the
+  board is state, not history. Its table held **255** rows, of which this
+  session wrote 10, so **245** belonged to earlier ticks, and **69 of the
+  140 sha rows** were absent from this ledger.
+- Those 245 rows are homed **by reference, not by duplication**: their
+  bytes are `mad-science/STATUS.md` at commit `b95c5ad`, blob
+  **`3280485e0c141ab69bdf065b6d96fc5a5ebb5078`**, pushed to `origin/main`.
+  The board's `## Landed session` restarts with this tick's own rows plus
+  one row naming the retirement and that blob, which took the file from
+  118,001 B to **31,659 B**.
+- Deliberately not done: a row-by-row `git grep` homing of the 245. The
+  blob is immutable and tracked; restating the same bytes in a second
+  place would create the two-homes drift the live/ledger split exists to
+  prevent. Commit `3c510ba` carries the retirement.
+- Correction to my own first pass, no board change needed: the campaign
+  cell was already scoped to the nine `/home/red/benchmarks` roots (**38
+  arms**, **0 live leases**) and names the twelve `.swival` audit and git
+  rewrite-observer `state.json` files as non-campaigns, so no 21-root
+  figure was ever published; the 21-path number is the plain `os.walk`
+  total on `/home/red`.
