@@ -14614,4 +14614,5 @@ figure, and two add detail the correction list needed:
   `10:02:49Z` → residue **+675,840 B**; hub **103** entries and the ds4
   `config.json` **3,311 B** in both snapshots.
 
-Captures live in `.scratch/tick-0501-3022405/` (git-ignored).
+Captures lived in `.scratch/tick-0501-3022405/` (git-ignored) and were removed
+once this block landed; every figure above is inline.
