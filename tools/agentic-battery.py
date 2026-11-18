@@ -37,7 +37,7 @@ skips tasks that already hold a result, so a window can be re-entered.
 
 Usage
 -----
-    python3 tools/agentic-battery.py --base-url http://10.0.4.31:8000 \\
+    python3 tools/agentic-battery.py --base-url http://rank0-host:8000 \\
         --model deepseek-ai/DeepSeek-V4.1-Flash-1017 --tasks fix-failing-test,spec-to-function
 
     python3 tools/agentic-battery.py --list

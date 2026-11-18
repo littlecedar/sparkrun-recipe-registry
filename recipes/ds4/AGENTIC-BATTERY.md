@@ -39,7 +39,7 @@ One base URL, one served model name, an optional key — nothing engine-specific
 
 ```sh
 python3 tools/agentic-battery.py \
-    --base-url http://10.0.4.31:8000 \
+    --base-url http://rank0-host:8000 \
     --model deepseek-ai/DeepSeek-V4.1-Flash-1017 \
     --outdir ~/benchmarks/agentic-battery-$(date +%Y%m%d)
 ```
@@ -93,7 +93,7 @@ echo, thinking channel, prefix-cache accounting) — the battery sends the same 
 ## 6. First receipt
 
 2026-11-18, knapcio SGLang production serve (`deepseek-v4.1-flash-knapcio-tp4-1m-sglang`, task
-`b020d2dd178343a5_9cdb266b5e0d`, keyless `http://10.0.4.31:8000`), two tasks end to end:
+`b020d2dd178343a5_9cdb266b5e0d`, keyless endpoint on rank 0), two tasks end to end:
 
 | task | verdict | wall | turns | tool calls | tokens |
 |:--|:--|--:|--:|--:|--:|
