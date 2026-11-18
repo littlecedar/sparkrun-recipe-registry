@@ -75,8 +75,9 @@ env:
 # `4,12,9` is a batch-aware, lossy MoE re-route (moe.cu:1452-1455): the shipped
 # pair's own boots read +5.4 % at C5 and +4.0 % at C10, C1 +4.5 % inside the
 # spreads, one boot per side. No measured accuracy loss on this lane's cells —
-# house 37/37, needles 3/3 at 131k and PASS at 983,040 — but one agentic battery
-# boot came out 12/13 (`shell-repro-rounding`, which passed on two other boots).
+# house 37/37, needles 3/3 at 131k and PASS at 983,040 — and 13/13 on all three
+# rerun runs against the exact arm's 13/13, 13/13, 12/13: the exact arm's one miss
+# is `shell-repro-rounding`, which OEA never lost, so pass counts separate nothing.
   PICOM_OEA: "4,12,9"
 # The vision encoder as part of the serve: the checkpoint's own ViT on rank 0,
 # ~1 GiB of its GPU; 0 = off and image requests then answer 400.
