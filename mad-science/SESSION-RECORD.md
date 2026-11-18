@@ -14109,5 +14109,57 @@ before, 200 / 156 / 36 / 8 = 44 open after**, `check` `ok: 200 task(s)`, `tools/
 `a9226c9`, `c1a96fe`, `a43505b` and `60e588d`. Left alone on purpose: `.idea/modules.xml`, the
 `.local/status-board.lock` file itself, and `.scratch/` (git-ignored evidence the rows cite).
 
+## 2026-11-18 06:10Z close-out — board tick 01:10 ET: the production quartet is live and unfenced
 
+**What the tick found.** The `21:07 ET` base board had all six nodes idle at
+`2026-11-18T02:03:13Z`. Four hours later the census pass
+(`06:02:38Z`-`06:02:40Z`, one read over all six from the head) found one running
+container on each of `.31`-`.34`: task `b020d2dd178343a5_9cdb266b5e0d`, image id
+`3f4480818acb`, `StartedAt` `2026-11-18T05:50:15Z`, docker health at `06:02:28Z`
+(733 s), rank 0 answering `/v1/models` 200 at `06:03:29Z` naming
+`deepseek-ai/DeepSeek-V4.1-Flash-1017` (`max_model_len` 1048576), each rank's
+`[s]glang.launch_server` child present. `sparkrun status` names the intent
+`@littlecedar/deepseek-v4.1-flash-knapcio-tp4-1m-sglang (tp=4)` and lists `.30`/`.35`
+idle, so this is the production knapcio arm — probed and excluded from research
+accounting, as the board rule requires.
 
+**The escalation is the ledger, not the boot.** `.local/fleet-leases.json` is 48 B,
+sha `34eed267c3e701e2…`, mtime `2026-11-17 18:40:16 -0500` (`23:40:16Z`), byte-identical
+on this clone and on the head's copy, and reads `leases: []` / `fenced: []`. No
+`.local/fleet-window.lock` exists in either. A live four-rank production serve therefore
+holds no lease, no fence and no declared window, and no ledger would refuse a placement
+onto `.31`-`.34`. No `boot-watchdog` process runs on the head (`ps` count 0) and no
+watchdog log exists for this boot. Owned by register rows
+`fleet-boot-without-lease-record` and `campaign-leases-tp4-onto-30`; the board's `window`
+and `census` rows say it, and nothing was stopped or claimed to fix it.
+
+**Instruments, and what they could not see.** `.31`-`.34` retain only
+`05:57:09Z`-`06:04:58Z` of container events (about 470 s), so the boot's own
+`create`/`start` have rolled past retention and any statement about pre-`05:57Z`
+activity is a bound, not a zero. `.30`'s ring newest is `2026-11-17T06:19:17Z` and
+`.35`'s is `2026-11-16T10:35:43Z`, both older than the window, so those two zeros are
+real. The four ranks read `MemAvailable` 16.3/17.2/17.3/17.2 GB against
+121.2/122.3 GB on `.30`/`.35`, and every root's `avail` rose versus the base census.
+
+**Pool.** Re-proved by units and a same-pass `df -B1` pair: roots read
+`06:04:08Z`-`06:04:10Z` summing 14,168,235,298,816 B, mount `06:04:11Z` at
+14,168,363,630,592 B, residue +128,331,776 B, mount down 426,246,144 B on the base's
+pair. 103 hub entries, both ds4 snapshots' `config.json` at 3,311 B. The
+`.31`-`.35` config-less `beegfs-meta` loop held its rate: +2,751…+2,753 restarts over
+14,366 s = 5.218 s per restart.
+
+**Register and campaigns.** `mad-science/queue.json` unmoved at `1b147195…` (200 tasks,
+44 open, 0 claims), `check` and `lint` rc=0, both queue blocks rendered from one snapshot.
+Plain `find` resolves 9 campaign `state.json` files over 9 inodes and 38 arms with 0
+future leases; a `**` walk reports 49 paths only because `h2h-20261107/tp12-window` is a
+symlink to `.`, which `find -L` reports as a filesystem loop. Register row
+`campaign-state-copy-re-nests` still premises copies that do not exist.
+
+**Landed.** `docs: 3ffc7dc` was the only commit the base did not carry and it does not
+touch the board (blob `dbdb1f4d…` unchanged across `2d33c50`→`3ffc7dc`), folded from its
+own subject. Board committed `e41316c` after `git commit -F -` with a pathspec of
+`mad-science/STATUS.md` alone, `push-gate` green on `e41316c8`, pushed to `origin/main`
+(rc=0, tip equal to local HEAD). Captures stay in `.scratch/tick-0100-2535867/`
+(`census.txt`, `serve.txt`, `serve2.txt`, `pool.txt`, `campaign2.txt`, `graph.txt`,
+`queue-table.txt`, `base.md`, `board.md`); nothing on the fleet was touched beyond
+reads, and the probe script (`/tmp/probe-0100.sh` on the head) was deleted after the run.
