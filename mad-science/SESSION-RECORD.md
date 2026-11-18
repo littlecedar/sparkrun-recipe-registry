@@ -13984,6 +13984,14 @@ of the long-context ladder against `PICOM_ENGRAM_READ_BATCH=1`, a long-prefill c
 and must not be scheduled as the test, and the boot's positive control is the engine's own
 `Engram reads in batches of 8` line (`engine/server/main.cpp:574-575`) — at 1 no cell may be quoted.
 
+**Applied 2026-11-18T01:37Z, superseding the "not applied" above.** `a43505b` (`Queue: apply the two
+picom probe boots`) put both rows in the register through `add`, one CAS-checked call per row:
+`check` went `ok: 198 task(s)` → `ok: 200 task(s)`, both rows `state: queued`, `tp: 4`,
+`node_cost: quartet`, receipts root `ARM_RECEIPTS_ROOT=/home/red/benchmarks/picom-probes-20261117`.
+Neither arm has been booted, and the lane doc's probe heading now reads queued in the register rather
+than parked. The rows' preconditions were not re-derived here; what this line adds is durability, not
+a verdict on either arm.
+
 ## 2026-11-17 20:12 ET board tick — stood down behind a peer's `20:09 ET` board; the pool's `used` is not a quiet quantity
 
 Composed on the `19:22 ET` board (content sha256 `7af78d32…`, git blob `932259ba…`) and found a peer had
