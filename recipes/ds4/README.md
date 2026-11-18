@@ -46,7 +46,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
   - [Fabric contract (why NEXT_DEV* == PREV_DEV*)](#fabric-contract-why-next_dev--prev_dev)
   - [Open boot gates](#open-boot-gates)
   - [Production arms (2026-11-18)](#production-arms-2026-11-18)
-  - [Probe arms: prefill chunk budget, Engram read batch, output ceiling (authored 2026-11-17; the experiment record — the first two booted, the third was never booted)](#probe-arms-prefill-chunk-budget-engram-read-batch-output-ceiling-authored-2026-11-17-the-experiment-record--the-first-two-booted-the-third-was-never-booted)
+  - [Probe arms: prefill chunk budget, Engram read batch, output ceiling (authored 2026-11-17; all three booted in the 2026-11-18 production window)](#probe-arms-prefill-chunk-budget-engram-read-batch-output-ceiling-authored-2026-11-17-all-three-booted-in-the-2026-11-18-production-window)
   - [License](#license-2)
 - [picom vs knapcio: one model, two engines on four GB10s](#picom-vs-knapcio-one-model-two-engines-on-four-gb10s)
 - [External stack: spark-ds41f (survey, 2026-11-08)](#external-stack-spark-ds41f-survey-2026-11-08)
@@ -2426,13 +2426,15 @@ root `head:~/benchmarks/picom-prod-20261118/`; each boot's lane cells are its ow
 The three `zz-ds4-1017-picom-*` arms below are the experiment record that selected
 this configuration; the production pair supersedes them for serving.
 
-### Probe arms: prefill chunk budget, Engram read batch, output ceiling (authored 2026-11-17; the experiment record — the first two booted, the third was never booted)
+### Probe arms: prefill chunk budget, Engram read batch, output ceiling (authored 2026-11-17; all three booted in the 2026-11-18 production window)
 
-Two of the three are now booted and measured, and their findings live in the
-production pair above; the third (`out256k`) was folded in without its own boot. The
-first two have register rows (`picom-prefill16k-boot`, `picom-engram-batch8-boot`,
+All three booted and measured, one per phase of the production window: `out256k`
+phases 1–2 (its own boot, then the same arm with `PICOM_OEA`), `prefill16k` phase 3,
+`engram-batch8` phase 4; findings live in the production pair above. The first two have
+register rows (`picom-prefill16k-boot`, `picom-engram-batch8-boot`,
 now `state: done`; `tp: 4`, `node_cost: quartet`, receipts root
-`/home/red/benchmarks/picom-probes-20261117`).
+`/home/red/benchmarks/picom-probes-20261117`), and the window's own cells sit in
+`/home/red/benchmarks/picom-prod-20261118/phase{1,2,3,4}/`.
 
 - `zz-ds4-1017-picom-prefill16k.yaml` appends `--prefill-rows 16384 --snap-every 2048` to the
   shipped argv, which sizes the prefill buffers for 16384-row chunks instead of 8192
@@ -2444,6 +2446,7 @@ now `state: done`; `tp: 4`, `node_cost: quartet`, receipts root
   prefill cells at 128k and 1M against the shipped arm on the same image, with a `pp 2048` cell
   that must come out unchanged. **Result: PASS** — a 983,040-token prefill in 96.5 s (10.2k tok/s)
   with the C1 decode cell flat within its spread; adopted into the production pair.
+  Booted in phase 3 (`phase3/`); it was authored first and booted third.
 - `zz-ds4-1017-picom-engram-batch8.yaml` sets `PICOM_ENGRAM_READ_BATCH=8`, the fleet file's
   `RANK<r>_ENGRAM_READ_BATCH` (`engine/comm/fleet.cpp:116-120`), which batches each rank's SSD
   reads of the Engram expert shards and changes no arithmetic. Upstream's 8 is a drive condition
@@ -2457,7 +2460,7 @@ now `state: done`; `tp: 4`, `node_cost: quartet`, receipts root
   since upstream pads only sparse reads and measured none under deep prefill
   (`docs/engram.md:124-125`), taking its gain on read steps (`docs/engram.md:120-124`).
   **Result: FLAT** — C1 89.0 against 87.5 and C10 124.2 against 125.8, with the batch-8 proof
-  line present on all four ranks; not adopted.
+  line present on all four ranks; not adopted. Booted in phase 4 (`phase4/`).
 - `zz-ds4-1017-picom-out256k.yaml` sets `PICOM_MAX_TOKENS=262144` (launcher default 32,768,
   unchanged), which is `dsfront --max-tokens`: the *one* value that is both the default and the
   hard ceiling on a reply (`frontend/src/main.rs:126`, `server.rs:522-528` clamps, never
@@ -2477,7 +2480,8 @@ now `state: done`; `tp: 4`, `node_cost: quartet`, receipts root
   is the only place the cap itself is printed; cell (b), ~65,536 generated tokens for the sustained
   rate; cell (c), with four 262K requests generating, a fifth request that omits `max_tokens` —
   no bytes until one of the four ends, and an explicit `max_tokens: 130000` with a short prompt as
-  the only shape that still lands on a small slot.
+  the only shape that still lands on a small slot. Booted twice in the production
+  window (`phase1/`, `phase2/` with `PICOM_OEA`), so its cells are the pair's own.
 
 ### License
 

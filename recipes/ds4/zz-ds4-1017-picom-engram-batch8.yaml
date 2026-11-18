@@ -1,5 +1,6 @@
 # ===========================================================================
-# Probe arm (`zz-`) — NOT booted. It changes one thing against
+# Probe arm (`zz-`) — booted in the 2026-11-18 production window, phase 4
+# (`head:~/benchmarks/picom-prod-20261118/phase4/`). It changes one thing against
 # `zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml`: PICOM_ENGRAM_READ_BATCH=8
 # instead of the renderer's 1. That is the fleet file's
 # RANK<r>_ENGRAM_READ_BATCH (engine/comm/fleet.cpp:68,116-120; the field
@@ -66,7 +67,8 @@ container: ghcr.io/littlecedar/dgx-picom-ds41f@sha256:1e529c67f268806bbf3468e176
 min_nodes: 4
 max_nodes: 4
 description: >-
-  Probe, not booted: the shipped picom (dsgb10) TP=4
+  Probe, booted in phase 4 (`head:~/benchmarks/picom-prod-20261118/phase4/`): the
+  shipped picom (dsgb10) TP=4
   DeepSeek-V4.1-Flash-1017 arm with PICOM_ENGRAM_READ_BATCH=8 on all four
   ranks instead of 1 — the fleet file's RANK<r>_ENGRAM_READ_BATCH
   (engine/comm/fleet.cpp:116-120), i.e. SSD read batching for the Engram

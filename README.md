@@ -128,7 +128,7 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | deepseek-v4.1-flash-knapcio-tp4-1m-sglang    | ✨🚀🚚🌲👀  |   70.4 |   83.4 |  127.3 |   160.9 | 510GB |   78% |  4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash-1017]                    |
 | deepseek-v4.1-flash-tensorfold-tp2-1m-sglang | 🚀🚚1👀 | 66.4 | 47.8 | 44.8 | 48.4 | 385GB | 84%\* | 2 | [Model][LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw] |
 | deepseek-v4.1-flash-1017-picom-tp4-1m | 🚀🚚👀🔧 | 83.4 | 90.8 | 111.5 | 129.2 | 72.4GiB + 50.7GB Engram\* | —\* | 4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash-1017] |
-| deepseek-v4.1-flash-1017-picom-tp4-1m-oea | 🚀🚚👀 | 87.1 | 90.9 | 117.6 | 134.4 | 72.4GiB + 50.7GB Engram\* | —\* | 4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash-1017] |
+| deepseek-v4.1-flash-1017-picom-tp4-1m-oea | 🚀🚚👀🔧 | 87.1 | 90.9 | 117.6 | 134.4 | 72.4GiB + 50.7GB Engram\* | —\* | 4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash-1017] |
 
 * _`*` Mem% = the engine's boot-log allocator ceiling (107.8 GiB of 128 GB); this recipe sets no util._
 * _The **tensorfold** row's C2/C5/C10 are the **0.6.3 engine's** 2026-10-18 5-run ladder (`ds4-1017-ab-interleaved-20261018`). The shipped image was bumped to the v0.6 engine on 2026-10-21; on the depth-0 profile (c1/c4/c8/c16, 3 runs/cell, 3 boots per arm) it reads **64.5 / 51.2 / 52.5 / 53.2** t/s against the 0.6.3 control's 64.7 / 46.1 / 41.5 / 42.3 — c8 **+26.5 %**, c16 **+25.7 %** with the treatment's worst boot above the control's best, c1 flat, c4 +10.9 % with overlapping ranges — and cold prefill **2,077** t/s @ 32k / **2,073** @ 131k (+24.6 % / +39.5 %). `~/benchmarks/ds4-v06-ab-20261021/REPORT.md`; lane [`recipes/ds4/README.md`](recipes/ds4/README.md#deepseek-v41-flash-tensorfold-tp2-1m-sglang)._

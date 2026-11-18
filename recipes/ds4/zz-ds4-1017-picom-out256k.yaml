@@ -1,8 +1,10 @@
 # ===========================================================================
-# Probe arm (`zz-`) — never booted. Output ceiling raised for the booted
-# picom arm (`zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml`, smoke-verified
-# 2026-11-17 on `.31`–`.34`): 262,144 generated tokens per reply, not 32,768.
-# Same image digest, same engine argv, one launcher env.
+# Probe arm (`zz-`) — the first arm booted in the production window: task
+# `58cddf1c62ba6578_9aea1006d19f` (phase 1) and
+# `58cddf1c62ba6578_b2aaddef7ada` (phase 2, `PICOM_OEA=4,12,9` added), both on
+# this image digest, cells in `head:~/benchmarks/picom-prod-20261118/phase{1,2}/`.
+# It raises the reply ceiling to 262,144 generated tokens, not 32,768:
+# same image digest, same engine argv, one launcher env.
 #
 # Ceiling chain, Picom-code/pico-dgx-ds4@7c123ad4 (the pin this image is
 # built from). dsfront's `--max-tokens` is the only grant: main.rs:126
@@ -78,8 +80,8 @@ description: >-
   drafts with the stack4/stack5 levers, OpenAI chat/completions,
   streamed tool-call arguments and images (the checkpoint's own ViT
   as a supervised side encoder, upstream PR #15) through dsfront.
-  Unbooted probe, same image digest as the arm that was smoke-verified
-  on `.31`–`.34` 2026-11-17; no cell of any kind yet. Per-rank weight
+  Booted twice in the production window on this image digest (phases 1–2,
+  cells in `head:~/benchmarks/picom-prod-20261118/phase{1,2}/`). Per-rank weight
   and Engram artifacts are built from the checkpoint on first boot
   (one-time, ~130 GB per node). Fabric inputs ride env:
   PICOM_RANK_TAILS is required.

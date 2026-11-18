@@ -1,5 +1,6 @@
 # ===========================================================================
-# Probe arm (`zz-`) — NOT booted. It changes one thing against
+# Probe arm (`zz-`) — booted in the 2026-11-18 production window, phase 3
+# (`head:~/benchmarks/picom-prod-20261118/phase3/`). It changes one thing against
 # `zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml`: the engine's prefill chunk
 # budget, `--prefill-rows 16384` with the `--snap-every 2048` that budget
 # requires. The cap is per request (engine/server/serve.cpp:1076,
@@ -50,7 +51,8 @@ container: ghcr.io/littlecedar/dgx-picom-ds41f@sha256:1e529c67f268806bbf3468e176
 min_nodes: 4
 max_nodes: 4
 description: >-
-  Probe, not booted: the shipped picom (dsgb10) TP=4
+  Probe, booted in phase 3 (`head:~/benchmarks/picom-prod-20261118/phase3/`): the
+  shipped picom (dsgb10) TP=4
   DeepSeek-V4.1-Flash-1017 arm with the engine's prefill chunk budget raised to
   `--prefill-rows 16384 --snap-every 2048` from the 8192/1024 default, which
   costs ~+3.2 GiB of prefill buffers a rank to run long prompts in fewer,

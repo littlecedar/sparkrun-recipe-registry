@@ -19,6 +19,10 @@ description: >-
   (4 big), a 262,144-token reply ceiling, 16384-row prefill chunks, DSpark drafts,
   OpenAI chat/completions, streamed tool-call arguments and images (the checkpoint's
   own ViT as a supervised side encoder) through dsfront. Strictly lossless: OEA off.
+  The ceiling is also the default, so an omitting request may generate up to 262,144
+  tokens; a request's need is `prompt + max_new`, so only one of the four big slots
+  admits it — twelve of sixteen become unusable for such a request and a fifth
+  concurrent one queues silently rather than erroring — so always send `max_tokens`.
   The endpoint needs the bearer key rank 0 writes under
   `/cache/runtime/picom/run/api-key`; `/health` is keyless. See README.md, section
   "Production arms", for the boot contract and `PICOM-VS-KNAPCIO.md` for the comparison.
