@@ -15118,3 +15118,34 @@ and `destroy`ed `19:07:29Z` on all four hosts.
 - Two commits folded: `cfc80db` (the pool-`df` finding, landed)
   and `cc62a13` (ds4 fabric clauses unprobed, probe queued).
 
+## 2026-11-18 14:20 ET — the 14:00 ET tick measured the same hour and stood down
+
+- Board refresh not published. The 14:16 ET board (`f400f80`, corrected by
+  `063e9e6`) landed four minutes before this tick's compose and already
+  carries the hour's three quartet tasks, the picom boot's
+  `kill`/`die`/`destroy` instants, the empty fleet after it, and the lease
+  escalation. A second board over the same reads is churn, so this tick
+  records its own measurements here instead.
+- Independent reads, taken before that board was seen: census
+  `2026-11-18T19:02:58Z`–`19:03:02Z` (picom quartet live on `.31`–`.34`,
+  rank 0 answering `/v1/models` **401 `invalid API key`** from the head and
+  its container log carrying req 287 at 29.5 tok/s), pool/mount
+  `19:07:19Z`–`19:07:20Z`, then a second pass `19:16:23Z`–`19:16:28Z` with
+  all six nodes at `0` containers / `0` volumes / `0` `:8000` listeners.
+- Teardowns, from `docker events` on `.31`: `kill` `19:07:27Z`, `die` plus
+  `destroy` `19:07:29Z`; `.31`–`.34` each carry exactly one of each in the
+  `19:02:58Z`–`19:16:25Z` window, so those instants are reads rather than
+  ring bounds.
+- Pool at `19:16:26Z`–`19:16:28Z`: mount `used` 14,061,364,838,400 B,
+  roots 14,061,364,707,328 B, residue `+131,072 B`; both fell on the base's
+  pair (mount `−153,092,096 B`, roots `−152,358,912 B`), `.31` carrying
+  `−309,981,184 B` while the other five net `+157,622,272 B`. These are
+  node-root `df` reads, host-disk aggregates rather than pool content.
+- Instrument notes. The picom image ships **no `curl`**, so an in-container
+  `/v1/models` probe returns empty (`sh: 1: curl: not found`) and reads
+  exactly like a dead front end; readiness there has to be taken from the
+  host side, where a keyed front end's 401 is live. And `docker events` with
+  a multi-minute `--since`/`--until` window hung past 40 s on `.31` twice
+  while a one-minute window returned six events, so a timeout on that probe
+  is instrument flakiness, not an absent event ring.
+
