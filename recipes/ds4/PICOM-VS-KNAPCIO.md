@@ -7,27 +7,106 @@ names its receipt; every mechanism cell names a source line or the flag that car
 here is a leaderboard row — the two arms do not run the same budgets and no cell was measured
 interleaved.
 
-## 1. What each is
+## The answer, in ten lines
 
-**knapcio (`deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`)** is SGLang `sglang.launch_server` from
-the image's `dev-dsv41` build (`da64c5cb`, staged tree `f80c91a4b`), TP=4 / EP=1 over RoCEnante RDMA,
-1M context, DSpark k=5, driven by a lane mod that owns the memory line and the extra flags
-(`mods/dsv41-sglang-overlay/launcher.py`). It optimizes the *production serve line*: one long-lived
-process holding a 1M-token KV pool, 16 uniform request slots, a 16384-token prefill chunk, and SGLang's
-paged attention, radix prefix cache and in-process multimodal stack as the tuning surface
+- **One stream: picom.** 84.5 against 64.8 tok/s chat and 142.5 against 119.8 code, same
+  instrument, same day (section 3); both engines draft 5 tokens, so this is per-step cost.
+- **Two streams: picom.** 90.8 against 83.4 tok/s, +8.9 %, inside a 6.2 % within-boot spread.
+- **Five to ten users: knapcio.** 127.3 against 111.5 at C5 and 160.9 against 129.2 at C10
+  against the shipped exact arm.
+- **Agentic tool loop: picom.** Total wall clock 110.2–133.4 s and 108.1–136.7 s against
+  147.1–152.9 s, ranges disjoint — LIKELY, one boot per arm.
+- **Fast restart matters: picom.** 27.7 s to HTTP-ready against 708.4 s.
+- **Client contract matters: knapcio.** It echoes token ids, has a real thinking channel and
+  reports prefix-cache hits; picom drops unknown fields silently and clamps `max_tokens`.
+- **Exact vs lossy picom: a tie on this evidence.** Same wall clock inside either arm's spread;
+  the lossy arm is ahead **+5.5 % at C5 and +3.9 % at C10** (section 5).
+- **What would change the answer: one interleaved A/B and a second boot per arm.** Every ordering
+  here rests on a single boot per side; the agentic gap is disjoint in sample, not established.
+
+## Which engine, by workload
+
+| workload shape | pick | cell that supports it | confidence |
+|:--|:--|:--|:--|
+| Single stream, chat | picom | `c1 9` chat 84.5 vs 64.8 tok/s (section 3) | measured, one boot per side |
+| Single stream, code | picom | `c1 9` code 142.5 vs 119.8 tok/s (section 3) | measured, one boot per side |
+| 2 users | picom | shipped exact C2 90.8 vs knapcio 83.4 (section 3) | other boots — shape, not margin |
+| 5–10 fan-out | knapcio | C5 127.3 vs 111.5, C10 160.9 vs 129.2, October row | shape, not margin — other boots |
+| Agentic tool loop | picom | totals 110.2–133.4 / 108.1–136.7 vs 147.1–152.9 s | LIKELY, one boot per arm |
+| Million-token context | either | 983,040 needle PASS at depth 10 on both shipped arms | PASS measured; decode unmeasured |
+| Vision | knapcio | native in-engine stack; picom needs a supervised child | functional on both, no cost cell |
+| Long-form generation | picom | 40,000 tokens in 207.9 s (192.4 tok/s) under a 262,144 cap | measured on picom, no cap probed on knapcio |
+| Restart-sensitive work | picom | 27.7 s warm-cached vs 708.4 s cold | one boot each, not like-for-like |
+
+## Architecture
+
+```mermaid
+flowchart LR
+  client[OpenAI client] --> fe{engine}
+  fe -->|knapcio| sg["SGLang launch_server"]
+  fe -->|picom| df["dsfront, Rust"]
+  sg --> r0[rank 0]
+  df --> r0
+  r0 --> r1[rank 1]
+  r1 --> r2[rank 2]
+  r2 --> r3[rank 3]
+  r3 --> ring["RoCE ring, f1 ports down"]
+  ring --> kv["SGLang paged KV pool"]
+  ring --> ss["picom session store"]
+  ss --> disk["per-rank disk tier"]
+  r0 --> vis["supervised ViT child"]
+  r0 --> nat["native multimodal"]
+```
+
+knapcio (`deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`) is SGLang `sglang.launch_server` from
+the image's `dev-dsv41` build (`da64c5cb`, staged tree `f80c91a4b`), TP=4 / EP=1 over RoCEnante
+RDMA, 1M context, DSpark k=5, driven by a lane mod that owns the memory line and the extra flags
+(`mods/dsv41-sglang-overlay/launcher.py`). It optimizes the production serve line: one long-lived
+process holding a 1M-token KV pool, 16 uniform request slots, a 16384-token prefill chunk, and
+SGLang's paged attention, radix prefix cache and in-process multimodal stack as the tuning surface
 (`launcher.py:148-300`).
 
-**picom (`zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` as the probe, shipped as
+picom (`zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` as the probe, shipped as
 `deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` with a lossy twin
-`…-picom-tp4-1m-oea.yaml`)** is a from-scratch C++/CUDA engine
-(`dsgb10_rank`, one process per node, its own RDMA ring) behind a Rust front-end (`dsfront`), from
-`Picom-code/pico-dgx-ds4@7c123ad4` with two integrated PR patches (`Dockerfile.picom-ds41f`). It
-optimizes *per-token decode cost at single stream*: every rank holds one quarter of a 1M model
-GPU-resident, 16 session slots of which 4 hold the full window, drafts verify 5 tokens a step, and
-session state migrates to a 12 GiB store plus a per-rank disk tier instead of a pre-sized KV pool
-(`engine/server/main.cpp:295-296`, `docs/engine.md:451-523`).
+`…-picom-tp4-1m-oea.yaml`) is a from-scratch C++/CUDA engine (`dsgb10_rank`, one process per node,
+its own RDMA ring) behind a Rust front-end (`dsfront`), from `Picom-code/pico-dgx-ds4@7c123ad4`
+with two integrated PR patches (`Dockerfile.picom-ds41f`). It optimizes per-token decode cost at
+single stream: every rank holds one quarter of a 1M model GPU-resident, 16 session slots of which
+4 hold the full window, drafts verify 5 tokens a step, and session state migrates to a 12 GiB store
+plus a per-rank disk tier instead of a pre-sized KV pool (`engine/server/main.cpp:295-296`,
+`docs/engine.md:451-523`).
 
-## 2. Same model, different machine
+The fabric is one switch and both f1 ports are down on this fleet, so a ring's two directions share
+the same two f0 devices (`mods/picom-launcher/README.md:104`).
+
+## How each was measured
+
+```mermaid
+graph TD
+  boot["boot one arm"] --> gate["warm-up, HTTP-ready gate"]
+  gate --> ladder["ladder cells"]
+  gate --> agentic["agentic battery"]
+  gate --> needle["needle rungs"]
+  gate --> grant["40,000-token grant"]
+  ladder --> down["teardown to zero"]
+  agentic --> down
+  needle --> down
+  grant --> down
+  down --> receipt["receipt on the head"]
+  agentic --> poll["polluted_runs 0?"]
+  poll -->|yes| keep["keep the rows"]
+  poll -->|no| rerun["rerun, drop the rows"]
+  keep --> receipt
+  rerun --> receipt
+```
+
+One boot per configuration, cells run in a fixed order, then torn down to 0 containers, 0 volumes
+and no `:8000` listener before the next start (`post-teardown.txt` beside each phase's cells). The
+pollution rule is the whole reason the agentic section exists in its current form: runs whose
+report carries a non-zero `polluted_runs` are dropped and re-measured, because a mixed-fixture
+table once read a harness timeout as an engine property (section 3, old fixture's rows).
+
+## 1. Same model, different machine
 
 | axis | knapcio (SGLang) | picom (dsgb10) |
 |:--|:--|:--|
@@ -43,8 +122,9 @@ session state migrates to a 12 GiB store plus a per-rank disk tier instead of a 
 | Prefix / cache behavior | radix prefix cache with 128 SWA tails and cache reporting on; a repeated ~4.8k prompt reports `prompt_tokens_details.cached_tokens: 4608` (`launcher.py:268`, `knapcio-live-20261117/README.md` probe 6) | session table matched by longest shared *text* prefix, 64 shared bytes minimum (`frontend/src/session.rs:17`), state spilled per slot; every measured cell ran cold — `reused 0 (cold)`, `cached_tokens: 0` (`picom-ladder-20261117/README.md` falsifiers, `knapcio-live-20261117/README.md` probe 6) |
 | Readiness (container start → HTTP ready) | 696.2 s port-open / **708.4 s** HTTP-ready, one cold boot (`knapcio-bench-20261117/README.md`) | **27.7 s** with per-rank artifacts cached; 166.4 s on the boot that had to convert weights and Engram (`picom-gap-20261117/README.md`) |
 
-### Request surface (the live probe pair, 2026-11-18 knapcio serve and the pinned picom front-end)
+## 2. Request surface
 
+The live probe pair: the 2026-11-18 knapcio serve and the pinned picom front-end.
 Receipts: `head:~/benchmarks/knapcio-live-20261117/` (17 files, keyless anonymous probes) and the
 picom front-end read at `7c123ad4` (`frontend/src/server.rs:522-538`, `frontend/src/main.rs:126-132`).
 
@@ -60,7 +140,9 @@ picom front-end read at `7c123ad4` (`frontend/src/server.rs:522-538`, `frontend/
 | Loop guard | none | on by default: truncates 4 repeats of a 32–256-token n-gram, 64 identical tokens, or 8 identical lines (`frontend/src/guard.rs:63-67`; `--no-loop-guard` unset in the launcher) |
 | Against the vendor card (`08c8657f`) | — | matches vendor temperature 1.0, one notch tighter on `top_p` (0.95 vs 1.0); deviates on `max_tokens` (32,768 default and clamp vs ≥256K recommended) only until the launcher's `PICOM_MAX_TOKENS` raises the cap, as the production arm's 262,144 does |
 
-## 3. Measured, one instrument
+## 3. The measured cells
+
+### One instrument, three configurations
 
 One script on both arms — upstream's own `tools/bench/bench.py`, sha256 `4aff8517…b97967`,
 byte-identical in both receipts, unpatched: 16 distinct code prompts, 512 output tokens, greedy,
@@ -83,13 +165,14 @@ knapcio** — sequential boots, one per configuration, not interleaved.
 
 Read the table as three separate one-boot measurements, never as a row of a leaderboard:
 
-- **The budgets differ.** knapcio carries a 1M-context KV pool at `MEM_FRACTION_STATIC` 0.78 (6,849,792
-  tokens), 16 uniform slots and DSpark k=5; picom carries 4 full-window + 12 eighth-window slots and no
-  KV pool. `distinct 16` is the same *demand* on both, not the same batch size.
-- **One boot per configuration**, in a fixed order, so only each boot's own spread bounds its number;
-  no boot-to-boot drift is controlled.
-- **The llama-benchy rows are not paired cells** — different days, different serve lines and, for C1,
-  different profiles; the picom ladder and the knapcio ladder were never run in one window.
+- **The budgets differ.** knapcio carries a 1M-context KV pool at `MEM_FRACTION_STATIC` 0.78
+  (6,849,792 tokens), 16 uniform slots and DSpark k=5; picom carries 4 full-window + 12
+  eighth-window slots and no KV pool. `distinct 16` is the same *demand* on both, not the same
+  batch size.
+- **One boot per configuration**, in a fixed order, so only each boot's own spread bounds its
+  number; no boot-to-boot drift is controlled.
+- **The llama-benchy rows are not paired cells** — different days, different serve lines and, for
+  C1, different profiles; the picom ladder and the knapcio ladder were never run in one window.
 - **The fixed-prompt equality is a smoke check**, one 48-token greedy prompt, not a quality
   measurement.
 
@@ -140,11 +223,10 @@ vs 2.7 %.
 ### Agentic battery
 
 `tools/agentic-battery.py --tier all`, 13 tasks (8 easy, 5 hard), fixed `max_tokens: 4096`,
-single-flight:
-
-Three runs of the same battery per configuration, one boot per configuration. All nine runs come
-from the post-fix fixture (the `start_stub.sh` launcher plus the run report's pollution flag), so
-the three configurations are comparable to each other and to nothing measured earlier on this page.
+single-flight. Three runs of the same battery per configuration, one boot per configuration. All
+nine runs come from the post-fix fixture (the `start_stub.sh` launcher plus the run report's
+pollution flag), so the three configurations are comparable to each other and to nothing measured
+earlier on this page.
 
 | configuration | run | pass | median | worst | total wall |
 |:--|:--|:--|--:|--:|--:|
@@ -176,23 +258,22 @@ overlap almost completely (medians 125.1 against 131.8, inside either arm's 21�
 spread), so exact and lossy stay indistinguishable on total wall clock and the agentic choice still
 rests on the concurrency curve and the lossy construction.
 
-### The old fixture's rows (historical)
+### The old fixture's rows (history)
 
-This section used to carry a mixed-instrument table: its knapcio rows **127.7 / 160.2 / 149.4 s**
+This section used to carry a mixed-instrument table: the knapcio rows **127.7 / 160.2 / 149.4 s**
 (`rerun-20261118/README.md`) came from the pre-fix battery while the picom rows came from the
-post-fix one, and mixing fixtures was the earlier error — it made a ~50 % agentic gap read as an
-engine property. The gap was the harness's own 60 s tool timeout: a repeat of `stub-service-client`
-on both shipped arms puts its wall time in two modes, exact **12.8 / 13.1 / 12.8 s** fast against
+post-fix one, and mixing fixtures is the earlier error — it made a ~50 % agentic gap read as an
+engine property. The gap was the harness's own 60 s tool timeout: repeating `stub-service-client`
+on both shipped arms puts wall time in two modes, exact **12.8 / 13.1 / 12.8 s** fast against
 **109.8 / 120.2 / 75.3 s** slow (3 of 6 draws), lossy **12.6 / 13.2 / 14.8 s** fast against
-**76.9 s** slow (1 of 6), every slow draw's wire log carrying `command timed out after 60s` while the
+**76.9 s** slow (1 of 6), every slow draw's wire log carrying `command timed out 60s` while the
 engine's `ttft` stayed 0.10–0.33 s at 130–160 tok/s throughout
-(`head:~/benchmarks/picom-prod-20261118/socket-repro-20261118/`). The launcher fix removed that path,
-and under it `stub-service-client` now runs **14.9 / 12.6 / 14.6 s** on SGLang against **11.4 / 11.1
-/ 8.7 s** exact and **11.4 / 11.0 / 10.8 s** lossy, so the 75–120 s regime is gone. Those old-fixture
-totals are not comparable to the table above.
+(`head:~/benchmarks/picom-prod-20261118/socket-repro-20261118/`). The launcher fix removed that
+path, and under `stub-service-client` the cell now runs **14.9 / 12.6 / 14.6 s** on SGLang against
+**11.4 / 11.1 / 8.7 s** exact and **11.4 / 11.0 / 10.8 s** lossy, so the 75–120 s regime is gone.
+Those old-fixture totals are not comparable to the table above.
 
-Arm identity is the engine log, not
-the run label: rank 0's leaf
+Arm identity is the engine log, not the run label: rank 0's leaf
 `…/vllm/deepseek-ai__DeepSeek-V4.1-Flash-1017-b03807ac/picom/logs/rank.0.log` on `.31` prints
 `moe: DSGB10_OEA re-routing on: keep top 4, prefer the batch's core among top 12, from 9 rows` at
 line 11405 inside the final boot (lines 11389–12503, its one `starting dsfront … max_tokens 262144`
@@ -219,8 +300,8 @@ exact probe boot (`…9aea1006d19f`) ran the ladder, agentic battery, both needl
 lossless boot (`…1f1549d1421d`) was taken only to pair the house battery; then the shipped exact arm
 (`…053127e6543a`) and the shipped lossy arm (`…2f2f42a6d68f`) each ran the same cells, adding the
 983,040-token needle rung. Every boot reached HTTP-ready in 25.2–26.3 s, armed its watchdog with
-`unprobeable=0`, and was torn down to 0 containers, 0 volumes and no `:8000` listener before the next
-start (`post-teardown.txt` beside each phase's cells).
+`unprobeable=0`, and was torn down to 0 containers, 0 volumes and no `:8000` listener before the
+next start (`post-teardown.txt` beside each phase's cells).
 
 The three-run agentic table is a later window of the same day: one boot per configuration — exact
 `…da567c594d37`, OEA `…0b23560656a9` — each torn down to 0 containers, 0 volumes and no `:8000`
@@ -233,7 +314,66 @@ ladder stay in `rerun-20261118/README.md`, and the new boot's own receipts are
 `head:~/benchmarks/picom-prod-20261118/knapcio-newfix-20261118/` (`README.md`, `ttr.txt`,
 `watchdog.log`, `run{1,2,3}/summary.json`).
 
-## 4. Where each wins and why
+## 4. The same numbers as bars
+
+Mermaid cannot draw a value axis honestly, so the quantitative comparisons are fixed-width bars.
+Every bar is the section 3 number rounded to the nearest character; the value is printed beside it.
+
+### Shipped-arm ladder, one character = 3 tok/s
+
+```
+C1  picom exact   ############################                            83.4
+C1  picom OEA     #############################                           87.1
+C1  knapcio rerun ######################                                  64.8
+C1  knapcio Oct   #######################                                 70.4
+C2  picom exact   ##############################                          90.8
+C2  picom OEA     ##############################                          90.9
+C2  knapcio rerun ##############################                          90.3
+C2  knapcio Oct   ############################                            83.4
+C5  picom exact   #####################################                  111.5
+C5  picom OEA     #######################################                117.6
+C5  knapcio rerun #########################################              122.6
+C5  knapcio Oct   ##########################################             127.3
+C10 picom exact   ###########################################            129.2
+C10 picom OEA     #############################################          134.4
+C10 knapcio rerun ###################################################    153.3
+C10 knapcio Oct   ###################################################### 160.9
+```
+
+The two picom bars of a level are one window apart from nothing — they share a boot-to-boot window;
+the two knapcio bars are other boots. Reading down a level compares engines; reading across a level
+compares the two picom arms.
+
+### Agentic totals, one character = 3 s
+
+`├`–`┤` is the three-run range, `┿` the median total.
+
+```
+            |         |         |         |         |         |
+            0        30        60        90        120       150
+SGLang                                                      ├─┿ 147.1-152.9 s
+picom exact                                     ├────┿─┤        110.2-133.4 s
+picom OEA                                      ├───────┿─┤      108.1-136.7 s
+```
+
+The SGLang range ends at its own median (152.9 s is both), so that bar closes on `┿`. The picom
+ranges overlap each other almost completely and neither touches the SGLang range; that non-overlap
+is the whole of the LIKELY ordering in section 3, and one boot per arm is why it is LIKELY.
+
+### Readiness, one character = 0.05 in log10 of seconds
+
+Twenty characters is a 10× step, so the bars compare orders of magnitude, not time.
+
+```
+picom cached    27.7 #############################
+picom convert  166.4 ############################################
+knapcio cold   708.4 #########################################################
+```
+
+27.7 s is with per-rank artifacts already cached; 166.4 s is the boot that had to convert weights
+and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a like-for-like start.
+
+## 5. Where each wins and why
 
 - **Shipped pair, same window: picom ahead at one and two streams, behind at five and ten.** Against
   knapcio's October recorded row the shipped exact arm is **+18.5 % at C1** (83.4 vs 70.4) and
@@ -259,21 +399,20 @@ ladder stay in `rerun-20261118/README.md`, and the new boot's own receipts are
   still the faster arm — **+5.4 % at C5, +4.0 % at C10** against exact, one boot per side — and that
   ladder result is untouched by this.
 - **Probe window, 16 concurrent users: knapcio ahead of the lossless picom arm (354.1 vs 325.9,
-  +8.7 %) and 6.6 % behind the lossy one (377.5).** Drafting was **not** off on the picom side: the 16-user window's
-  request lines report multi-row verify steps with 3.08–4.90 drafts verified per step
-  (`picom-gap-20261117/boot-a/rank.0.log:675,679,683,687`), and that boot captured a batch spec graph
-  of up to 16 entries (`rank.0.log:44`; `DSGB10_DRAFT1=6` and `DSGB10_WIDE=64` at `launch.sh:190` are
-  what extend drafting past one session). So the deficit is per-step cost at 2–6 rows plus whatever
-  scheduling difference remains — INFERRED, because no cell decomposes step time on either engine and
-  the two engines' step sizes at 16 requests are not the same quantity.
+  +8.7 %) and 6.6 % behind the lossy one (377.5).** Drafting was **not** off on the picom side: the
+  16-user window's request lines report multi-row verify steps with 3.08–4.90 drafts verified per
+  step (`picom-gap-20261117/boot-a/rank.0.log:675,679,683,687`), and that boot captured a batch spec
+  graph of up to 16 entries (`rank.0.log:44`; `DSGB10_DRAFT1=6` and `DSGB10_WIDE=64` at
+  `launch.sh:190` are what extend drafting past one session). So the deficit is per-step cost at
+  2–6 rows plus whatever scheduling difference remains — INFERRED, because no cell decomposes step
+  time on either engine and the two engines' step sizes at 16 requests are not the same quantity.
 - **Single stream (the 2026-11-17 probe window): picom ahead (84.5 vs 64.8 chat, +30.4 %; 142.5 vs
-  119.8 code, +19.0 %).** Both
-  engines speculate with 5 drafts, so this is a per-step cost difference, not a different strategy.
-  INFERRED mechanism: picom's step is one hand-written graph with no host-side scheduler hop per
-  token and its own ring, while SGLang's decode passes through its Python scheduler and TP collectives.
-  Neither receipt decomposes the step. The lane's llama-benchy C1 rows point the same way (87.4 with a
-  74.8–99.4 spread against 67.18 ± 6.97), a different instrument and window, so it corroborates rather
-  than confirms.
+  119.8 code, +19.0 %).** Both engines speculate with 5 drafts, so this is a per-step cost
+  difference, not a different strategy. INFERRED mechanism: picom's step is one hand-written graph
+  with no host-side scheduler hop per token and its own ring, while SGLang's decode passes through
+  its Python scheduler and TP collectives. Neither receipt decomposes the step. The lane's
+  llama-benchy C1 rows point the same way (87.4 with a 74.8–99.4 spread against 67.18 ± 6.97), a
+  different instrument and window, so it corroborates rather than confirms.
 - **OEA is a measured knob on this arm, not an engine property.** `PICOM_OEA=4,12,9` — a batch-aware
   MoE re-route that keeps each row's top 4 experts but prefers the batch's core among top 12, from
   9 rows (`engine/kernels/moe.cu:1452-1455`) — moves the depth-0 ladder **+7.4 % at C5** (121.2 vs
@@ -303,27 +442,43 @@ ladder stay in `rerun-20261118/README.md`, and the new boot's own receipts are
   configurations. Because `engine/server/serve.cpp:1195` admits only where `prompt + max_new` fits,
   every request that budgets 262k needs one of the four big slots, and a fifth waits in `wait_`
   rather than drawing a refusal or a timeout.
-- **Prefill chunking is a budget, not a win.** knapcio's 16384-token chunk is 2.35× its 8192 control on
-  1M prefills (`launcher.py:170-178`, `~/benchmarks/tp4-window-20261024/`), and its decode-between-chunks
-  feature costs 17–28 % of ladder throughput and therefore ships off (`launcher.py:270-278`). The
-  shipped picom arms prefill 16384 rows (`--prefill-rows 16384`) and have no interleave at all
-  (`docs/engine.md:451-460`); the probe arm's 8192 rows is the one engine difference between the two
-  ladder tables. No cell here measures a long-context prefill on both engines, so no direction is
-  claimed.
+- **Prefill chunking is a budget, not a win.** knapcio's 16384-token chunk is 2.35× its 8192 control
+  on 1M prefills (`launcher.py:170-178`, `~/benchmarks/tp4-window-20261024/`), and its
+  decode-between-chunks feature costs 17–28 % of ladder throughput and therefore ships off
+  (`launcher.py:270-278`). The shipped picom arms prefill 16384 rows (`--prefill-rows 16384`) and have
+  no interleave at all (`docs/engine.md:451-460`); the probe arm's 8192 rows is the one engine
+  difference between the two ladder tables. No cell here measures a long-context prefill on both
+  engines, so no direction is claimed.
 - **The client contract is where the engines differ most in kind.** SGLang's surface honors
   `return_token_ids`, a real thinking channel and cache accounting; picom's front-end is a thin
   hand-written parser that drops unknown fields silently, has no reasoning channel, and takes its
-  output ceiling from a launcher flag (section 2 surface group). For an agent workload that matters
-  more than 10 % of decode, and it is the one difference here that is demonstrated by receipts rather
-  than inferred from a total.
+  output ceiling from a launcher flag (section 2). For an agent workload that matters more than 10 %
+  of decode, and it is the one difference here that is demonstrated by receipts rather than inferred
+  from a total.
 
-## 5. What is not comparable / not measured
+## 6. What is not comparable, and why
+
+_Instrument._
 
 - **No interleaved A/B.** The shipped exact and lossy boots ran back to back in one window but never
   alternated, and every knapcio ladder is from a different window.
+- **One boot per arm: the agentic gap is disjoint in sample but not established.** All nine runs are
+  unpolluted (`polluted_runs` 0, section 3) and the totals ranges do not overlap — exact
+  110.2–133.4 s and lossy 108.1–136.7 s against SGLang 147.1–152.9 s — which is why the 18.2 % and
+  13.8 % median gaps read as LIKELY. The battery's own inter-boot floor is ~7 % and each arm was
+  booted once, so a gap of that size would stay unmeasured, and a second boot per arm is what would
+  convert the ordering to established. Within picom, the ~5 % median difference is smaller than
+  either arm's 21–24 % run-to-run spread.
+- **Two picom ladder generations and two knapcio ladders, no power/thermal/RDMA capture**, and the
+  readiness comparison is one cold boot against one warm-cached boot, not a like-for-like start. The
+  knapcio rerun boot and the picom ladder boots are separate boots, so no knapcio-vs-picom ladder
+  margin here is interleaved.
+
+_Coverage._
+
 - **The 983,040 needle gap closed, not widened.** Both shipped boots pass it at depth 10; what stays
-  unmeasured at that length is decode throughput, since the reply is a few tokens and no ladder covers
-  depth > 0.
+  unmeasured at that length is decode throughput, since the reply is a few tokens and no ladder
+  covers depth > 0.
 - **No long-context decode ladder.** The 131k and 983k needles are one retrieval probe each, and no
   repeated-prefix / multi-turn cell exists — so the prefix-cache difference (SGLang reports hits,
   picom ran cold in every receipt) is unmeasured as a cost.
@@ -335,22 +490,14 @@ ladder stay in `rerun-20261118/README.md`, and the new boot's own receipts are
   two of three runs where exact loses `golden-regression` once and knapcio loses
   `shell-repro-rounding` once (section 3), which bounds the cost at this fixed task set and says
   nothing about tasks that are not in it.
-- **One boot per arm: the agentic gap is disjoint in sample but not established.** All nine runs
-  are unpolluted (`polluted_runs` 0, section 3) and the totals ranges do not overlap — exact
-  110.2–133.4 s and lossy 108.1–136.7 s against SGLang 147.1–152.9 s — which is why the 18.2 % and
-  13.8 % median gaps read as LIKELY. The battery's own inter-boot floor is ~7 % and each arm was
-  booted once, so a gap of that size would stay unmeasured, and a second boot per arm is what would
-  convert the ordering to established. Within picom, the ~5 % median difference is smaller than
-  either arm's 21–24 % run-to-run spread.
-- **Different budgets by design**: KV pool vs session store, 16 uniform slots vs 4 big + 12 small,
-  chunked prefill at 16384 tokens vs whole-request prefill of 16384-row chunks.
-- **Two picom ladder generations and two knapcio ladders, no power/thermal/RDMA capture**, and the
-  readiness comparison is one cold boot against one warm-cached boot, not a like-for-like start. The
-  knapcio rerun boot and the picom ladder boots are separate boots, so no knapcio-vs-picom ladder
-  margin here is interleaved.
 - **`copies 16` is not a prefix-sharing cell** on either engine: the instrument randomizes the prefix.
 
-## 6. What to try next
+_Design._
+
+- **Different budgets by construction**: KV pool vs session store, 16 uniform slots vs 4 big + 12
+  small, chunked prefill at 16384 tokens vs whole-request prefill of 16384-row chunks.
+
+## 7. What to try next
 
 1. **Run one interleaved A/B, boot for boot** — exact, lossy, lossy, exact on the same image and
    window, both the ladder's C5 and C10 (where the lossy margin is largest) plus C1, 5 runs/cell,
