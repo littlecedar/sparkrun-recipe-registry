@@ -16,15 +16,16 @@ interleaved.
   survive the same-day column.
 - **Five to ten users: knapcio.** 111.5 against **122.6 and 127.3** tok/s at C5, and 129.2 against
   **153.3 and 160.9** at C10 (same-day rerun, then October); the direction holds on either column.
-- **Agentic tool loop: picom.** Total wall clock 110.2–133.4 s and 108.1–136.7 s against
-  147.1–152.9 s, ranges disjoint — LIKELY, one boot per arm.
+- **Agentic tool loop: picom.** Per-boot median totals 119.9–123.4 s and 122.5–124.4 s against
+  159.5–178.6 s over two boots per arm, ranges disjoint — LIKELY, two boots per arm.
 - **Fast restart matters: picom.** 27.7 s to HTTP-ready against 708.4 s.
 - **Client contract matters: knapcio.** It echoes token ids, has a real thinking channel and
   reports prefix-cache hits; picom drops unknown fields silently and clamps `max_tokens`.
 - **Exact vs lossy picom: a tie on this evidence.** Same wall clock inside either arm's spread;
   the lossy arm is ahead **+5.5 % at C5 and +3.9 % at C10** (section 5).
-- **What would change the answer: one interleaved A/B and a second boot per arm.** Every ordering
-  here rests on a single boot per side; the agentic gap is disjoint in sample, not established.
+- **What would change the answer: cell-level interleaving.** The agentic ordering now rests on two
+  boots per arm, disjoint in sample and still LIKELY; every ladder ordering rests on one boot per
+  side.
 
 ## Which engine, by workload
 
@@ -34,10 +35,11 @@ interleaved.
 | Single stream, code | picom | `c1 9` code 142.5 vs 119.8 tok/s (section 3) | measured, one boot per side |
 | 2 users | either | shipped exact C2 90.8 vs knapcio 90.3 rerun / 83.4 October (section 3) | tie on the same-day column |
 | 5–10 fan-out | knapcio | C5 111.5 vs 122.6 / 127.3, C10 129.2 vs 153.3 / 160.9 (rerun / October) | holds on both columns — other boots |
-| Agentic tool loop | picom | totals 110.2–133.4 / 108.1–136.7 vs 147.1–152.9 s | LIKELY, one boot per arm |
+| Agentic tool loop | picom | per-boot median totals 119.9–123.4 / 122.5–124.4 vs 159.5–178.6 s, two boots each | LIKELY, two boots per arm |
+| Tool calling, scored | either | BFCL scoped 87/100 both, `transport_errors` 0, per-category 19/17/17/20/14 vs 19/17/18/19/15 | tie; 100 of 1,240 questions |
 | Million-token context | either | 983,040 needle PASS at depth 10 on both shipped arms | PASS measured; decode unmeasured |
 | Vision | knapcio | native in-engine stack; picom needs a supervised child | functional on both, no cost cell |
-| Long-form generation | picom | 40,000 tokens in 207.9 s (192.4 tok/s) under a 262,144 cap | measured on picom, no cap probed on knapcio |
+| Long-form generation | picom | 40,000 tokens in 207.9 s (192.4 tok/s) under a 262,144 cap | measured on picom; knapcio names 32,768 and enforces neither bound |
 | Restart-sensitive work | picom | 27.7 s warm-cached vs 708.4 s cold | one boot each, not like-for-like |
 
 ## Architecture
@@ -81,7 +83,13 @@ plus a per-rank disk tier instead of a pre-sized KV pool (`engine/server/main.cp
 `docs/engine.md:451-523`).
 
 The fabric is one switch and both f1 ports are down on this fleet, so a ring's two directions share
-the same two f0 devices (`mods/picom-launcher/README.md:104`).
+the same two f0 devices (`mods/picom-launcher/README.md:104`). It was probed read-only in the paired
+window (`paired-20261118/fabric-probe/`): MTU **9000** on both RoCE netdevs (`enp1s0f0np0`,
+`enP2p1s0f0np0`, maxmtu 9978), RDMA links ACTIVE, `ethtool -a` autoneg off with RX and TX pause
+**on**, `mlnx_qos` DCBX OS-controlled, priority trust pcp, **PFC disabled on all eight priorities**.
+Two facts are **not obtained** and nothing below rests on them: the switch-side PFC/ECN
+configuration (the switch is not reachable from the hosts) and picom's queue-pair `hop_limit` (no
+log, container env, launcher script or binary string exposes it).
 
 ## How each was measured
 
@@ -104,9 +112,11 @@ graph TD
   rerun --> receipt
 ```
 
-One boot per configuration, cells run in a fixed order, then torn down to 0 containers, 0 volumes
-and no `:8000` listener before the next start (`post-teardown.txt` beside each phase's cells). The
-pollution rule is the whole reason the agentic section exists in its current form: runs whose
+One boot per configuration in the original windows, cells run in a fixed order, then torn down to 0
+containers, 0 volumes and no `:8000` listener before the next start (`post-teardown.txt` beside each
+phase's cells). The paired window in section 3 boots each arm twice, in the order `E, K, L, L, K, E`,
+with the same teardown gate between boots. The pollution rule is the whole reason the agentic
+section exists in its current form: runs whose
 report carries a non-zero `polluted_runs` are dropped and re-measured, because a mixed-fixture
 table once read a harness timeout as an engine property (section 3, old fixture's rows).
 
@@ -115,7 +125,7 @@ table once read a harness timeout as an engine property (section 3, old fixture'
 | axis | knapcio (SGLang) | picom (dsgb10) |
 |:--|:--|:--|
 | Context budget | 1,048,576 served (`--context-length` from `defaults.max_model_len`); KV pool profiled at boot and pinned to 6,849,792 tokens on the stock loader under `MEM_FRACTION_STATIC` 0.78 (`launcher.py:148,156`, `launcher.py:217-236`) | 1,048,576 for the 4 big slots; the other 12 hold `max_ctx / 8` = 131,072 each (`engine/model/model.cu:79-88`, `kUnitMul` 8 at `engine/model/config.h:39`); no `max_model_len` in the recipe, no KV pool to pin |
-| Output ceiling | no front-end clamp found in the probed surface: `max_tokens` honored, a negative value draws an OpenAI-shaped 400 (`knapcio-live-20261117/README.md` probe 02) | **262,144** on the production arm (`PICOM_MAX_TOKENS`, `launch.sh:311,324`), which binds each long request to the four big slots — `engine/server/serve.cpp:1195` admits a request only where `prompt + max_new` fits, so a fifth 262k reply queues silently instead of being refused; the front-end's own default stays 32,768 (`frontend/src/main.rs:126`) and clamps a larger value rather than refusing it (`frontend/src/server.rs:522-528`), which is the silent clamp the shipped arm used to report as `finish_reason: length` |
+| Output ceiling | **32,768** new tokens, named by the engine's own refusal: `min_tokens` 40000 draws HTTP 400 with `min_new_tokens must be in [0, max_new_tokens(32768)], got 40000`, while `max_tokens` 40000 is accepted silently and the reply self-terminates at 2,001 tokens with `finish_reason: stop`; at 32,768 `min_tokens` is accepted but not enforced (`paired-20261118/K2/ceiling/`) | **262,144** on the production arm (`PICOM_MAX_TOKENS`, `launch.sh:311,324`), which binds each long request to the four big slots — `engine/server/serve.cpp:1195` admits a request only where `prompt + max_new` fits, so a fifth 262k reply queues silently instead of being refused; the front-end's own default stays 32,768 (`frontend/src/main.rs:126`) and clamps a larger value rather than refusing it (`frontend/src/server.rs:522-528`), which is the silent clamp the shipped arm used to report as `finish_reason: length` |
 | KV / session memory | one paged KV+SHA pool sized from MemAvailable at boot; fp8 KV; 128 SWA prefix tails reserved inside that budget (`launcher.py:268`, recipe `metadata.kv_dtype: fp8`) | compressed KV + index keys, ~890 B per position across all 40 layers, replicated (`docs/engine.md:90-116`); 12 GiB session-store pool, blocks of 64 KiB, spill to a per-rank 32 GiB disk tier (`docs/engine.md:451-523`) |
 | Scheduler / admission | `MAX_RUNNING_REQUESTS=16` uniform slots; `--cuda-graph-max-bs-decode` follows the same number (`launcher.py:167`, live flags in `head:~/benchmarks/knapcio-live-20261117/README.md`) | 16 slots with 4 big (`--slots 16 --big-slots 4`, `recipes/ds4/mods/picom-launcher/launch.sh:190`); smallest-fit pick, small slots first so big ones stay for long requests (`engine/server/serve.cpp:1198-1205`); more requests than slots take turns of `--slice` 64 tokens (`docs/engine.md:615-700`) |
 | Prefill | chunked at 16384 tokens (`CHUNKED_PREFILL_SIZE`, `launcher.py:178`); decode-between-chunks ships **off** (`PREFILL_DECODE_INTERVAL` 0, `launcher.py:278`) | whole request in `--prefill-rows` chunks: 8192 on the probe arm, 16384 on the shipped arms; decode between chunks not built, so other requests wait one chunk (`docs/engine.md:451-460`) |
@@ -135,7 +145,7 @@ picom front-end read at `7c123ad4` (`frontend/src/server.rs:522-538`, `frontend/
 | axis | knapcio (SGLang) | picom (dsfront) |
 |:--|:--|:--|
 | Defaults when the request omits them | samples: three runs, three distinct answers (`02-defaults.json`) | `temperature` 1.0, `top_p` 0.95, `max_tokens` = its cap, 32,768 with no launcher flag (`frontend/src/main.rs:126,130-131`) |
-| Honored sampling / limits | vendor surface: `temperature`, `top_p`, `stop` (`matched_stop: 1`), `max_tokens` floor-checked with a 400 | `temperature`, `top_p`, `top_k` (approximate past ~256: candidate union capped at 64 logits/rank), `seed` (`mix64(seed) ^ pos`, reproducible), `max_tokens` / `max_completion_tokens`, `stop` (held-back partial tail), `stop_token_ids`, `ignore_eos` (`server.rs:522-545`) |
+| Honored sampling / limits | vendor surface: `temperature`, `top_p`, `stop` (`matched_stop: 1`), `max_tokens` floor-checked with a 400 whose text names the 32,768-new-token ceiling (`paired-20261118/K2/ceiling/`) | `temperature`, `top_p`, `top_k` (approximate past ~256: candidate union capped at 64 logits/rank), `seed` (`mix64(seed) ^ pos`, reproducible), `max_tokens` / `max_completion_tokens`, `stop` (held-back partial tail), `stop_token_ids`, `ignore_eos` (`server.rs:522-545`) |
 | Silently dropped | none found in the probed set | `min_p`, `presence_penalty`, `frequency_penalty`, `repetition_penalty`, `logit_bias`, `return_token_ids` — hand-written `r.get(...)` list, no unknown-key refusal (`server.rs:522-545`) |
 | Token-id echo | honored: `prompt_token_ids` + `response_token_ids` present (`03-greedy`/probe 3) | ignored: 200 with no ids (`picom-ladder-20261117/preflight-transcript.txt:18,23`) |
 | Thinking / reasoning channel | `chat_template_kwargs.thinking: true` turns it on: non-empty `reasoning_content`, `reasoning_tokens: 25`; the default emits none (`08-reasoning.json`, `09-thinking-true.json`) | the same kwargs select prompt *encoding* only; no reasoning channel is ever emitted, `completion_tokens_details.reasoning_tokens: 0` (`frontend/src/server.rs:510-519`, `frontend/src/main.rs:129`) |
@@ -227,10 +237,10 @@ vs 2.7 %.
 ### Agentic battery
 
 `tools/agentic-battery.py --tier all`, 13 tasks (8 easy, 5 hard), fixed `max_tokens: 4096`,
-single-flight. Three runs of the same battery per configuration, one boot per configuration. All
-nine runs come from the post-fix fixture (the `start_stub.sh` launcher plus the run report's
-pollution flag), so the three configurations are comparable to each other and to nothing measured
-earlier on this page.
+single-flight. Three runs of the same battery per configuration, one boot per configuration — the
+earlier window; the paired window below boots each arm twice. All nine runs come from the post-fix
+fixture (the `start_stub.sh` launcher plus the run report's pollution flag), so the three
+configurations are comparable to each other and to nothing measured earlier on this page.
 
 | configuration | run | pass | median | worst | total wall |
 |:--|:--|:--|--:|--:|--:|
@@ -257,10 +267,88 @@ nine `summary.json` files carry `polluted_runs` 0 and `harness_timeouts` 0.
 (exact) and 131.8 s (OEA) against 152.9 s (SGLang) — 18.2 % and 13.8 % below — and the totals ranges
 are disjoint: 110.2–133.4 s and 108.1–136.7 s against 147.1–152.9 s. That is LIKELY rather than
 established: one boot per arm with three runs each, and the battery's own inter-boot floor is ~7 %,
-so a second boot per arm is what would convert it. Between the two picom arms the totals ranges
+so a second boot per arm is what would test it — the paired window below takes that boot, and it
+keeps the verdict LIKELY. Between the two picom arms the totals ranges
 overlap almost completely (medians 125.1 against 131.8, inside either arm's 21–24 % run-to-run
 spread), so exact and lossy stay indistinguishable on total wall clock and the agentic choice still
 rests on the concurrency curve and the lossy construction.
+
+### The paired window: two boots per arm
+
+The same battery in a declared window 17:40–20:45Z over the same four ranks `.31`–`.34`, boot order
+**E, K, L, L, K, E** (E = picom exact, L = picom lossy `PICOM_OEA=4,12,9`, K = knapcio SGLang),
+every boot torn down to 0 containers, 0 volumes and no `:8000` before the next and the lease
+released after. Receipt: `head:~/benchmarks/picom-prod-20261118/paired-20261118/README.md`, with one
+directory per boot (`E1/`, `K1/`, …). All 18 passes carry `polluted_runs` 0 and
+`harness_timeouts` 0, `max_tokens` 4096, tier `all`, temperature 0, non-streaming; no pass
+discarded or re-run. Totals are the battery's three pass totals per boot, in run order.
+
+| boot | arm | order | pass totals (pass count) | socket-task wall | ladder C1 / C2 / C5 / C10 |
+|:--|:--|:--:|:--|:--|:--|
+| E1 | picom exact | 1st | 118.6 (12/13) · 119.9 (12/13) · 129.7 (12/13) | 10.7 · 9.8 · 10.0 s | not run |
+| K1 | knapcio | 2nd | 189.2 (13/13) · 178.6 (13/13) · 122.7 (13/13) | 15.8 · 11.1 · 14.5 s | not run |
+| L1 | picom lossy | 3rd | 126.3 (12/13) · 100.0 (13/13) · 124.4 (11/13) | 12.0 · 8.2 · 11.1 s | not run |
+| L2 | picom lossy | 4th | 125.7 (13/13) · 114.6 (13/13) · 122.5 (13/13) | 11.8 · 7.9 · 8.0 s | 91.29 / 93.05 / 114.66 / 138.09 |
+| K2 | knapcio | 5th | 159.5 (13/13) · 161.6 (13/13) · 135.0 (13/13) | 15.1 · 14.2 · 14.0 s | 66.94 / 89.59 / 123.92 / 161.23 |
+| E2 | picom exact | 6th | 123.4 (13/13) · 130.4 (13/13) · 120.1 (13/13) | 9.4 · 11.1 · 11.9 s | 77.29 / 97.39 / 106.89 / 124.92 |
+
+In this window: picom TTR flat at 25.2–26.5 s across its four boots, knapcio at 674–722 s, and every
+boot armed its watchdog with `ranks=4 unprobeable=0`.
+
+| arm | boots, in window order | pass count | median of the pass medians | per-boot median total | totals range |
+|:--|:--|:--|:--|:--|:--|
+| picom exact (E) | E1 (1st), E2 (6th) | 75/78 | 8.4 s / 9.0 s | 119.9 / 123.4 s | **119.9–123.4 s** |
+| picom lossy (L) | L1 (3rd), L2 (4th) | 75/78 | 8.1 s / 8.0 s | 124.4 / 122.5 s | **122.5–124.4 s** |
+| knapcio (K) | K1 (2nd), K2 (5th) | 78/78 | 9.0 s / 9.8 s | 178.6 / 159.5 s | **159.5–178.6 s** |
+
+**Verdict: picom leads SGLang on agentic wall clock, ranges disjoint across both boots of each arm —
+LIKELY, not established.** At the ranges' ends: (159.5 − 119.9) ÷ 159.5 = **24.8 %** and
+(178.6 − 123.4) ÷ 178.6 = **30.9 %** less wall clock, i.e. knapcio takes 1.33× to 1.45× the time.
+Alternation changed no ordering: same-arm boots differ by ≤ 0.9 s in median and ≤ 19 % in total,
+and the differences do not track boot order — the pair adjacent in time, L1→L2, agrees to 0.1 s,
+while the pair furthest apart in the window, K 2nd against 5th, moves most. It stays LIKELY because
+these are single-flight sequential runs of a 13-task set, two boots per arm, with no cell-level
+interleaving.
+
+**Pass counts separate nothing.** E 75/78, L 75/78, K 78/78: the exact arm's misses are
+`shell-repro-rounding` on all three E1 runs plus one task each on two E2 runs, none reproducible
+across boots, and that miss is the one the lane doc already records for this arm.
+
+**Ladder, still one boot per arm.** Only each arm's second boot carries the depth-0 ladder — the
+requirement arrived mid-window — and E1, K1 and L1 have none: missing, not substituted.
+
+| cell | picom exact (E2) | picom lossy (L2) | knapcio (K2) |
+|:--|--:|--:|--:|
+| C1 | 77.29 | 91.29 | 66.94 |
+| C2 | 97.39 | 93.05 | 89.59 |
+| C5 | 106.89 | 114.66 | 123.92 |
+| C10 | 124.92 | 138.09 | 161.23 |
+
+Receipts: `paired-20261118/E2/ladder.csv`, `L2/ladder.csv`, `K2/ladder.csv`, each with `ladder.json`
+and `ladder.log`. Same 3 tok/s chart as the shipped-arm table (section 4), same directions: picom
+ahead at C1, knapcio ahead at C5 and C10, C2 inside the spread — so this window separates no new
+ladder direction. A first L2 attempt without `--fresh` printed the archived phase-6 table and wrote
+no file (`L2/ladder.log`); it is not evidence and the recorded L2 numbers are the `--fresh` run's.
+
+**A scoped BFCL tools leg ran in this window, on the first boot of each arm.**
+`--limit 20` × 5 default categories = **100 of 1,240 questions**, fixture revision
+`gorilla-llm/Berkeley-Function-Calling-Leaderboard` `61fc0608…`, `--max-tokens` 4096, temperature 0,
+`tool_choice auto`, serial. **E1 87/100 and K1 87/100, `transport_errors` 0 in both**; per category
+(simple / multiple / parallel / parallel_multiple / irrelevance) E1 19/17/17/20/14 and K1
+19/17/18/19/15. This is the page's first tool-calling score and it **separates nothing**: it is not
+comparable to a full-leg or `/1,240` number (section 6), only to itself and to the other engine on
+the same 100 questions. Receipts: `paired-20261118/E1/`, `paired-20261118/K1/`.
+
+### Knapcio output ceiling (probe)
+
+`paired-20261118/K2/ceiling/`, four requests to the same live serve. `max_tokens` 40000 is
+**accepted** — no 400 and no clamp message — and the reply self-terminates at 2,001 tokens with
+`finish_reason: stop` at 152.4 tok/s. `min_tokens` 40000 is **refused** with HTTP 400 in the
+engine's own words, `min_new_tokens must be in [0, max_new_tokens(32768)], got 40000`, which names
+the ceiling: **32,768 new tokens**. At 32,768 both are accepted and `min_tokens` is **not
+enforced** (the reply stops at 2,001 tokens with `stop`). So the ceiling is named, not exercised: no
+32k reply was generated, `max_tokens` above it is accepted silently, and `min_tokens` neither bounds
+the request nor holds a floor.
 
 ### The old fixture's rows (history)
 
@@ -349,19 +437,24 @@ other boots. Reading down a level compares engines, reading across compares the 
 
 ### Agentic totals, one character = 3 s, origin = the `0` column
 
-`├`–`┤` is the three-run range, `┿` the median total.
+Each bar is one boot's median of its three pass totals, `round(median ÷ 3)` characters, from the
+paired window in section 3; an arm's two boots are the two bars under its name.
 
 ```
             |         |         |         |         |         |
             0        30        60        90        120       150
-SGLang                                                       ├─┿ 147.1-152.9 s
-picom exact                                      ├────┿─┤        110.2-133.4 s
-picom OEA                                       ├───────┿─┤      108.1-136.7 s
+E1 exact    ######################################## 119.9
+E2 exact    ######################################### 123.4
+L1 lossy    ######################################### 124.4
+L2 lossy    ######################################### 122.5
+K1 knapcio  ############################################################ 178.6
+K2 knapcio  ###################################################### 161.6
 ```
 
-The SGLang range ends at its own median (152.9 s is both), so that bar closes on `┿`. The picom
-ranges overlap each other almost completely and neither touches the SGLang range; that non-overlap
-is the whole of the LIKELY ordering in section 3, and one boot per arm is why it is LIKELY.
+119.9 → 40 characters, 123.4 → 41, 124.4 → 41, 122.5 → 41, 178.6 → 60, 161.6 → 54. The two
+knapcio bars stay clear of all four picom bars; that non-overlap over two boots per arm is the
+whole of the LIKELY ordering in section 3, and single-flight sequential runs with no cell-level
+interleaving are why it is LIKELY.
 
 ### Readiness, one character = 0.05 in log10 of seconds
 
@@ -388,16 +481,17 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
   (`rerun-20261118/boot1-knapcio/ladder.csv`). Only the exact-vs-lossy pair is same-window; both
   knapcio columns are other boots and are read as the shape of the trade, not a margin — and both
   come from the old-fixture boot, so these are ladder cells, not the agentic comparison section 3
-  now makes on one battery.
-- **Agentic totals now favor picom over SGLang, and keep the two picom arms tied.** On the single
-  post-fix battery (section 3) one boot per arm, three runs each: SGLang totals **147.1–152.9 s**
-  against exact **110.2–133.4 s** and OEA **108.1–136.7 s**, ranges disjoint, medians 152.9 / 125.1
-  / 131.8 s — 18.2 % and 13.8 % below SGLang. Read as LIKELY, not established: the battery's
-  inter-boot floor is ~7 % and there is one boot per arm, so a second boot per arm is what would
-  convert it. Between the picom arms the ranges overlap over almost their whole extent (a ~5 %
-  median gap smaller than either arm's own 21–24 % run-to-run spread) and pass counts differ by a
-  task or two on different tasks, so exact and lossy are indistinguishable on total wall clock and
-  the choice between them rests on the concurrency curve and the lossy construction. The earlier
+  now makes on the paired battery.
+- **Agentic totals favor picom over SGLang across two boots per arm, and keep the two picom arms
+  tied.** On the paired window (section 3) the per-boot median totals are SGLang **159.5–178.6 s**
+  against exact **119.9–123.4 s** and lossy **122.5–124.4 s**, disjoint at both ends, so picom is
+  **(159.5 − 119.9) ÷ 159.5 = 24.8 %** to **(178.6 − 123.4) ÷ 178.6 = 30.9 %** faster — knapcio
+  takes 1.33× to 1.45× the wall clock (lossy: 23.2 % to 30.3 %). That is **LIKELY, not established**:
+  single-flight sequential runs of a 13-task set, two boots per arm, no cell-level interleaving. The
+  earlier one-boot window's 18.2 % and 13.8 % medians are the same direction on a weaker design and
+  are no longer the claim. Between the picom arms the ranges overlap in 122.5–123.4 s and both arms
+  pass 75/78, so exact and lossy are indistinguishable on total wall clock and the choice between
+  them rests on the concurrency curve and the lossy construction. The earlier
   50 % OEA deficit was the harness, not the knob: a 60 s tool-timeout path fired on either arm
   (section 3's historical rows), and no ranking from that table survives. Under concurrency OEA is
   still the faster arm — **+5.4 % at C5, +4.0 % at C10** against exact, one boot per side — and that
@@ -445,7 +539,10 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
   `completion_tokens` 40,000 and `finish_reason` `length` in 207.9 s (192.4 tok/s) on both
   configurations. Because `engine/server/serve.cpp:1195` admits only where `prompt + max_new` fits,
   every request that budgets 262k needs one of the four big slots, and a fifth waits in `wait_`
-  rather than drawing a refusal or a timeout.
+  rather than drawing a refusal or a timeout. Knapcio's own ceiling is now named rather than
+  unknown: **32,768 new tokens**, from the engine's refusal of `min_tokens` 40000, with `max_tokens`
+  above it accepted silently and `min_tokens` unenforced at the ceiling itself — so the engine
+  bounds neither end of a long-form request (section 3, `paired-20261118/K2/ceiling/`).
 - **Prefill chunking is a budget, not a win.** knapcio's 16384-token chunk is 2.35× its 8192 control
   on 1M prefills (`launcher.py:170-178`, `~/benchmarks/tp4-window-20261024/`), and its
   decode-between-chunks feature costs 17–28 % of ladder throughput and therefore ships off
@@ -464,15 +561,15 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
 
 _Instrument._
 
-- **No interleaved A/B.** The shipped exact and lossy boots ran back to back in one window but never
-  alternated, and every knapcio ladder is from a different window.
-- **One boot per arm: the agentic gap is disjoint in sample but not established.** All nine runs are
-  unpolluted (`polluted_runs` 0, section 3) and the totals ranges do not overlap — exact
-  110.2–133.4 s and lossy 108.1–136.7 s against SGLang 147.1–152.9 s — which is why the 18.2 % and
-  13.8 % median gaps read as LIKELY. The battery's own inter-boot floor is ~7 % and each arm was
-  booted once, so a gap of that size would stay unmeasured, and a second boot per arm is what would
-  convert the ordering to established. Within picom, the ~5 % median difference is smaller than
-  either arm's 21–24 % run-to-run spread.
+- **No cell-level interleaving.** The paired window alternates boots (`E, K, L, L, K, E`), but every
+  cell inside a boot runs single-flight and sequentially, and no two engines were ever measured at
+  the same time; the shipped ladder boots ran back to back and never alternated.
+- **Two boots per arm: the agentic gap is disjoint at both ends and still LIKELY.** All 18 passes are
+  unpolluted (`polluted_runs` 0, section 3) and the per-boot median totals do not overlap — exact
+  119.9–123.4 s and lossy 122.5–124.4 s against SGLang 159.5–178.6 s — which is why the 24.8 % and
+  30.9 % range-end gaps read as LIKELY rather than established. What stays uncontrolled is the
+  absence of cell-level interleaving on a 13-task single-flight set. Within picom, the two ranges
+  meet in 122.5–123.4 s, so the ~3 % difference is not a claim.
 - **Two picom ladder generations and two knapcio ladders, no power/thermal/RDMA capture**, and the
   readiness comparison is one cold boot against one warm-cached boot, not a like-for-like start. The
   knapcio rerun boot and the picom ladder boots are separate boots, so no knapcio-vs-picom ladder
@@ -486,7 +583,10 @@ _Coverage._
 - **No long-context decode ladder.** The 131k and 983k needles are one retrieval probe each, and no
   repeated-prefix / multi-turn cell exists — so the prefix-cache difference (SGLang reports hits,
   picom ran cold in every receipt) is unmeasured as a cost.
-- **BFCL tools leg still absent.** Tool calling is demonstrated functional (section 2), not scored.
+- **The BFCL tools leg is scoped, not full.** 100 of 1,240 questions (`--limit 20` across five
+  categories) on the first boot of each arm scored 87/100 on both engines with `transport_errors` 0
+  (section 3). It is the first tool-calling score here and it separates nothing; the full leg is
+  still unmeasured.
 - **Vision is functional only.** The path answers; no cost, latency or quality cell exists.
 - **No free-form quality metric.** The needle and house cells are exact-match and pass/fail; nothing
   here scores generated code or prose.
@@ -503,13 +603,14 @@ _Design._
 
 ## 7. What to try next
 
-1. **Run one interleaved A/B, boot for boot** — exact, lossy, lossy, exact on the same image and
-   window, both the ladder's C5 and C10 (where the lossy margin is largest) plus C1, 5 runs/cell,
-   and the agentic battery on the same alternation, reading total wall clock as the cell that
-   currently separates picom from SGLang. The pollution re-run is done (section 3); what remains is
-   that every arm comparison here still rests on a single boot per side — the agentic ordering is
-   disjoint in sample but LIKELY, not established — and that is where the shipped +5.5 % / +3.9 %
-   has to settle into the shortcut or the boot order.
-2. **Run the BFCL tools leg** on both engines with the same tasks and turn budget. Settles whether
-   the client-contract differences in section 2 (thinking channel, token-id echo, unknown-field
-   handling) cost anything an agent can feel.
+1. **Interleave at the cell, not the boot.** The paired window already alternates boots
+   (`E, K, L, L, K, E`, section 3), so what is left is running the same 13-task battery in
+   interleaved turns against both engines, and putting the ladder's C1, C5 and C10 (where the lossy
+   margin is largest) inside one alternation at 5 runs/cell. The agentic ordering is disjoint at both
+   ends over two boots per arm and still LIKELY; an interleaved run is what would take it to
+   established, and where the shipped +5.5 % / +3.9 % has to settle into the shortcut or the boot
+   order.
+2. **Run the full BFCL leg** — all 1,240 questions, same fixture revision and turn budget on both
+   engines. The scoped 100-question leg is a dead heat at 87/100 (section 3), so it settles nothing
+   about whether the client-contract differences in section 2 (thinking channel, token-id echo,
+   unknown-field handling) cost anything an agent can feel.
