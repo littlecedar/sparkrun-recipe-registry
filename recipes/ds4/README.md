@@ -2408,23 +2408,28 @@ root `head:~/benchmarks/picom-prod-20261118/`; each boot's lane cells are its ow
 - `deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` — the exact arm, strictly lossless
   (`PICOM_OEA` empty). Confirmed 2026-11-18 on its own boot, 5-run concurrency ladder
   (d0, pp 2048, tg 128): **C1 83.4, C2 90.8, C5 111.5, C10 129.2** tok/s
-  (`phase5/ladder.csv`); agentic battery **13/13** (median 10.0 s, worst 25.4 s,
-  total 130.1 s), which a same-day three-run rerun read as **13/13, 13/13, 12/13**
-  at **128.0–132.3 s** total, and whose knapcio-vs-picom difference sits inside
-  knapcio's own **32.5 s** run-to-run span (`rerun-20261118/`); house **37/37**,
+  (`phase5/ladder.csv`); on the single post-fix battery, three unpolluted runs,
+  agentic **13/13, 13/13, 12/13** at **125.1 / 133.4 / 110.2 s** total, run 3 missing
+  `golden-regression` (`final-20261118/bootA-exact/`), which leads the production
+  SGLang line's **147.1 / 152.9 / 152.9 s** on that same battery
+  (`head:~/benchmarks/picom-prod-20261118/knapcio-newfix-20261118/`) by **18.2 %** at
+  the median, ranges disjoint in the sample — LIKELY, one boot per arm against the
+  ~7 % inter-boot floor — and the socket task now runs 11.4 / 11.1 / 8.7 s; house **37/37**,
   needle **3/3** at 131,072 in 12.1 s and the
   983,040-token prefill **PASS** in 97.1 s (980,868 prompt tokens).
 - `deepseek-v4.1-flash-1017-picom-tp4-1m-oea.yaml` — identical plus
   `PICOM_OEA=4,12,9`, the lossy batch-aware MoE re-route. Same ladder on its own
   boot: **C1 87.1, C2 90.9, C5 117.6, C10 134.4** tok/s (`phase6/ladder.csv`), i.e.
   **+5.4 % at C5 and +4.0 % at C10** and C1 +4.5 % against the exact boot — one boot
-  per side, not a repeated measurement. Accuracy after the fixture fix, three unpolluted
-  runs per arm: agentic **13/13, 12/13, 12/13** at **108.1–136.7 s** total against exact
-  **13/13, 13/13, 12/13** at **110.2–133.4 s** (`final-20261118/bootB-oea/` and
-  `bootA-exact/`), ranges overlapping over almost their whole extent with the pass counts
-  missing different tasks (lossy `shell-repro-rounding` twice, exact `golden-regression`
-  once), `polluted_runs` 0 throughout — so no agentic difference between the arms is
-  established and the socket task now runs 8.7–11.4 s on both — house **37/37**, needles 3/3 at
+  per side, not a repeated measurement. Accuracy on that same single battery, three
+  unpolluted runs: agentic **13/13, 12/13, 12/13** at **108.1 / 136.7 / 131.8 s** total,
+  runs 2–3 missing `shell-repro-rounding` (`final-20261118/bootB-oea/`), which sits
+  inside the exact arm's own **110.2–133.4 s** range (medians 131.8 against 125.1,
+  inside either arm's 21–24 % run-to-run spread), so the shortcut's only measured
+  advantage is the concurrency ladder. Both arms lead the SGLang line's
+  **147.1–152.9 s** on that battery, this one by **13.8 %** at the median with ranges
+  disjoint in the sample — LIKELY, one boot per arm against the ~7 % inter-boot floor —
+  and the socket task now runs 11.4 / 11.0 / 10.8 s — house **37/37**, needles 3/3 at
   131,072 and PASS at 983,040. No accuracy loss was found on the house or needle
   cells; that is not a guarantee beyond them.
 
