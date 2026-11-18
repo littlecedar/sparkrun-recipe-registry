@@ -61,12 +61,13 @@ flowchart LR
 ```
 
 knapcio (`deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`) is SGLang `sglang.launch_server` from
-the image's `dev-dsv41` build (`da64c5cb`, staged tree `f80c91a4b`), TP=4 / EP=1 over 2×
-ConnectX-7 RoCEv2, with RoCEnante doing the one-shot all-reduce and all-gather, 1M context,
-DSpark k=5, driven by a lane mod that owns the memory line and the extra flags
-(`mods/dsv41-sglang-overlay/launcher.py`). It optimizes the production serve line: one long-lived
-process holding a 1M-token KV pool, 16 uniform request slots, a 16384-token prefill chunk, and
-SGLang's paged attention, radix prefix cache and in-process multimodal stack as the tuning surface
+the image's `dev-dsv41` build (`da64c5cb`, staged tree `f80c91a4b`), TP=4 / EP=1 over two
+RoCEv2 RDMA devices (`rocep1s0f0`, `roceP2p1s0f0`), with RoCEnante doing the one-shot
+all-reduce and all-gather, 1M context, DSpark k=5, driven by a lane mod that owns the memory
+line and the extra flags (`mods/dsv41-sglang-overlay/launcher.py`). It optimizes the production
+serve line: one long-lived process holding a 1M-token KV pool, 16 uniform request slots, a
+16384-token prefill chunk, and SGLang's paged attention, radix prefix cache and in-process
+multimodal stack as the tuning surface
 (`launcher.py:148-300`).
 
 picom (`zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` as the probe, shipped as
