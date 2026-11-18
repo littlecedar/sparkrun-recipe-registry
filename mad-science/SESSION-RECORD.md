@@ -13831,7 +13831,13 @@ Raw captures (`census.txt`, `node.sh`, `driver.sh`, `compose.py`, `board.md`, `b
 The commit carried `1 file changed, 34 insertions(+)` — this section and nothing else, so no peer's
 half-written ledger text rode along.
 
-## 2026-11-17 19:12 ET board tick — one unaccounted four-rank launch in an otherwise idle hour
+## 2026-11-17 19:12 ET board tick — one four-rank production relaunch in an otherwise idle hour
+
+**Corrected in place at 19:19 ET** by `c50c35b` (board) after this entry first called the launch
+*unaccounted*: `b020d2dd178343a5` is the shipped knapcio ds4 arm's own intent id, so the quartet is a
+production-serve relaunch, not a research boot. The subject and body of `9814c70` still carry the
+superseded framing; history on a shared head is not rewritten, so this heading and the two clauses
+below are the correction.
 
 **What landed.** `11ecb9d` (board refresh on the `18:12 ET` base), pushed as `5fe1a46..11ecb9d`;
 `tools/push-gate.py` green on `HEAD 11ecb9de` before the push. The commit carried `1 file changed`
@@ -13844,28 +13850,38 @@ instrument again did not return zero everywhere: `.30` and `.35` read **0 B**, `
 **369,727 / 369,728 B and 255 lines** each — the base's own window had carried two picom boots, this
 one carries a single launch.
 
-**That launch, bounded rather than identified.** The lines name one container per rank,
-`sparkrun_b020d2dd178343a5_8f5130842aa0_node_{0..3}`, image
-`littlecedar/dgx-spark-dsv41:canary-roce-aff52fa5` (id `3f4480818acb`) — the canary the queued
-`fleet-boot-without-lease-record` row already names for this host set. Earliest retained event is
+**That launch, identified.** The lines name one container per rank,
+`sparkrun_b020d2dd178343a5_8f5130842aa0_node_{0..3}`, image id `3f4480818acb`.
+`docker image inspect` on `.31` resolves that id to
+`ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb3947005e75afd8f8c10adf9dc1db4e5f96ea54c6411e960a4eeee073c5c`,
+the `container:` pin at `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml:20`, whose
+`model_revision` `08c8657f…` is the snapshot in the pool — so this is the **shipped production arm**,
+probed and excluded from research accounting (owner directive 2026-10-28), not a research boot and
+not an instance of the queued `fleet-boot-without-lease-record` defect. Earliest retained event is
 the rank children's `python3 -S /opt/dsv41/boot.py health` at `23:32:01Z`; `health_status: healthy`
 lands `23:35:10Z`; `kill`/`die`/`destroy` land `23:39:43Z`–`23:39:45Z`. Docker's event ring has
-rolled the `create`/`start`, so the launch's first second is bounded only by
+rolled the `create`/`start`, so the relaunch's first second is bounded only by
 `(23:03:20Z, 23:32:01Z]` — the base board's own read found the fleet empty at `23:03:20Z`.
-Accounting: ledger `34eed267…` is `leases: []` and `fenced: []`, byte-identical here and on the
-head; no `.local/fleet-window.lock` in this clone or on the head's; no receipt under
-`~/benchmarks` newer than `2026-11-17T23:00Z` at depth 3; the campaign unit is `inactive` with
-`MainPID 0`; and `sparkrun logs b020d2dd178343a5_8f5130842aa0` answers *no job metadata*, so
-sparkrun itself cannot say how it was launched. Issuer **unidentified**; the discriminator that
-would settle it — the head's auth log (or the launching shell's history) for `23:31Z`–`23:32Z` —
-has not been run.
+Accounting: the ledger reads `leases: []` and `fenced: []` **but carries mtime
+`2026-11-17 18:40:16.143919980 -0500` (`23:40:16Z`)**, thirty-one seconds after `.31`'s last rank died
+and thirty-nine minutes after the base's own read of the same bytes, so a write happened in the
+window; identical bytes cannot distinguish a `Ledger.release` from a rewrite that changed nothing, so
+**whether the relaunch held a lease is not established** — this entry first published *no lease* and
+withdraws it. No `.local/fleet-window.lock` in this clone or on the head's; no receipt under
+`~/benchmarks` newer than `2026-11-17T23:00Z` at depth 3; campaign unit `inactive` with `MainPID 0`;
+and `sparkrun logs b020d2dd178343a5_8f5130842aa0` answers *no job metadata*, so which session ran the
+relaunch (and why it was stopped 4.5 min after container health) is still unrecorded.
 
-**Pool, campaign, register.** Through-mount reads on the head at `00:10:36Z`: 103 hub entries, both
-`deepseek-ai/DeepSeek-V4.1-Flash-1017` snapshots' `config.json` **3,311 B**, `df -B1` used
-**14,168,897,355,776 B** (+163,053,568 B on the base's pair) against the six roots' own avail net
-**-149,417,984 B** (`.30` -17,022,976 · `.31` -23,322,624 · `.32`/`.33` -31,653,888 ·
-`.34` -23,531,520 · `.35` -22,233,088); the two series differ by **13,635,584 B**, quoted as
-arithmetic with no mechanism claimed. `beegfs-meta` on `.31`–`.35` advanced +681/+681/+681/+682/+681
+**Pool, campaign, register.** Content and capacity are two reads, and the capacity pair was re-taken
+because the published cell paired a `00:10:36Z` mount read with the `00:02:32Z` census roots — eight
+minutes apart — and then quoted their difference as a residue. Hub and snapshots, through the mount
+on the head at `00:10:36Z`: 103 entries, both `deepseek-ai/DeepSeek-V4.1-Flash-1017` snapshots'
+`config.json` **3,311 B**. Capacity in **one pass** `2026-11-18T00:17:09Z`–`00:17:12Z` (six roots
+`00:17:10Z`–`00:17:12Z`, mount `00:17:12Z`): mount used **14,168,902,074,368 B** (+167,772,160 B on
+the base's own pair) against the six roots' own avail net **-168,804,352 B** (`.30` -21,110,784 ·
+`.31` -33,116,160 · `.32` -33,026,048 · `.33` -33,030,144 · `.34` -24,911,872 · `.35` -23,609,344),
+differing by **1,032,192 B**, quoted as arithmetic with no mechanism claimed. `beegfs-meta` on
+`.31`–`.35` advanced +681/+681/+681/+682/+681
 over 3,482 s — **5.11 s** per restart, the known loop, storage `active` fleet-wide. Campaign: 49
 `state.json` paths decomposing 9 real files / 9 roots / 38 arms, **0 leases** with a future epoch
 `expires_at`, the 40 extra paths aliasing one inode through `h2h-20261107/tp12-window -> .`.
