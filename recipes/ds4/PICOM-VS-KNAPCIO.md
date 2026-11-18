@@ -11,9 +11,11 @@ interleaved.
 
 - **One stream: picom.** 84.5 against 64.8 tok/s chat and 142.5 against 119.8 code, same
   instrument, same day (section 3); both engines draft 5 tokens, so this is per-step cost.
-- **Two streams: picom.** 90.8 against 83.4 tok/s, +8.9 %, inside a 6.2 % within-boot spread.
-- **Five to ten users: knapcio.** 127.3 against 111.5 at C5 and 160.9 against 129.2 at C10
-  against the shipped exact arm.
+- **Two streams: a tie.** 90.8 against **90.3** tok/s on the same-day knapcio rerun (+0.6 %, inside
+  the 6.2 % within-boot spread) and 83.4 on the October row (+8.9 %), so the ordering does not
+  survive the same-day column.
+- **Five to ten users: knapcio.** 111.5 against **122.6 and 127.3** tok/s at C5, and 129.2 against
+  **153.3 and 160.9** at C10 (same-day rerun, then October); the direction holds on either column.
 - **Agentic tool loop: picom.** Total wall clock 110.2–133.4 s and 108.1–136.7 s against
   147.1–152.9 s, ranges disjoint — LIKELY, one boot per arm.
 - **Fast restart matters: picom.** 27.7 s to HTTP-ready against 708.4 s.
@@ -30,8 +32,8 @@ interleaved.
 |:--|:--|:--|:--|
 | Single stream, chat | picom | `c1 9` chat 84.5 vs 64.8 tok/s (section 3) | measured, one boot per side |
 | Single stream, code | picom | `c1 9` code 142.5 vs 119.8 tok/s (section 3) | measured, one boot per side |
-| 2 users | picom | shipped exact C2 90.8 vs knapcio 83.4 (section 3) | other boots — shape, not margin |
-| 5–10 fan-out | knapcio | C5 127.3 vs 111.5, C10 160.9 vs 129.2, October row | shape, not margin — other boots |
+| 2 users | either | shipped exact C2 90.8 vs knapcio 90.3 rerun / 83.4 October (section 3) | tie on the same-day column |
+| 5–10 fan-out | knapcio | C5 111.5 vs 122.6 / 127.3, C10 129.2 vs 153.3 / 160.9 (rerun / October) | holds on both columns — other boots |
 | Agentic tool loop | picom | totals 110.2–133.4 / 108.1–136.7 vs 147.1–152.9 s | LIKELY, one boot per arm |
 | Million-token context | either | 983,040 needle PASS at depth 10 on both shipped arms | PASS measured; decode unmeasured |
 | Vision | knapcio | native in-engine stack; picom needs a supervised child | functional on both, no cost cell |
@@ -375,11 +377,12 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
 
 ## 5. Where each wins and why
 
-- **Shipped pair, same window: picom ahead at one and two streams, behind at five and ten.** Against
-  knapcio's October recorded row the shipped exact arm is **+18.5 % at C1** (83.4 vs 70.4) and
-  **+8.9 % at C2** (90.8 vs 83.4), and **−12.4 % at C5** (111.5 vs 127.3) and **−19.7 % at C10**
-  (129.2 vs 160.9); the shipped lossy arm is **+23.8 / +8.9 / −7.6 / −16.5 %** (`phase5/ladder.csv`,
-  `phase6/ladder.csv`). Against the rerun boot's own knapcio ladder the shape holds and C1 widens:
+- **Shipped pair, same window: picom ahead at one stream, level at two, behind at five and
+  ten.** Against knapcio's October recorded row the shipped exact arm is **+18.5 % at C1**
+  (83.4 vs 70.4) and **+8.9 % at C2** (90.8 vs 83.4), and **−12.4 % at C5** (111.5 vs 127.3) and
+  **−19.7 % at C10** (129.2 vs 160.9); the shipped lossy arm is **+23.8 / +8.9 / −7.6 / −16.5 %**
+  (`phase5/ladder.csv`, `phase6/ladder.csv`). Against the rerun boot's own knapcio ladder
+  the shape holds and C1 widens:
   exact **+28.7 / +0.6 / −9.1 / −15.7 %**, lossy **+34.4 / +0.7 / −4.1 / −12.3 %**
   (`rerun-20261118/boot1-knapcio/ladder.csv`). Only the exact-vs-lossy pair is same-window; both
   knapcio columns are other boots and are read as the shape of the trade, not a margin — and both
