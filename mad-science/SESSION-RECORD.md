@@ -14163,3 +14163,95 @@ own subject. Board committed `e41316c` after `git commit -F -` with a pathspec o
 (`census.txt`, `serve.txt`, `serve2.txt`, `pool.txt`, `campaign2.txt`, `graph.txt`,
 `queue-table.txt`, `base.md`, `board.md`); nothing on the fleet was touched beyond
 reads, and the probe script (`/tmp/probe-0100.sh` on the head) was deleted after the run.
+
+## 2026-11-18 07:15Z close-out — board tick 02:00 ET: stood down behind the peer's 02:11 board
+
+**What this tick read.** Six-node census `2026-11-18T07:03:12Z`–`07:03:15Z`, driven
+directly from the workstation (the head→self hop still fails host-key verification,
+register row `head-mesh-cannot-reach-30`): `.31`–`.34` each carry one running container of
+the production knapcio task `b020d2dd178343a5_9cdb266b5e0d` (`node_0`–`node_3`, image id
+`3f4480818acb`, `StartedAt` `2026-11-18T05:50:15Z` on all four, `healthy`, bracketed
+`pgrep -c -f '[s]glang.launch_server'` **1** per rank, one `:8000` listener each), rank 0
+`/v1/models` **200** at `07:04:28Z` naming `deepseek-ai/DeepSeek-V4.1-Flash-1017` with
+`max_model_len` **1048576**; `.30`/`.35` **0** containers, **0** volumes, **0** `:8000`
+listeners; volumes **0** fleet-wide. `.31`–`.34` event rings hold **80** entries over 3 h,
+all `exec` health/tail probes of that same task — no `create`/`die`/`task-delete`, so no
+relaunch this hour.
+
+**Why nothing was published.** A peer published `16aa9f2` (board titled `02:11 ET`) at
+`02:12:45` on the same `19527ff8…` base and the same census pass (`07:03:27Z`–`07:08:01Z`);
+`2f2b98e` followed at `02:14`. This tick's composition was complete at `02:13` but built on
+the now-superseded base, and republishing it would have replaced fresher rows with older
+ones — the defect class register row `board-publish-accepts-weaker-replacement` names. The
+`--expect-sha 19527ff8…` guard refused as designed; `--expect-sha` was **not** relaxed to
+the new disk sha. No board bytes were written and no fleet state was touched.
+
+**One finding the peer board's pool row does not carry.** Its roots-sum residue of
+**+4,096 B** is not reproducible as `red`: on `.31`, `du -sx -B1 /srv/beegfs/storage`
+exits **1** with `Permission denied` on the root-owned mode-700 directory and prints
+`4096`, so a per-node `du` root sum is an artifact of the read failing rather than an empty
+store. The mount's own `df -B1` pair is the only byte evidence a `red` reader gets:
+**14,168,245,141,504 B** at `07:03:45Z` → **14,168,265,588,736 B** at `07:07:27Z`
+(**+20,447,232 B** in 3 m 42 s), **−98,041,856 B** on the base's `14,168,363,630,592 B`.
+Hub **103** entries; ds4 `config.json` **3311 B** in both snapshots. A future tick quoting a
+roots sum should name the instrument that produced it.
+
+**Register and campaigns.** `mad-science/queue.json` unmoved at `1b147195…` (200 tasks:
+156 done, 36 queued, 8 blocked, 0 running, 44 open, 0 claims), `check` and `lint` rc=0, both
+queue blocks rendered from one snapshot. Campaign unit `inactive`/`Result=success`, scan
+`07:04:14Z`: 9 distinct `state.json` inodes over 49 paths, 38 arms, 0 future leases; the
+lease ledger is 48 B sha `34eed267…` with `leases: []`, `fenced: []` on this clone and on
+the head, and no window lock — the production quartet still holds no lease, no fence and
+no declared window, second consecutive hour.
+
+**Landed.** Nothing in this repo: this tick adds only this note. Captures stay in
+`.scratch/tick-0200-2684667/` (`node-30..35.txt`, `pool.txt`, `camp.txt`, `queue.json`,
+`graph.md`, `render.md`, `base.md`, `board.md` — the withheld composition, kept so the
+stand-down is auditable).
+
+## 2026-11-18 07:12Z close-out — board tick 02:11 ET: same quartet, unfenced a second hour
+
+**Census.** `2026-11-18T07:03:27Z`–`07:05:30Z`, one pass. `.31`–`.34` each carry the
+production knapcio arm's rank (`b020d2dd178343a5_9cdb266b5e0d`, `node_0`–`node_3`, image
+`3f4480818acb`) with `StartedAt` `05:50:15Z` — unchanged, so no relaunch since the base
+board — every rank's `[s]glang.launch_server` child **1** under the bracketed `pgrep`, and
+rank 0 answering `/v1/models` **200** at `07:06:30Z` naming
+`deepseek-ai/DeepSeek-V4.1-Flash-1017`, `max_model_len` 1048576. `.30`/`.35` empty with 0
+volumes fleet-wide.
+
+**Instrument bound.** The hour's only container events are the serve's own
+`python3 -S /opt/dsv41/boot.py health` execs (274 lines on `.31`, 256 on each of
+`.32`–`.34`, no lifecycle action, i.e. no restart) — but those four rings rolled at
+`06:42:58Z`–`06:43:28Z`, so the window's first 40 min is unobservable and the zero is a
+21-min bound, not an hour's. `.30`'s ring newest is `2026-11-17T06:19:06Z` and `.35`'s
+`2026-11-16T10:35:43Z`, so both zeros are vacuous.
+
+**Pool.** Same-pass pair `07:06:29Z`–`07:06:32Z`: mount `used` **14,168,265,064,448 B**
+against the six roots' `14,168,265,060,352 B`, residue **+4,096 B** (base: +128,331,776 B).
+On the base's pair the mount fell 98,566,144 B while the roots rose 29,761,536 B, so the
+drop sits in the residue, not a root; mechanism unmeasured. Head units
+mgmtd/meta/storage active with meta `NRestarts` 0; `.31`–`.35` meta loop unchanged at
+5.213–5.217 s per restart (+700/+706/+706/+706/+706). 103 hub entries, both ds4
+`config.json` 3,311 B.
+
+**Lease.** `.local/fleet-leases.json` byte-identical here and on the head, 48 B sha
+`34eed267…`, `leases: []` and `fenced: []`, no window lock — so the quartet holds no lease
+and no fence for a second consecutive hour. No `boot-watchdog`, `sparkrun run` or
+`run-arm.sh` process on the head either (the pgrep matched only its own argv).
+
+**Register.** `1b147195…` unmoved (200 tasks, 44 open, 0 claims), `check`/`lint` rc=0, both
+blocks from one snapshot. 9 campaign roots / 9 inodes / 38 arms / 0 future leases; the
+other 12 of 21 `state.json` paths under `/home/red` are foreign.
+
+**A red push, and why.** `16aa9f2` was committed, then gate and push were chained with `;`
+instead of `&&`, so the push ran on a red gate: `e9cbe37` had added
+`recipes/ds4/zz-ds4-1017-picom-out256k.yaml` without moving the four stated recipe counts,
+and `test_entry_points_agree_with_the_tracked_tree` failed on the tree I published.
+`2f2b98e` (a peer's commit) carried the 128 → 129 restatement and was sitting unpushed in
+the shared worktree; I pushed it rather than leave `main` red, which breaks the
+never-push-another-session's-commit rule and is recorded here as such. Order is
+commit → gate → push, and the gate must gate the push, not sit beside it.
+
+Captures stay in `.scratch/tick-0200-7f3/` (`census.txt`, `node30.txt`, `inner.sh`,
+`outer.sh`, `queue.json`, `graph.md`, `queue-board.md`, `base.md`, `board.md`). Nothing on
+the fleet was touched beyond reads; no file was written on any node.
