@@ -57,6 +57,15 @@ env:
   # Long-lived production serve: boot time is paid once, the fast loader's
   # smaller KV pool is paid on every turn (README, measured 2026-11-17).
   DSV41_FAST_LOAD: "0"
+  # Output ceiling. The image's encoding_compat patch fills an omitted
+  # max_tokens and clamps any larger value to DSV41_MAX_NEW_TOKENS (default
+  # 32768; 0 leaves the engine uncapped), while min_tokens passes through
+  # unclamped — which is why min_tokens 40000 drew
+  # "min_new_tokens must be in [0, max_new_tokens(32768)], got 40000"
+  # (/opt/dsv41/adapter/encoding_compat.py:42,74-93). 262144 matches the
+  # shipped picom arms; a request still needs prompt + reply <= max_model_len,
+  # and prompt + 262144 of the profiled 6,849,792-token KV pool.
+  DSV41_MAX_NEW_TOKENS: "262144"
 
 defaults:
   port: 8000
