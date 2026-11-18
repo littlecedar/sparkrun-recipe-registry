@@ -14711,3 +14711,31 @@ unmoved with `task-queue.py check` rc=0 and both queue blocks rendered from one
 snapshot.
 
 Captures lived in `.scratch/tick-0601-3107495/` (git-ignored).
+
+## 2026-11-18 06:15 ET — the rank↔host mapping corrected on the peer boards' node rows
+
+Two ticks published inside this hour (06:08 and 06:12 ET) and both carry the
+same defect on their node rows: three of the four leased ranks are named against
+the wrong host. `.32`'s cell calls its container `…_6f92d570b7be_node_2`, `.33`'s
+`…_node_3`, and `.34`'s `…_node_4` — a rank a tp=4 arm does not have.
+
+This tick's own `docker ps` on each host at `2026-11-18T11:04:32Z`–`11:04:35Z`
+reads `…_node_0` on `.31` (spark-d325), `…_node_1` on `.32` (spark-ec1d),
+`…_node_2` on `.33` (spark-3578) and `…_node_3` on `.34` (spark-324e), and
+`sparkrun status` at `11:05:30Z` prints the same mapping (node_0→`.31` …
+node_3→`.34`). The published board replaces those three ids and adds each
+host's own read instant; every other In flight row, both queue blocks (register
+snapshot `dd27dfd9…`, `check` rc=0) and the whole Landed table are the base's,
+untouched.
+
+Also measured and appended as landed rows: the hour's boot turnover on all four
+ranks — a four-rank container set killed `10:39:16Z` (die/destroy within 2 s),
+picom `58cddf1c62ba6578_6f92d570b7be` created `10:52:12Z` and killed `11:04:47Z`,
+`…_ddd637b7af3d` created `11:05:33Z`, each rank's `dsgb10_rank` child alive at
+`11:06:16Z`–`11:06:17Z` with rank 0's keyed `dsfront` answering `/v1/models` 401
+— and a pool pass at `11:04:30Z` reading mount **14,167,870,275,584 B** over the
+six roots **14,167,870,300,160 B** (residue **−24,576 B**), **103** hub entries
+and both ds4 `config.json` 3,311 B. The lease ledger `a0145e6e…` (444 B,
+`session:picom-socket-20261118`) is byte-identical here and on the head.
+
+Captures lived in `.scratch/tick-0601-4070/` (git-ignored).
