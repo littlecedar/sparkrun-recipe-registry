@@ -22,8 +22,10 @@ interleaved.
 - **Fast restart matters: picom.** 27.7 s to HTTP-ready against 708.4 s.
 - **Client contract matters: knapcio.** It echoes token ids, has a real thinking channel and
   reports prefix-cache hits; picom drops unknown fields silently and clamps `max_tokens`.
-- **Exact vs lossy picom: a tie on this evidence.** Same wall clock inside either arm's spread;
-  the lossy arm is ahead **+5.5 % at C5 and +3.9 % at C10** (section 5).
+- **Exact vs lossy picom: a tie on this evidence, with the lossy arm cheaper under concurrency.**
+  Same wall clock inside either arm's spread; the lossy arm is ahead **+5.5 % at C5 and +3.9 % at
+  C10** (`phase5/ladder.csv`, `phase6/ladder.csv`, section 5) at the cost of a batch-dependent
+  approximation, so it ships only while the [lossy arm's bar](README.md#the-lossy-arms-bar) holds.
 - **What would change the answer: cell-level interleaving.** The agentic ordering now rests on two
   boots per arm, disjoint at the per-boot median level and still LIKELY; every ladder ordering rests
   on one boot per side.
@@ -539,19 +541,24 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
   its Python scheduler and TP collectives. Neither receipt decomposes the step. The lane's
   llama-benchy C1 rows point the same way (87.4 with a 74.8–99.4 spread against 67.18 ± 6.97), a
   different instrument and window, so it corroborates rather than confirms.
-- **OEA is a measured knob on this arm, not an engine property.** `PICOM_OEA=4,12,9` — a batch-aware
-  MoE re-route that keeps each row's top 4 experts but prefers the batch's core among top 12, from
-  9 rows (`engine/kernels/moe.cu:1452-1455`) — moves the depth-0 ladder **+7.4 % at C5** (121.2 vs
-  112.9) and **+8.0 % at C10** (135.8 vs 125.8) against the exact boot of the same window, and
-  **−2.7 % at C1** (85.1 vs 87.5), inside that cell's 14.3 % spread (`phase1/ladder.csv`,
-  `phase2/ladder.csv`). In the shipped pair the same knob reads +4.4 % C1, +0.1 % C2, **+5.5 % C5**
-  (117.6 vs 111.5) and **+3.9 % C10** (134.4 vs 129.2; `phase5/ladder.csv`, `phase6/ladder.csv`), so
-  the gain lands where the probe said it would, smaller because the shipped exact control read high
-  at C5. Both gains exceed the within-boot spread on either side, but each side is one boot, so this
-  is a same-window LIKELY effect, not an interleaved A/B. On accuracy the knob now loses nothing:
-  three rerun runs of the OEA arm drop `shell-repro-rounding` zero times, while exact and knapcio
-  each drop it once in three (section 3), so the pass counts do not separate the arms. The knob is
-  lossy by construction and ships as a separate arm, never as the default.
+- **`PICOM_OEA=4,12,9` is a measured knob on a shipped arm, not an engine property.** It is the
+  arm's whole difference from its exact twin — same image digest, every other env key identical,
+  and the launcher forwards it to the engine as `--setenv DSGB10_OEA` only when non-empty
+  (`tests/test_ds4_recipes.py`, `PicomOeaArmContract`). **What it wins,** one boot per side in one
+  window: the depth-0 ladder **+7.4 % at C5** (121.2 vs 112.9) and **+8.0 % at C10** (135.8 vs
+  125.8) in the probe window, C1 **−2.7 %** (85.1 vs 87.5) inside that cell's 14.3 % spread
+  (`phase1/ladder.csv`, `phase2/ladder.csv`); and in the shipped pair **+4.4 % C1, +0.1 % C2,
+  +5.5 % C5** (117.6 vs 111.5), **+3.9 % C10** (134.4 vs 129.2; `phase5/ladder.csv`,
+  `phase6/ladder.csv`) — the gain landing where the probe said it would, smaller because the
+  shipped exact control read high at C5. Both gains exceed the within-boot spread on either side,
+  but one boot per side is a same-window LIKELY effect, not an interleaved A/B. **What it costs**
+  is structural, not tuning: on calls of ≥9 rows each row keeps its top 4 and fills its last two
+  picks from ranks 5–12 by preferring the batch's core, then renormalises the six scores
+  (`engine/kernels/common.cuh:366-377`; the armed gate is `engine/kernels/moe.cu:78`, the identity
+  line `:1459`), so the same prompt answered alone is exact and inside a ≥9-row step is not.
+  **Falling back** is serving `deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` — same image,
+  `PICOM_OEA: ""`, no rebuild — and the gates that keep this arm shipped, with its demotion
+  conditions, are the lane README's [lossy arm's bar](README.md#the-lossy-arms-bar).
 - **The shortcut cost nothing on this lane's accuracy cells.** On the shipped pair: needle 3/3 at
   131,072 (12.1 s per cell) and the **983,040 rung PASS** at depth 10 on both (980,868 prompt tokens,
   97.1 s, `phase5/needle-983k-d10.json`, `phase6/needle-983k-d10.json`); house battery 37/37 on both
@@ -559,7 +566,10 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
   answers `nurkraps`, the one item the knapcio line misses). The probe boots' 32,768 and 131,072
   cells were already 3/3 on both (12.8–12.9 s per 131k cell), and the 40,000-token grant returns
   byte-identical text on both probes (content sha256 `3616f8ac…`). That bounds the cost on exact-match
-  retrieval and this fixed task set; it is not a free-form code-quality measurement.
+  retrieval and this fixed task set; it is not a free-form code-quality measurement, and tool
+  calling is scored on only 100 of 1,240 questions. The [lossy arm's bar](README.md#the-lossy-arms-bar)
+  is what keeps the twin shipped: parity on these cells plus the full BFCL leg and a batch-shape
+  probe, or the arm is demoted.
 - **The output ceiling is measured, and it is a slot question.** The shipped front end clamps
   `max_tokens` at its `--max-tokens` (`frontend/src/server.rs:522-528`), which used to be 32,768, so
   a longer request ended at 32,768 with `finish_reason: length` and no way to tell that from a stop.

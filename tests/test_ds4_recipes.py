@@ -2943,5 +2943,143 @@ class PicomLaneNegativeControls(unittest.TestCase):
                              f"the pre-fix gate refused a re-convert it could perform: {proc.stderr}")
 
 
+# --------------------------------------------------------------------------
+# The picom production pair: the exact arm and its `PICOM_OEA=4,12,9` twin
+# (2026-11-18).
+#
+# `PICOM_OEA` is the pair's only difference, and it is the only thing that can
+# turn the shipped serve lossy: the launcher forwards it to the engine as
+# `--setenv DSGB10_OEA` when non-empty and emits nothing when it is empty, and
+# the engine then prints its own identity line (`engine/kernels/moe.cu:1459`).
+# A guard that greps the recipe alone would not notice the key being dropped
+# from the twin (the launch would silently measure the exact arm under the OEA
+# name), nor a retune that landed in one arm only (a confounded pair). These
+# guards execute the launcher's own block instead of restating it.
+# --------------------------------------------------------------------------
+PICOM_EXACT_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-1017-picom-tp4-1m.yaml"
+PICOM_OEA_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-1017-picom-tp4-1m-oea.yaml"
+PICOM_OEA_VALUE = "4,12,9"
+
+
+def _picom_env_lines(text: str) -> list[str]:
+    """A recipe's `env:` lines, comments stripped, order preserved."""
+    clean = _strip_comment_lines(text)
+    return [ln.strip() for ln in _section(clean, "env") if ln.strip()]
+
+
+def _picom_oea_block(launch: str) -> str:
+    """Slice the launcher's opt-in block out so it can be run, not grepped."""
+    m = re.search(r"^if \[\[ [^\n]*PICOM_OEA[^\n]*\]\]; then\n.*?^fi\n",
+                  launch, re.M | re.S)
+    assert m, "the launcher's PICOM_OEA opt-in block vanished"
+    return m.group(0)
+
+
+def _run_picom_oea_forwarding(launch: str, value: str | None):
+    """Build EARGS through the launcher's block with PICOM_OEA set to `value`."""
+    import os
+    import subprocess
+    import tempfile
+
+    block = _picom_oea_block(launch)
+    with tempfile.TemporaryDirectory() as d:
+        script = Path(d) / "oea.sh"
+        script.write_text(
+            "set -u\n"
+            "EARGS=(--setenv DSGB10_CERT=1)\n"
+            + block
+            + '\nprintf \'%s\\n\' "${EARGS[@]}"\n')
+        env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin")}
+        if value is not None:
+            env["PICOM_OEA"] = value
+        return subprocess.run(["bash", str(script)], env=env,
+                              capture_output=True, text=True)
+
+
+class PicomOeaArmContract(unittest.TestCase):
+    """The lossy twin must stay the exact arm plus one knob, and that knob must
+    reach the engine only when the arm sets it."""
+
+    def setUp(self):
+        self.launch = (PICOM_MOD_DIR / "launch.sh").read_text()
+
+    def test_knob_is_pinned_in_the_twin_and_empty_in_the_exact_arm(self):
+        self.assertEqual(
+            Recipe(PICOM_OEA_RECIPE.read_text()).env.get("PICOM_OEA"),
+            PICOM_OEA_VALUE,
+            "the lossy arm no longer asks for the measured re-route")
+        self.assertEqual(
+            Recipe(PICOM_EXACT_RECIPE.read_text()).env.get("PICOM_OEA"), "",
+            "the exact arm is no longer strictly lossless")
+
+    def test_knob_is_the_pairs_only_difference(self):
+        """A retune that lands in one arm confounds every number the pair exists
+        to produce: the two must differ in this key and nothing else."""
+        def without_knob(text: str) -> list[str]:
+            return [ln for ln in _picom_env_lines(text)
+                    if not ln.startswith("PICOM_OEA:")]
+
+        self.assertEqual(without_knob(PICOM_EXACT_RECIPE.read_text()),
+                         without_knob(PICOM_OEA_RECIPE.read_text()),
+                         "the OEA twin drifted from the exact arm beyond the knob")
+
+    def test_launcher_forwards_the_knob_only_when_the_arm_sets_it(self):
+        """Executed, not read: an empty PICOM_OEA must leave the argv identical
+        to the exact arm's, and the twin's value must arrive as one setenv."""
+        self.assertIn('if [[ -n "${PICOM_OEA:-}" ]]', _picom_oea_block(self.launch),
+                      "the opt-in gate no longer keys on a non-empty value")
+        exact = _run_picom_oea_forwarding(self.launch, None)
+        self.assertEqual(exact.returncode, 0, exact.stderr)
+        self.assertNotIn("DSGB10_OEA", exact.stdout,
+                         "an unset PICOM_OEA still reached the engine")
+
+        empty = _run_picom_oea_forwarding(self.launch, "")
+        self.assertEqual(empty.returncode, 0, empty.stderr)
+        self.assertNotIn("DSGB10_OEA", empty.stdout,
+                         "an empty PICOM_OEA still reached the engine")
+
+        twin = _run_picom_oea_forwarding(self.launch, PICOM_OEA_VALUE)
+        self.assertEqual(twin.returncode, 0, twin.stderr)
+        self.assertEqual(twin.stdout.split(),
+                         ["--setenv", "DSGB10_CERT=1",
+                          "--setenv", f"DSGB10_OEA={PICOM_OEA_VALUE}"],
+                         "the twin's argv is not the exact arm's plus one setenv")
+
+
+class PicomOeaArmNegativeControls(unittest.TestCase):
+    """Mutation controls for PicomOeaArmContract; each must break its guard."""
+
+    def test_control_dropped_or_retuned_knob(self):
+        """A missing key and a different value must both redden the value guard."""
+        text = PICOM_OEA_RECIPE.read_text()
+        anchor = f'PICOM_OEA: "{PICOM_OEA_VALUE}"'
+        self.assertIn(anchor, text, "control anchor for the knob vanished")
+        for mutated in (text.replace(anchor, 'PICOM_OEA: "4,12,6"', 1),
+                        text.replace(anchor + "\n", "", 1)):
+            env = Recipe(mutated).env
+            with self.assertRaises(AssertionError):
+                self.assertEqual(env.get("PICOM_OEA"), PICOM_OEA_VALUE)
+
+    def test_control_retune_in_one_arm_only(self):
+        text = PICOM_OEA_RECIPE.read_text()
+        anchor = 'PICOM_MAX_TOKENS: "262144"'
+        self.assertIn(anchor, text, "control anchor for the pair drifted")
+        mutated = _picom_env_lines(text.replace(anchor, 'PICOM_MAX_TOKENS: "131072"', 1))
+        exact = [ln for ln in _picom_env_lines(PICOM_EXACT_RECIPE.read_text())
+                 if not ln.startswith("PICOM_OEA:")]
+        with self.assertRaises(AssertionError):
+            self.assertEqual(exact, [ln for ln in mutated if not ln.startswith("PICOM_OEA:")])
+
+    def test_control_inverted_forwarding_gate(self):
+        """Invert the launcher's gate: an unset arm must then fail the guard."""
+        launch = (PICOM_MOD_DIR / "launch.sh").read_text()
+        block = _picom_oea_block(launch)
+        inverted = launch.replace(
+            block, block.replace('[[ -n "${PICOM_OEA:-}" ]]', '[[ -z "${PICOM_OEA:-}" ]]'), 1)
+        proc = _run_picom_oea_forwarding(inverted, None)
+        with self.assertRaises(AssertionError):
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

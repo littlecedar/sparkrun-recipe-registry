@@ -2430,7 +2430,10 @@ root `head:~/benchmarks/picom-prod-20261118/`; each boot's lane cells are its ow
   `PICOM_OEA=4,12,9`, the lossy batch-aware MoE re-route. Same ladder on its own
   boot: **C1 87.1, C2 90.9, C5 117.6, C10 134.4** tok/s (`phase6/ladder.csv`), i.e.
   **+5.4 % at C5 and +4.0 % at C10** and C1 +4.5 % against the exact boot — one boot
-  per side, not a repeated measurement. Accuracy on that same single battery, three
+  per side, not a repeated measurement. What it buys that with is a batch-dependent
+  approximation, not a second engine: the same prompt answered alone is exact, the
+  same prompt inside a ≥9-row step is not (mechanism in
+  [The lossy arm's bar](#the-lossy-arms-bar) below). Accuracy on that same single battery, three
   unpolluted runs: agentic **13/13, 12/13, 12/13** at **108.1 / 136.7 / 131.8 s** total,
   runs 2–3 missing `shell-repro-rounding` (`final-20261118/bootB-oea/`), which sits
   inside the exact arm's own **110.2–133.4 s** range (medians 131.8 against 125.1,
@@ -2440,10 +2443,68 @@ root `head:~/benchmarks/picom-prod-20261118/`; each boot's lane cells are its ow
   disjoint in the sample — LIKELY, one boot per arm against the ~7 % inter-boot floor —
   and the socket task now runs 11.4 / 11.0 / 10.8 s — house **37/37**, needles 3/3 at
   131,072 and PASS at 983,040. No accuracy loss was found on the house or needle
-  cells; that is not a guarantee beyond them.
+  cells; that is not a guarantee beyond them. Roll back by serving the exact arm:
+  same image digest, `PICOM_OEA: ""`, no rebuild.
 
 The three `zz-ds4-1017-picom-*` arms below are the experiment record that selected
 this configuration; the production pair supersedes them for serving.
+
+#### The lossy arm's bar
+
+`PICOM_OEA=4,12,9` is a decision, not a toggle. The arm serves by default only while
+every gate below holds with a receipt of its own; miss one and it is demoted to the
+experiment record rather than shipped with a caveat.
+
+**What the knob approximates away.** The exact router takes each row's top 6 of
+`sqrt(softplus(logit)) + bias` (`engine/kernels/common.cuh:266-318`, pinned source
+`7c123ad4`). With the knob set, every MoE call of at least 9 rows re-routes, uniformly
+across the call (`engine/kernels/moe.cu:78`): each row's top 4 stay verbatim, and its
+last two picks are taken from its ranks 5–12, preferring an expert already in the
+*batch's core* — the union of every row's own top 4 (`moe.cu:83-87`,
+`common.cuh:366-369`) — with leftovers filled in rank order (`common.cuh:370-372`). The
+six chosen scores are then renormalised (`common.cuh:373-377`), so the weights move
+with the set and not only the expert identities. Two consequences are structural, not
+tunable: a row can cast another row's fifth-best expert where it would have used its
+own second-best of the tail, so **the answer depends on what else is in the batch** (a
+prompt answered alone is a 1-row call and stays exact; the same prompt inside a ≥9-row
+step is not); and only calls routed from logits (`moe_routed`) can re-route — a call
+handed precomputed `idx/wts` cannot (`moe.cu:1437-1449` against `:1451-1468`). Most
+exposed are tasks whose answer rides on a rarely-selected expert: long-tail names and
+identifiers, and continuations whose preferred expert the rest of the batch does not
+share. This is **not** a measured per-token loss — no cell decomposes logit divergence,
+and the batch-shape probe is what would.
+
+Ships by default while all of these hold:
+
+1. **Identity, offline and on the box.** The twin is the exact arm plus one env key
+   (`tests/test_ds4_recipes.py`, `PicomOeaArmContract`, controls included), and the
+   arm's rank-0 log carries `moe: DSGB10_OEA re-routing on: keep top 4, prefer the
+   batch's core among top 12, from 9 rows` (`engine/kernels/moe.cu:1459`) exactly once,
+   while the exact arm's log carries no such line.
+2. **Throughput, two boots per arm.** C5 and C10 ahead of the exact arm on the same
+   image in one window, boots interleaved, ≥5 ladder runs per cell, every boot
+   `--fresh` (a run without it prints the archived table and writes nothing,
+   `paired-20261118/L2/ladder.log`). The shipped +5.4 % C5 / +4.0 % C10 read one boot
+   per side (`phase5/ladder.csv`, `phase6/ladder.csv`); that is a start, not this gate.
+3. **Accuracy parity on clean runs.** House 37/37, needle 3/3 at 131,072 and PASS at
+   983,040, and the 13-task agentic totals inside the exact arm's range, on receipts
+   whose `polluted_runs` and `harness_timeouts` are 0 (`final-20261118/bootA-exact/`,
+   `bootB-oea/`).
+4. **Tool-calling parity.** The full BFCL leg — 1,240 questions, fixture `61fc0608…`,
+   `--max-tokens 4096`, temperature 0, `tool_choice auto` — no worse than the exact arm
+   on the same window, `transport_errors` 0. The scoped 100-question leg (87/100 both,
+   `paired-20261118/E1/`, `K1/`) does not clear this.
+5. **Batch-shape probe.** A fixed prompt set with graded answers, temperature 0, each
+   prompt once alone and once inside a 16-request burst, on both arms. Record the
+   twin's alone-vs-batch agreement rate and name the classes that flip; a graded answer
+   that flips is measured exposure, not noise.
+
+**Demote** on any of: a lost house, needle or agentic task on an unpolluted run; the
+full-leg BFCL below the exact arm; the ladder lead failing to reproduce on a second
+boot per side; or the probe flipping a graded answer in tool-call arguments or a code
+patch. **Roll back** by serving `deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` — same
+image digest and every other env key, `PICOM_OEA: ""` — so the only cost is the ladder
+delta, and the twin stays as the experiment record.
 
 ### Probe arms: prefill chunk budget, Engram read batch, output ceiling (authored 2026-11-17; all three booted in the 2026-11-18 production window)
 
