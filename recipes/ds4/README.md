@@ -2345,7 +2345,8 @@ Hard preconditions, each a start gate the 2026-11-17 smoke depended on (the rece
 starting under them, not a per-condition probe): one IPv4 per netdev;
 `GID_INDEX=3` matching the RoCEv2 IPv4 GID on all four devices; all four `PREV_IP0`s in one
 L2 domain (the QP's `hop_limit` is 1); jumbo frames plus PFC/ECN on the switch; `kho=off`
-(already fleet-wide); ≥100 GiB `MemAvailable` after the page-cache drop.
+(already fleet-wide); ≥100 GiB `MemAvailable` after the page-cache drop. The `hop_limit` and
+jumbo/PFC-ECN clauses are pending a probe, not measured (queue `ds4-fabric-clauses-probe`).
 
 ### Open boot gates
 
