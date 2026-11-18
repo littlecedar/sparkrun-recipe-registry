@@ -14935,3 +14935,21 @@ The same family of logs also carries the transport token
 identifier from corruption — grep the engine's serve logs before sweeping a
 token across the tree, and never sweep a token that appears inside a quoted log
 line or a frozen `attic/` archive.
+
+## 2026-11-18 11:05 ET — the 11:00 tick finds the fleet idle a fourth hour
+Census at `2026-11-18T16:03:02Z` on the `10:10 ET` base, 54 min after that
+base's read: 0 containers, 0 volumes, 0 `:8000` listeners on all six nodes, and
+0 container-event lines over `15:09:00Z`–`16:03:02Z` with every ring's oldest
+event preceding the window. The pool pair is same-pass (mount
+`14,168,090,476,544 B`, roots `14,168,090,308,608 B`, residue `+167,936 B`), and
+the base's printed roots sum reproduces exactly from its own six census `used`
+cells, so this tick carries no second base figure. Lease ledger empty and
+byte-identical in both clones, register unmoved at `63a71928`.
+
+Compose notes worth keeping: a composed In flight body replaces the section
+body, so the `| where | owner | what |` header and its delimiter must be
+re-emitted or `publish` refuses with `table-missing-delimiter`; and an inner
+`ssh -n … bash -s < script` in this tick's first campaign scan ran an empty
+script and returned rc=0, the `-n`-discards-stdin trap already in the skill.
+
+Captures lived in `.scratch/tick-1100-3590024/` (git-ignored, removed).
