@@ -321,7 +321,7 @@ ladder stay in `rerun-20261118/README.md`, and the new boot's own receipts are
 Mermaid cannot draw a value axis honestly, so the quantitative comparisons are fixed-width bars.
 Every bar is the section 3 number rounded to the nearest character; the value is printed beside it.
 
-### Shipped-arm ladder, one character = 3 tok/s
+### Shipped-arm ladder, one character = 3 tok/s, origin = column 19 (the first `#`)
 
 ```
 C1  picom exact   ############################                            83.4
@@ -342,9 +342,8 @@ C10 knapcio rerun ###################################################    153.3
 C10 knapcio Oct   ###################################################### 160.9
 ```
 
-The two picom bars of a level are one window apart from nothing — they share a boot-to-boot window;
-the two knapcio bars are other boots. Reading down a level compares engines; reading across a level
-compares the two picom arms.
+The two picom bars of a level come from one boot each in a single window, the two knapcio bars from
+other boots. Reading down a level compares engines, reading across compares the two picom arms.
 
 ### Agentic totals, one character = 3 s, origin = the `0` column
 
