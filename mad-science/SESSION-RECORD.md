@@ -15149,3 +15149,73 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   while a one-minute window returned six events, so a timeout on that probe
   is instrument flakiness, not an absent event ring.
 
+
+## 2026-11-18 15:16 ET — 15:00 tick stood down behind the 15:12 ET board, head churn unattributed there
+- Board refresh **not published**. This tick read `mad-science/STATUS.md`
+  as `14:16 ET` (`f400f80`, content sha `dc14ca23…`) and composed on
+  that base; at publish the tool refused (disk sha `f26425d0…`, a peer
+  write in between) and `origin/main` carries `fb3a217` — a **15:12 ET**
+  board whose census reads `20:05:42Z`–`20:07:43Z` against my own
+  `20:07:41Z`–`20:07:44Z`. Its cells and mine agree on every In-flight
+  fact, so a second board over the same reads is churn: this tick
+  records its own measurements here instead. My composition (title
+  `15:12 ET`, base `dc14ca23…`) was never published; nothing was
+  replaced.
+- Independent reads, taken before that board was seen: six-node census
+  `2026-11-18T20:07:41Z`–`20:07:44Z`, 55 min 01 s after the base's own
+  read (`19:12:43Z`). `.31`–`.34` carry the four ranks of
+  `b020d2dd178343a5_5357c86eb6d8` (`StartedAt` `20:04:11.65Z`, docker
+  health `starting`, serve child **1** per rank via
+  `pgrep -c -f '[s]glang.launch_server'`, rank 0 `/v1/models` **000** at
+  both `20:08:0xZ` and `20:12:07Z` — loading, not dead), `0` volumes and
+  `0` `:8000` listeners fleet-wide; `.30`/`.35` read `0` containers.
+  Ranks' `MemAvailable` **38.9–41.3 GB** against `.30`/`.35` **121.0 /
+  122.4 GB**.
+- **The one fact the published board leaves unnamed**: `.30`'s window
+  count of `164` container event lines is not idle noise but **11 ad-hoc
+  containers of the ds4 production pin image**
+  `ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb394…`, under
+  docker-assigned names — `great_black` `19:37:02Z`,
+  `romantic_stonebraker` `19:38:35Z`, `eloquent_stonebraker` `19:38:48Z`,
+  `modest_ardinghelli` `19:38:57Z`, `agitated_meninsky` and
+  `elastic_pascal` `19:39:15Z`, `nice_dhawan` `19:39:22Z`,
+  `awesome_khayyam` `19:39:47Z`, `condescending_borg` `19:39:59Z`,
+  `busy_tu` `20:01:38Z`, `nervous_sutherland` `20:01:47Z`. Each ran
+  `python3 -S /opt/dsv41/boot.py health` on a 5 s cadence (29 exec
+  triples), and all are gone at the read (`docker ps -aq` **0**). The
+  names are docker's own, not sparkrun's, so these are hand
+  `docker run`s on a normal worker node — legal on `.30`, but they are
+  unrecorded work on the production image and the board's `.30` row
+  reports the count without them.
+- Pool, own same-pass read: mount `used` **14,060,763,480,064 B** at
+  `20:07:44Z` against the six roots' `14,060,763,283,456 B`
+  (`20:07:41Z`–`20:07:44Z`), residue **+196,608 B**; `103` hub entries,
+  ds4 `config.json` **3,311 B** in both snapshots; head units
+  mgmtd/meta/storage `active`, `Result=success`, `NRestarts` **0**.
+  Against the `14:16 ET` base's pair the mount fell **590,348,288 B**
+  and the roots fell **606,336,768 B** — root-filesystem bytes, not pool
+  content (`13:22 ET` entry above).
+- Lease ledger `9066cd36…` (478 B, mtime `19:42:02Z`) and window lock
+  `1edeca1f…` (251 B, `19:42:06Z`) are byte-identical in this clone and
+  on the head; the lease is
+  `session:knapcio-ceiling-262k:knapcio-262k-ceiling:1795030922`,
+  issued `19:42:02Z`, expires `23:42:02Z`, `fenced: []`, window
+  `19:45Z..22:45Z` over `.31`–`.34`. It is **occupied by the live
+  boot**, so the `14:16 ET` board's lease-over-empty-ranks escalation
+  is closed.
+- Register snapshot `0b28a919…` (base `4691d507…`): `201 tasks, 159
+  done, 34 queued, 8 blocked, 0 running — 42 open`; `check` prints
+  `ok: 201 task(s)`; graph line `%% 8 blocked, 1 edges, 7 prose-gated,
+  0 question-gated, 0 question, 40 rows not drawn (--all)`. Campaign
+  unit `inactive` since 2026-11-11 20:03:08 EST; a non-hidden recursive
+  scan of `/home/red` returns **9** `state.json` roots carrying **38
+  arms** and **0 live leases** (float-epoch `expires_at` compared to
+  `time.time()`).
+- Instrument note. `docker events --since <t>` with no `--until`
+  **streams forever**, so the census probe hangs on its first node (this
+  tick's first pass hung past 240 s after `.30`'s `ring_oldest`). Bound
+  every window query with `--until "$(date -u …)"`. Two companion traps
+  re-confirmed in the same pass: `ssh -n … bash -s < file` discards the
+  redirect and returns six blank node blocks at rc=0, and
+  `{{.Time}}` is epoch seconds, so `ring_oldest` needs `date -d @…` to
+  read as a timestamp.
