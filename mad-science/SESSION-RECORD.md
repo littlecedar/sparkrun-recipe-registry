@@ -15232,3 +15232,29 @@ and `destroy`ed `19:07:29Z` on all four hosts.
 - So the ceiling window's boot reached ready between `20:12:07Z` (rank 0
   silent, health `starting`) and `20:22:38Z` — an 8–18 min load from
   `StartedAt`, with no engine-ready line read to narrow it.
+
+## 2026-11-18 16:10 ET — the ceiling window closed, and the quartet that served is gone
+- The `15:22 ET` board carried `b020d2dd178343a5_5357c86eb6d8` loading on
+  `.31`-`.34`; its own correction row recorded all four ranks healthy with
+  `/v1/models` **200** at `20:20:48Z`. This tick (census `21:02:04Z`-
+  `21:02:06Z`, **54 min 21 s** after the base read) finds 0 containers, 0
+  volumes and 0 `:8000` listeners on all six hosts, and head's
+  `sparkrun status` idle everywhere.
+- The teardown is dated from `docker events` on each rank, not inferred:
+  `kill` at `20:46:49Z`, `die`/`destroy` at `20:46:51Z`. Its issuer is
+  unidentified — no receipt, and `/tmp/sparkrun_serve.log` is absent on
+  `.31`. The start is a **bound** `(20:07:43Z, 20:25:58Z]`: the `.31`-`.34`
+  rings hold 255 events with oldest `20:25:58Z`, so `create`/`start` were
+  evicted, not absent.
+- The window lock is gone and `.local/fleet-leases.json` is 48 B with
+  `leases: []`, released at `20:47Z` — 2 h 55 min before the declared
+  `22:45Z` end and the `23:42:02Z` expiry, so the window **closed**.
+  Ranks `.31`-`.34` are released and free.
+- Pool serving: head units active/`success`/0 restarts; mount `used`
+  **14,060,845,268,992 B**, residues **-69,632 B** against the six roots
+  and **+81,788,928 B** on the base pair; 103 hub entries, ds4
+  `config.json` 3,311 B.
+- Board published as `b95c5ad` on the `15:22 ET` base and pushed. Open
+  finding for whoever next clears the board's landed table: **69 of its
+  140 sha rows are absent from this ledger**, so the table cannot be
+  emptied until they are homed.
