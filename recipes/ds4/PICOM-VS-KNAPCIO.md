@@ -451,9 +451,9 @@ K1 knapcio  ############################################################ 178.6
 K2 knapcio  ###################################################### 161.6
 ```
 
-119.9 → 40 characters, 123.4 → 41, 124.4 → 41, 122.5 → 41, 178.6 → 60, 161.6 → 54. The axis stops
-at **180 s**, six columns past the longest bar, so a future total above 180 s is out of range rather
-than silently clipped. The two
+119.9 → 40 characters, 123.4 → 41, 124.4 → 41, 122.5 → 41, 178.6 → 60, 161.6 → 54. The axis ends
+at **180 s**, which is where the longest boot (K1, 178.6 s, 60 characters) lands, so the scale has
+no headroom above today's data and a future total over 180 s would run past the last tick. The two
 knapcio bars stay clear of all four picom bars; that non-overlap over two boots per arm is the
 whole of the LIKELY ordering in section 3, and single-flight sequential runs with no cell-level
 interleaving are why it is LIKELY.
