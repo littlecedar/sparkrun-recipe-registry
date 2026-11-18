@@ -17,7 +17,9 @@ process holding a 1M-token KV pool, 16 uniform request slots, a 16384-token pref
 paged attention, radix prefix cache and in-process multimodal stack as the tuning surface
 (`launcher.py:148-300`).
 
-**picom (`zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml`)** is a from-scratch C++/CUDA engine
+**picom (`zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` as the probe, shipped as
+`deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` with a lossy twin
+`…-picom-tp4-1m-oea.yaml`)** is a from-scratch C++/CUDA engine
 (`dsgb10_rank`, one process per node, its own RDMA ring) behind a Rust front-end (`dsfront`), from
 `Picom-code/pico-dgx-ds4@7c123ad4` with two integrated PR patches (`Dockerfile.picom-ds41f`). It
 optimizes *per-token decode cost at single stream*: every rank holds one quarter of a 1M model
@@ -33,7 +35,7 @@ session state migrates to a 12 GiB store plus a per-rank disk tier instead of a 
 | Output ceiling | no front-end clamp found in the probed surface: `max_tokens` honored, a negative value draws an OpenAI-shaped 400 (`knapcio-live-20261117/README.md` probe 02) | **262,144** on the production arm (`PICOM_MAX_TOKENS`, `launch.sh:311,324`), which binds each long request to the four big slots — `engine/server/serve.cpp:1195` admits a request only where `prompt + max_new` fits, so a fifth 262k reply queues silently instead of being refused; the front-end's own default stays 32,768 (`frontend/src/main.rs:126`) and clamps a larger value rather than refusing it (`frontend/src/server.rs:522-528`), which is the silent clamp the shipped arm used to report as `finish_reason: length` |
 | KV / session memory | one paged KV+SHA pool sized from MemAvailable at boot; fp8 KV; 128 SWA prefix tails reserved inside that budget (`launcher.py:268`, recipe `metadata.kv_dtype: fp8`) | compressed KV + index keys, ~890 B per position across all 40 layers, replicated (`docs/engine.md:90-116`); 12 GiB session-store pool, blocks of 64 KiB, spill to a per-rank 32 GiB disk tier (`docs/engine.md:451-523`) |
 | Scheduler / admission | `MAX_RUNNING_REQUESTS=16` uniform slots; `--cuda-graph-max-bs-decode` follows the same number (`launcher.py:167`, live flags in `head:~/benchmarks/knapcio-live-20261117/README.md`) | 16 slots with 4 big (`--slots 16 --big-slots 4`, `recipes/ds4/mods/picom-launcher/launch.sh:190`); smallest-fit pick, small slots first so big ones stay for long requests (`engine/server/serve.cpp:1198-1205`); more requests than slots take turns of `--slice` 64 tokens (`docs/engine.md:615-700`) |
-| Prefill | chunked at 16384 tokens (`CHUNKED_PREFILL_SIZE`, `launcher.py:178`); decode-between-chunks ships **off** (`PREFILL_DECODE_INTERVAL` 0, `launcher.py:278`) | whole request in `--prefill-rows` 8192 chunks; decode between chunks not built, so other requests wait one chunk (`docs/engine.md:451-460`) |
+| Prefill | chunked at 16384 tokens (`CHUNKED_PREFILL_SIZE`, `launcher.py:178`); decode-between-chunks ships **off** (`PREFILL_DECODE_INTERVAL` 0, `launcher.py:278`) | whole request in `--prefill-rows` chunks: 8192 on the probe arm, 16384 on the shipped arms; decode between chunks not built, so other requests wait one chunk (`docs/engine.md:451-460`) |
 | Speculative decoding | DSpark, verify-all, k=5 (`SPEC_ALGO DSPARK` `launcher.py:219`, `DSPARK_BLOCK_SIZE` `launcher.py:240`); decoded accepts 3.9–5.8 tokens/step on the measured boot (`knapcio-bench-20261117/boot/serve-rank0.log`) | DSpark, 5 drafts (6 rows per session step including the bonus, `engine/dspark/dspark.h:27`, `engine/model/ops.h:34`); drafts in a one-request run or a batch of ≤8, a larger batch takes the plain loop (`docs/engine.md:615-700`); levers `DSGB10_BUDGET`, `DSGB10_DRAFT1`, `DSGB10_WIDE` (`launch.sh:190`, `engine/server/cmd.cpp:662-664`, `engine/model/spec.cu:38`) |
 | Weights as served | checkpoint as shipped: native MXFP4/F8, 510 GB resident, Engram read from NVMe (`recipes/ds4/README.md` knapcio table; arm `metadata.model_dtype: mxfp4`) | same checkpoint converted once per rank to a 72.38 GiB `.dsw` file (≈289.5 GiB across 4 ranks) plus 50.7 GB Engram shards on that rank's SSD (`docs/engine.md:90-116`; lane README artifacts row) |
 | Vision | in-engine native multimodal; the measured boot's gate line records full-budget native vision passing (`knapcio-bench-20261117/boot/serve-rank0.log:447`) | separate supervised ViT child on rank 0, `127.0.0.1:18950`, ~0.90 GiB, front-end reaches it by `--vision-addr` (`launch.sh:269-271`, PR #15 patch) |
@@ -91,13 +93,36 @@ Read the table as three separate one-boot measurements, never as a row of a lead
 - **The fixed-prompt equality is a smoke check**, one 48-token greedy prompt, not a quality
   measurement.
 
-### Production-window ladder
+### Shipped-arm ladder
 
-The same arm, two configurations, one window: `zz-ds4-1017-picom-out256k.yaml` (the shipped arm
-plus `PICOM_MAX_TOKENS=262144`), `benchmarking/concurrency-ladder.yaml`, depth 0, 2048-token
+The two shipped artifacts, booted back to back on the same image:
+`deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` (exact, task `…053127e6543a`) and
+`deepseek-v4.1-flash-1017-picom-tp4-1m-oea.yaml` (lossy, task `…2f2f42a6d68f`), both on
+`ghcr.io/littlecedar/dgx-picom-ds41f@sha256:1e529c67…` with the 262,144-token reply ceiling and
+`--prefill-rows 16384`. Instrument: `benchmarking/concurrency-ladder.yaml`, depth 0, 2048-token
 prompts, 128-token replies, 5 runs/cell, `--skip-run --fresh`.
 
-| cell | picom exact | picom OEA | knapcio (recorded row) |
+| cell | shipped exact | shipped lossy (OEA) | knapcio (recorded row) |
+|:--|--:|--:|--:|
+| C1 | 83.4 | 87.1 | 70.4 |
+| C2 | 90.8 | 90.9 | 83.4 |
+| C5 | 111.5 | 117.6 | 127.3 |
+| C10 | 129.2 | 134.4 | 160.9 |
+
+Receipts: `head:~/benchmarks/picom-prod-20261118/phase5/ladder.csv` (exact) and
+`head:~/benchmarks/picom-prod-20261118/phase6/ladder.csv` (lossy), each beside `ladder.json` and
+`ladder.log`. The knapcio column is its recorded row in [the lane README](README.md)
+(`head:~/benchmarks/ds4-1017-parity-20261027/armC/armC-ladder.csv`), a different window, so the
+exact-vs-lossy pair is the only same-window comparison; knapcio's cells are a shape to read both
+picom columns against. Within-boot spread: C1 6.2 % exact vs 3.4 % lossy, C10 4.8 % vs 3.9 %.
+
+### Probe-window ladder (history)
+
+These came first: `zz-ds4-1017-picom-out256k.yaml`, the shipped engine plus `PICOM_MAX_TOKENS=262144`
+but with 8192-row prefill and a probe name, so its cells are not interchangeable with the shipped
+arms above — same image and instrument, different engine shape.
+
+| cell | probe exact | probe OEA | knapcio (recorded row) |
 |:--|--:|--:|--:|
 | C1 | 87.5 | 85.1 | 70.4 |
 | C2 | 90.4 | 93.8 | 83.4 |
@@ -106,9 +131,7 @@ prompts, 128-token replies, 5 runs/cell, `--skip-run --fresh`.
 
 Receipts: `head:~/benchmarks/picom-prod-20261118/phase1/ladder.csv` (exact) and
 `head:~/benchmarks/picom-prod-20261118/phase2/ladder.csv` (OEA), each with `ladder.json` and
-`ladder.log`. The knapcio column is its recorded row in [the lane README](README.md)
-(`head:~/benchmarks/ds4-1017-parity-20261027/armC/armC-ladder.csv`), a different window, so only the
-two picom columns are same-window. Within-boot spread: C1 14.3 % exact vs 8.6 % OEA, C10 1.8 %
+`ladder.log`; knapcio as above. Within-boot spread: C1 14.3 % exact vs 8.6 % OEA, C10 1.8 %
 vs 2.7 %.
 
 ### Agentic battery
@@ -118,42 +141,58 @@ single-flight:
 
 | battery | picom exact | picom OEA | knapcio reference |
 |:--|--:|--:|--:|
-| pass / total | 13/13 | 13/13 | 13/13 |
-| median wall | 8.1 s | 9.6 s | 7.4 s |
-| worst wall | 26.0 s | 12.0 s | 15.3 s |
-| total wall | 126.2 s | 108.1 s | 117.7 s |
+| shipped, pass / total | 13/13 | **12/13** | 13/13 |
+| shipped, median / worst / total wall | 10.0 / 25.4 / 130.1 s | 8.2 / 15.7 / 113.8 s | 7.4 / 15.3 / 117.7 s |
+| probe, pass / total | 13/13 | 13/13 | — |
+| probe, median / worst / total wall | 8.1 / 26.0 / 126.2 s | 9.6 / 12.0 / 108.1 s | — |
 
-Receipts: `head:~/benchmarks/picom-prod-20261118/phase1/agentic-exact/summary.json` and
+Receipts: `head:~/benchmarks/picom-prod-20261118/phase5/agentic-exact/summary.json`,
+`head:~/benchmarks/picom-prod-20261118/phase6/agentic-oea/summary.json`,
+`head:~/benchmarks/picom-prod-20261118/phase1/agentic-exact/summary.json`,
 `head:~/benchmarks/picom-prod-20261118/phase2/agentic-oea/summary.json`; the knapcio reference is
 `head:~/benchmarks/agentic-battery-20261118/knapcio-v2/summary.json` (13 tasks, fixed
-`max_tokens: 4096`). Same verdicts throughout; the per-task walls differ run to run in every boot
-and nothing here separates the configurations.
+`max_tokens: 4096`).
+
+The shipped lossy row's one miss is `shell-repro-rounding`: hidden sweep `AssertionError: (75, 1,
+[89], 88)` on `sum(shares) == due`, while its visible suite and `repro.py` pass, with `truncated: 0`
+and `invalid_args: 0`. The same task passed in phase 5 (10.0 s) and in phase 2's OEA boot (10.4 s),
+so this is one draw of the model on one task in one boot, not a property of the arm; the pass/total
+row is not a pass rate.
 
 ### The production window
 
-Every receipt in this section is on the head: `head:~/benchmarks/picom-prod-20261118/` holds both
-phases plus the extra boot, and `head:~/benchmarks/agentic-battery-20261118/knapcio-v2/` holds the
-knapcio reference — the one cell measured from a workstation against the remote endpoint, so its
-files were created locally and archived there, while every other receipt was written on the head
-itself. All cells ran the 256K arm on `ghcr.io/littlecedar/dgx-picom-ds41f@sha256:1e529c67…` over
-ranks `.31`–`.34`, in this order: one exact boot (`…9aea1006d19f`) ran the ladder, agentic battery,
-both needle rungs and the 40,000-token grant; one OEA boot (`…b2aaddef7ada`) repeated the same four
-groups; a third, lossless boot (`…1f1549d1421d`) was taken only to pair the house battery. Every
-boot reached HTTP-ready in 25.4–26.3 s, armed its watchdog with `unprobeable=0`, and was torn down
-to 0 containers, 0 volumes and no `:8000` listener before the next start (`post-teardown.txt` beside
-each phase's cells).
+Every receipt in this section is on the head: `head:~/benchmarks/picom-prod-20261118/` holds the
+probe phases, the two shipped-arm confirmations and the extra boot, and
+`head:~/benchmarks/agentic-battery-20261118/knapcio-v2/` holds the knapcio reference — the one cell
+measured from a workstation against the remote endpoint, so its files were created locally and
+archived there, while every other receipt was written on the head itself. All cells ran on
+`ghcr.io/littlecedar/dgx-picom-ds41f@sha256:1e529c67…` over ranks `.31`–`.34`, in this order: one
+exact probe boot (`…9aea1006d19f`) ran the ladder, agentic battery, both needle rungs and the
+40,000-token grant; one OEA probe boot (`…b2aaddef7ada`) repeated the same four groups; a third,
+lossless boot (`…1f1549d1421d`) was taken only to pair the house battery; then the shipped exact arm
+(`…053127e6543a`) and the shipped lossy arm (`…2f2f42a6d68f`) each ran the same cells, adding the
+983,040-token needle rung. Every boot reached HTTP-ready in 25.2–26.3 s, armed its watchdog with
+`unprobeable=0`, and was torn down to 0 containers, 0 volumes and no `:8000` listener before the next
+start (`post-teardown.txt` beside each phase's cells).
 
 ## 4. Where each wins and why
 
-- **16 concurrent users: knapcio ahead of the lossless picom arm (354.1 vs 325.9, +8.7 %) and 6.6 %
-  behind the lossy one (377.5).** Drafting was **not** off on the picom side: the 16-user window's
+- **Shipped pair, same window: picom ahead at one and two streams, behind at five and ten.** Against
+  knapcio's recorded row the shipped exact arm is **+18.5 % at C1** (83.4 vs 70.4) and **+8.9 % at
+  C2** (90.8 vs 83.4), and **−12.4 % at C5** (111.5 vs 127.3) and **−19.7 % at C10** (129.2 vs
+  160.9); the shipped lossy arm is **+23.8 / +8.9 / −7.6 / −16.5 %** (`phase5/ladder.csv`,
+  `phase6/ladder.csv`). Only the exact-vs-lossy pair is same-window; the knapcio percentages span
+  windows and are read as the shape of the trade, not a margin.
+- **Probe window, 16 concurrent users: knapcio ahead of the lossless picom arm (354.1 vs 325.9,
+  +8.7 %) and 6.6 % behind the lossy one (377.5).** Drafting was **not** off on the picom side: the 16-user window's
   request lines report multi-row verify steps with 3.08–4.90 drafts verified per step
   (`picom-gap-20261117/boot-a/rank.0.log:675,679,683,687`), and that boot captured a batch spec graph
   of up to 16 entries (`rank.0.log:44`; `DSGB10_DRAFT1=6` and `DSGB10_WIDE=64` at `launch.sh:190` are
   what extend drafting past one session). So the deficit is per-step cost at 2–6 rows plus whatever
   scheduling difference remains — INFERRED, because no cell decomposes step time on either engine and
   the two engines' step sizes at 16 requests are not the same quantity.
-- **Single stream: picom ahead (84.5 vs 64.8 chat, +30.4 %; 142.5 vs 119.8 code, +19.0 %).** Both
+- **Single stream (the 2026-11-17 probe window): picom ahead (84.5 vs 64.8 chat, +30.4 %; 142.5 vs
+  119.8 code, +19.0 %).** Both
   engines speculate with 5 drafts, so this is a per-step cost difference, not a different strategy.
   INFERRED mechanism: picom's step is one hand-written graph with no host-side scheduler hop per
   token and its own ring, while SGLang's decode passes through its Python scheduler and TP collectives.
@@ -165,29 +204,36 @@ each phase's cells).
   9 rows (`engine/kernels/moe.cu:1452-1455`) — moves the depth-0 ladder **+7.4 % at C5** (121.2 vs
   112.9) and **+8.0 % at C10** (135.8 vs 125.8) against the exact boot of the same window, and
   **−2.7 % at C1** (85.1 vs 87.5), inside that cell's 14.3 % spread (`phase1/ladder.csv`,
-  `phase2/ladder.csv`). Both gains exceed the within-boot spread on either side, but each side is one
-  boot, so this is a same-window LIKELY effect, not an interleaved A/B. It is lossy by construction
-  and ships off.
-- **The shortcut cost nothing on this lane's accuracy cells.** Needles 3/3 at 32,768 and 3/3 at
-  131,072 on both configurations (12.8–12.9 s per 131k cell, `phase{1,2}/needle-*.json`), the house
-  battery 37/37 on both (19 easy + 18 hard, all stable-pass, `house-exact/house-exact.json` and
-  `phase2/house-oea.json`; `hard-rev` answers `nurkraps`, the one item the knapcio line misses), and
-  the 40,000-token grant returns byte-identical text on both (content sha256 `3616f8ac…`). That
-  bounds the cost on exact-match retrieval and this fixed task set; it is not a free-form
-  code-quality measurement.
+  `phase2/ladder.csv`). In the shipped pair the same knob reads +4.4 % C1, +0.1 % C2, **+5.5 % C5**
+  (117.6 vs 111.5) and **+3.9 % C10** (134.4 vs 129.2; `phase5/ladder.csv`, `phase6/ladder.csv`), so
+  the gain lands where the probe said it would, smaller because the shipped exact control read high
+  at C5. Both gains exceed the within-boot spread on either side, but each side is one boot, so this
+  is a same-window LIKELY effect, not an interleaved A/B. The shipped lossy boot also missed
+  `shell-repro-rounding` once (section 3) — one draw on one task in one boot, not a rate. The knob is
+  lossy by construction and ships as a separate arm, never as the default.
+- **The shortcut cost nothing on this lane's accuracy cells.** On the shipped pair: needle 3/3 at
+  131,072 (12.1 s per cell) and the **983,040 rung PASS** at depth 10 on both (980,868 prompt tokens,
+  97.1 s, `phase5/needle-983k-d10.json`, `phase6/needle-983k-d10.json`); house battery 37/37 on both
+  (19 easy + 18 hard, all stable-pass, `phase5/house-exact.json`, `phase6/house-oea.json`; `hard-rev`
+  answers `nurkraps`, the one item the knapcio line misses). The probe boots' 32,768 and 131,072
+  cells were already 3/3 on both (12.8–12.9 s per 131k cell), and the 40,000-token grant returns
+  byte-identical text on both probes (content sha256 `3616f8ac…`). That bounds the cost on exact-match
+  retrieval and this fixed task set; it is not a free-form code-quality measurement.
 - **The output ceiling is measured, and it is a slot question.** The shipped front end clamps
   `max_tokens` at its `--max-tokens` (`frontend/src/server.rs:522-528`), which used to be 32,768, so
   a longer request ended at 32,768 with `finish_reason: length` and no way to tell that from a stop.
-  The production arm passes 262,144 (`launch.sh:311,324`): a 40,000-token request returns
+  The shipped arms pass 262,144 (`launch.sh:311,324`): a 40,000-token request returns
   `completion_tokens` 40,000 and `finish_reason` `length` in 207.9 s (192.4 tok/s) on both
   configurations. Because `engine/server/serve.cpp:1195` admits only where `prompt + max_new` fits,
   every request that budgets 262k needs one of the four big slots, and a fifth waits in `wait_`
   rather than drawing a refusal or a timeout.
 - **Prefill chunking is a budget, not a win.** knapcio's 16384-token chunk is 2.35× its 8192 control on
   1M prefills (`launcher.py:170-178`, `~/benchmarks/tp4-window-20261024/`), and its decode-between-chunks
-  feature costs 17–28 % of ladder throughput and therefore ships off (`launcher.py:270-278`). picom
-  prefills 8192 rows and has no interleave at all (`docs/engine.md:451-460`). No cell here measures a
-  long-context prefill on both engines, so no direction is claimed.
+  feature costs 17–28 % of ladder throughput and therefore ships off (`launcher.py:270-278`). The
+  shipped picom arms prefill 16384 rows (`--prefill-rows 16384`) and have no interleave at all
+  (`docs/engine.md:451-460`); the probe arm's 8192 rows is the one engine difference between the two
+  ladder tables. No cell here measures a long-context prefill on both engines, so no direction is
+  claimed.
 - **The client contract is where the engines differ most in kind.** SGLang's surface honors
   `return_token_ids`, a real thinking channel and cache accounting; picom's front-end is a thin
   hand-written parser that drops unknown fields silently, has no reasoning channel, and takes its
@@ -197,32 +243,36 @@ each phase's cells).
 
 ## 5. What is not comparable / not measured
 
-- **No interleaved A/B.** One boot per configuration and a fixed order: the production window ran its
-  exact and OEA boots back to back but never alternated them, and the knapcio ladder is a different
-  window.
-- **Different budgets by design**: KV pool vs session store, 16 uniform slots vs 4 big + 12 small,
-  chunked prefill at 16384 vs whole-request prefill at 8192 rows.
-- **Vision and tool calls are functional only.** Both paths answered; no cost, latency or quality cell
-  exists for either.
-- **No BFCL tools leg.** Tool calling is demonstrated functional (section 2), not scored.
-- **No free-form quality metric.** The needle and house cells are exact-match and pass/fail; nothing
-  here scores generated code or prose, so OEA's measured cost is bounded to those batteries only.
-- **No long-context decode ladder.** The 32k/131k needles are one retrieval probe each, and no
+- **No interleaved A/B.** The shipped exact and lossy boots ran back to back in one window but never
+  alternated, and every knapcio ladder is from a different window.
+- **The 983,040 needle gap closed, not widened.** Both shipped boots pass it at depth 10; what stays
+  unmeasured at that length is decode throughput, since the reply is a few tokens and no ladder covers
+  depth > 0.
+- **No long-context decode ladder.** The 131k and 983k needles are one retrieval probe each, and no
   repeated-prefix / multi-turn cell exists — so the prefix-cache difference (SGLang reports hits,
   picom ran cold in every receipt) is unmeasured as a cost.
-- **Two picom ladders but one knapcio ladder, no power/thermal/RDMA capture**, and the readiness
-  comparison is one cold boot against one warm-cached boot, not a like-for-like start.
+- **BFCL tools leg still absent.** Tool calling is demonstrated functional (section 2), not scored.
+- **Vision is functional only.** The path answers; no cost, latency or quality cell exists.
+- **No free-form quality metric.** The needle and house cells are exact-match and pass/fail; nothing
+  here scores generated code or prose.
+- **OEA's accuracy question is now one failed draw, not an unmeasured risk.** One `shell-repro-rounding`
+  miss in one shipped lossy boot, on a battery that the shipped exact boot and both probe boots passed
+  (section 3); it does not establish a rate in either direction.
+- **Different budgets by design**: KV pool vs session store, 16 uniform slots vs 4 big + 12 small,
+  chunked prefill at 16384 tokens vs whole-request prefill of 16384-row chunks.
+- **Two picom ladder generations but one knapcio ladder, no power/thermal/RDMA capture**, and the
+  readiness comparison is one cold boot against one warm-cached boot, not a like-for-like start.
 - **`copies 16` is not a prefix-sharing cell** on either engine: the instrument randomizes the prefix.
 
 ## 6. What to try next
 
-1. **Run one interleaved A/B of OEA** — exact, OEA, exact, OEA on the same image and window, C5 and
-   C10 only, 5 runs/cell. Settles whether the +7.4 % / +8.0 % is the shortcut or the boot order,
-   which is the only claim in section 4 resting on one boot per side.
+1. **Run one interleaved A/B of the two shipped arms** — exact, lossy, lossy, exact on the same image
+   and window, C5 and C10 (where the lossy margin is largest) plus C1, 5 runs/cell. Settles whether
+   the shipped +5.5 % / +3.9 % is the shortcut or the boot order, the one claim in section 4 resting
+   on a single boot per side.
 2. **Run the BFCL tools leg** on both engines with the same tasks and turn budget. Settles whether
    the client-contract differences in section 2 (thinking channel, token-id echo, unknown-field
    handling) cost anything an agent can feel.
-3. **One needle at 983,040** on both picom configurations. The knapcio record leaves that rung open,
-   and 131,072 is otherwise the only long-prompt accuracy point picom has.
-4. **Let the two queued probe boots land their own verdicts** (`picom-prefill16k-boot`,
-   `picom-engram-batch8-boot`); their settling cells belong to their rows, not here.
+3. **Repeat the agentic battery 3–5 times per shipped arm.** Puts a spread on the 12/13 and on the
+   medians, so the one `shell-repro-rounding` miss stops being a single Bernoulli draw and the wall
+   numbers get an interval.
