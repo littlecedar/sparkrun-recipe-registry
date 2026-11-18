@@ -45,7 +45,9 @@ Receipts
 Per task, under `--outdir`: `<task>.json` (verdict + counters), `<task>.wire.jsonl` (every
 request body and response), and the workspace itself. `<outdir>/summary.json` and a printed
 table carry median/worst wall seconds — the numbers that size a comparison window. `--resume`
-skips tasks that already hold a result, so a window can be re-entered.
+skips tasks that already hold a result, so a window can be re-entered. `--label` is the only
+field where a run's serving identity can be recorded, and `summary.json` cannot otherwise say
+which boot produced it: pass `--label "<image>@<digest>, task <id>"`.
 
 Usage
 -----
@@ -317,6 +319,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--tier", choices=("easy", "hard", "all"), default="all",
                     help="task tier: easy floor, hard ceiling, or all (default)")
     ap.add_argument("--outdir", help="receipt dir (default ~/benchmarks/agentic-battery-<date>)")
+    ap.add_argument("--label", default="",
+                    help="free text recorded in summary.json; the only place a run's serving "
+                         "identity can be kept, e.g. \"<image>@<digest>, task <id>\"")
     ap.add_argument("--fixture-root", default=str(REPO / ".scratch" / "agentic"),
                     help="workspace/fixture root, git-ignored")
     ap.add_argument("--max-turns", type=int, default=None,
@@ -382,7 +387,7 @@ def main(argv: list[str] | None = None) -> int:
     walls.sort()
     summary = {
         "base_url": args.base_url, "model": args.model, "tier": args.tier,
-        "max_tokens": MAX_TOKENS,
+        "label": args.label, "max_tokens": MAX_TOKENS,
         "when": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "passed": sum(1 for r in results if r["pass"]), "tasks": len(results),
         "wall_median_s": walls[len(walls) // 2] if walls else None,

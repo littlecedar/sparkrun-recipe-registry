@@ -94,6 +94,11 @@ Read wall seconds for sizing a window, not as a leaderboard: one task on a cold 
 task after a warm prefix differ. `pass` and `tool_calls` are the comparison's claim; `wall_s` is how
 long it took to get there.
 
+`summary.json` carries `label` for exactly one purpose: naming the thing that was served. For runs
+made before the flag existed, a receipt's serving identity lives in the boot receipt beside the run
+(a `phase*/README.md`, the launch log, the operator's task record), not in `summary.json`; new runs
+should pass `--label "<image>@<digest>, task <id>"`.
+
 ## 4. Known biases
 
 - **Three minimal tools.** Shell-only models are not penalised for lacking a structured editor, but a

@@ -9,6 +9,7 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import io
+import json
 import shutil
 import sys
 import tempfile
@@ -87,6 +88,37 @@ class Protocol(unittest.TestCase):
         self.assertEqual(seen[0]["max_tokens"], TOOL.MAX_TOKENS)
         self.assertEqual(TOOL.MAX_TOKENS, 4096)
         self.assertIs(seen[0]["stream"], False)
+
+
+class LabelReceipt(unittest.TestCase):
+    """The label is the only serving identity a summary can carry, so its absence must be explicit."""
+
+    def _summary(self, extra: list) -> tuple[dict, Path]:
+        tmp = Path(tempfile.mkdtemp())
+        server, base = TOOL._mock_server([{"role": "assistant", "content": "done"}])
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                TOOL.main(["--base-url", base, "--model", "mock",
+                           "--tasks", "fix-failing-test", "--outdir", str(tmp),
+                           "--fixture-root", str(tmp / "fixtures"), *extra])
+        finally:
+            server.shutdown()
+            server.server_close()
+        return json.loads((tmp / "summary.json").read_text()), tmp
+
+    def test_label_is_recorded_in_summary(self):
+        summary, tmp = self._summary(["--label", "img@sha256:abc, task t1"])
+        try:
+            self.assertEqual(summary["label"], "img@sha256:abc, task t1")
+        finally:
+            shutil.rmtree(tmp)
+
+    def test_label_defaults_to_empty_string(self):
+        summary, tmp = self._summary([])
+        try:
+            self.assertEqual(summary["label"], "")
+        finally:
+            shutil.rmtree(tmp)
 
 
 class SelfTest(unittest.TestCase):
