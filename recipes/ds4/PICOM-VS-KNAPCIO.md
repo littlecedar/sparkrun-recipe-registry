@@ -75,7 +75,8 @@ knapcio** — sequential boots, one per configuration, not interleaved.
 | `c1 9` chat median | 64.8 | 84.5 | 83.4 | `knapcio-bench-20261117/boot/c1-9.txt`; `picom-gap-20261117/boot-{a,b}/c1-9.txt` |
 | `c1 9` code median | 119.8 | 142.5 | 144.3 | same files |
 | fixed greedy prompt, 48 tokens, temp 0 | `picom arm online.`, 16+6 = 22 | same text, 15+6 = 21 | same text, 15+6 = 21 | `knapcio-bench-20261117/boot/fixed-prompt.json`; `picom-gap-20261117/boot-{a,b}/fixed-prompt.json` |
-| llama-benchy `tg t/s`, depth 0 | C1 67.18 ± 6.97 / C4 118.9 / C8 107.5 / C16 115.9 (2026-10-18, depth-0 ladder, `~/benchmarks/ds4-knapcio-1017-20261018/`) | C1 87.4 / C4 108.6 / C8 120.4 / C16 141.0 (2026-11-17, `picom-ladder-20261117/`) | cell 5 only: c16 tg 159.6 (put in `picom-gap-20261117/boot-a/cell5-benchy.txt`) | as named per column |
+| llama-benchy `tg t/s`, depth 0 C4 / C8 / C16 | 118.9 / 107.5 / 115.9, 3 runs/cell, `ds4-sglang-depth0-ladder.yaml` (`~/benchmarks/ds4-knapcio-1017-20261018/arm-1017/`) | 108.6 / 120.4 / 141.0, 3 runs/cell, same profile (`picom-ladder-20261117/`) | — | per column |
+| llama-benchy C1 aggregate | 67.18 ± 6.97, n=25, `concurrency-ladder.yaml` (`~/benchmarks/tp4-20261018/`) | 87.4, 3 runs, depth-0 ladder (`picom-ladder-20261117/`) | 159.6 is c16, not c1 (`picom-gap-20261117/boot-a/cell5-benchy.txt`) | per column |
 
 Read the table as three separate one-boot measurements, never as a row of a leaderboard:
 
@@ -84,24 +85,28 @@ Read the table as three separate one-boot measurements, never as a row of a lead
   KV pool. `distinct 16` is the same *demand* on both, not the same batch size.
 - **One boot per configuration**, in a fixed order, so only each boot's own spread bounds its number;
   no boot-to-boot drift is controlled.
-- **The llama-benchy pair is not a paired cell** — the two rows are different days and different serve
-  lines; the picom ladder and the knapcio ladder were never run in one window.
+- **The llama-benchy rows are not paired cells** — different days, different serve lines and, for C1,
+  different profiles; the picom ladder and the knapcio ladder were never run in one window.
 - **The fixed-prompt equality is a smoke check**, one 48-token greedy prompt, not a quality
   measurement.
 
 ## 4. Where each wins and why
 
 - **16 concurrent users: knapcio ahead of the lossless picom arm (354.1 vs 325.9, +8.7 %) and 6.6 %
-  behind the lossy one (377.5).** Mechanism, partly demonstrated: with 16 requests in flight picom's
-  batch takes the plain loop and only the *last* request of a batch keeps its drafts
-  (`docs/engine.md:615-700`), while SGLang runs DSpark across the whole batch at
-  `MAX_RUNNING_REQUESTS=16` (`launcher.py:167`). That the speculation difference is what separates
-  325.9 from 354.1 is INFERRED — no cell isolates it.
+  behind the lossy one (377.5).** Drafting was **not** off on the picom side: the 16-user window's
+  request lines report multi-row verify steps with 3.08–4.90 drafts verified per step
+  (`picom-gap-20261117/boot-a/rank.0.log:675,679,683,687`), and that boot captured a batch spec graph
+  of up to 16 entries (`rank.0.log:44`; `DSGB10_DRAFT1=6` and `DSGB10_WIDE=64` at `launch.sh:190` are
+  what extend drafting past one session). So the deficit is per-step cost at 2–6 rows plus whatever
+  scheduling difference remains — INFERRED, because no cell decomposes step time on either engine and
+  the two engines' step sizes at 16 requests are not the same quantity.
 - **Single stream: picom ahead (84.5 vs 64.8 chat, +30.4 %; 142.5 vs 119.8 code, +19.0 %).** Both
   engines speculate with 5 drafts, so this is a per-step cost difference, not a different strategy.
   INFERRED mechanism: picom's step is one hand-written graph with no host-side scheduler hop per
   token and its own ring, while SGLang's decode passes through its Python scheduler and TP collectives.
-  Neither receipt decomposes the step.
+  Neither receipt decomposes the step. The lane's llama-benchy C1 rows point the same way (87.4 with a
+  74.8–99.4 spread against 67.18 ± 6.97), a different instrument and window, so it corroborates rather
+  than confirms.
 - **OEA is a knob, not an engine property.** `DSGB10_OEA=4,12,9` — a batch-aware MoE re-route that
   keeps each row's top 4 experts but prefers the batch's core among top 12, from 9 rows
   (`engine/kernels/moe.cu:1452-1455`) — buys +15.8 % at 16 users and costs ~1 % at one
