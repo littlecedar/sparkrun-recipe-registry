@@ -15264,9 +15264,10 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   `7352c5e7`, tip `51e1e9e`) and read the fleet independently at
   `2026-11-18T21:03:44Z`–`21:03:47Z`, then found `origin/main` at
   `b95c5ad` carrying a `16:10 ET` board whose census read
-  `21:02:04Z`–`21:02:06Z` — **98–101 s** before mine. Published nothing:
-  a second board 100 s after a peer's would restate its rows, and the
-  guard's own rule is to compose on the newest published base.
+  `21:02:04Z`–`21:02:06Z` — **98–101 s** after its *last* read and
+  **100–103 s** after its first. Published nothing: a second board that
+  close behind a peer's would restate its rows, and the guard's own rule
+  is to compose on the newest published base.
 - Every figure of mine reproduces theirs. All six hosts read **0**
   containers, **0** volumes and **0** `:8000` listeners; head's
   `sparkrun status` lists all six idle at `21:09Z`; `MemAvailable` is back
