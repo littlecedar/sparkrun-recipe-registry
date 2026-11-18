@@ -14833,3 +14833,91 @@ is `12:26:55Z`, so `kill 12:38:18Z` → `die`/`destroy 12:38:20Z` is observed wh
 create/start are only bounded to `(12:02:39Z, 12:26:55Z]`.
 
 Captures lived in `.scratch/tick-0800-3287140/` (git-ignored).
+
+## 2026-11-18 10:09 ET — the 10:00 tick stood down behind the peer's 10:10 board
+
+Read the board at `15:00:49Z` (content sha256 `e8b3a634…`, the `09:07 ET` base,
+blob `7ded3b2d…` unchanged from its publish commit `575878f` through
+`origin/main` `6460239`) and composed a full census on it. `task-queue.py
+publish` refused:
+
+```
+refusing publish: mad-science/STATUS.md on disk carries 2026-11-18 15:08:51 Z,
+newer than this read's 2026-11-18 15:02:47 Z — re-read the census, do not
+overwrite it
+```
+
+— a peer tick had published its `10:10 ET` board six minutes after this tick's
+read and had not yet committed it (worktree `M`, mtime `10:10:12`). Nothing was
+replaced: the guard fires before any write.
+
+The peer's board carries the same findings on the same base — fleet empty,
+register `63a71928…` at 42 open, ledger empty, nine campaign roots / 38 arms / 0
+live leases — so this tick stood down rather than republish a weaker, older
+census onto it.
+
+This tick's own reads, none of which the peer's rows contradict (distinct
+instants, 5 min earlier):
+
+- census `15:02:44Z`–`15:02:47Z` (`.31` first, `.30` last): all six nodes `0`
+  containers, `0` volumes, `0` `:8000` listeners, and **0 B** of container event
+  output over `14:04:25Z`–`15:02:47Z` on every host with each ring's oldest
+  event preceding the window (`.31`–`.34` `12:26:55Z`–`12:26:57Z` 255 held,
+  `.35` `05:50:09Z` 245, `.30` `2026-11-16T12:47:57Z` 157). `MemAvailable`
+  rose on all six (+78,224 to +228,412 kB).
+- pool `15:03:19Z`–`15:03:21Z` same-pass pair: mount `used`
+  **14,168,212,635,648 B** (−47,185,920 B on the base's mount), six roots' own
+  sum **14,168,212,914,176 B** (−46,903,296 B on the base's own), residue
+  **−278,528 B**; `103` hub entries, ds4 `config.json` **3,311 B** in both
+  snapshots by `stat -L`. The head's own root was read locally at `15:03:42Z`
+  (2,373,117,542,400 B): a name-keyed ssh hop from the head to itself fails
+  host-key verification, the same defect queue row `head-mesh-cannot-reach-30`
+  records, and a first parse silently summed five roots and published a 2.37 TB
+  residue — the pre-publish review caught it.
+- `.31`–`.35` `beegfs-meta` counters advanced **+691/+675/+675/+675/+674** over
+  3,524 s, one restart per **5.1–5.2 s**, storage `active` on all six.
+- lease ledger `34eed267…` (48 B, `fenced`/`leases` both empty) byte-identical
+  on clone and head at the base's own mtime `12:38:50Z`; no `fleet-window.lock`.
+- campaign: non-hidden recursive `find /home/red -name state.json` returns
+  **19 paths / 19 distinct `(st_dev, st_ino)` pairs** — **9 under
+  `/home/red/benchmarks` carrying 38 arms**, 10 outside (nine zero-arm `.swival`
+  audit states plus a peer tick's `.scratch` copy of the `h2h-20261107` state
+  carrying 24) — **0 leases with a float `expires_at` past `time.time()`**.
+
+Captures lived in `.scratch/tick-1000-3432195/` (git-ignored).
+
+## 2026-11-18 10:10 ET — the 10:00 tick, and the 211 un-homed landed rows it nearly dropped
+
+The tick composed on the `09:07 ET` board (content sha `e8b3a634…`) at remote
+tip `6460239`, whose board blob `7ded3b2d` was unchanged across `575878f`→`6460239`,
+so the base was current and the publish guards were licensed by content sha on
+both sides.
+
+**The defect was in the composer, not the fleet.** The first composition cleared
+`## Landed session` to this session's four rows, which would have deleted **211
+carried rows** in one publish that `lint` and `publish` both accept — neither can
+see a removed row, only a shrunken In flight table. The skill's own handoff rule
+is the guard that exists on paper: verify each fact's home in
+`SESSION-RECORD.md` or a lane doc *before* deleting the previous table. Verified
+after the fact: the base's landed table has 211 table lines, the published one
+has 215, and `missing from new: 0`. A routine idle tick cannot home 211 rows, so
+the correct action is to keep them — and to say so in the landed row, which this
+board does.
+
+**The fleet was idle a third hour, on evidence that can see churn.** Six nodes
+read `0` containers, `0` volumes and `0` `:8000` listeners at
+`15:08:47Z`–`15:08:51Z`, and `docker events --filter type=container` returned no
+line anywhere over `14:00:00Z`–`15:08:51Z`. Ring capacity is confirmed per node
+(`255` held on `.31`–`.35`, `157` on `.30`, `245` on `.35`), and every oldest
+event precedes the window, so no node's zero is a capacity artifact.
+
+**A census/pool read pair across a minute is not a residue.** The first pass
+computed the mount−roots gap from a pool read at `15:02:40Z` and a roots sum from
+`15:08:47Z` and printed `−5,325,000 B`; re-read in the same pass (`15:09:48Z`
+mount, `15:08:47Z` census) it is `+1,781,760 B`, and the board labels the pair as
+61 s apart rather than calling the figure a same-instant residue. Pool serving was
+re-proved independently of `findmnt` (units `active`, `Result=success`,
+`NRestarts` 0) because the tool still prints `SOURCE default` for a path it walks
+up to `/`.
+
+Captures lived in `.scratch/tick-1001b-3432196/` (git-ignored, removed).
