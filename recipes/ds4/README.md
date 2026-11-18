@@ -2419,11 +2419,14 @@ root `head:~/benchmarks/picom-prod-20261118/`; each boot's lane cells are its ow
   boot: **C1 87.1, C2 90.9, C5 117.6, C10 134.4** tok/s (`phase6/ladder.csv`), i.e.
   **+5.4 % at C5 and +4.0 % at C10** and C1 +4.5 % against the exact boot — one boot
   per side, not a repeated measurement. Accuracy over three same-day runs: agentic
-  **13/13 three times**, totals **191.5–201.5 s** — slower than the exact arm on
-  this battery, the cost being `stub-service-client` at 79.4–110.4 s in every run
-  (`rerun-20261118/`) — house **37/37**, needles 3/3 at 131,072 and PASS at
-  983,040. No accuracy loss was found on the house or needle cells; that is not a
-  guarantee beyond them.
+  **13/13 three times**, totals **191.5–201.5 s** — longer than the exact arm on
+  this battery, but that cost was a harness tool-timeout path, not the knob:
+  `stub-service-client` runs bimodal on both arms (exact 12.8–13.1 s fast against
+  109.8 / 120.2 / 75.3 s slow, 3 of 6 draws; lossy 12.6–14.8 s fast against 76.9 s
+  slow, 1 of 6), so no agentic speed difference between the arms is established
+  (`rerun-20261118/`, `socket-repro-20261118/`) — house **37/37**, needles 3/3 at
+  131,072 and PASS at 983,040. No accuracy loss was found on the house or needle
+  cells; that is not a guarantee beyond them.
 
 The three `zz-ds4-1017-picom-*` arms below are the experiment record that selected
 this configuration; the production pair supersedes them for serving.

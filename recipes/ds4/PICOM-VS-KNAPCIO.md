@@ -166,10 +166,21 @@ the underlying summaries are `boot1-knapcio/agentic-run{1,2,3}/summary.json`,
 
 The **total** is the comparable figure here, and the median-of-medians (12.2 / 9.3 / **8.8** s) is
 misleading on this battery: OEA has the best median and the worst total in every run, because its
-median task is uniformly quick while one task pays a repeated cost. That task is
-`stub-service-client` at 12 turns — **79.4 / 81.4 / 110.4 s** on OEA in the three runs, against
-11.8–19.0 s for the same task on the other two configurations — so its total is ~50 % longer while
-its typical task is not.
+median task is uniformly quick while one task pays a cost the other two configurations mostly
+avoided. That task is `stub-service-client` at 12 turns — **79.4 / 81.4 / 110.4 s** on OEA in the
+three runs, against 11.8–19.0 s for the same task on the other two.
+
+**Those totals are polluted, not an engine comparison.** A repeat of that task on both shipped arms
+puts its wall time in two modes: exact **12.8 / 13.1 / 12.8 s** fast against **109.8 / 120.2 /
+75.3 s** slow (3 of 6 draws), lossy **12.6 / 13.2 / 14.8 s** fast against **76.9 s** slow (1 of 6).
+Every slow draw's wire log carries the harness's own `command timed out after 60s` (5–7 lines) and
+every fast draw has none: the agent starts the stub itself and blocks in `accept()`, the harness
+kills the call at 60 s, and recovery costs about five more turns (the engine's `ttft` stayed
+0.10–0.33 s at 130–160 tok/s throughout, so it was never slow). The three lossy runs of this table
+each carry 7 such lines against 0 for the exact runs. The timeout fires on both arms at a rate this
+pair of boots does not resolve, so no total here is a valid engine comparison until the fixture fix
+lands and a run report carries no `polluted` flag
+(`head:~/benchmarks/picom-prod-20261118/socket-repro-20261118/`).
 
 Every configuration loses `shell-repro-rounding` exactly once in three runs except OEA, which
 loses none (knapcio run 2, exact run 3, each on the hidden sweep's
@@ -209,16 +220,16 @@ section 3 (`head:~/benchmarks/picom-prod-20261118/rerun-20261118/README.md`).
   exact **+28.7 / +0.6 / −9.1 / −15.7 %**, lossy **+34.4 / +0.7 / −4.1 / −12.3 %**
   (`rerun-20261118/boot1-knapcio/ladder.csv`). Only the exact-vs-lossy pair is same-window; both
   knapcio columns are other boots and are read as the shape of the trade, not a margin.
-- **The one-boot agentic ordering is withdrawn.** A single run per arm put the lossy arm ahead
-  agentically (113.8 s vs 130.1 s total). Three runs of the same battery per configuration, one boot
-  each, reverse that: OEA totals **191.5 / 196.8 / 201.5 s** against exact **128.0 / 130.0 / 132.3 s**
-  and knapcio **127.7 / 160.2 / 149.4 s** (`rerun-20261118/README.md`), so the lossy arm is ~50 %
-  slower on total wall and its best median (8.8 s) is the median that misleads (section 3). Under
-  concurrency OEA is still the faster arm — **+5.4 % at C5, +4.0 % at C10** against exact, one boot
-  per side — so "lossy is faster" survives only on the ladder, and the agentic cost is concentrated
-  in one IO-bound task, `stub-service-client` at 12 turns. One clause of hypothesis, labelled: extra
-  socket round-trips per turn may expose a per-step latency the decode ladder hides; no receipt here
-  measures it.
+- **The one-boot agentic ordering is withdrawn, and no agentic speed ranking survives.** A single run
+  per arm put the lossy arm ahead agentically (113.8 s vs 130.1 s total). Three runs of the same
+  battery per configuration, one boot each, reverse that: OEA totals **191.5 / 196.8 / 201.5 s**
+  against exact **128.0 / 130.0 / 132.3 s** and knapcio **127.7 / 160.2 / 149.4 s**
+  (`rerun-20261118/README.md`). The difference is the harness, not the knob: `stub-service-client`
+  wall time is bimodal on both arms because a 60 s tool-timeout path fires on either, and the lossy
+  runs drew it three times out of three while the exact runs drew it none (section 3). So neither
+  ordering — this one or the one it replaced — compares the arms' speed, and no agentic ranking is
+  claimed. Under concurrency OEA is still the faster arm — **+5.4 % at C5, +4.0 % at C10** against
+  exact, one boot per side — and that ladder result is untouched by this.
 - **Probe window, 16 concurrent users: knapcio ahead of the lossless picom arm (354.1 vs 325.9,
   +8.7 %) and 6.6 % behind the lossy one (377.5).** Drafting was **not** off on the picom side: the 16-user window's
   request lines report multi-row verify steps with 3.08–4.90 drafts verified per step
@@ -295,10 +306,11 @@ section 3 (`head:~/benchmarks/picom-prod-20261118/rerun-20261118/README.md`).
 - **OEA's accuracy question is answered on this battery only.** It loses `shell-repro-rounding` in
   none of three rerun runs where exact and knapcio each lose it once (section 3), which bounds the
   cost at this fixed task set and says nothing about tasks that are not in it.
-- **The agentic total gap between the two picom configurations is unexplained.** On one boot each,
-  OEA totals 191.5–201.5 s against exact's 128.0–132.3 s, a ~50 % difference concentrated in
-  `stub-service-client` (79.4–110.4 s against 11.8–19.0 s). No receipt decomposes that task's
-  per-turn cost, so the mechanism is not identified.
+- **Agentic wall clock is not a usable comparator until a polluted-run flag exists.** The battery's
+  `stub-service-client` cell is bimodal on both shipped arms — exact 12.8–13.1 s fast against 109.8 /
+  120.2 / 75.3 s slow (3 of 6 draws), lossy 12.6–14.8 s fast against 76.9 s slow (1 of 6) — because
+  a 60 s harness tool timeout fires on either arm, so the rerun's ~50 % total difference is that
+  path's frequency on those boots, not the knob, and no agentic total separates the arms (section 3).
 - **Different budgets by design**: KV pool vs session store, 16 uniform slots vs 4 big + 12 small,
   chunked prefill at 16384 tokens vs whole-request prefill of 16384-row chunks.
 - **Two picom ladder generations and two knapcio ladders, no power/thermal/RDMA capture**, and the
@@ -309,10 +321,9 @@ section 3 (`head:~/benchmarks/picom-prod-20261118/rerun-20261118/README.md`).
 
 ## 6. What to try next
 
-1. **Repeat `stub-service-client` alone on both shipped arms** — 3 runs per arm, same 12-turn task
-   and 4096-token budget. Tests whether OEA's 79.4–110.4 s on that task reproduces against exact's
-   11.8–19.0 s, which is the whole of the ~50 % agentic total gap; if it does not, the gap is boot
-   state, not the knob.
+1. **Re-run 3× per arm once `--label`ed pollution reporting exists** — only unpolluted runs may be
+   averaged; until the harness marks a draw that took the 60 s tool-timeout path, the battery's
+   totals are not comparable (section 3).
 2. **Run one interleaved A/B of the two shipped arms** — exact, lossy, lossy, exact on the same image
    and window, C5 and C10 (where the lossy margin is largest) plus C1, 5 runs/cell. Settles whether
    the shipped +5.5 % / +3.9 % is the shortcut or the boot order, the one claim in section 4 resting
