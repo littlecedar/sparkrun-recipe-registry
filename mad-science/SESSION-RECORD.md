@@ -15506,3 +15506,65 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   line with its four raw addresses and `publish` rejected the board for
   `cluster-address` — masked to `.31`–`.34` shorthand and republished. Commit
   `f5b3199`, push-gate green on that tree, pushed.
+
+## 2026-11-18 18:14 ET — hourly tick: the quartet the peer's board left loading now serves, readiness pinned at 23:08:26Z
+
+- Read the `17:05 ET` board at 17:59 ET (content sha256 `30c6ed85…`, blob
+  `db55f406…`, tip `2682d68`), composed a board, and `publish` **refused it
+  exit 1** — disk was `aa2a9083…`, not the composed-from `30c6ed85…`: a peer
+  tick had published `18:07 ET` (`f5b3199`, then ledger `78c7821`) in between.
+  Its census read `23:01:29Z` is 22 s before this tick's first read, so the
+  peer's board stands on the boot's `create`/`start` events and this tick's
+  cannot (below). Recomposed on the peer's base; every figure on the published
+  board belongs to **that** base — the 17:05-base composition was dropped
+  whole rather than patched.
+- Deliberately not published first: a second board one minute later carrying
+  the same state but **without** the peer's `create`/`start` observation would
+  have replaced a better-grounded composition with a weaker one — the
+  `board-publish-accepts-weaker-replacement` defect.
+- State moved inside those nine minutes. Census `2026-11-18T23:10:53Z`–
+  `23:13:39Z` (workers first, head's own pass 166 s later), **9 min 24 s**
+  after the base's single read: the knapcio quartet
+  (`b020d2dd178343a5_6944191a4b29`, image id `3f4480818acb`) is **serving** —
+  all four ranks `healthy`, `:8000` listening on each, `/v1/models` **200**
+  naming `deepseek-ai/DeepSeek-V4.1-Flash-1017` (two reads). Readiness is
+  **pinned**, not inferred: the engine's own
+  `[2026-11-18 23:08:26] The server is fired up and ready to roll!`, **705 s**
+  after `StartedAt` `22:56:41Z`, with `000` still observed at `23:02:33Z` and
+  uvicorn on `:8000` from `23:08:16Z`. `.30`/`.35` remain empty.
+- The four loading ranks' `MemAvailable` fell **another ~22 GB** on the base's
+  values — `17,309,708`/`18,544,144`/`18,648,920`/`18,464,232` kB against
+  `.30`'s `121,065,076` and `.35`'s `122,327,052` — the weight/KV footprint
+  settling as the endpoint came up, not a leak.
+- Pool reads **move in both directions inside three minutes**, so no single
+  direction word is honest: base `23:01:29Z` `14,060,924,436,480 B`; five
+  worker reads in one pass `23:10:53Z`–`23:10:55Z` identical
+  `14,060,953,796,608 B` (**+29,360,128 B**); head `23:11:44Z`
+  `14,060,955,893,760 B`; head `23:13:39Z` `14,060,895,600,640 B`
+  (**−60,293,120 B** in 115 s, **−28,835,840 B** on the base). LIKELY the
+  serving quartet's own cache writes and beegfs chunk reclaim — unproven, and
+  the board states each read with its own timestamp instead of averaging.
+  `findmnt -M` again printed the bogus `SOURCE default`, so serving is proved
+  by the reads; hub `103` entries, quartet's `config.json` `3,311 B`.
+- **Ring depth, measured both ways:** this tick's earlier pass classified
+  `.31`'s full 256-event ring as **85 `exec_create` + 85 `exec_start` +
+  85 `exec_die` + 1 `top`** — pure health probes — while the peer had read the
+  boot's `create`/`start` from the same node 22 s earlier; at the publish read
+  `.31` held 253 events with oldest `23:03:04Z`, so the boot's start events had
+  aged out entirely within ~5 min. A ring-window absence is therefore a timing
+  accident, never evidence that nothing booted; the boot is dated from
+  `StartedAt` and the peer's direct observation.
+- Register `0b28a919…` unchanged and re-checked live before publish (201
+  tasks — 159 done, 34 queued, 8 blocked, **42 open**; `check` prints
+  `ok: 201 task(s)`). Campaign service `inactive`/`dead`, `ExecMainStatus=0`,
+  and both enter timestamps print **empty on this manager instance** — the
+  base's `2026-11-11 20:03:08 EST` stamp is not contradicted, only not
+  restated by `show` here. Non-hidden recursive scan of
+  `/home/red/benchmarks` returns `9` `state.json` paths that are `9` distinct
+  files by `(st_dev, st_ino)`, `38` arms (`arms` is a dict in every file),
+  `0` live leases. The window lock (241 B, `d6d0a1bd…`) and the lease ledger
+  (350 B, `b355b319…`) are unchanged and byte-identical here and on the head;
+  the now-serving quartet sits inside that declared window.
+- Published through the tool (`publish rc=0`, `lint ok: 1 markdown file(s)
+  render`, base `aa2a9083…` with `--expect-sha` and `--expect-remote-sha`
+  both carrying it after a `git fetch`).
