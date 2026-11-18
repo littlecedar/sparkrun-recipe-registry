@@ -15311,3 +15311,56 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   answered `NRestarts=0` for a unit this workstation does not have. The
   rate figure above comes from two reads whose command was single-quoted
   to run remotely.
+
+## 2026-11-18 16:18 ET — a third tick stands down behind the `16:10 ET` board, and corrects one campaign clause
+- Composed on the `15:22 ET` board (`8d525c9c…`) and read the fleet
+  independently at `2026-11-18T21:03:52Z`–`21:03:54Z`, pool at
+  `21:04:29Z` — **106 s** after the published board's own census. Every
+  figure agrees: **0** containers, **0** volumes and **0** `:8000`
+  listeners on all six hosts; `MemAvailable` back to
+  **120.98/122.96/122.89/122.86/122.88/122.23 GB** on `.30`–`.35`; the
+  quartet's teardown still `kill` `20:46:49Z`, `die`/`destroy`
+  `20:46:51Z` on all four rank nodes; `.local/fleet-leases.json` 48 B
+  sha `34eed267…` with `leases: []` and no window lock on head or here;
+  register `0b28a919…` unmoved, **201** tasks / **42** open. Published
+  nothing, for the reason the `16:14 ET` entry gives.
+- The board's `campaign` cell misclassifies one of its twelve
+  non-campaign files. Of the **21** `(st_dev, st_ino)`-deduped
+  `state.json` under `/home/red`, **nine** are campaign roots carrying
+  **38 arms**, **eleven** are `.swival` audit / `.git/rewrite-observer`
+  state carrying **0** arms, and the twelfth is a **stale peer copy** —
+  `/home/red/src/sparkrun-recipe-registry/.scratch/tick-0305-209889/state.json`,
+  **24** arms, a copy of `h2h-20261107`'s. It is not audit state, and a
+  scan that sums arms must not count it: 38 arms, not 62. Recorded here
+  rather than as a second board publish five minutes after a peer's.
+- `df -B1 /mnt/beegfs` returns the **identical** value on all six
+  clients (`14,060,847,366,144 B` at `21:05:20Z`): one pool-wide statfs
+  seen six times, so summing across clients is six copies of one number.
+  The pair that carries information is the mount against the six `/`
+  roots' own statfs, which is what the board's pool cell already does.
+
+## 2026-11-18 16:19 ET — hourly tick corroborates the `16:10 ET` board at a later pass; nothing republished
+- Composed on the `15:22 ET` board (content sha256 `8d525c9c…`, tip `51e1e9e`, blob `7352c5e`). `publish`
+  refused it twice over: this tick's composer had dropped the `## In flight` header row (lint
+  `table-missing-delimiter`), and the peer's `16:10 ET` board (`b95c5ad`) had landed on disk and on
+  `origin/main` while the census ran. Its census read `21:02:04Z`–`21:02:06Z` sits inside this tick's own
+  window, so the board is fresher and correctly formed and this tick republished nothing.
+- Independent re-read five minutes later, six hosts in one pass `21:07:18Z`–`21:07:21Z`: **0** containers,
+  **0** volumes and **0** `:8000` listeners everywhere; root `avail` 1,453,805,436,928 (`.30`),
+  1,690,827,829,248 (`.31`), 1,751,688,712,192 (`.32`), 1,666,627,112,960 (`.33`), 1,138,836,668,416
+  (`.34`), 1,199,550,525,440 (`.35`); `MemAvailable` 121,039,012 / 122,828,648 / 122,991,852 / 123,012,624 /
+  122,979,920 / 122,321,452 kB. Every figure is a monotone continuation of the peer's cell, so the board's
+  direction words hold; mount `used` 14,060,845,268,992 B again equals the six roots' sum as one quantity
+  (roots 14,060,848,398,336 B at `21:07:18Z`–`21:07:21Z`, residue −3,129,344 B over the 3 min 34 s gap).
+- One cell-level nuance the board cannot carry because it reads a unit phase: `.31`'s `beegfs-meta` is not a
+  healthy exception. At `21:07:19Z` it reads `inactive,activating,active` with `Result=exit-code` and
+  `NRestarts` **113164**, up **60** from the peer's `113104` in 5 min 15 s — a **5.25 s** cadence, the same
+  restart loop the other four hosts run, caught by the peer in its `active`/`success` phase.
+- Scan-count ambiguity, named once: a non-following `os.walk` of `/home/red` pruned of
+  `.git`/`node_modules`/`.venv`/`__pycache__` returns **19** `state.json` paths → **19** inodes at `21:03:44Z`
+  (nine campaign roots, nine `src/*/.swival/audit/*` states, one peer scratch copy), while the same walk
+  restricted to `/home/red/benchmarks` returns **9** paths → **9** files at `21:06:44Z` carrying **38 arms**
+  and **0 live leases**. A bare "9 paths" for `/home/red` is the benchmarks-root number.
+- Instrument traps re-hit and avoided: `ssh -n` on a hop whose stdin is the script ran empty and returned six
+  blank blocks at rc=0 (re-run without `-n`); and `arms` in a campaign `state.json` is a **dict keyed by arm
+  name**, so a first pass that iterated it as a list reported 0 arms before the shape was read.
