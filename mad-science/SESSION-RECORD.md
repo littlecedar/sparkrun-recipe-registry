@@ -14412,3 +14412,59 @@ identical across `origin/main` `e92c9db`→`e1cc387`, so `--expect-sha` and
 Captures were removed after publish (`.scratch/tick-0300-2831139/`). Nothing on the fleet
 was touched beyond reads; no file was written on any node, and the live picom workload was
 not signalled.
+
+## 2026-11-18 08:26Z close-out — board tick 03:23 ET: three picom boots, fleet idle at the read, lease held
+
+Composed on the peer's published `03:15 ET` board (content `55ce4aee…`, blob
+`36fb7a52…`, `origin/main` `0e8e525`), not on the `02:20 ET` base it replaced: the
+peer landed its refresh and push at 08:19Z while this tick was still reading, so the
+newest published base was theirs.
+
+**Census, and why it needed two instants.** Pass `08:14:47Z` (one pass, all six, from
+this workstation) found `.31`–`.34` each holding one container of picom phase 2
+(`58cddf1c62ba6578_b2aaddef7ada`, image `986795bcd7f4` =
+`ghcr.io/littlecedar/dgx-picom-ds41f@sha256:1e529c67…`), rank 0 answering `/v1/models`
+**401** (keyed front-end, serving). By the final pass `08:21:27Z`–`08:21:28Z` every node
+read **0 containers, 0 volumes, 0 `:8000` listeners**, `MemAvailable` back to
+`121.3`–`123.3 GB`. That idle instant was a between-boot gap: a fourth boot
+`58cddf1c62ba6578_ddf78af73755` created `08:23:08Z`, found on the pre-commit re-read and
+recorded as a correction row.
+
+**Hour's churn, from container events on every rank.** knapcio quartet
+`b020d2dd178343a5_9cdb266b5e0d` kill `07:42:25Z`, die/destroy `07:42:27Z`; picom
+phase 1 `…_9aea1006d19f` created `07:43:15Z`, destroyed `07:58:47Z`; phase 2
+`…_b2aaddef7ada` created `08:03:05Z`, destroyed `08:15:59Z`; phase 3
+`…_1f1549d1421d` created `08:16:55Z`, destroyed `08:19:23Z` (held 2 m 28 s). Phase 2's
+concurrency ladder completed before teardown: `distinct 0` tg **85.1 / 93.8 / 121.2 /
+135.8** t/s at c1/c2/c5/c10, ttfr 42.9 / 23.2 / 13.9 / 19.8 ms, pp 50,878.8 cold then
+5,256.2 / 5,337.4 / 5,314.1 — receipt `~/benchmarks/picom-prod-20261118/phase2/`.
+
+**Instrument lesson.** `docker events --until <future>` streams until that instant, so a
+probe with a future `--until` blocks for the whole interval; two of this tick's probes
+sat on it (one hit my 60 s cell timeout). Use `--until $(date -u …)`.
+
+**Lease.** `.local/fleet-leases.json` sha `c460d3de…`, byte-identical here and on the
+head: one lease, `session:picom-prod-20261118`, arm `zz-ds4-1017-picom-out256k`, hosts
+`.31`–`.34`, window `picom-tp4-prod-20261118`, expires `19:42:02Z`, `fenced: []`, no
+window lock. The tick reports the escalation the skill asks for — a live lease whose
+ranks read empty at its census — while stating the churn that makes it a gap between
+boots rather than an abandoned claim.
+
+**Pool.** Units re-read `08:23:23Z`–`08:23:24Z`: head active, meta `NRestarts` 0; `.31`–`.35`
+meta `104,378`/`104,380`/`104,382`/`104,380`/`104,363`, **+185** each over 966 s =
+**5.22** s per restart (prior hour 5.214 — rate held). Same-pass pair
+`08:22:08Z`–`08:22:09Z`: mount `used` **14,168,045,387,776 B**, six roots
+**14,168,045,035,520 B**, residue **+352,256 B**; mount **−220,725,248 B** on the
+`02:20` pair with the roots' net **−220,954,624 B**. 103 hub entries; ds4 `config.json`
+3,311 B on both snapshots. Register `1b147195…` unmoved (200 tasks, 44 open, 0 claims);
+campaign 9 roots / 38 arms / 0 live leases.
+
+**Publication.** `publish` accepted the first composition against `--expect-sha`
+and `--expect-remote-sha` `55ce4aee…`; the correction row was published by a second call
+with `--expect-sha` = the disk composition (`602fd86a…`) and the same remote sha, which
+passed because base and disk were identical. A row I appended first carried an odd
+backtick and `publish` refused it (`unbalanced-backticks`) — the guard worked; the fence
+and the table both lint clean now.
+
+Captures live in `.scratch/tick-0301/` (git-ignored). Nothing on the fleet was touched
+beyond reads; no node-side file was written and the picom workload was not signalled.
