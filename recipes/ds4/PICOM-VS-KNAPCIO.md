@@ -102,19 +102,22 @@ The two shipped artifacts, booted back to back on the same image:
 `--prefill-rows 16384`. Instrument: `benchmarking/concurrency-ladder.yaml`, depth 0, 2048-token
 prompts, 128-token replies, 5 runs/cell, `--skip-run --fresh`.
 
-| cell | shipped exact | shipped lossy (OEA) | knapcio (recorded row) |
-|:--|--:|--:|--:|
-| C1 | 83.4 | 87.1 | 70.4 |
-| C2 | 90.8 | 90.9 | 83.4 |
-| C5 | 111.5 | 117.6 | 127.3 |
-| C10 | 129.2 | 134.4 | 160.9 |
+| cell | shipped exact | shipped lossy (OEA) | knapcio (rerun boot) | knapcio (October recorded row) |
+|:--|--:|--:|--:|--:|
+| C1 | 83.4 | 87.1 | 64.8 | 70.4 |
+| C2 | 90.8 | 90.9 | 90.3 | 83.4 |
+| C5 | 111.5 | 117.6 | 122.6 | 127.3 |
+| C10 | 129.2 | 134.4 | 153.3 | 160.9 |
 
 Receipts: `head:~/benchmarks/picom-prod-20261118/phase5/ladder.csv` (exact) and
 `head:~/benchmarks/picom-prod-20261118/phase6/ladder.csv` (lossy), each beside `ladder.json` and
-`ladder.log`. The knapcio column is its recorded row in [the lane README](README.md)
-(`head:~/benchmarks/ds4-1017-parity-20261027/armC/armC-ladder.csv`), a different window, so the
-exact-vs-lossy pair is the only same-window comparison; knapcio's cells are a shape to read both
-picom columns against. Within-boot spread: C1 6.2 % exact vs 3.4 % lossy, C10 4.8 % vs 3.9 %.
+`ladder.log`. The knapcio columns are two different boots and are not interchangeable: the rerun
+boot's own cells are `head:~/benchmarks/picom-prod-20261118/rerun-20261118/boot1-knapcio/ladder.csv`
+(same day, separate window, 5 runs/cell, decode-phase rows only) and the October row is
+[the lane README](README.md)'s (`head:~/benchmarks/ds4-1017-parity-20261027/armC/armC-ladder.csv`).
+The exact-vs-lossy pair is the only same-window comparison; both knapcio columns are a shape to read
+the picom columns against. Within-boot spread: C1 6.2 % exact vs 3.4 % lossy; rerun knapcio 8.8 %
+C1, 5.3 % C10.
 
 ### Probe-window ladder (history)
 
@@ -139,25 +142,41 @@ vs 2.7 %.
 `tools/agentic-battery.py --tier all`, 13 tasks (8 easy, 5 hard), fixed `max_tokens: 4096`,
 single-flight:
 
-| battery | picom exact | picom OEA | knapcio reference |
-|:--|--:|--:|--:|
-| shipped, pass / total | 13/13 | **12/13** | 13/13 |
-| shipped, median / worst / total wall | 10.0 / 25.4 / 130.1 s | 8.2 / 15.7 / 113.8 s | 7.4 / 15.3 / 117.7 s |
-| probe, pass / total | 13/13 | 13/13 | — |
-| probe, median / worst / total wall | 8.1 / 26.0 / 126.2 s | 9.6 / 12.0 / 108.1 s | — |
+Three runs of the same battery per configuration, one boot per configuration:
 
-Receipts: `head:~/benchmarks/picom-prod-20261118/phase5/agentic-exact/summary.json`,
-`head:~/benchmarks/picom-prod-20261118/phase6/agentic-oea/summary.json`,
-`head:~/benchmarks/picom-prod-20261118/phase1/agentic-exact/summary.json`,
-`head:~/benchmarks/picom-prod-20261118/phase2/agentic-oea/summary.json`; the knapcio reference is
-`head:~/benchmarks/agentic-battery-20261118/knapcio-v2/summary.json` (13 tasks, fixed
-`max_tokens: 4096`).
+| configuration | run | pass | median | worst | total wall |
+|:--|:--|:--|--:|--:|--:|
+| knapcio production | 1 | 13/13 | 8.8 s | 16.4 s | 127.7 s |
+| | 2 | **12/13** | 12.5 s | 30.0 s | 160.2 s |
+| | 3 | 13/13 | 12.2 s | 19.0 s | 149.4 s |
+| | totals range | — | — | — | **127.7–160.2 s** |
+| picom exact (shipped) | 1 | 13/13 | 10.1 s | 25.9 s | 128.0 s |
+| | 2 | 13/13 | 8.2 s | 25.4 s | 130.0 s |
+| | 3 | **12/13** | 9.3 s | 26.8 s | 132.3 s |
+| | totals range | — | — | — | **128.0–132.3 s** |
+| picom OEA (shipped) | 1 | 13/13 | 8.8 s | 110.4 s | 201.5 s |
+| | 2 | 13/13 | 8.4 s | 81.4 s | 196.8 s |
+| | 3 | 13/13 | 9.7 s | 79.4 s | 191.5 s |
+| | totals range | — | — | — | **191.5–201.5 s** |
 
-The shipped lossy row's one miss is `shell-repro-rounding`: hidden sweep `AssertionError: (75, 1,
-[89], 88)` on `sum(shares) == due`, while its visible suite and `repro.py` pass, with `truncated: 0`
-and `invalid_args: 0`. The same task passed in phase 5 (10.0 s) and in phase 2's OEA boot (10.4 s),
-so this is one draw of the model on one task in one boot, not a property of the arm; the pass/total
-row is not a pass rate.
+Receipts: `head:~/benchmarks/picom-prod-20261118/rerun-20261118/README.md` is the roll-up;
+the underlying summaries are `boot1-knapcio/agentic-run{1,2,3}/summary.json`,
+`boot2-picom-exact/agentic-run{1,2,3}/summary.json` and
+`boot3-picom-oea/agentic-run{1,2,3}/summary.json` beside it, one boot and one summary per run.
+
+The **total** is the comparable figure here, and the median-of-medians (12.2 / 9.3 / **8.8** s) is
+misleading on this battery: OEA has the best median and the worst total in every run, because its
+median task is uniformly quick while one task pays a repeated cost. That task is
+`stub-service-client` at 12 turns — **79.4 / 81.4 / 110.4 s** on OEA in the three runs, against
+11.8–19.0 s for the same task on the other two configurations — so its total is ~50 % longer while
+its typical task is not.
+
+Every configuration loses `shell-repro-rounding` exactly once in three runs except OEA, which
+loses none (knapcio run 2, exact run 3, each on the hidden sweep's
+`AssertionError: (75, 1, [89], 88)` on `sum(shares) == due`, visible suite and `repro.py`
+passing). Pass counts therefore do not separate the arms; only the totals do. The probe pair's
+agentic cells remain one boot each (13/13 both, totals 126.2 and 108.1 s,
+`phase1`/`phase2` receipts above) and are not comparable to this table.
 
 ### The production window
 
@@ -175,14 +194,31 @@ lossless boot (`…1f1549d1421d`) was taken only to pair the house battery; then
 `unprobeable=0`, and was torn down to 0 containers, 0 volumes and no `:8000` listener before the next
 start (`post-teardown.txt` beside each phase's cells).
 
+The three-run agentic table is a later window of the same day: one boot per configuration — knapcio
+`…d143959e5792`, exact `…da567c594d37`, OEA `…0b23560656a9` — each torn down to 0 containers, 0
+volumes and no `:8000` listener before the next, and the knapcio boot carried the rerun ladder of
+section 3 (`head:~/benchmarks/picom-prod-20261118/rerun-20261118/README.md`).
+
 ## 4. Where each wins and why
 
 - **Shipped pair, same window: picom ahead at one and two streams, behind at five and ten.** Against
-  knapcio's recorded row the shipped exact arm is **+18.5 % at C1** (83.4 vs 70.4) and **+8.9 % at
-  C2** (90.8 vs 83.4), and **−12.4 % at C5** (111.5 vs 127.3) and **−19.7 % at C10** (129.2 vs
-  160.9); the shipped lossy arm is **+23.8 / +8.9 / −7.6 / −16.5 %** (`phase5/ladder.csv`,
-  `phase6/ladder.csv`). Only the exact-vs-lossy pair is same-window; the knapcio percentages span
-  windows and are read as the shape of the trade, not a margin.
+  knapcio's October recorded row the shipped exact arm is **+18.5 % at C1** (83.4 vs 70.4) and
+  **+8.9 % at C2** (90.8 vs 83.4), and **−12.4 % at C5** (111.5 vs 127.3) and **−19.7 % at C10**
+  (129.2 vs 160.9); the shipped lossy arm is **+23.8 / +8.9 / −7.6 / −16.5 %** (`phase5/ladder.csv`,
+  `phase6/ladder.csv`). Against the rerun boot's own knapcio ladder the shape holds and C1 widens:
+  exact **+28.7 / +0.6 / −9.1 / −15.7 %**, lossy **+34.4 / +0.7 / −4.1 / −12.3 %**
+  (`rerun-20261118/boot1-knapcio/ladder.csv`). Only the exact-vs-lossy pair is same-window; both
+  knapcio columns are other boots and are read as the shape of the trade, not a margin.
+- **The one-boot agentic ordering is withdrawn.** A single run per arm put the lossy arm ahead
+  agentically (113.8 s vs 130.1 s total). Three runs of the same battery per configuration, one boot
+  each, reverse that: OEA totals **191.5 / 196.8 / 201.5 s** against exact **128.0 / 130.0 / 132.3 s**
+  and knapcio **127.7 / 160.2 / 149.4 s** (`rerun-20261118/README.md`), so the lossy arm is ~50 %
+  slower on total wall and its best median (8.8 s) is the median that misleads (section 3). Under
+  concurrency OEA is still the faster arm — **+5.4 % at C5, +4.0 % at C10** against exact, one boot
+  per side — so "lossy is faster" survives only on the ladder, and the agentic cost is concentrated
+  in one IO-bound task, `stub-service-client` at 12 turns. One clause of hypothesis, labelled: extra
+  socket round-trips per turn may expose a per-step latency the decode ladder hides; no receipt here
+  measures it.
 - **Probe window, 16 concurrent users: knapcio ahead of the lossless picom arm (354.1 vs 325.9,
   +8.7 %) and 6.6 % behind the lossy one (377.5).** Drafting was **not** off on the picom side: the 16-user window's
   request lines report multi-row verify steps with 3.08–4.90 drafts verified per step
@@ -208,8 +244,9 @@ start (`post-teardown.txt` beside each phase's cells).
   (117.6 vs 111.5) and **+3.9 % C10** (134.4 vs 129.2; `phase5/ladder.csv`, `phase6/ladder.csv`), so
   the gain lands where the probe said it would, smaller because the shipped exact control read high
   at C5. Both gains exceed the within-boot spread on either side, but each side is one boot, so this
-  is a same-window LIKELY effect, not an interleaved A/B. The shipped lossy boot also missed
-  `shell-repro-rounding` once (section 3) — one draw on one task in one boot, not a rate. The knob is
+  is a same-window LIKELY effect, not an interleaved A/B. On accuracy the knob now loses nothing:
+  three rerun runs of the OEA arm drop `shell-repro-rounding` zero times, while exact and knapcio
+  each drop it once in three (section 3), so the pass counts do not separate the arms. The knob is
   lossy by construction and ships as a separate arm, never as the default.
 - **The shortcut cost nothing on this lane's accuracy cells.** On the shipped pair: needle 3/3 at
   131,072 (12.1 s per cell) and the **983,040 rung PASS** at depth 10 on both (980,868 prompt tokens,
@@ -255,24 +292,31 @@ start (`post-teardown.txt` beside each phase's cells).
 - **Vision is functional only.** The path answers; no cost, latency or quality cell exists.
 - **No free-form quality metric.** The needle and house cells are exact-match and pass/fail; nothing
   here scores generated code or prose.
-- **OEA's accuracy question is now one failed draw, not an unmeasured risk.** One `shell-repro-rounding`
-  miss in one shipped lossy boot, on a battery that the shipped exact boot and both probe boots passed
-  (section 3); it does not establish a rate in either direction.
+- **OEA's accuracy question is answered on this battery only.** It loses `shell-repro-rounding` in
+  none of three rerun runs where exact and knapcio each lose it once (section 3), which bounds the
+  cost at this fixed task set and says nothing about tasks that are not in it.
+- **The agentic total gap between the two picom configurations is unexplained.** On one boot each,
+  OEA totals 191.5–201.5 s against exact's 128.0–132.3 s, a ~50 % difference concentrated in
+  `stub-service-client` (79.4–110.4 s against 11.8–19.0 s). No receipt decomposes that task's
+  per-turn cost, so the mechanism is not identified.
 - **Different budgets by design**: KV pool vs session store, 16 uniform slots vs 4 big + 12 small,
   chunked prefill at 16384 tokens vs whole-request prefill of 16384-row chunks.
-- **Two picom ladder generations but one knapcio ladder, no power/thermal/RDMA capture**, and the
-  readiness comparison is one cold boot against one warm-cached boot, not a like-for-like start.
+- **Two picom ladder generations and two knapcio ladders, no power/thermal/RDMA capture**, and the
+  readiness comparison is one cold boot against one warm-cached boot, not a like-for-like start. The
+  knapcio rerun boot and the picom ladder boots are separate boots, so no knapcio-vs-picom ladder
+  margin here is interleaved.
 - **`copies 16` is not a prefix-sharing cell** on either engine: the instrument randomizes the prefix.
 
 ## 6. What to try next
 
-1. **Run one interleaved A/B of the two shipped arms** — exact, lossy, lossy, exact on the same image
+1. **Repeat `stub-service-client` alone on both shipped arms** — 3 runs per arm, same 12-turn task
+   and 4096-token budget. Tests whether OEA's 79.4–110.4 s on that task reproduces against exact's
+   11.8–19.0 s, which is the whole of the ~50 % agentic total gap; if it does not, the gap is boot
+   state, not the knob.
+2. **Run one interleaved A/B of the two shipped arms** — exact, lossy, lossy, exact on the same image
    and window, C5 and C10 (where the lossy margin is largest) plus C1, 5 runs/cell. Settles whether
    the shipped +5.5 % / +3.9 % is the shortcut or the boot order, the one claim in section 4 resting
    on a single boot per side.
-2. **Run the BFCL tools leg** on both engines with the same tasks and turn budget. Settles whether
+3. **Run the BFCL tools leg** on both engines with the same tasks and turn budget. Settles whether
    the client-contract differences in section 2 (thinking channel, token-id echo, unknown-field
    handling) cost anything an agent can feel.
-3. **Repeat the agentic battery 3–5 times per shipped arm.** Puts a spread on the 12/13 and on the
-   medians, so the one `shell-repro-rounding` miss stops being a single Bernoulli draw and the wall
-   numbers get an interval.
