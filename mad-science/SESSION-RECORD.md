@@ -14629,3 +14629,48 @@ ladder, batteries and accuracy), so nothing is lost but the index entry; recorde
 because the landed table is append-only and that row will not appear on its own.
 `4665d04` and `36c419f` need no row — they are the `04:28` refresh and its `04:32`
 correction, which the table already carries as `board refresh`/`board correction`.
+
+## 2026-11-18 06:08 ET — board refresh landed; the lease is cycling picom boots
+
+Published through the tool and pushed as `03bc989` (`477bdcc..03bc989`), board
+content sha256 `44480772…`, blob `f77eb218…`, `publish` rc=0 with
+`--expect-sha`/`--expect-remote-sha` both `0b0d4556…` (the `05:18 ET` base at
+`origin/main` `477bdcc`), `lint` rc=0, `push-gate` green on `HEAD 03bc989a`.
+
+What the census found, beyond the base's row:
+
+- the picom socket-repro lease is **cycling boots**, not holding one. Census pair
+  `11:02:36Z`–`11:02:39Z` read `6f92d570b7be` on `.31`–`.34` (`Up 10 minutes`,
+  `StartedAt` `10:52:12Z`); it was `kill`ed `11:04:47Z` and `destroy`ed `11:04:48Z`,
+  and the second pass (`11:05:33Z`–`11:05:35Z`) caught `.31` at `1` container /
+  `0` running mid-swap, with `ddd637b7af3d` (`-oea` arm) up `52 s` at `11:06:25Z`.
+  An earlier boot `0b23560656a9` was killed `10:39:16Z`, so three picom boots ran
+  this hour on the same image id `986795bcd7f4`
+  (`ghcr.io/littlecedar/dgx-picom-ds41f@sha256:1e529c67…`);
+- `.31`'s oldest retained container event was `10:24:03Z` while the pass held 249
+  event lines per rank (237 health execs + 12 lifecycle), so the hour's lifecycle
+  prefix is a **bound**, not an observation;
+- the pool's seven-read same-pass pair ran `11:04:08Z`–`11:04:10Z`: mount used
+  **14,167,870,275,584 B**, the six nodes' own root `used`
+  **14,167,870,005,248 B**, residue **+270,336 B**, −309,854,208 B on the base's
+  mount figure; head units `active`/`success`, `NRestarts` 0;
+- the lease ledger moved to `a0145e6e…` (444 B, `session:picom-socket-20261118`,
+  arm `socket-repro-20261118`, issued `10:51:45Z`, expires `13:51:45Z`, `fenced: []`),
+  byte-identical on this clone and the head, and its receipt root
+  `~/benchmarks/picom-prod-20261118/socket-repro-20261118/bootA-exact/` exists with
+  `agentic-run1`…`agentic-run6` and `agentic-socket.done` at `06:04 ET`;
+- campaign unchanged in substance: 21 `state.json` paths over `/home/red`, which
+  dedupe by `(st_dev, st_ino)` to **9 files / 9 roots / 38 arms / 0 future leases**;
+  register `dd27dfd9…` unmoved (200 / 158 done / 34 queued / 8 blocked / 42 open,
+  `check` rc=0) with both queue blocks rendered from one snapshot.
+
+**Instrument defect, disclosed on the board and here.** This tick's first probe
+computed its `df -B1 --output=used /mnt/beegfs` and hub count **on the workstation**
+instead of inside the head script, and both failed with `No such file or directory`
+— which reads exactly like a lost mount. It was the harness, not the pool: at
+`11:05:55Z` the head's `mountpoint` reports `/mnt/beegfs is a mountpoint`,
+`findmnt -M` lists it, and mgmtd/meta/storage read `active`/`success`. The published
+pool cell cites only the head's own reads. The lesson is the existing one — a probe
+line placed outside the piped script runs wherever the caller runs.
+
+Captures lived in `.scratch/tick-0602-1102-3107497/` (git-ignored).
