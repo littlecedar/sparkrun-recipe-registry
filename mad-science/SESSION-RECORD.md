@@ -14782,7 +14782,7 @@ cell's **+270,336 B** 2 min earlier. Hub **103** entries on head **and on
 `.35`**, ds4 `config.json` **3,311 B** on both.
 
 **Instrument note for register row `head-mesh-cannot-reach-30`.** From the head,
-`ssh spark-00` (the `.30` name) fails `Host key verification failed` — the first
+`ssh` to the `.30` name alias fails `Host key verification failed` — the first
 hop of a name-keyed loop at `12:03:35Z`, so the census must address the node
 IPs — and an `ssh -n` hop carrying its per-node script on stdin returns **no
 output and rc=0** in 8 s, a silent empty census that reads exactly like an idle
