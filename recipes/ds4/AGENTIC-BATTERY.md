@@ -121,6 +121,11 @@ should pass `--label "<image>@<digest>, task <id>"`.
   constant (no per-task override) because the blocker was a foreground `accept()`, not a legitimate
   slow command: the marker protects the comparison, not the budget. **No arm comparison may be drawn
   from a run whose tasks are polluted** — re-run it.
+  The fix holds (2026-11-18, `head:~/benchmarks/picom-prod-20261118/final-20261118/`): one boot per
+  shipped arm and three runs each, the socket task ran **11.4 / 11.1 / 8.7 s** on the exact arm
+  (`bootA-exact/`) and **11.4 / 11.0 / 10.8 s** on the lossy one (`bootB-oea/`), with
+  `polluted_runs` 0 and `harness_timeouts` 0 in all six `summary.json` files — the 75–120 s path
+  no longer appears in any of them.
 - **Three minimal tools.** Shell-only models are not penalised for lacking a structured editor, but a
   serve that formats large `write_file` arguments badly pays for it — the schema is small on purpose.
 - **English prompts, small tasks.** Each task fits one context with room for several turns; nothing

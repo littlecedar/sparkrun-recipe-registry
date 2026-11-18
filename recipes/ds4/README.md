@@ -2418,13 +2418,13 @@ root `head:~/benchmarks/picom-prod-20261118/`; each boot's lane cells are its ow
   `PICOM_OEA=4,12,9`, the lossy batch-aware MoE re-route. Same ladder on its own
   boot: **C1 87.1, C2 90.9, C5 117.6, C10 134.4** tok/s (`phase6/ladder.csv`), i.e.
   **+5.4 % at C5 and +4.0 % at C10** and C1 +4.5 % against the exact boot — one boot
-  per side, not a repeated measurement. Accuracy over three same-day runs: agentic
-  **13/13 three times**, totals **191.5–201.5 s** — longer than the exact arm on
-  this battery, but that cost was a harness tool-timeout path, not the knob:
-  `stub-service-client` runs bimodal on both arms (exact 12.8–13.1 s fast against
-  109.8 / 120.2 / 75.3 s slow, 3 of 6 draws; lossy 12.6–14.8 s fast against 76.9 s
-  slow, 1 of 6), so no agentic speed difference between the arms is established
-  (`rerun-20261118/`, `socket-repro-20261118/`) — house **37/37**, needles 3/3 at
+  per side, not a repeated measurement. Accuracy after the fixture fix, three unpolluted
+  runs per arm: agentic **13/13, 12/13, 12/13** at **108.1–136.7 s** total against exact
+  **13/13, 13/13, 12/13** at **110.2–133.4 s** (`final-20261118/bootB-oea/` and
+  `bootA-exact/`), ranges overlapping over almost their whole extent with the pass counts
+  missing different tasks (lossy `shell-repro-rounding` twice, exact `golden-regression`
+  once), `polluted_runs` 0 throughout — so no agentic difference between the arms is
+  established and the socket task now runs 8.7–11.4 s on both — house **37/37**, needles 3/3 at
   131,072 and PASS at 983,040. No accuracy loss was found on the house or needle
   cells; that is not a guarantee beyond them.
 

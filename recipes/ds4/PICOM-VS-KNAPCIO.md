@@ -182,6 +182,15 @@ pair of boots does not resolve, so no total here is a valid engine comparison un
 lands and a run report carries no `polluted` flag
 (`head:~/benchmarks/picom-prod-20261118/socket-repro-20261118/`).
 
+**The fix holds: six unpolluted runs are the post-fix numbers.** Both shipped arms were re-booted
+after the fixture change, one boot per arm and three runs each: exact
+`head:~/benchmarks/picom-prod-20261118/final-20261118/bootA-exact/` totals **125.1 / 133.4 /
+110.2 s** (median 125.1) at **13/13, 13/13, 12/13**, run 3 missing `golden-regression`; lossy
+`…/bootB-oea/` totals **108.1 / 136.7 / 131.8 s** (median 131.8) at **13/13, 12/13, 12/13**, runs
+2–3 missing `shell-repro-rounding`. All six `summary.json` files carry `polluted_runs` 0 and
+`harness_timeouts` 0, and the socket task now runs **11.4 / 11.1 / 8.7 s** on exact against
+**11.4 / 11.0 / 10.8 s** on lossy: the 75–120 s regime is gone.
+
 Every configuration loses `shell-repro-rounding` exactly once in three runs except OEA, which
 loses none (knapcio run 2, exact run 3, each on the hidden sweep's
 `AssertionError: (75, 1, [89], 88)` on `sum(shares) == due`, visible suite and `repro.py`
@@ -226,10 +235,15 @@ section 3 (`head:~/benchmarks/picom-prod-20261118/rerun-20261118/README.md`).
   against exact **128.0 / 130.0 / 132.3 s** and knapcio **127.7 / 160.2 / 149.4 s**
   (`rerun-20261118/README.md`). The difference is the harness, not the knob: `stub-service-client`
   wall time is bimodal on both arms because a 60 s tool-timeout path fires on either, and the lossy
-  runs drew it three times out of three while the exact runs drew it none (section 3). So neither
-  ordering — this one or the one it replaced — compares the arms' speed, and no agentic ranking is
-  claimed. Under concurrency OEA is still the faster arm — **+5.4 % at C5, +4.0 % at C10** against
-  exact, one boot per side — and that ladder result is untouched by this.
+  runs drew it three times out of three while the exact runs drew it none (section 3). With the
+  fixture fixed, six unpolluted runs (section 3) put the arms on top of each other: exact totals
+  **110.2–133.4 s** against lossy **108.1–136.7 s**, ranges overlapping over almost their whole
+  extent, a ~5 % median gap smaller than either arm's own 21–24 % run-to-run spread, and pass counts
+  differing by one task each time on a different task. So with pollution removed the arms are
+  indistinguishable on total wall clock, no agentic difference is established, and the choice rests
+  on the concurrency curve and the lossy construction. Under concurrency OEA is still the faster
+  arm — **+5.4 % at C5, +4.0 % at C10** against exact, one boot per side — and that ladder result is
+  untouched by this.
 - **Probe window, 16 concurrent users: knapcio ahead of the lossless picom arm (354.1 vs 325.9,
   +8.7 %) and 6.6 % behind the lossy one (377.5).** Drafting was **not** off on the picom side: the 16-user window's
   request lines report multi-row verify steps with 3.08–4.90 drafts verified per step
@@ -306,11 +320,11 @@ section 3 (`head:~/benchmarks/picom-prod-20261118/rerun-20261118/README.md`).
 - **OEA's accuracy question is answered on this battery only.** It loses `shell-repro-rounding` in
   none of three rerun runs where exact and knapcio each lose it once (section 3), which bounds the
   cost at this fixed task set and says nothing about tasks that are not in it.
-- **Agentic wall clock is not a usable comparator until a polluted-run flag exists.** The battery's
-  `stub-service-client` cell is bimodal on both shipped arms — exact 12.8–13.1 s fast against 109.8 /
-  120.2 / 75.3 s slow (3 of 6 draws), lossy 12.6–14.8 s fast against 76.9 s slow (1 of 6) — because
-  a 60 s harness tool timeout fires on either arm, so the rerun's ~50 % total difference is that
-  path's frequency on those boots, not the knob, and no agentic total separates the arms (section 3).
+- **One boot per arm plus three passes cannot resolve a gap under the ~7 % inter-boot floor.** The
+  pollution path is gone (`polluted_runs` 0 in all six runs, section 3), but the arms' own spreads
+  are 21 % and 24 % of total wall clock, wider than any difference the pair shows — the battery can
+  rule out a large gap, not a small one, and the observed ranges (110.2–133.4 s exact,
+  108.1–136.7 s lossy) are wider than any arm difference.
 - **Different budgets by design**: KV pool vs session store, 16 uniform slots vs 4 big + 12 small,
   chunked prefill at 16384 tokens vs whole-request prefill of 16384-row chunks.
 - **Two picom ladder generations and two knapcio ladders, no power/thermal/RDMA capture**, and the
@@ -321,13 +335,11 @@ section 3 (`head:~/benchmarks/picom-prod-20261118/rerun-20261118/README.md`).
 
 ## 6. What to try next
 
-1. **Re-run 3× per arm once `--label`ed pollution reporting exists** — only unpolluted runs may be
-   averaged; until the harness marks a draw that took the 60 s tool-timeout path, the battery's
-   totals are not comparable (section 3).
-2. **Run one interleaved A/B of the two shipped arms** — exact, lossy, lossy, exact on the same image
-   and window, C5 and C10 (where the lossy margin is largest) plus C1, 5 runs/cell. Settles whether
-   the shipped +5.5 % / +3.9 % is the shortcut or the boot order, the one claim in section 4 resting
-   on a single boot per side.
-3. **Run the BFCL tools leg** on both engines with the same tasks and turn budget. Settles whether
+1. **Run one interleaved A/B, boot for boot** — exact, lossy, lossy, exact on the same image and
+   window, both the ladder's C5 and C10 (where the lossy margin is largest) plus C1, 5 runs/cell,
+   and the agentic battery on the same alternation. The pollution re-run is done (section 3); what
+   remains is that every arm comparison here still rests on a single boot per side, and that is
+   where the shipped +5.5 % / +3.9 % has to settle into the shortcut or the boot order.
+2. **Run the BFCL tools leg** on both engines with the same tasks and turn budget. Settles whether
    the client-contract differences in section 2 (thinking channel, token-id echo, unknown-field
    handling) cost anything an agent can feel.
