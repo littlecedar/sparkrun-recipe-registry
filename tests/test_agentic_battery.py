@@ -20,6 +20,8 @@ TOOL_PATH = REPO_ROOT / "tools" / "agentic-battery.py"
 WANTED = (
     "fix-failing-test", "two-file-bug-hunt", "spec-to-function", "refactor-preserve-behavior",
     "config-migration", "csv-to-json-cli", "mutable-default-bug", "validation-boundary",
+    "multi-file-refactor", "shell-repro-rounding", "normalize-edge-table", "stub-service-client",
+    "golden-regression",
 )
 
 
@@ -38,6 +40,20 @@ TOOL = load_tool()
 class TaskSet(unittest.TestCase):
     def test_ids_are_the_advertised_set(self):
         self.assertEqual(tuple(t["id"] for t in TOOL.TASKS), WANTED)
+
+    def test_tiers_and_budgets(self):
+        easy = [t for t in TOOL.TASKS if t["tier"] == "easy"]
+        hard = [t for t in TOOL.TASKS if t["tier"] == "hard"]
+        self.assertEqual((len(easy), len(hard)), (8, 5))
+        for task in easy:
+            self.assertEqual((task["max_turns"], task["wall_s"]), (16, 600))
+        for task in hard:
+            self.assertEqual((task["max_turns"], task["wall_s"]), (24, 900))
+
+    def test_every_task_carries_a_reference_patch(self):
+        for task in TOOL.TASKS:
+            with self.subTest(task=task["id"]):
+                self.assertTrue(task["solution"], "no patch proves the checker is satisfiable")
 
     def test_every_task_is_gradable_and_starts_red(self):
         """An untouched fixture must fail its checks: a free pass would inflate every arm."""
