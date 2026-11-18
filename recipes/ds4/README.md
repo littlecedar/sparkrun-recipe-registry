@@ -45,7 +45,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
   - [Run it](#run-it-2)
   - [Fabric contract (why NEXT_DEV* == PREV_DEV*)](#fabric-contract-why-next_dev--prev_dev)
   - [Open boot gates](#open-boot-gates)
-  - [Probe arms: prefill chunk budget and Engram read batch (authored 2026-11-17, neither booted)](#probe-arms-prefill-chunk-budget-and-engram-read-batch-authored-2026-11-17-neither-booted)
+  - [Probe arms: prefill chunk budget and Engram read batch (authored 2026-11-17; rows validated and parked, neither booted)](#probe-arms-prefill-chunk-budget-and-engram-read-batch-authored-2026-11-17-rows-validated-and-parked-neither-booted)
   - [License](#license-2)
 - [External stack: spark-ds41f (survey, 2026-11-08)](#external-stack-spark-ds41f-survey-2026-11-08)
 - [Upgrade candidates (measured elsewhere, not queued)](#upgrade-candidates-measured-elsewhere-not-queued)
@@ -2345,7 +2345,13 @@ L2 domain (the QP's `hop_limit` is 1); jumbo frames plus PFC/ECN on the switch; 
    killed by the watchdog at 08:24:29Z (exit 137) instead of exiting itself; pid-1 survival through
    its helper children is unresolved.
 
-### Probe arms: prefill chunk budget and Engram read batch (authored 2026-11-17, neither booted)
+### Probe arms: prefill chunk budget and Engram read batch (authored 2026-11-17; rows validated and parked, neither booted)
+
+Neither arm is booted. Both register rows (`picom-prefill16k-boot`, `picom-engram-batch8-boot`;
+`state: queued`, `tp: 4`, `node_cost: quartet`, receipts root
+`/home/red/benchmarks/picom-probes-20261117`) are validated in memory (198 → 200 tasks) and parked
+in `.scratch/ds4/picom-probe-queue-rows.json` pending the register; the apply command is in
+`mad-science/SESSION-RECORD.md`.
 
 - `zz-ds4-1017-picom-prefill16k.yaml` appends `--prefill-rows 16384 --snap-every 2048` to the
   shipped argv, which sizes the prefill buffers for 16384-row chunks instead of 8192
@@ -2358,11 +2364,13 @@ L2 domain (the QP's `hop_limit` is 1); jumbo frames plus PFC/ECN on the switch; 
   that must come out unchanged.
 - `zz-ds4-1017-picom-engram-batch8.yaml` sets `PICOM_ENGRAM_READ_BATCH=8`, the fleet file's
   `RANK<r>_ENGRAM_READ_BATCH` (`engine/comm/fleet.cpp:116-120`), which batches each rank's SSD
-  reads of the Engram expert shards and changes no arithmetic. Upstream's own fleet runs 8 on
-  ranks 2-3 (`fleet/homelab.conf`) while our renderer writes one value to all four
-  (`mods/picom-launcher/fleet-render.sh:41`), so this arm tests the uniform value, not their
-  split. Falsifier: the same long-prefill cells plus the c16 aggregate against
-  `PICOM_ENGRAM_READ_BATCH=1` on the same image.
+  reads of the Engram expert shards and changes no arithmetic. Upstream's 8 is a drive condition
+  (`docs/engram.md:120-121`), and ranks 2-3 of their fleet hold a Samsung PM9C1a (`MZALC4T0HBL1`)
+  where ranks 0-1 hold an ESL01TBTLCZ (`docs/engram.md:68-72`); all four of our ranks' `/`, which
+  serves `~/.cache/sparkrun/runtime-cache`, is `SAMSUNG MZALC4T0HBL1-00B07`, so the renderer's
+  single value (`mods/picom-launcher/fleet-render.sh:41`) fits this fleet. Falsifier: the c16
+  aggregate first, then the same long-prefill cells, against `PICOM_ENGRAM_READ_BATCH=1` on the
+  same image.
 
 ### License
 

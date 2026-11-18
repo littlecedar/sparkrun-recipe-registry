@@ -13935,5 +13935,30 @@ the parser rather than matching a generic key/value run. (3) The residue was com
 reproduce `|roots_net| − pool_delta` (their `+1,855,488` from `−230,445,056` / `+228,589,568`), so
 this tick's pair reads **+1,978,368 B**.
 
+## 2026-11-17 19:35 ET close-out — two picom probe boots parked behind a dirty register
+
+`picom-prefill16k-boot` and `picom-engram-batch8-boot` are written, validated **in memory**
+(198 → 200 tasks) and **not applied**. Both are `state: queued`, `tp: 4`, `node_cost: quartet`,
+`ARM_RECEIPTS_ROOT=/home/red/benchmarks/picom-probes-20261117`, and their register
+`mad-science/queue.json` carried another session's uncommitted hunk (cache-GC notes rewrites, a title
+edit and two `state` flips) that no commit of this session may stage. Their arms are pushed —
+`recipes/ds4/zz-ds4-1017-picom-prefill16k.yaml`, `recipes/ds4/zz-ds4-1017-picom-engram-batch8.yaml` —
+and neither has been booted. The rows sit byte-for-byte in `.scratch/ds4/picom-probe-queue-rows.json`
+(git-ignored, same two ids), which is where a later session reads them.
+
+The apply is these three commands once `git status --porcelain mad-science/queue.json` prints nothing,
+run from the repo root:
+
+    python3 -c "import json;p='mad-science/queue.json';q=json.load(open(p));rows=json.load(open('.scratch/ds4/picom-probe-queue-rows.json'));have={t['id'] for t in q['tasks']};q['tasks']+=[t for t in rows if t['id'] not in have];open(p,'w').write(json.dumps(q,indent=2,ensure_ascii=False)+'\n')"
+    uv run python -B tools/task-queue.py check
+    git commit mad-science/queue.json -m "Queue: apply the two picom probe boots"
+
+`check` is the register validator's subcommand (`validate` is not one); it printed `ok: 198 task(s)`
+against this hour's dirty register and must print `ok: 200 task(s)` after the append. The rows keep
+`state: queued`, and a later session claims them before any boot. The Engram arm's header now carries
+the drive fact that bounds its expectation — all four ranks' `/`, which serves
+`~/.cache/sparkrun/runtime-cache`, is a `SAMSUNG MZALC4T0HBL1-00B07`, the `MZALC4T0HBL1` upstream's
+table calls PM9C1a — plus the engine's own `Engram reads in batches of 8` line as its positive control.
+
 
 
