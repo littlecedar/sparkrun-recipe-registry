@@ -15405,12 +15405,14 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   `22:02:23Z`) reads the same 21 event lines on `.31` and **0** on every
   other node, so nothing new ran after the peer's pass.
 - **Second observer, and the pool series interlocks.** This tick's mount
-  `used` reads — `14,060,948,553,728` B `22:02:2x`, `14,060,950,126,592` B
+  `used` reads — `14,060,948,553,728` B `22:02:20Z`, `14,060,950,126,592` B
   `22:04:07Z`, `14,060,951,175,168` B `22:05:57Z` — sit inside the peer's
   (`14,060,949,078,016` B `22:02:46Z`, `14,060,949,602,304` B `22:03:26Z`).
-  Merged, the five reads are monotone: **+524,288 B per ~40 s**, i.e. a
-  steady ~13 kB/s of pool writes across the whole window with zero
-  research workloads running. Ten reads of one quantity, so the agreement
+  Merged, **five** reads of one quantity are monotone, in steps of
+  **+524,288 B** at 23 s, 40 s and 41 s, then **+1,048,576 B** over the
+  last 110 s: **2,621,440 B in 214 s, mean 12,250 B/s** (~12.3 kB/s) of
+  pool writes across the whole window with zero research workloads
+  running. Because it is one quantity observed five times, the agreement
   is a consistency check and never corroboration — but the *rate* is a
   fact neither pass could state alone.
 - Also measured, not on the board: the six nodes' `statfs` on the shared
@@ -15420,8 +15422,11 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   merged series shows — the pool was writing while it was being read.
   And the hub reads **103 entries total / 98 `models--` dirs**, with the
   ds4 arm's `config.json` **3,311 B** in both snapshots (`08c8657f…`,
-  `1bae0e10…`) through the mount: earlier boards' bare "103 entries" is
-  the *total* count, so the 98 `models--` figure is not a five-entry drop.
+  `1bae0e10…`) through the mount. Earlier boards' bare "103 entries" is
+  the *total* count, so today's total is **unchanged at 103** and the 98
+  is the same pool described by its other column, not a five-entry drop —
+  which the arithmetic confirms: mount `used` **rose** 74,973,184 B over
+  the same interval.
 - Deliberately not done: no publish, no board rewrite, no fleet action.
   The tick's read ran `21:10:34Z`→`22:06Z` and ended in a stand-down.
 
