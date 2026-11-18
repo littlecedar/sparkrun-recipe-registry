@@ -14468,3 +14468,14 @@ and the table both lint clean now.
 
 Captures live in `.scratch/tick-0301/` (git-ignored). Nothing on the fleet was touched
 beyond reads; no node-side file was written and the picom workload was not signalled.
+
+**Correction, `03:32 ET`.** Two defects in the `03:23 ET` composition above, fixed by
+recomposing the In-flight table on a fresh `08:30:10Z` census rather than only recording
+a landed row: its `lease` row said the lease "currently fences nothing" while boot 4
+`…_ddf78af73755` had been up since `08:23:08Z` (my own pre-publish read of `1 1 1 1` at
+`08:24:04Z` contradicted it), and its `pool` and per-node deltas were taken against the
+`02:20 ET` board although its base was the `03:15 ET` board. The `window` row also mis-framed the `08:21:27Z` empty reading as an escalation in the present tense; it
+now carries it as a narrow, historical gap. Deltas are re-derived from the `03:15`
+board's own pair (`14,168,028,086,272 B` mount / `14,168,028,114,944 B` roots /
+residue `−28,672 B`) and all six nodes from its `08:07:16Z`–`08:07:19Z` census, so the
+board's base and its numbers now describe the same cycle.
