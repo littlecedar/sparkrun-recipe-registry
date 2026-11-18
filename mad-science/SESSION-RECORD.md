@@ -14739,3 +14739,54 @@ and both ds4 `config.json` 3,311 B. The lease ledger `a0145e6e…` (444 B,
 `session:picom-socket-20261118`) is byte-identical here and on the head.
 
 Captures lived in `.scratch/tick-0601-4070/` (git-ignored).
+
+## 2026-11-18 07:14 ET — the 07:00 tick stood down at the publish guard, and re-proved the 07:11 board
+
+**Stood down.** A peer published its `07:11 ET` board (commit `6fd71a7`, then the
+window-cell correction `876a587`) at 07:12 ET while this tick was composing from
+the `06:19 ET` base, so `task-queue.py publish` refused it as designed —
+*"on disk is sha256 `69a19e68…`, not the `7207f77b…` this board was composed
+from"* — and none of this tick's composition replaced a peer row. The composed
+board was never written to disk.
+
+**The published board was then checked row by row against this tick's own
+independent six-node pass**, `2026-11-18T12:05:10Z`–`12:05:12Z` (2 min 34 s after
+the peer's `12:02:36Z`–`12:02:39Z`), and every claim it makes agrees: the two
+in-window four-rank boots (`58cddf1c62ba6578_53694fb117a9` create/start
+`11:31:08Z` → kill `11:39:40Z` → destroy `11:39:41Z`, and
+`…_fe85dd2b09db` `11:40:11Z` → `11:48:53Z` → `11:48:54Z`, rank→host
+node_0→`.31` … node_3→`.34`); the lease ledger's `34eed267…` 48 B, mtime
+`11:49:07Z`; the register's `dd27dfd9…` with `check` rc=0 and **42 open**; and
+the beegfs-meta restart loop, which advanced **+30 / +29 / +29 / +29 / +29** in
+the 153 s between the two reads — 5.2 s per restart, the rate the loop has held.
+
+**Two differences, neither a contradiction.** (1) *Campaign enumeration.* The
+published cell counts `find -maxdepth 8 -name state.json` = **21 paths**; this
+tick's `glob('/home/red/**/state.json')` returns **49** and dedupes them by
+`(st_dev, st_ino)` to the **same 9 files / 38 arms / 0 live leases**, because
+glob follows the `h2h-20261107/tp12-window` self-symlink chain that `find`
+refuses to descend. (2) *`.31`'s `MemAvailable`.* The published cell reads
+**+7,600 kB** over its base; this tick's later read is **−129,596 kB**, i.e. the
+node fell **137,196 kB in the 2 min 33 s between the two reads**
+(`123,214,264` → `123,077,068` kB), after the hour's last boot ended at
+`11:48:54Z`. Page-cache reclaim is the candidate and is **unmeasured**: one
+read pair against no `drop_caches`, so the board keeps the earlier figure and
+this note carries the movement.
+
+**This tick's own pool pair**, independent of the published one:
+`12:04:17Z` mount used **14,167,998,726,144 B** and `12:05:05Z`
+**14,168,008,163,328 B** — a step of exactly **9,437,184 B = 9 MiB**, the
+statfs quantum, so it is a counter tick and **not a rate**; over the six roots'
+own `used` at the census the residue is **+372,736 B** against the published
+cell's **+270,336 B** 2 min earlier. Hub **103** entries on head **and on
+`.35`**, ds4 `config.json` **3,311 B** on both.
+
+**Instrument note for register row `head-mesh-cannot-reach-30`.** From the head,
+`ssh spark-00` (the `.30` name) fails `Host key verification failed` — the first
+hop of a name-keyed loop at `12:03:35Z`, so the census must address the node
+IPs — and an `ssh -n` hop carrying its per-node script on stdin returns **no
+output and rc=0** in 8 s, a silent empty census that reads exactly like an idle
+fleet. Both traps reproduced here; the pass above is the IP-addressed, `-n`-free
+form.
+
+Captures lived in `.scratch/tick-0700-3202739/` (git-ignored).
