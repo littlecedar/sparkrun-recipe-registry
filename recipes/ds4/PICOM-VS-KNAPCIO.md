@@ -344,16 +344,16 @@ The two picom bars of a level are one window apart from nothing — they share a
 the two knapcio bars are other boots. Reading down a level compares engines; reading across a level
 compares the two picom arms.
 
-### Agentic totals, one character = 3 s
+### Agentic totals, one character = 3 s, origin = the `0` column
 
 `├`–`┤` is the three-run range, `┿` the median total.
 
 ```
             |         |         |         |         |         |
             0        30        60        90        120       150
-SGLang                                                      ├─┿ 147.1-152.9 s
-picom exact                                     ├────┿─┤        110.2-133.4 s
-picom OEA                                      ├───────┿─┤      108.1-136.7 s
+SGLang                                                       ├─┿ 147.1-152.9 s
+picom exact                                      ├────┿─┤        110.2-133.4 s
+picom OEA                                       ├───────┿─┤      108.1-136.7 s
 ```
 
 The SGLang range ends at its own median (152.9 s is both), so that bar closes on `┿`. The picom
