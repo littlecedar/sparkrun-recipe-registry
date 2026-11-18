@@ -14479,3 +14479,54 @@ now carries it as a narrow, historical gap. Deltas are re-derived from the `03:1
 board's own pair (`14,168,028,086,272 B` mount / `14,168,028,114,944 B` roots /
 residue `−28,672 B`) and all six nodes from its `08:07:16Z`–`08:07:19Z` census, so the
 board's base and its numbers now describe the same cycle.
+
+## 2026-11-18 10:07Z close-out — board tick 05:00 ET, stood down behind a peer's 05:07 ET board
+
+**Stand-down.** This tick read the `04:28 ET` board at `10:00:49Z` and censused the fleet
+at `10:02:54Z`–`10:02:57Z`; while it composed, a peer published `05:07 ET` carrying
+`10:03:01Z`–`10:03:05Z` and the same facts — boot 7 `b020d2dd178343a5_d143959e5792`
+`StartedAt` `09:47:37Z` on `.31`–`.34`, the ledger replacement `c460d3de…` →
+`da855a59…` (`session:picom-rerun-20261118`), `.30`/`.35` idle. Republishing would put a
+census three seconds older under a fresher title, so nothing was published and the
+`05:07 ET` board is the cycle's record. The fleet was read only.
+
+**Instrument trap, reproduced.** The first census returned a six-node block of **0 lines
+at rc=0 in 2.5 s**: `ssh -n` discards the `< script` redirect, exactly the shape the
+skill names, and it reads as an idle fleet. Dropping `-n` on the hops that carry the
+script returned 150 lines in 3.6 s.
+
+**Two measurements with receipts that the published board does not carry.** Neither has
+a commit, so they are recorded here rather than left in a receipt tree.
+
+1. **Phase 6 of the picom window**, boot `2f2f42a6d68f`, `09:15Z`: `distinct 0` tg
+   **87.1 / 90.9 / 117.6 / 134.4** t/s at c1/c2/c5/c10 (5 runs each), ttfr **43.8 / 24.0
+   / 14.8 / 13.4** ms, pp **48,135.9** on the cold c1 task then **5,296.4 / 5,291.5 /
+   5,294.2** — inside phase 2's own band (85.1 / 93.8 / 121.2 / 135.8), so the two runs
+   agree. Receipt `~/benchmarks/picom-prod-20261118/phase6/ladder.yaml`.
+2. **The rerun booted the production knapcio arm, not a picom image.** Task
+   `b020d2dd178343a5_d143959e5792` is the `-H .31,.32,.33,.34` launch of
+   `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`; its `ready.txt` reads
+   `09:59:49Z` (**732 s** from `StartedAt`), its watchdog logged `loading` samples with
+   live io (`io_delta` 204.8 MB / 97.3 MB, `log_delta` 6,102 / 8,079 lines) before
+   `verdict=healthy` at **t=643 s**, and the ladder read tg **64.8 / 90.3 / 122.6 /
+   153.3** t/s at c1/c2/c5/c10, ttfr **565.4 / 1,000.8 / 2,253.9 / 6,899.4** ms, pp
+   **3,656.4 / 4,056.4 / 4,805.7 / 3,276.4**. The agentic battery was on run 1 at the
+   read. Receipt `~/benchmarks/picom-prod-20261118/rerun-20261118/boot1-knapcio/`.
+   The same tree's seven earlier `watchdog-58cddf1c62ba6578_*.log` files each hold **one**
+   verdict sample, which is the unarmed-instrument finding the `04:28` board already
+   carries; the knapcio boot's watchdog — started from the runner rather than the phase
+   scripts — is the only one with a full sample series.
+
+**Additive reads, 50–100 s after the peer's.** Same-pass pool pair: six roots' own `used`
+at `10:04:4xZ` summing **14,168,181,256,192 B**, mount `used` **14,168,181,702,656 B** at
+`10:04:55Z`, residue **+446,464 B**; against the `04:28` board's pair the mount rose
+**+11,534,336 B** while the roots rose **+11,264,000 B**, the near-identity again. Each
+rank's `docker events` ring begins **`09:56:08Z`**–**`09:56:13Z`**, so any board's event
+counting back to `09:03Z` is a **bound**, not a whole-window read; `.30`/`.35` rings are
+empty, so their zeros are vacuous. `.31`–`.35` `beegfs-meta` `NRestarts`
+**105,523 / 105,525 / 105,527 / 105,525 / 105,507** at `10:02:5xZ`, **+686** each over
+3,577 s = **5.21** s per restart — the loop's rate held. Hub **103** entries, ds4
+`config.json` **3,311 B** through the mount. Campaign: 49 `state.json` paths deduping by
+`realpath` to **9 roots / 38 arms / 0 live leases**; unit `inactive`.
+
+Captures live in `.scratch/tick-0500-3022403/` (git-ignored).
