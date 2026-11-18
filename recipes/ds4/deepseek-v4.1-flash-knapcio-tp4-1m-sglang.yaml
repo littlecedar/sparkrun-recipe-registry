@@ -66,6 +66,10 @@ env:
   # shipped picom arms; a request still needs prompt + reply <= max_model_len,
   # and prompt + 262144 of the profiled 6,849,792-token KV pool.
   DSV41_MAX_NEW_TOKENS: "262144"
+  # Lossless fabric (2026-11-18 window): DSCP 26 << 2 = 104 puts NCCL's RoCE
+  # in the switch's `roce` profile (traffic-class 3), the only PFC-armed class.
+  # NCCL_IB_TC is not a sparkrun-managed comm key, so a recipe may set it.
+  NCCL_IB_TC: "104"
 
 defaults:
   port: 8000
