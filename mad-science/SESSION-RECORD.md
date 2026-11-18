@@ -14616,3 +14616,13 @@ figure, and two add detail the correction list needed:
 
 Captures lived in `.scratch/tick-0501-3022405/` (git-ignored) and were removed
 once this block landed; every figure above is inline.
+
+**Landed-table omission, flagged after the fact.** The published `05:10 ET` board
+carries no row for `f1e1459` ("Record the shipped picom pair's ladder, batteries and
+accuracy beside knapcio", 04:31 ET): it sits between the table's `04:11` rows and its
+`04:28` board-refresh row, and behind `a95284f`, so no later "since last recorded SHA"
+fold can reach it. Its content still lives in `recipes/ds4/README.md` (the pair's
+ladder, batteries and accuracy), so nothing is lost but the index entry; recorded here
+because the landed table is append-only and that row will not appear on its own.
+`4665d04` and `36c419f` need no row — they are the `04:28` refresh and its `04:32`
+correction, which the table already carries as `board refresh`/`board correction`.
