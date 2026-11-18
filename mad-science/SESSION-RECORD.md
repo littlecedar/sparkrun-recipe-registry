@@ -14953,3 +14953,38 @@ re-emitted or `publish` refuses with `table-missing-delimiter`; and an inner
 script and returned rc=0, the `-n`-discards-stdin trap already in the skill.
 
 Captures lived in `.scratch/tick-1100-3590024/` (git-ignored, removed).
+## 2026-11-18 12:15 ET — 12:00 tick finds fleet idle a fifth hour
+Census `2026-11-18T17:03:08Z`–`17:04:02Z` (`.31`–`.35` one pass, `.30`
+the head's own pass) on the `11:26 ET` base (census `16:18:22Z`,
+44 min 46 s earlier): 0 containers, 0 volumes, 0 `:8000` listeners on all
+six; 0 container-event lines over the window on every host, each ring's
+oldest event preceding window start, 256 held on all six — the ring is
+full, so no node's zero is vacuous. Pool re-proved: head units
+active/`Result=success`, tight pair one pass `17:05:58Z` (mount
+`14,168,209,489,920 B`, six `/srv/beegfs/storage` roots
+`14,168,209,113,088 B`, gap `+376,832 B`, `103` hub entries, ds4
+`config.json` `3,311 B` on both revisions); `beegfs-meta` loop steady,
+`+514…+516` restarts over `2,686 s` = one per `5.205–5.226 s`. Lease
+ledger empty and byte-identical on head, no window lock, campaign unit
+inactive, 9 roots / 38 arms / 0 live leases, register unmoved at
+`63a71928`.
+
+Three traps hit and worth keeping. (1) **An outer `flock` around
+`publish` self-deadlocks**: the tool takes `.local/status-board.lock`
+itself, so `flock -o … publish` made it wait its own `--lock-wait` (90 s)
+and refuse with "a holder is wedged" — the warning was already in the
+skill and this tick ignored it; the compose step is what wants the lock,
+never the publish. (2) **A fresh composition drops the base's landed
+table**: the first composed body carried an empty `## Landed session`
+against the base's 226 rows, which would have deleted every one; carry
+the base's tail verbatim and append only the new row. (3) **A symlink to
+`.` makes a two-level glob double-count a campaign**: `find` (no follow)
+sees 9 state files under `/home/red/benchmarks`, while
+`benchmarks/*/*/state.json` also reports
+`h2h-20261107/tp12-window/state.json` — that directory is a symlink to
+its own parent, so the "nested copy" is the root's own file and the 24
+h2h arms appeared twice (62 instead of 38). Corrected on the board by a
+`board correction` row rather than by rewriting the landed row, then
+re-published through the tool.
+
+Captures lived in `.scratch/tick-1201-3738469/` (git-ignored, removed).
