@@ -2192,7 +2192,8 @@ TTR 166.4 s against B's cached 27.7 s, so that readiness delta belongs to the ca
 ### Measured: one instrument, both engines (2026-11-17)
 
 The engine-by-engine comparison — axis table, mechanisms, and what is not comparable — is
-[`PICOM-VS-KNAPCIO.md`](PICOM-VS-KNAPCIO.md); this section stays the lane's own measurement record.
+[`PICOM-VS-KNAPCIO.md`](PICOM-VS-KNAPCIO.md); this section stays the lane's own measurement record. The
+agentic coding comparison — multi-step read/patch/verify tasks graded offline — is [`AGENTIC-BATTERY.md`](AGENTIC-BATTERY.md).
 
 The same script on both arms — upstream's `tools/bench/bench.py`, sha256 `4aff8517…b97967`, byte-identical
 in both receipts — `distinct 16`, 512 output tokens, greedy, thinking off, a random prefix per request so the
