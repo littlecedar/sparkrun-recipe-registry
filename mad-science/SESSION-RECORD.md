@@ -14674,3 +14674,40 @@ pool cell cites only the head's own reads. The lesson is the existing one — a 
 line placed outside the piped script runs wherever the caller runs.
 
 Captures lived in `.scratch/tick-0602-1102-3107497/` (git-ignored).
+
+## 2026-11-18 06:12 ET — the 06:00 tick stood down, and corrected the campaign cell it inherited
+
+**Stood down.** A peer published its `06:08 ET` board (commit `03bc989`, board blob
+`44480772…`) at 06:08 while this tick was composing from the `05:18 ET` base, and
+its census covers the same hour from an equal-or-better read (two passes
+`11:02:36Z`–`11:05:35Z` against this tick's `11:03:25Z`–`11:05:02Z`). Nothing of
+this tick's composition replaced it; the two reads agree where they overlap.
+
+**The inherited cell's instrument did not reproduce.** Its campaign row said the
+21 `state.json` paths over `/home/red` "dedupe by `(st_dev, st_ino)` to 9 distinct
+files". The falsifier is the same `find` piped through `stat -c '%d:%i'`: **21
+distinct pairs, every count 1**, so the paths are 21 separate files. The headline
+survives — **nine** campaign roots under `/home/red/benchmarks` hold **38 arms**
+and **0** leases with a future `expires_at` — while the other **twelve** files
+outside those roots carry the remaining **24 arms**, one of them a peer tick's
+scratch copy of the `h2h-20261107` state
+(`/home/red/src/sparkrun-recipe-registry/.scratch/tick-0305-209889/state.json`),
+which is why a count over all 21 reads 62 arms rather than 38. The board now says
+that instead of claiming a dedupe; the cell's earlier board (05:18) had described
+the same tree as a symlink chain into inode `39203529`, so the nested-copy shape
+was cleaned up at some point and the dedupe clause outlived it.
+
+**This tick's own independent reads**, no other cell touched: census
+`11:03:25Z`–`11:05:02Z` with **all six nodes at 0 containers, 0 volumes and 0
+`:8000` listeners** — a between-boot gap, since `…_6f92d570b7be` was
+killed/destroyed `11:04:47Z`–`11:04:48Z` and `…_ddd637b7af3d` was created
+`11:05:33Z`; the base's knapcio quartet `b020d2dd178343a5_d143959e5792` is gone
+with its teardown bounded inside `(10:03:01Z, 10:39:16Z]` and unobserved; a tight
+pool pair `11:07:05Z`–`11:07:07Z` reading mount **14,167,872,372,736 B** over six
+roots **14,167,872,147,456 B** (residue **+225,280 B**, and **+2,097,152 B** of
+mount drift from the peer board's `11:04:08Z` pair); the lease ledger
+`a0145e6e…` byte-identical on this clone and the head; register `dd27dfd9…`
+unmoved with `task-queue.py check` rc=0 and both queue blocks rendered from one
+snapshot.
+
+Captures lived in `.scratch/tick-0601-3107495/` (git-ignored).
