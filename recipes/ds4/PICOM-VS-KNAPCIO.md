@@ -49,13 +49,13 @@ flowchart LR
   fe -->|picom| df["dsfront, Rust"]
   sg --> r0[rank 0]
   df --> r0
-  r0 --> r1[rank 1]
-  r1 --> r2[rank 2]
-  r2 --> r3[rank 3]
-  r3 --> ring["RoCE ring, f1 ports down"]
-  ring --> kv["SGLang paged KV pool"]
-  ring --> ss["picom session store"]
+  sg --> kv["SGLang paged KV pool"]
+  df --> ss["picom session store"]
   ss --> disk["per-rank disk tier"]
+  r0 --> ring["RoCE ring, f1 ports down"]
+  r1[rank 1] --> ring
+  r2[rank 2] --> ring
+  r3[rank 3] --> ring
   r0 --> vis["supervised ViT child"]
   r0 --> nat["native multimodal"]
 ```
