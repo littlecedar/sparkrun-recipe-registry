@@ -56,9 +56,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
+import urllib.error
 import urllib.request
 
 # ---------------------------------------------------------------------------
@@ -160,8 +162,29 @@ def make_needle(n_words: int = 3000) -> str:
     return (" ".join(words) + "\n\nWhat is the secret access code? Reply with just the code word.")
 
 
+class CredentialRejected(RuntimeError):
+    """The serve answered 401/403: it did not accept the credential."""
+
+
+def _headers(api_key: str | None) -> dict[str, str]:
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
+
+
+def _open(req: urllib.request.Request, timeout: int):
+    try:
+        return urllib.request.urlopen(req, timeout=timeout)
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            raise CredentialRejected(
+                f"the serve rejected the credential (HTTP {e.code})") from e
+        raise
+
+
 def chat(base: str, model: str, prompt: str, max_tokens: int = 384,
-         thinking: str | None = None) -> tuple[str, dict]:
+         thinking: str | None = None, api_key: str | None = None) -> tuple[str, dict]:
     body = {"model": model, "messages": [{"role": "user", "content": prompt}],
             "temperature": 0, "max_tokens": max_tokens}
     # Unset keeps the served template default byte-identical for every lane.
@@ -169,9 +192,9 @@ def chat(base: str, model: str, prompt: str, max_tokens: int = 384,
         body["chat_template_kwargs"] = {"enable_thinking": thinking == "on"}
     req = urllib.request.Request(_root(base) + "/v1/chat/completions",
                                  data=json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json"})
+                                 headers=_headers(api_key))
     t0 = time.time()
-    with urllib.request.urlopen(req, timeout=600) as r:
+    with _open(req, 600) as r:
         out = json.load(r)
     txt = out["choices"][0]["message"]["content"] or ""
     return txt, {"elapsed_s": round(time.time() - t0, 2), "usage": out.get("usage", {})}
@@ -189,7 +212,8 @@ def score(kind: str, expect, reply: str) -> bool:
     raise ValueError(kind)
 
 
-def run_tier(name, tasks, base, model, repeat, max_tokens=384, thinking=None):
+def run_tier(name, tasks, base, model, repeat, max_tokens=384, thinking=None,
+             api_key=None):
     per_task: dict[str, list[bool]] = {}
     replies: dict[str, list[str]] = {}
     for rep in range(repeat):
@@ -197,8 +221,11 @@ def run_tier(name, tasks, base, model, repeat, max_tokens=384, thinking=None):
             if prompt is None:
                 prompt = make_needle()
             try:
-                reply, meta = chat(base, model, prompt, max_tokens, thinking)
+                reply, meta = chat(base, model, prompt, max_tokens, thinking, api_key)
                 ok = score(kind, expect, reply)
+            except CredentialRejected:
+                # A rejected key is not a zero score; stop rather than print one.
+                raise
             except Exception as e:
                 reply, meta, ok = f"<ERROR {type(e).__name__}: {e}>", {}, False
             per_task.setdefault(tid, []).append(ok)
@@ -231,24 +258,43 @@ def main() -> int:
     # Reasoning toggle for templates that key on `enable_thinking`; unset sends
     # no chat_template_kwargs at all, so other lanes' request bytes are unchanged.
     ap.add_argument("--thinking", default=None, choices=["on", "off"])
+    # The key never enters argv: name the env var, never the value.
+    ap.add_argument("--api-key-env", default=None,
+                    help="env var holding the bearer key; unset sends no auth header")
     ap.add_argument("--json", default=None)
     args = ap.parse_args()
 
-    model = args.model
-    if not model:
-        with urllib.request.urlopen(_root(args.base_url) + "/v1/models", timeout=30) as r:
-            model = json.load(r)["data"][0]["id"]
-    print(f"model: {model}\nbase:  {args.base_url}\ntier: {args.tier} "
-          f"repeats: {args.repeat} max_tokens: {args.max_tokens} "
-          f"thinking: {args.thinking or 'served-default'}\n")
+    api_key = None
+    if args.api_key_env:
+        try:
+            api_key = os.environ[args.api_key_env]
+        except KeyError:
+            ap.error(f"environment variable {args.api_key_env} is unset")
+        if not api_key:
+            ap.error(f"environment variable {args.api_key_env} is empty")
 
-    names = ["easy", "hard"] if args.tier == "both" else [args.tier]
-    out = {"model": model, "base_url": args.base_url, "thinking": args.thinking,
-           "max_tokens": args.max_tokens, "tiers": {}}
-    for n in names:
-        out["tiers"][n] = run_tier(n, TIERS[n], args.base_url, model,
-                                   args.repeat, args.max_tokens, args.thinking)
-        print()
+    model = args.model
+    try:
+        if not model:
+            req = urllib.request.Request(_root(args.base_url) + "/v1/models",
+                                         headers=_headers(api_key))
+            with _open(req, 30) as r:
+                model = json.load(r)["data"][0]["id"]
+        print(f"model: {model}\nbase:  {args.base_url}\ntier: {args.tier} "
+              f"repeats: {args.repeat} max_tokens: {args.max_tokens} "
+              f"thinking: {args.thinking or 'served-default'}\n")
+
+        names = ["easy", "hard"] if args.tier == "both" else [args.tier]
+        out = {"model": model, "base_url": args.base_url, "thinking": args.thinking,
+               "max_tokens": args.max_tokens, "tiers": {}}
+        for n in names:
+            out["tiers"][n] = run_tier(n, TIERS[n], args.base_url, model,
+                                       args.repeat, args.max_tokens, args.thinking,
+                                       api_key)
+            print()
+    except CredentialRejected as e:
+        print(f"error: {e}; no score recorded", file=sys.stderr)
+        return 2
     if args.json:
         json.dump(out, open(args.json, "w"), indent=1)
         print(f"wrote {args.json}")

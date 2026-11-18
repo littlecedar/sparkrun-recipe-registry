@@ -636,6 +636,12 @@ unstable, not scored.
 python3 tools/quality-battery.py http://<head>:8000 --tier both --repeat 3 --json q.json
 ```
 
+**Keyed serves:** `--api-key-env NAME` reads the bearer key from that environment variable
+(never from argv, never printed) and sends `Authorization` on the `/v1/models` probe and every
+chat call; the flag absent sends no auth header, as every keyless lane did before. A named
+variable that is unset or empty aborts naming it, and a serve that answers 401/403 is reported as
+**the serve rejected the credential** with exit 2 — an auth failure is never scored as 0 %.
+
 **Budget:** house runs take `--max-tokens 4096`. A thinking arm at 1024 can spend the whole
 allowance reasoning and return a truncated answer (`finish_reason: length`) — `big-1` came back
 `11111` instead of `1111111110` on Nemotron-3.5-Lightning that way. That is a **budget miss, not a
