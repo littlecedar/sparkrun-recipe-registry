@@ -116,7 +116,7 @@ Per boot: readiness gate → watchdog armed → warm-up → ladder → remaining
 teardown to 0 containers, 0 volumes and no `:8000` → `post-teardown.txt`.
 
 Boot cost is asymmetric and is not a metric: picom reached HTTP-ready in 25.2–26.5 s on
-all four `paired-20261118` boots, SGLang in 674–722 s. Budget **about an hour**: 2 ×
+all four `paired-20261118` boots, SGLang in 687.8–721.9 s. Budget **about an hour**: 2 ×
 (26 s + 700 s) of boot, 4 × ~2 min of ladder (`E2/ladder.log` 19:05:17Z → 19:07:06Z;
 `K2/ladder.log` 18:53:34Z → 18:55:54Z), plus the identity cells on each arm's first boot.
 
