@@ -2409,19 +2409,21 @@ root `head:~/benchmarks/picom-prod-20261118/`; each boot's lane cells are its ow
   (`PICOM_OEA` empty). Confirmed 2026-11-18 on its own boot, 5-run concurrency ladder
   (d0, pp 2048, tg 128): **C1 83.4, C2 90.8, C5 111.5, C10 129.2** tok/s
   (`phase5/ladder.csv`); agentic battery **13/13** (median 10.0 s, worst 25.4 s,
-  total 130.1 s), house **37/37**, needle **3/3** at 131,072 in 12.1 s and the
+  total 130.1 s), which a same-day three-run rerun read as **13/13, 13/13, 12/13**
+  at **128.0–132.3 s** total, and whose knapcio-vs-picom difference sits inside
+  knapcio's own **32.5 s** run-to-run span (`rerun-20261118/`); house **37/37**,
+  needle **3/3** at 131,072 in 12.1 s and the
   983,040-token prefill **PASS** in 97.1 s (980,868 prompt tokens).
 - `deepseek-v4.1-flash-1017-picom-tp4-1m-oea.yaml` — identical plus
   `PICOM_OEA=4,12,9`, the lossy batch-aware MoE re-route. Same ladder on its own
   boot: **C1 87.1, C2 90.9, C5 117.6, C10 134.4** tok/s (`phase6/ladder.csv`), i.e.
   **+5.4 % at C5 and +4.0 % at C10** and C1 +4.5 % against the exact boot — one boot
-  per side, not a repeated measurement. Accuracy on that boot: agentic **12/13** —
-  `shell-repro-rounding` failed its hidden `sum(shares) == due` sweep while the
-  visible suite and repro passed, with no truncation and no invalid arguments, and
-  the same task passed on the exact boot and on the earlier OEA boot, so it is one
-  miss on one boot and not an arm property — house **37/37**, needles 3/3 at 131,072
-  and PASS at 983,040. No accuracy loss was found on the house or needle cells; that
-  is not a guarantee beyond them.
+  per side, not a repeated measurement. Accuracy over three same-day runs: agentic
+  **13/13 three times**, totals **191.5–201.5 s** — slower than the exact arm on
+  this battery, the cost being `stub-service-client` at 79.4–110.4 s in every run
+  (`rerun-20261118/`) — house **37/37**, needles 3/3 at 131,072 and PASS at
+  983,040. No accuracy loss was found on the house or needle cells; that is not a
+  guarantee beyond them.
 
 The three `zz-ds4-1017-picom-*` arms below are the experiment record that selected
 this configuration; the production pair supersedes them for serving.

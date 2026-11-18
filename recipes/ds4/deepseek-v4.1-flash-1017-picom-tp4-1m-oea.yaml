@@ -20,7 +20,9 @@ description: >-
   (4 big), a 262,144-token reply ceiling, 16384-row prefill chunks, DSpark drafts,
   OpenAI chat/completions, streamed tool-call arguments and images (the checkpoint's
   own ViT as a supervised side encoder) through dsfront. Lossy by choice:
-  `PICOM_OEA=4,12,9` re-routes MoE batches for throughput, worth +7–8 % from C5 up.
+  `PICOM_OEA=4,12,9` re-routes MoE batches for throughput — **+5.4 % at C5 and
+  +4.0 % at C10** on the shipped pair's own 2026-11-18 boots (`phase6/ladder.csv`);
+  the earlier probe boot read 7.4/8.0 %.
   The ceiling is also the default, so an omitting request may generate up to 262,144
   tokens; a request's need is `prompt + max_new`, so only one of the four big slots
   admits it — twelve of sixteen become unusable for such a request and a fifth
