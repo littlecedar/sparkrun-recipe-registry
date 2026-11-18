@@ -14042,5 +14042,72 @@ open, `task-queue.py check` rc=0, 0 live claims, graph counts line byte-identica
 mtime unchanged at `2026-11-17 18:40:16 -0500`; no window lock either side. Campaign unit inactive with
 `Result=success`, exited `2026-11-12 01:27:16 EST`, 0 leases future `expires_at`.
 
+## 2026-11-18 01:45Z close-out — the `15:3x ET` register hunk, landed 29 hours late, and what its rows are worth
+
+**What was left, and whose hunk it was.** The dirty set was `mad-science/queue.json` (three rows),
+`tools/task-queue.py` and `tests/test_task_queue_tool.py` (both `MM`), and `.idea/modules.xml` (IDE
+noise, left byte-identical as instructed). The register hunk is not a fold that died mid-publish —
+this ledger names its author. The `2026-11-16 15:3x ET` entry above is it: "Both notes now carry their
+batch outcome, `n35` is `done` because the 455.3 GB 'reclaimable' figure came from a presence-only
+sweep", with snapshot `e5e8445b…`, and the same entry says "the published board's queue cell rendered
+from `e84d7bf6…` and still shows the old wording, so the next render is what carries this; it was not
+worth taking the board away from the peer composition that was landing at the same minute." So that
+session deferred the board deliberately and never committed the register. The chain is checkable, not
+inferred: the recovered file was byte-identical to that snapshot (`sha256 e5e8445b4c56…`, still the
+sha of `.scratch/tick-0200-UoNr/queue.json`, a `02:00 ET` tick's copy of it) against `HEAD`'s blob
+`ba1d6604…`; the `20:12 ET` tick re-read the same `e5e8445b…` a day later and refused to stage it; and
+the `21:11 ET` tick rendered those rows into `770d000`, which is why `STATUS.md:55,58` carries the new
+wording while the register carried the old text. The `21:09:21 ET` mtime on `queue.json` and
+`.idea/modules.xml` is that tick's `git rebase --autostash` reapplying another session's dirty paths
+byte-identically, not a write by the hunk's author.
+
+**`STATUS.md` was clean, and that is the diagnosis.** The fold writes both files; the board carries the
+hunk's cells and the register does not, so the publish half landed and the register half never did.
+Re-rendering the board from the corrected register changes no row: the table's weighted top-k row set
+excludes `n35-unreferenced-image-gc` entirely, and `runtime-cache-stale-tree-gc` and
+`pool-content-fall-20261116` keep their texts, so no board edit was owed. `.local/status-board.lock`
+is 0 B with mtime `2026-11-18T01:09:47Z` — the publish that committed `da7d60d`; `_lock`
+(`tools/task-queue.py:951-964`) takes a bounded exclusive `flock` and raises "still locked after …s —
+a holder is wedged; inspect with `fuser -v`" only for a *live* holder, `publish` opens the file `"w"`
+(`--lock` default at `:1484`), so 0 B is its steady state and its mtime is simply the last publish.
+`fuser -v` and `lsof` both answer empty, and this file already records the same reading
+("`.local/status-board.lock` present but **unheld**"). A tick now proceeds; there is no stale-lock
+state to clear, so nothing was deleted. The `MM` pair is not work either: its staged blobs are
+byte-identical to `292e377^`, the parent of the committed census-read fix the worktree already
+carries, and a hand-edit cannot reproduce a parent blob byte-for-byte — with `.git/index.sync-conflict-*`
+files from the same tree, it was a syncthing-replayed index. `git restore --staged` on those two paths
+only (worktree untouched) put the index back on `HEAD`, and `tests.test_task_queue_tool` runs **119
+tests OK** on the committed code: nothing to commit, no half-feature existed.
+
+**Row by row, against the fleet rather than the prose.** `runtime-cache-stale-tree-gc` — **VERIFIED,
+adopted `queued`**: all 52 planned items re-checked absent read-only, 8 runtime-cache trees by `test
+-e` and 44 image IDs by `docker image inspect` on `.30`-`.35` (`.30` 16, `.31` 8, `.32` 8, `.33` 9,
+`.34` 10, `.35` 1 — exactly `plan.md` §(a)'s list), with a live `.31` image as positive control so a
+silent no-op could not read as absence. Its GB column is a pre-deletion `du`/`docker system df` figure,
+so it rests on the two receipts, which agree item-for-item and sum to 554.54 GB.
+`n35-unreferenced-image-gc` — **WRONG as `done`, adopted `queued` with the note corrected**: the batch
+deleted 0 of 44, so the row's object, a deletion, did not happen, and "the reclaimable figure was
+presence-only" makes the premise wrong, not the work done. Its bucket split (26/5/3/9/1) also
+contradicts the batch's own per-image table and summary (34/6/2/1/1 = 455.26 GB) and sums to 451.04 GB
+against the stated 455.3, so the receipt's split replaced it. A fresh read at `2026-11-18T01:34:25Z`
+finds `.35` at 32 unique images across 53 tag rows with 12 of the receipt's 44 IDs absent; no tracked
+receipt records a `.35` image deletion and this session deleted nothing, so what removed them is
+unattributed and that batch census is not current stock. `~/ComfyUI` still reads 43,977 MB.
+`pool-content-fall-20261116` — **VERIFIED, adopted unchanged in substance**: both byte values are
+committed history rather than this hunk's invention (`13,961,287,172,096 B` with its `11:23:54Z` mount
+stamp in `055b491`/`3c71031` and the `06:39` pool probe; `13,459,970,326,528 B` at `19:07:40Z` in
+`2ff99cc`, `770d000` and `8be3fba`), the difference is exactly `501,316,845,568 B`, and the `02:04 ET`
+census re-read `13,473,446,625,280 B` through the mount, consistent with a fall and partial regrowth.
+Today's mount reads `14,168,717,000,704 B` used, so the row's pair is dated evidence that cannot be
+re-taken, not a standing fact.
+
+**Landed, and the count.** `c1a96fe` committed the three rows alone (pathspec `mad-science/queue.json`):
+two adopted, `n35` corrected and reverted to `queued`, `.idea/modules.xml` untouched. `a43505b` then
+applied the two parked picom rows through `add`; `60e588d` moved the lane doc's probe heading and this
+file's picom line off "parked". Register: **198 tasks / 156 done / 34 queued / 8 blocked = 42 open
+before, 200 / 156 / 36 / 8 = 44 open after**, `check` `ok: 200 task(s)`, `tools/push-gate.py` green at
+`a9226c9`, `c1a96fe`, `a43505b` and `60e588d`. Left alone on purpose: `.idea/modules.xml`, the
+`.local/status-board.lock` file itself, and `.scratch/` (git-ignored evidence the rows cite).
+
 
 
