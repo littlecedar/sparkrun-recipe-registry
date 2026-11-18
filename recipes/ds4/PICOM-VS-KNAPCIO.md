@@ -61,7 +61,7 @@ flowchart LR
 ```
 
 knapcio (`deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`) is SGLang `sglang.launch_server` from
-the image's `dev-dsv41` build (`da64c5cb`, staged tree `f80c91a4b`), TP=4 / EP=1 over RoCEnante
+the image's `dev-dsv41` build (`da64c5cb`, staged tree `f80c91a4b`), TP=4 / EP=1 over RoCEv2
 RDMA, 1M context, DSpark k=5, driven by a lane mod that owns the memory line and the extra flags
 (`mods/dsv41-sglang-overlay/launcher.py`). It optimizes the production serve line: one long-lived
 process holding a 1M-token KV pool, 16 uniform request slots, a 16384-token prefill chunk, and
