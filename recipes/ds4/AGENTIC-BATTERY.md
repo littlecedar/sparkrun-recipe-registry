@@ -102,7 +102,9 @@ long it took to get there.
   here measures long-horizon planning, multi-file repos, or 100k-token codebases.
 - **Greedy and non-streaming.** `temperature: 0` removes sampling variance, and non-streaming hides
   any streaming tool-argument defect. A streaming-only bug is this instrument's blind spot, not a
-  pass.
+  pass. Measured: picom exact's `normalize-edge-table` spent one turn at `finish_reason: length` on
+  the 4096 cap (26.0 s, its worst cell) and still passed — a capped turn is the harness's budget, not
+  a failed task.
 - **Hidden checks are narrower than review.** A patch that satisfies the checks can still be poor
   style; the checker answers "finishes correctly", never "writes good code".
 - **One served model at a time, sequential.** No concurrency cell, so a serve's batch behaviour is
@@ -148,3 +150,20 @@ Nothing failed, so this row is a floor for the comparison rather than a separati
 are built to fail a patch that passes the visible suite (a local copy left behind, a rounding shortcut,
 a hard-coded table, a hard-coded socket payload, a shifted column), and `--selftest` proves each one
 red before its reference patch and green after.
+
+### One harness, three configurations (2026-11-18)
+
+Same battery, same four ranks (`.31`–`.34`), same served checkpoint, sequential boots (one
+configuration at a time, not interleaved), fixed `max_tokens: 4096` in every receipt:
+
+| configuration | tasks | pass | median | worst | total | receipt |
+|:--|:--|:--|--:|--:|--:|:--|
+| knapcio production — `deepseek-v4.1-flash-knapcio-tp4-1m-sglang`, task `b020d2dd178343a5_9cdb266b5e0d` | 8 easy + 5 hard | 13/13 | 7.4 s | 15.3 s | 117.7 s | `head:~/benchmarks/agentic-battery-20261118/knapcio-v2/summary.json` (archived from the workstation) |
+| picom, exact (`zz-deepseek-v4.1-flash-1017-picom-tp4-1m`, no shortcut) | 8 easy + 5 hard | 13/13 | 8.1 s | 26.0 s | 126.2 s | `head:~/benchmarks/picom-prod-20261118/phase1/agentic-exact/summary.json` |
+| picom, `PICOM_OEA=4,12,9` (lossy shortcut on) | 8 easy + 5 hard | 13/13 | 9.6 s | 12.0 s | 108.1 s | `head:~/benchmarks/picom-prod-20261118/phase2/agentic-oea/summary.json` |
+
+All three score 13/13, so on this set the battery separates wall-clock time and not competence; the
+per-task shuffle (picom's median worse than knapcio's, its shortcut run's worst better than its own
+exact run's) is variance on a 13-task set, not a ranking — and the whole set is ~2 minutes, so any
+claim that needs a spread takes repeats rather than an inference from one boot. The receipts carry
+`base_url`, `model`, `tier` and `max_tokens`; the image is the boot's own record, not a field here.
