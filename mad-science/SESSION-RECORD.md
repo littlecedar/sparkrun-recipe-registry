@@ -15069,3 +15069,52 @@ Consequences, none of which the base boards could see:
 Recorded rather than fixed: the pool cell's shape is a board-schema
 decision, and a `du`-based replacement is a six-host root-only walk that
 does not belong in an hourly tick.
+
+## 2026-11-18 14:26 ET — 14:00 tick finds the fleet empty after two boot turnovers
+
+The `13:07 ET` base found the knapcio production quartet `b020d2dd178343a5_4a03b271bb69`
+serving `.31`–`.34` under the `paired-20261118` lease. This tick's first
+pass (`19:06:03Z`–`19:08:11Z`, **1 h 03 min 54 s** after the base's own
+read) found that quartet gone and a **four-rank picom boot**
+`58cddf1c62ba6578_6f2ef5825b4e` (`node_0`…`node_3`, image id
+`986795bcd7f4`) live in its place, itself killed `19:07:27Z`–`19:07:28Z`
+and `destroy`ed `19:07:29Z` on all four hosts.
+
+- The knapcio predecessor in the ring is `b020d2dd178343a5_82143f152392`
+  (image `3f4480818acb`, the production pin): `kill` `18:57:53Z`,
+  `die`+`destroy` `18:57:55Z` on all four. Its `create`/`start` and the
+  base's `4a03b271bb69` teardown sit outside every rank ring, whose
+  oldest event is `18:45:11Z`–`18:45:29Z` (253–256 held) — so both are
+  **bounds**, not observations, exactly the eviction class the
+  `12:26 ET` row recorded.
+- `.34` was already empty at its `19:07:45Z` read (destroy `19:07:29Z`),
+  so three ranks are read live (serve children `2`/`1`/`1`, image has no
+  docker healthcheck) and the fourth only through its own events. The
+  picom boot **never gave an endpoint answer to this tick**: rank 0 held
+  two `:8000` sockets at `19:06:28Z`, and the host-side probe a minute
+  later met a dead container. "Ranks up, serve children alive" is the
+  strongest live claim; "served" is not.
+- Second pass `19:12:43Z`–`19:12:44Z`: **0 containers, 0 volumes and 0
+  `:8000` listeners on all six nodes**, so the lease now holds four empty
+  ranks with 2 h 25 min of its TTL left — reported every cycle it
+  persists, as the board skill requires.
+- Pool serving stands on the units (`active`, `Result=success`,
+  `NRestarts 0`) and the through-mount reads (`103` hub entries, both ds4
+  `config.json` `3,311 B`). The `df` pair — mount `14,061,353,828,352 B`
+  `19:12:14Z`, six roots `14,061,353,889,792 B` `19:12:09Z`–`19:12:13Z`,
+  residue `−61,440 B` — is **one quantity read twice** (`13:22 ET` above),
+  and the `163,176,448 B` fall is root-filesystem bytes with `.31`
+  carrying `−318,799,872 B`; the board's own first composition called it
+  corroboration and was corrected in place, with the retired clause
+  appended as a `14:26` board-correction row.
+- Register `63a71928…` → **`4691d507…`**: `201 tasks, 158 done, 35 queued,
+  8 blocked, 0 running — 43 open`, moved by `cc62a13`'s new
+  `ds4-fabric-clauses-probe` row. Both queue blocks render from that one
+  snapshot; `check` prints `ok: 201 task(s)`.
+- Lease `2056e6b0…` and lock `290d21ad…` are byte-identical here and on
+  the head and unchanged from the base; nine campaign roots carry 38 arms
+  and no live leases (this scan skips the 12 hidden `.swival`/`.git` audit
+  files the base's 21-path scan counted).
+- Two commits folded: `cfc80db` (the pool-`df` finding, landed)
+  and `cc62a13` (ds4 fabric clauses unprobed, probe queued).
+
