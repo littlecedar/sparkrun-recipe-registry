@@ -14,6 +14,16 @@
 # two 8192 chunks (docs/experiments.md:70) — not their SGLang line's 2.35x,
 # which is a different mechanism behind a similar-sounding flag.
 #
+# Positive control: engine/model/prefill.cu:184 prints, at the first prefill
+# (the allocation runs then, not at start), `rank N: prefill buffers and
+# gathered weights for 16384-row chunks: X GiB` into that rank's log with X
+# above the 8192 arm's 4.89 GiB. A line that still says 8192 means the flag
+# never reached the engine and the cell is void. Parse-vs-effect: an
+# unsupported token in PICOM_ENGINE_ARGS is silently ignored — the launcher
+# word-splits the line positionally
+# (recipes/ds4/mods/picom-launcher/launch.sh:33,190) — so the log line is the
+# check, not the recipe text.
+#
 # The engine is NOT SGLang/vLLM: it is a from-scratch C++/CUDA TP=4 engine
 # with its own Rust front-end (dsfront) and its own RDMA ring. It runs one
 # process per node, all four with the same argv except --rank, so the

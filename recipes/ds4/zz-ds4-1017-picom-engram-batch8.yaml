@@ -5,10 +5,32 @@
 # RANK<r>_ENGRAM_READ_BATCH (engine/comm/fleet.cpp:68,116-120; the field
 # defaults to 1 at engine/comm/ring_config.h:28), the SSD read batching for
 # that rank's Engram expert shards — read batching, not arithmetic, so the
-# serve stays lossless. Upstream's own fleet file runs 8 on ranks 2 and 3
-# (fleet/homelab.conf). Our renderer writes one value to all four ranks
-# (recipes/ds4/mods/picom-launcher/fleet-render.sh:41), so this arm cannot
-# express the per-rank split upstream uses.
+# serve stays lossless. Upstream justifies 8 only for a drive that coalesces
+# completions — "The drive signals a completion once 8 are pending or 200 µs
+# have passed" (docs/engram.md:120-121) — and its homelab fleet runs 1,1,8,8
+# because ranks 0-1 hold an ESL01TBTLCZ and ranks 2-3 a Samsung PM9C1a,
+# MZALC4T0HBL1 (docs/engram.md:68-72; fleet/homelab.conf:49,63,77,91).
+# Every one of our four ranks' `/`, which carries
+# `~/.cache/sparkrun/runtime-cache`, is a SAMSUNG MZALC4T0HBL1-00B07 (4.1 TB,
+# NXHB202Q), so the model upstream singles out is the one in all four ranks
+# and the renderer's single value
+# (recipes/ds4/mods/picom-launcher/fleet-render.sh:41) is the right shape for
+# this fleet. Bounded expectation: the batch pads reads that arrive sparsely;
+# upstream saw no padding under deep prefill (684 padding reads against 642k
+# real ones, docs/engram.md:124-125) and its gain is p50 on decode-time read
+# steps, 237 → 86 µs on rank 3 (docs/engram.md:123) — a null on the
+# long-prefill cells is the documented expectation, not proof the knob is
+# worthless.
+#
+# Positive control: the engine prints its own batch at start,
+# `rank %d (%s): the fleet file %s; weights %s; Engram reads in batches of %d`
+# (engine/server/main.cpp:574-575), so rank.N.log must carry `Engram reads in
+# batches of 8`; at 1 the knob did not reach the engine and the cell is void.
+# A rendered fleet.conf on the rank with `RANK<r>_ENGRAM_READ_BATCH=8` is the
+# second read. Parse-vs-effect: an unsupported token in PICOM_ENGINE_ARGS is
+# silently ignored — the launcher word-splits the line positionally
+# (recipes/ds4/mods/picom-launcher/launch.sh:33,190) — so the log line is the
+# check, not the recipe text.
 #
 # The engine is NOT SGLang/vLLM: it is a from-scratch C++/CUDA TP=4 engine
 # with its own Rust front-end (dsfront) and its own RDMA ring. It runs one
@@ -40,13 +62,27 @@ description: >-
   DeepSeek-V4.1-Flash-1017 arm with PICOM_ENGRAM_READ_BATCH=8 on all four
   ranks instead of 1 — the fleet file's RANK<r>_ENGRAM_READ_BATCH
   (engine/comm/fleet.cpp:116-120), i.e. SSD read batching for the Engram
-  expert shards, so the serve stays lossless. Upstream's own fleet runs 8 on
-  two ranks, but our renderer
-  (recipes/ds4/mods/picom-launcher/fleet-render.sh:41) writes one value to
-  all four, so this arm tests the cheaper fix rather than upstream's split.
-  Falsifier: the long-prefill cells (needle/longctx at 128k and 1M) plus the
-  c16 aggregate, against this image with PICOM_ENGRAM_READ_BATCH=1; a cell
-  outside the shard-read path that moves is not this knob. Everything else
+  expert shards, so the serve stays lossless. Upstream justifies 8 only for a
+  drive that coalesces completions — "The drive signals a completion once 8
+  are pending or 200 µs have passed" (docs/engram.md:120-121) — and its
+  homelab fleet runs 1,1,8,8 because ranks 0-1 hold an ESL01TBTLCZ and ranks
+  2-3 a Samsung PM9C1a, MZALC4T0HBL1 (docs/engram.md:68-72). Every one of our
+  four ranks' `/`, which carries `~/.cache/sparkrun/runtime-cache`, is a
+  SAMSUNG MZALC4T0HBL1-00B07 (4.1 TB), so the model upstream singles out is
+  the one in all four ranks and our renderer's one value
+  (recipes/ds4/mods/picom-launcher/fleet-render.sh:41) is the right shape for
+  this fleet. Bounded expectation: whether our units coalesce like upstream's
+  is what the boot measures; if they do not, the knob pads against a
+  completion signature they lack and a null cell is expected rather than a
+  verdict on the knob, and either way upstream saw no padding under deep
+  prefill (docs/engram.md:124-125) with the gain on decode-time read steps
+  (237 → 86 µs, docs/engram.md:123), so the long-prefill cells may well come
+  out flat. The boot's positive control is the engine's own read-batch line,
+  in this arm's header.
+  Falsifier: the c16 aggregate first, then the long-prefill cells
+  (needle/longctx at 128k and 1M), against this image with
+  PICOM_ENGRAM_READ_BATCH=1; a cell outside the shard-read path that moves is
+  not this knob. Everything else
   (1M context, 16 slots, DSpark drafts, vision, streamed tool args) is the
   shipped arm, whose per-rank weight and Engram artifacts are warm on the
   fleet.
