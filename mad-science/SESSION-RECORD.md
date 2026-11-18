@@ -15368,6 +15368,16 @@ and `destroy`ed `19:07:29Z` on all four hosts.
 - Disclosure: the commit carrying this entry also publishes a peer's uncommitted `16:18 ET` block that sat
   above it in the worktree. That block is that tick's work, not this one's; it was left byte-for-byte intact
   and only the subject line is misleading.
+- Ring counts are two different quantities and the board has been mixing them. Measured
+  `21:20:41Z`–`21:20:42Z`: `docker events --since 1970-01-01 --until <now>` with **no** filter returns
+  exactly **256** events on `.30`, `.31` and `.35` — every host at the 256-slot ring's capacity — while the
+  **container-filtered** subset is **197** (`.30`: 197 container + 17 image + 42 network), **249** (`.31`:
+  249 container + 7 network) and **245** (`.35`: 245 container + 2 image + 9 network). So the base board's
+  identical `256` on all six node rows was the ring's fill/capacity, never a container count, and no event
+  was lost when a later tick read 245 on `.35` at the **same oldest event** (`1794462609`). Two consequences:
+  a cell must say whether it quotes the ring's total or its container subset, and because image/network
+  events occupy the same slots, a boot's `create`/`start` can be evicted by traffic unrelated to any
+  container — which is why the eviction bound is a bound.
 
 ## 2026-11-18 16:16 ET — the board's landed table is retired to this ledger, by reference
 - `mad-science/STATUS.md` had grown to 118 KB because every hourly tick
