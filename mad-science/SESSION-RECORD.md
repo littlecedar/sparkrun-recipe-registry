@@ -15636,3 +15636,55 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   against this tick's −8,318,776 / −8,249,036 / −8,518,112 / −9,098,228 kB),
   adding rank 0's serve log — 2,803 completions since `23:08:19Z` — which is
   the live-load evidence this tick could not claim.
+
+## 2026-11-18 19:13 ET — hourly tick: quartet serves under live load, and the board it displaced
+- Read the `18:14 ET` board (content sha256 `b6fd1ed3…`, blob `f566baf`), worktree
+  equal to `HEAD`, `HEAD` = `origin/main` = `9474ca8`, `git fetch` before compose.
+  Read-only census `2026-11-19T00:01:59Z`–`00:02:01Z` (head's three-second pass),
+  51 min 6 s after the base's first node read and 48 min 20 s after its last.
+- **The quartet is serving under live load, not merely up.** Four ranks on
+  `.31`–`.34` healthy, bracketed `pgrep -c -f '[s]glang.launch_server'` reads **1**
+  each, `:8000` one listener each, `/v1/models` **200** naming
+  `deepseek-ai/DeepSeek-V4.1-Flash-1017` from rank 0's loopback *and* from head.
+  Rank 0's serve log carries **2,803** `POST /v1/chat/completions` completions
+  (`grep -c`, one named filter), first `23:08:19Z`, last `00:04:33Z`, all `200 OK`,
+  from head — the window's own A/B traffic.
+- A same-turn `awk` over timestamp buckets printed **6,894**; that counted *all*
+  log lines in the range, not completions, so it was discarded and never quoted.
+  A request count larger than the log's own completion count is a broken filter,
+  not a second measurement.
+- Pool, window, campaign and register re-proved as on the board: mount
+  `used` **14,060,975,292,416 B** (+79,691,776 B on base's head read), **103** hub
+  entries, ds4 `config.json` **3,311 B**; lock `d6d0a1bd…` and ledger `b355b319…`
+  byte-identical here and on head; nine campaign files, **38 arms**, **0 live
+  leases**; register `0b28a919…` unchanged and re-checked live before publish.
+- **Three composer defects, each caught by a refusal rather than a read.**
+  (1) `base.split('## Landed session')` truncated the table at the row that
+  *quotes* that heading in prose — the trap the skill names for `## Work queue`;
+  fixed with a line-anchored `re.split`. (2) A `replace(..., 1)` of the duplicated
+  landed header stripped the real header and left the separator above a body row
+  (`table-missing-delimiter`); fixed by dropping the *second* occurrence and
+  verifying header-then-separator. (3) A blank line between the base In-flight
+  rows and the node rows split the table (`6 row(s) begin here but line 13 is not
+  a 3-column delimiter row`).
+- **`publish` wrote the file before refusing it.** The second refusal was
+  `cluster-address: 10.0.4.30`; the bytes on disk were already this tick's
+  composition, so the base was restored with `cp $T/base.md mad-science/STATUS.md`
+  — never `git checkout`, because the shared index still carried a peer's staged
+  board and a checkout would have restored *that* instead of the base.
+- Published through the tool (`publish rc=0`, `lint ok: 1 markdown file(s)
+  render`), content sha256 `42027b05…`, commit `5424b28`, `push-gate` green on
+  the committed tree before the push.
+- **The peer's board landed between this tick's fetch and its commit.** `4e77e1e`
+  (`19:12 ET`, content `a6e1126c…`, its own `publish rc=0`) became `HEAD` while
+  this tick composed, so `5424b28` parented on it and published a board built on
+  the `18:14` base — displacing that board's two landed rows. `1815350` restores
+  both verbatim in their chronological place and reduces this tick's measurement
+  row to the numbers plus the completions, pointing at the peer's row for the
+  mechanism (their discriminator: identical process set on every rank and no
+  `create`/`start`/`die`/`destroy` in the window, so the 8.2–9.1 GB per-rank
+  `MemAvailable` fall is the running engine's own KV pool and page cache,
+  LIKELY by exclusion) — one inference, one home, not two copies of it.
+- Final state on `cef1e96`: 30 landed rows, header immediately above its
+  separator, both peers' measurements intact. Nothing was booted, stopped,
+  claimed or evicted; the tick dir was removed after publish.
