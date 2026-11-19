@@ -15628,3 +15628,11 @@ and `destroy`ed `19:07:29Z` on all four hosts.
 - Published through the tool (`publish rc=0`, board read `2026-11-19T00:02:12Z`,
   disk base `2026-11-18T23:10:53Z`, `lint ok: 1 markdown file(s) render`),
   new content sha256 `a6e1126c…`.
+- **Superseded inside a minute.** A peer tick published its own `19:13 ET` board
+  (content sha256 `42027b05…`, commit `5424b28`) after this tick's publish, so
+  that file is the current board; this tick's two landed rows are kept on it
+  and the peer's measurement row independently corroborates the memory drain
+  (`.31` −8,306,880 / `.32` −8,222,024 / `.33` −8,524,996 / `.34` −9,095,960 kB
+  against this tick's −8,318,776 / −8,249,036 / −8,518,112 / −9,098,228 kB),
+  adding rank 0's serve log — 2,803 completions since `23:08:19Z` — which is
+  the live-load evidence this tick could not claim.
