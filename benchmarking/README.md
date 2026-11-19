@@ -107,7 +107,15 @@ inferred from a comparison you already decided is null.
 5. **`pp_req_throughput` is prompt-size ÷ TTFT, not a prefill speed** (verified numerically:
    `pp_req_throughput × e2e_ttft == prompt_size`). The aggregate `pp_`/`tg_` columns are windows
    opening at submission, so they charge scheduler queueing to a phase; use the per-request columns
-   for any "this phase got slower" claim.
+   for any "this phase got slower" claim. The denominator is time to the first *chunk*, not to the
+   first token: `first_response_ts` is set on any `choices` entry (`llama_benchy/client.py:352-353`)
+   while `first_token_ts` needs non-empty content (`:369-370`), `results.py:299,304` subtract them
+   into `ttfr`/`e2e_ttft`, and `:314` divides prompt tokens by `est_ppt`, which derives from `ttfr`.
+   A server that opens with a content-free role delta is therefore credited with a prefill it has
+   not done — measured here at ~345 ms of phantom prefill, with `pp_throughput` ~9× high (picom's
+   `pp2048` c1 reads 48.7k against ~5.2k real; `recipes/ds4/README.md`). Across engines compare
+   `e2e_ttft` or client-side wall time, never `pp_throughput`, and read a server whose `ttfr` equals
+   `e2e_ttft` to the millisecond as saying its first chunk was its first token.
 6. **Provenance of an arm is several separate facts.** A run's recipe comes from *that run's*
    `recipe_qualified_name` (the `measurement_recipe_state` field is often `None`); a `declared_hash`
    is a registry-declaration hash, **not** the executed configuration; and a cross-recipe throughput

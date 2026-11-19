@@ -2135,6 +2135,20 @@ Prefill: 49.4k tok/s at c1 (41.6 ms estimated); the c4+ prefill aggregate reads 
 it is wave-serialized, not queueing. Standard suite: **93/100**, **28/30**, no transport errors,
 per category 5/6, 6/6, 6/6, 6/6, 5/6, with partials TC-03 and TC-14 named.
 
+The 49.4k prefill reading is the harness's `pp_throughput`, and it is not a prefill rate:
+llama-benchy divides prompt tokens by time to the first *chunk*, and dsfront answers with a
+content-free role delta before it has prefilled anything (`benchmarking/README.md` rule 5). Time to
+the first token is the comparable boundary: **~5,200–5,300 tok/s** at pp2048 c1 (384–391 ms,
+`picom-tuning-20261118/E0/ladder.json`) against knapcio SGLang's **~3,600–3,730** (549–571 ms,
+`fabric-c1-20261118/{K-marked,K-control-2}`), so **≈1.45×**; at ~1M by wall clock picom is
+**10,071 tok/s** (980,835 tokens in 97.4 s, `picom-tuning-20261118/README.md` §4) against SGLang's
+**4,077** (five boots, ~999k tokens, `~/benchmarks/tp4-window-20261024/`), **≈2.47×**. Prefill CUDA
+graphs are not a lever on the knapcio image: `python3 -m sglang.launch_server --help` does list
+`--cuda-graph-backend-prefill`, but the engine refuses it while `--enable-decoder-swa-bounded-replay`
+is on, which `boot.py:452` appends unconditionally and the image has no negated form for, and the
+engine caps prefill graphs at `max_seq_len 16384` so longer contexts run eager prefill either way
+(`head:~/benchmarks/prefill-graph-20261119/rejection.txt`).
+
 Peak is not measured: dsfront ignores `return_token_ids` (200, no token ids in the body), so
 llama-benchy falls back to its "no complete token_ids … using stream usage token count" path —
 totals and per-stream/aggregate throughput are exact usage counts, but token arrival times are

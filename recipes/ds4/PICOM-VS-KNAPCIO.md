@@ -653,8 +653,13 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
   decode-between-chunks feature costs 17–28 % of ladder throughput and therefore ships off
   (`launcher.py:270-278`). The shipped picom arms prefill 16384 rows (`--prefill-rows 16384`) and have
   no interleave at all (`docs/engine.md:451-460`); the probe arm's 8192 rows is the one engine
-  difference between the two ladder tables. No cell here measures a long-context prefill on both
-  engines, so no direction is claimed.
+  difference between the two ladder tables. Both engines now have a same-instrument prefill cell,
+  and picom is faster: **1.45×** at 2048 tokens (time to first token 384–391 ms against 549–571,
+  `picom-tuning-20261118/E0/ladder.json` and `fabric-c1-20261118/{K-marked,K-control-2}`) and
+  **2.47×** at ~1M (10,071 against 4,077 tok/s by wall clock, `picom-tuning-20261118/README.md` §4
+  and `~/benchmarks/tp4-window-20261024/`) — measured by time to first token and client-side wall
+  time, not the ladder's `pp_throughput`, which the harness inflates on picom
+  (`benchmarking/README.md` rule 5).
 - **The client contract is where the engines differ most in kind.** SGLang's surface honors
   `return_token_ids`, a real thinking channel and cache accounting; picom's front-end is a thin
   hand-written parser that drops unknown fields silently, has no reasoning channel, and takes its
