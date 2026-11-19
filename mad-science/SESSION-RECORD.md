@@ -16125,3 +16125,32 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   the register row `beegfs-meta-restart-loop-non-meta-hosts`' own subject; on
   this read `.35` showed the loop too, where the base caught it `active`.
 
+## 2026-11-19 03:00 ET — board tick: the empty fleet holds a third hour
+
+- **Census** `2026-11-19T08:01:18Z`–`08:01:20Z`, `59 min 21 s` after the
+  `02:06 ET` base's first node read (`07:01:57Z`): all six hosts at `0`
+  containers, `0` volumes, `0` `:8000` listeners, head's `sparkrun status`
+  reading `Idle hosts (no sparkrun containers, nothing pending)`. Every dockerd
+  ring still holds `256` and begins before the window start — newest oldest-entry
+  is `.31`'s `05:23:16Z` — so the zero-event window is observed, not an
+  eviction artefact.
+- **Nothing was claimed**: `.local/fleet-window.lock` absent in the clone and on
+  the head; the lease ledger is byte-identical to the base here and on the head
+  (`48 B`, `34eed267…`, mtime `00:42:47 ET`); the campaign user unit is
+  `inactive` and the nine `state.json` files carry `38` arms with `0` live
+  leases. Queue register `26d51f1b…` unchanged, `201` tasks / `42` open,
+  `check` prints `ok`.
+- **Pool** serving, `14,060,769,771,520 B` `used` at `08:01:50Z`
+  (`+37,224,448 B` on the base's `07:02:05Z` read over `59 min 45 s`). The hub
+  now counts `104` entries where the base read `103`, and the extra is a
+  `.locks` directory (third-newest by mtime) rather than a model tree; the ds4
+  arm's `config.json` still measures `3311 B`.
+- **Roots net `−37,486,592 B` while the pool rose `+37,224,448 B`**: `.30`
+  `−3,772,416`, `.32`–`.35` `−13,889,536` to `−22,274,048`, and `.31` the only
+  gainer at `+46,985,216`. With no process set changing on any host, the two
+  figures are `LIKELY` the same shared chunk-store traffic the previous two
+  ticks named by exclusion; `MemAvailable` moved by at most `79,096 kB`
+  anywhere, so nothing leaked.
+- **Untracked carry-over**: `.31`–`.35`'s `beegfs-meta` still restart-loops
+  (`activating`, `exit-code`, `NRestarts` `120,665`–`120,689`).
+
