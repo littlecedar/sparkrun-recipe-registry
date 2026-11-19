@@ -15998,3 +15998,34 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   reads 1,754,260–1,854,904 kB with `resident 1.92 GiB`, a mapped resident
   set, so the fast readiness stands as measured and its cause is not
   identified by that tick.
+
+## 2026-11-19 00:23 ET — hourly tick publishes the window's `-oea` boot
+
+- Published the `00:23` board (commit `935d348`) on the `00:19` base
+  (`d72d9fb`, content sha256 `60fd6325…`), census `05:10:04Z`–`05:10:07Z`,
+  **6 min 9 s** after the base's first read (`05:03:55Z`) and **6 min 8 s**
+  after its last (`05:03:59Z`). Two bases were refused on the way: `968610c5…`
+  (a peer published `00:15` at 00:15:11) and `fcab33af…` (a peer published
+  `00:19`), both caught by `publish`'s disk-sha guard rather than by a stale
+  compose.
+- The base's serving quartet `4642bb741f95` was killed `05:07:19Z` and
+  replaced twice on `.31`–`.34`: `edd8b375fbe0` `create`/`start` `05:07:37Z`,
+  killed `05:07:47Z` (10 s, matching `picom-tuning-20261118/E3/launch.log`
+  `launch 17.8s (failed)`), then `eeb742efc501` `create` `05:09:00Z`, still
+  running under the **`-oea`** recipe `deepseek-v4.1-flash-1017-picom-tp4-1m-oea.yaml`.
+  Its own `L1/launch.log` records TTR HTTP-ready **25.886 s** and
+  `L1/ladder.csv` (1,868 B) lands `05:11Z` with `Benchmark complete`, so
+  readiness is the harness's record; an unauthenticated `/v1/models` reads 401.
+- Rings turned over mid-tick: at the read `.31` holds 244 events from
+  `05:00:58Z`, `.32`–`.34` 244 from `04:55:06Z`–`04:55:09Z`, so the four
+  transitions above rest on this tick's capture, not on a current-window
+  absence.
+- Pool on the base's two-host pair (`14,060,891,930,624 B` at `05:07:43Z`):
+  **fell 309,854,208 B** over 5 min 20 s — falling in both windows, mover
+  unnamed. Register unchanged (`26d51f1b…`, `check ok`, 42 open of 201),
+  window lock `4c4e4267…`, lease ledger empty (`34eed267…`). Nothing was
+  booted, stopped, claimed or evicted.
+- **Instrument fault — `ssh -n` again.** `ssh -n host bash -s < node.sh`
+  returned six empty node blocks at `rc=0` in 2 s; the fix is dropping `-n`
+  on any hop whose stdin is the script. Worth a guard, it has now cost two
+  sessions.
