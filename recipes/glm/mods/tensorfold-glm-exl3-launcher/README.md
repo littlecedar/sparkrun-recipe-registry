@@ -167,8 +167,8 @@ sentinel onto `tensorfold serve --no-drafts` rather than `--drafter <path>`:
 TensorFold patch 0070 refuses `--parallel` > 1 with no drafter unless
 `--no-drafts` is passed (the checkpoint's MTP head drafts one request at a time),
 and `--drafter auto` is not that flag.
-[`zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.yaml`](../../zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.yaml)
-is the arm that uses it; it also drops `defaults.speculative_draft_model`, because
+[`zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.yaml`](../../../attic/glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.yaml)
+(archived 2026-11-19) is the arm that uses it; it also drops `defaults.speculative_draft_model`, because
 a `-o speculative_draft_model=none` override makes sparkrun prepare a model
 literally named `none` (dry run: `Distributing model none to 4 host(s)`).
 

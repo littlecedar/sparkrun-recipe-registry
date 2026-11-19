@@ -934,7 +934,11 @@ all cleared); a gate-passing alternative, not the selected arm — Mellum2.1 kee
   `.30`), `head:~/benchmarks/tplt4-20261024/bonsai/` (quiet-node ladder + house). TODO item:
   `mad-science/TODO.md` §explore.
 
-## [zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm](zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml)
+## [zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm](../../attic/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml)
+
+**Retired to `attic/explore/` 2026-11-19** (with its second-boot twin
+[`…-boot2.yaml`](../../attic/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2.yaml)): the cells below are the
+arm's whole record, and the lane query they answered is closed.
 
 `reflection/Beam-1.0-501B-A23B-NVFP4` (501.3B-total / 23.4B-active sparse MoE, 1M window) on
 the quartet, engine `vllm/vllm-openai:reflection-beam` (a non-release vendor dev build — the
@@ -977,10 +981,14 @@ candidate. Boot-gate PASSED window 3 (kernel falsifier never fired; record `DEEP
 Receipts: `head:~/benchmarks/tp4-window4-20261026/` (preregistrations, per-attempt serve
   logs, ladder/BFCL/needle JSON). TODO item: `mad-science/TODO.md` §Retry queue window 4.
 
-## [zz-ernie-5.5-flash-base-tp4-sglang](zz-ernie-5.5-flash-base-tp4-sglang.yaml)
+## [zz-ernie-5.5-flash-base-tp4-sglang](../../attic/explore/zz-ernie-5.5-flash-base-tp4-sglang.yaml)
+
+**Retired to `attic/explore/` 2026-11-19** — the boot below is a refused-boot record, and the
+FlashInfer-sparse route arm carries the lane's live line.
 
 SGLang (nightly `nightly-dev-cu13-20261110-4a5c6b8f`, arm64) · **4 nodes (TP=4)** · **DRAFT probe,
-not shippable — body staged and image-proven 2026-11-10; boot queued in the ds4 window's handover**.
+Control for the shipped route arm — body staged and image-proven 2026-11-10, boot refused by the engine
+(FlashMLA has no SM12x sparse-decode kernel).**
 
 `baidu/ERNIE-5.5-Flash-Base` — 280B-total / ~14B-active MoE, 43 layers at hidden 4096, top-10 of 512
 routed experts, vocab 201,216, 1M `max_position_embeddings`, weights FP8 e4m3 with ue8m0 block scales
@@ -1784,8 +1792,8 @@ The 2026-11-10 survey read produced the class and the file sizes; nothing has be
 ## Attic index
 
 Everything that is not a shipped recipe lives in [`attic/explore/`](../../attic/explore/) — lane working
-state, measured histories, selection receipts, serving traps, the candidate research, and the 13
-archived recipes (3 Nemotron + 10 from the 2026-10-19 sweep).
+state, measured histories, selection receipts, serving traps, the candidate research, and the 17
+archived recipes (3 Nemotron, 10 from the 2026-10-19 sweep, and 4 retired probes 2026-11-19).
 
 
 
@@ -1814,3 +1822,7 @@ archived recipes (3 Nemotron + 10 from the 2026-10-19 sweep).
 | [`nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-vllm.yaml) | Archived recipe — the lane's original shipped default (262k, util 0.80), the fastest measured arm of its day (77.7 t/s) and the smallest (21 GB), but the lane's lowest accuracy (33/37). Frozen provenance — do not retune. |
 | [`nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml`](../../attic/explore/nemotron-3.5-lightning-30b-nvfp4-dspark-1m-vllm.yaml) | Archived recipe — a variant of the 262k arm testing the card's 1M-context claim at util 0.91. Frozen provenance — do not retune. |
 | [`nemotron-3-super-120b-a12b-nvfp4-vllm.yaml`](../../attic/explore/nemotron-3-super-120b-a12b-nvfp4-vllm.yaml) | Archived recipe — the 123.6B/12.2B-active NVFP4 trial: house 37/37 and a unique one-node 262k window, but 15.9 t/s C1. Boots only after deleting `--swap-space 0` (unrecognized in vLLM 0.29.0). Frozen provenance — do not retune. |
+| [`zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml`](../../attic/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml) | Retired 2026-11-19, TP=4 — measured: ladder 26.20/40.66/63.96/69.80 t/s, house **37/37**, needle 20/20 at 32k and 131k, BFCL **1112/1240 = 89.68 %**. Receipt `head:~/benchmarks/h2h-20261107/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm/` (`ladder.json`, `client/{house,bfcl}.json`). |
+| [`zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2.yaml`](../../attic/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2.yaml) | Retired 2026-11-19, TP=4 — second-boot twin (comment-only copy, so one recipe name cannot hold two queue rows): ladder **33.09±2.50 / 44.91±3.50 / 59.71±10.50 / 69.86±7.41 t/s** (C1 +26.3 %, C5 −6.7 % vs boot 1). Receipts `…/zz-beam-…-boot2/ladder.json`, `…/receipts/zz-beam-…-boot2.json`. |
+| [`zz-ernie-5.5-flash-base-tp4-sglang.yaml`](../../attic/explore/zz-ernie-5.5-flash-base-tp4-sglang.yaml) | Retired 2026-11-19, TP=4 — **refused boot**, task `sparkrun_e59088ba4d0f3858_3780b01ec8c1`: all 128 shards loaded from the pinned snapshot, then `Capture cuda graph failed: … Unsupported architecture for sparse decode fwd` (FlashMLA builds `sm_100a`/`sm_103a` only; the GB10 dynamic-smem probe reads 101,376 B against the kernel's 227 KiB `static_assert`). Per-rank `MemAvailable` minima 14.79–15.04 GiB. |
+| [`zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4.yaml`](../../attic/explore/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4.yaml) | Retired 2026-11-19, TP=4 — measured parameter-floor isolator: `--load-format dummy` dive **112.05/109.84/108.20/109.46 GiB** (inside the 110.7 ± 10 % gate), floors **5.012/7.565/9.170/7.856 GiB**; the ≥6 GiB falsifier is not met, so the parameter set alone sits at five to nine GiB per rank. Receipt `head:~/benchmarks/tp4-20261111/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4/mem-floor.json`. |

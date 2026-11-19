@@ -713,7 +713,10 @@ SGLang diffusion · **1 node** · **DRAFT, never booted**.
   768p, 24 fps. Never booted; the first boot decides the AdaLN cache question and the wall time.
 - **License:** MiniMax H3 Community License (territorial; non-US deployment only).
 
-### The four-rank probe [`zz-minimax-h3-fl2va-t2va-tp4-sglang.yaml`](zz-minimax-h3-fl2va-t2va-tp4-sglang.yaml) — measured negative (2026-10-24)
+### The four-rank probe [`zz-minimax-h3-fl2va-t2va-tp4-sglang.yaml`](../../attic/media/zz-minimax-h3-fl2va-t2va-tp4-sglang.yaml) — measured negative (2026-10-24)
+
+**Retired to [`attic/media/`](../../attic/media/ARMS-MANIFEST.md) 2026-11-19** — the negative below is
+the arm's whole record; the engine-side wall is still open, so the arm buys nothing in the lane.
 
 The QUESTIONS #7 four-rank cell ran on `.31`–`.34` (SGLang v0.5.22, `--num-gpus 4`,
 `nnodes: 4, sp_degree: 4, ulysses_degree: 4` all rendered correctly). Three walls, in boot order:

@@ -19,13 +19,13 @@ min_nodes: 4
 max_nodes: 4
 
 description: >-
-  Concurrency probe (lever 3, scheduler slot count): the shipped GLM-5.3-Flash
-  EXL3 4bpw TP=4 arm with the engine's --parallel slot cap promoted to a recipe
-  key, --parallel {parallel} (default 8, the engine's documented 1..8 range).
-  Sweep it with `-o parallel=N` against the shipped arm's C2-peak-then-fall
-  ladder: the engine decodes at most N requests together out of one KV pool, so
-  a lower cap moves where the peak sits without touching the drafter. NOT
-  booted. Probe arm (zz-), not shippable.
+  Concurrency probe carrier (lever 2, DFlash2 draft-chain length): the shipped
+  GLM-5.3-Flash EXL3 4bpw TP=4 arm, byte-identical in configuration, so the
+  campaign can register the k sweep as its own arm -- the queue plan keys an arm
+  by recipe basename and refuses two rows on one path. The value arrives from
+  the lease env (shim SWEEP_ENV): ARM_OPTS="-e TF_GLM_DFLASH_POLICY=fnc5:0.3"
+  (k=5; fnc3:0.3 for k=3) against the shipped fnc7:0.3. NOT booted. Probe arm
+  (zz-), not shippable.
 metadata:
   model_params: "169B"
   model_url: https://huggingface.co/Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold
@@ -36,10 +36,10 @@ metadata:
   model_draft_dtype: bf16
   tags: large_context, fast, reasoning, tools, vision
 
-# The mod ships the gate + the launcher shim; the recipe references it
-# unscoped (lane-local: the published clone does not carry it).
+# The mod ships the gate + the launcher shim; the recipe reaches it back into
+# the live lane (lane-local: the published clone does not carry it).
 mods:
-  - "mods/tensorfold-glm-exl3-launcher"
+  - "../../recipes/glm/mods/tensorfold-glm-exl3-launcher"
 
 # The image's ENTRYPOINT is /opt/nvidia/nvidia_entrypoint.sh; clear it so the
 # recipe's own command runs instead of being parsed as the image's flags.
@@ -60,10 +60,6 @@ defaults:
   # and the launcher resolves the snapshot from the node's own HF cache.
   speculative_draft_model: incoai/GLM-5.3-Flash-DFlash2
   speculative_draft_model_revision: bf582e4eacc1810f76656d1811693ff6c6737d2a
-  # The engine's concurrent-request cap (TensorFold patch 0069: 1 to 8; the
-  # mod's argparse default is 8). A key rather than a literal so one boot per
-  # slot count is `-o parallel=N`; run-arm.sh reads this line for its c10 gate.
-  parallel: 8
 
 command: >
   python3 /workspace/mods/tensorfold-glm-exl3-launcher/launcher.py
@@ -73,7 +69,6 @@ command: >
   --port {port}
   --tp {tensor_parallel}
   --context {max_model_len}
-  --parallel {parallel}
   --drafter-repo {speculative_draft_model}
   --drafter-revision {speculative_draft_model_revision}
 

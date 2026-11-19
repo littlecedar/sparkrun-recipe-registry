@@ -104,17 +104,24 @@ harvested: 0` under-count: healthy silence is reported as death. Related probe t
 is `/opt/sglang/bin/tensorfold serve`, so `pgrep -f sglang.launch_server` reads empty on a healthy rank — probe
 argv (`ps -eo args | grep -E 'launcher\.py|tensorfold serve'`), never that pattern.
 
-## Concurrency probes (2026-11-07, not booted)
+## Concurrency probes — retired to the attic (measured 2026-11-08)
 
 The shipped Flash arm's ladder peaks at C2 and falls at C5/C10
-(`102.36 / 79.49 / 73.37` t/s). Two `zz-` probes isolate the mechanism; both are
-one-line-diff copies of the shipped arm and neither has booted:
+(`102.36 / 79.49 / 73.37` t/s). Three `zz-` probes isolated the mechanism, ran as
+one triad on one image id (`sha256:7f8f1b38…`), and were retired to
+[`attic/glm/`](../../attic/glm/ARMS-MANIFEST.md) on 2026-11-19 — the manifest
+rows carry each receipt:
 
-| Recipe | Lever | Boot |
+| Arm (attic) | Lever | Measured cell |
 |---|---|---|
-| [`zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.yaml`](zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.yaml) | DFlash2 removed: the shim maps `--drafter-repo none` onto the engine's `--no-drafts`, at the mod's `--parallel 8` | ladder; C2-peak vs flat tells whether the drafter's verify window is the shape |
-| [`zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-parallel.yaml`](zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-parallel.yaml) | slot cap promoted to a key: `--parallel {parallel}` (engine range 1–8) | one boot per `-o parallel=N` |
-| [`zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-dflash2k.yaml`](zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-dflash2k.yaml) | config-identical carrier for the k sweep, because the queue plan refuses two rows on one path; the value rides the lease env | `-e TF_GLM_DFLASH_POLICY=fnc5:0.3` (then `fnc3:0.3`, then `-e TF_GLM_MULTI_WINDOW=32` on the same carrier once the row closes) |
+| [`zz-…-nodrafter.yaml`](../../attic/glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.yaml) | DFlash2 removed: the shim maps `--drafter-repo none` onto the engine's `--no-drafts`, at the mod's `--parallel 8` | **53.20 / 74.29 / 76.47 / 71.25 t/s** C1/C2/C5/C10; C2→C10 −4.1 %, flat inside the C2 sigma, while losing 17.8–48.5 % per rung |
+| [`zz-…-parallel.yaml`](../../attic/glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-parallel.yaml) | slot cap promoted to a key: `--parallel {parallel}` (engine range 1–8) | **100.2 / 117.1 / 84.6 / 79.4 t/s** at the 4-slot cap, still falling past C2 |
+| [`zz-…-dflash2k.yaml`](../../attic/glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-dflash2k.yaml) | config-identical carrier for the k sweep, because the queue plan refuses two rows on one path; the value rides the lease env | same window shipped control **103.25±5.46 / 109.41±31.29 / 94.18±2.62 / 86.65±1.31**, boot2 **105.90 / 120.46 / 96.80 / 86.87** (C2→C10 −20.8 %) |
+
+The C5→C10 fall survives with no DFlash2 at all, so the drafter is not the
+cause; the 4-slot leg still falls past C2, so the slot cap is not it either —
+the mechanism stays open. Receipts `head:~/benchmarks/h2h-20261107/`
+(`receipts/zz-glm-…-{nodrafter,parallel,dflash2k}.json`, `measured: true`).
 
 The k/window lever is a **sweep hook in the shim, not a per-value recipe**:
 `recipe_env()` lets exactly `TF_GLM_DFLASH_POLICY` and `TF_GLM_MULTI_WINDOW` win

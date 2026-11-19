@@ -194,7 +194,7 @@ class LiteralShaConsistency(unittest.TestCase):
     Exemption (2026-10-26): 40-hex tokens inside a `--speculative-config`
     literal name a DIFFERENT model — the drafter, staged by pool snapshot
     because SpeculativeConfig cannot resolve a repo id under HF_HUB_OFFLINE
-    (recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml, commit 3de5d70).
+    (attic/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml, commit 3de5d70).
     The drafter has no top-level pin to check against; the target model's own
     snapshot tokens stay pinned by the rule.
 

@@ -23,11 +23,9 @@ TWINS = (
         "recipes/glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml",
         "recipes/glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2.yaml",
     ),
-    (
-        "recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml",
-        "recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2.yaml",
-    ),
 )
+# The Beam TP=4 pair that exercised this beside the GLM pair was retired to
+# attic/explore/ on 2026-11-19; the shipped GLM pair still holds the contract.
 
 
 class BootTwins(unittest.TestCase):

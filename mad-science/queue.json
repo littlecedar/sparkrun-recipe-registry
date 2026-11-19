@@ -1270,19 +1270,11 @@
       "state": "done",
       "model": "",
       "node_cost": "quartet",
-      "notes": "estimate: provisional — one boot, ladder + house via the recipe, BFCL run directly (bfcl-eval.py --json; never the eval-suite wrapper) as the extra client on the live serve. — campaign: zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm: no marker and no machine-readable artefact — campaign receipt receipts/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.json (attempt 1, rc=0, measured): house cell rc=0 in client/house.json, image sha256:58aa975fed12579a7d9bd41eede585537fffdf79b4f2bfc3c60205afbc449051; BFCL leg is NOT measured — client SIGTERM at multiple_196 after ~25 min, no client/bfcl.json, client/client.json rc=-15; do not score it and do not read the standard house 0 as the client result",
+      "notes": "RECIPE RETIRED 2026-11-19: the `zz-` arm this row booted is archived at `attic/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml` (it ran or refused on record; see the lane attic index), so the row is no longer bootable. estimate: provisional — one boot, ladder + house via the recipe, BFCL run directly (bfcl-eval.py --json; never the eval-suite wrapper) as the extra client on the live serve. — campaign: zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm: no marker and no machine-readable artefact — campaign receipt receipts/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.json (attempt 1, rc=0, measured): house cell rc=0 in client/house.json, image sha256:58aa975fed12579a7d9bd41eede585537fffdf79b4f2bfc3c60205afbc449051; BFCL leg is NOT measured — client SIGTERM at multiple_196 after ~25 min, no client/bfcl.json, client/client.json rc=-15; do not score it and do not read the standard house 0 as the client result",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; owner 2026-11-07 window",
       "evidence": "/home/red/benchmarks/h2h-20261107/tp12-window/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm",
       "claimed_by": "",
-      "claimed_at": "",
-      "recipe": "recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm.yaml",
-      "tp": 4,
-      "env": {
-        "ARM_EXTRA_CLIENT": "python3 -B tools/h2h-client.py --cell house-bfcl --base-url http://$NODE:$PORT --outdir $L",
-        "ARM_EXTRA_TIMEOUT": "21600",
-        "ARM_OPTS": "-o extra_args=--enable-auto-tool-choice",
-        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
-      }
+      "claimed_at": ""
     },
     {
       "id": "h2h-second-boot-ds4-1017",
@@ -1357,16 +1349,11 @@
       "state": "done",
       "model": "",
       "node_cost": "quartet",
-      "notes": "estimate: provisional — controlled second boot through the boot2 twin (comment-only copy: the register cannot name two rows for one recipe); ladder only, no extra client. — campaign: zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2: no marker and no machine-readable artefact",
+      "notes": "RECIPE RETIRED 2026-11-19: the `zz-` arm this row booted is archived at `attic/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2.yaml` (it ran or refused on record; see the lane attic index), so the row is no longer bootable. estimate: provisional — controlled second boot through the boot2 twin (comment-only copy: the register cannot name two rows for one recipe); ladder only, no extra client. — campaign: zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2: no marker and no machine-readable artefact",
       "provenance": "mad-science/TP4-HEAD-TO-HEAD-1025.md §Open cells; owner 2026-11-07 window; tests/test_boot_twin_recipes.py",
       "evidence": "/home/red/benchmarks/h2h-20261107/tp12-window/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2",
       "claimed_by": "",
-      "claimed_at": "",
-      "recipe": "recipes/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2.yaml",
-      "tp": 4,
-      "env": {
-        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107"
-      }
+      "claimed_at": ""
     },
     {
       "id": "w4-survey-arm3-sm121-boot",
@@ -1411,17 +1398,11 @@
       "state": "done",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
-      "notes": "estimate: provisional — plain no-drafter ladder (does the C2 peak/C5-C10 fall vanish without DFlash2?). TRACKED VARIANT recipe (not -o speculative_draft_model=none: dry run prepared a phantom 'none' repo and the shim mapped it to --drafter auto, which refuses at --parallel 8). Ladder cells are the measurement; no extra client. ARM_EXTRA_CLIENT here is a boot gate, not a cell: run-arm.sh writes image.txt only for extra-client arms, so the gate proves the receipt carries the resolved image id (it runs after the ladder, so the cells are untouched). — RECEIPT NOTE 2026-11-08 04:36 ET (campaign-ops): the three legs of this triad ran one image id, sha256:7f8f1b38bcf1770e527bdc9ceacdc663063d2871e464f7693a8602e0efbd4a95 (each leg's image.txt), which is the local id recorded by docker inspect. The recipe pins ghcr.io/miaai-lab/glm-5.3-flash-exl3-2x-dgx-sparks-tensorfold@sha256:eb17e092fa56ea23ca385c3aba0a4250d0cb46c705b9455f2e4c29d1ca4847e8, and that digest-pinned ref is not in this head's image store, so the pin-to-local-id mapping is UNVERIFIED here. The triad is comparable to itself (one id across control and both levers) but not provably the same bytes as the recipe pin until a pull by digest or a carried image supplies the mapping.",
+      "notes": "RECIPE RETIRED 2026-11-19: the `zz-` arm this row booted is archived at `attic/glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.yaml` (it ran or refused on record; see the lane attic index), so the row is no longer bootable. estimate: provisional — plain no-drafter ladder (does the C2 peak/C5-C10 fall vanish without DFlash2?). TRACKED VARIANT recipe (not -o speculative_draft_model=none: dry run prepared a phantom 'none' repo and the shim mapped it to --drafter auto, which refuses at --parallel 8). Ladder cells are the measurement; no extra client. ARM_EXTRA_CLIENT here is a boot gate, not a cell: run-arm.sh writes image.txt only for extra-client arms, so the gate proves the receipt carries the resolved image id (it runs after the ladder, so the cells are untouched). — RECEIPT NOTE 2026-11-08 04:36 ET (campaign-ops): the three legs of this triad ran one image id, sha256:7f8f1b38bcf1770e527bdc9ceacdc663063d2871e464f7693a8602e0efbd4a95 (each leg's image.txt), which is the local id recorded by docker inspect. The recipe pins ghcr.io/miaai-lab/glm-5.3-flash-exl3-2x-dgx-sparks-tensorfold@sha256:eb17e092fa56ea23ca385c3aba0a4250d0cb46c705b9455f2e4c29d1ca4847e8, and that digest-pinned ref is not in this head's image store, so the pin-to-local-id mapping is UNVERIFIED here. The triad is comparable to itself (one id across control and both levers) but not provably the same bytes as the recipe pin until a pull by digest or a carried image supplies the mapping.",
       "provenance": "glm-flash-concurrency-degradation-search; concurrency-variants commit 3695abc; owner 2026-11-07 window",
       "evidence": "receipts/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.json",
       "claimed_by": "",
-      "claimed_at": "",
-      "recipe": "recipes/glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-nodrafter.yaml",
-      "tp": 4,
-      "env": {
-        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
-        "ARM_EXTRA_CLIENT": "[ -s \"$ARM_RECEIPT_DIR/image.txt\" ] && [ \"${ARM_IMAGE_ID:-unknown}\" != unknown ] || { echo \"no image id in the receipt\"; exit 1; }"
-      }
+      "claimed_at": ""
     },
     {
       "id": "glm-flash-conc-dflash2-k",
@@ -1432,18 +1413,11 @@
       "state": "done",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
-      "notes": "estimate: provisional — DFlash2 draft-chain k=5 against shipped k=7 (C1/C2/C5/C10 ladder is the cell; no extra client). The k rides the shim's new whitelisted SWEEP_ENV: a non-empty -e wins over RECIPE_ENV. Follow-ups on the same carrier after this row closes: fnc3:0.3 (k=3) and TF_GLM_MULTI_WINDOW=32, one knob per boot, never stacked. ARM_EXTRA_CLIENT here is a boot gate, not a cell: run-arm.sh writes image.txt only for extra-client arms, so the gate proves the receipt carries the resolved image id (it runs after the ladder, so the cells are untouched). — RECEIPT NOTE 2026-11-08 04:36 ET (campaign-ops): the three legs of this triad ran one image id, sha256:7f8f1b38bcf1770e527bdc9ceacdc663063d2871e464f7693a8602e0efbd4a95 (each leg's image.txt), which is the local id recorded by docker inspect. The recipe pins ghcr.io/miaai-lab/glm-5.3-flash-exl3-2x-dgx-sparks-tensorfold@sha256:eb17e092fa56ea23ca385c3aba0a4250d0cb46c705b9455f2e4c29d1ca4847e8, and that digest-pinned ref is not in this head's image store, so the pin-to-local-id mapping is UNVERIFIED here. The triad is comparable to itself (one id across control and both levers) but not provably the same bytes as the recipe pin until a pull by digest or a carried image supplies the mapping.",
+      "notes": "RECIPE RETIRED 2026-11-19: the `zz-` arm this row booted is archived at `attic/glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-dflash2k.yaml` (it ran or refused on record; see the lane attic index), so the row is no longer bootable. estimate: provisional — DFlash2 draft-chain k=5 against shipped k=7 (C1/C2/C5/C10 ladder is the cell; no extra client). The k rides the shim's new whitelisted SWEEP_ENV: a non-empty -e wins over RECIPE_ENV. Follow-ups on the same carrier after this row closes: fnc3:0.3 (k=3) and TF_GLM_MULTI_WINDOW=32, one knob per boot, never stacked. ARM_EXTRA_CLIENT here is a boot gate, not a cell: run-arm.sh writes image.txt only for extra-client arms, so the gate proves the receipt carries the resolved image id (it runs after the ladder, so the cells are untouched). — RECEIPT NOTE 2026-11-08 04:36 ET (campaign-ops): the three legs of this triad ran one image id, sha256:7f8f1b38bcf1770e527bdc9ceacdc663063d2871e464f7693a8602e0efbd4a95 (each leg's image.txt), which is the local id recorded by docker inspect. The recipe pins ghcr.io/miaai-lab/glm-5.3-flash-exl3-2x-dgx-sparks-tensorfold@sha256:eb17e092fa56ea23ca385c3aba0a4250d0cb46c705b9455f2e4c29d1ca4847e8, and that digest-pinned ref is not in this head's image store, so the pin-to-local-id mapping is UNVERIFIED here. The triad is comparable to itself (one id across control and both levers) but not provably the same bytes as the recipe pin until a pull by digest or a carried image supplies the mapping.",
       "provenance": "glm-flash-concurrency-degradation-search; concurrency-variants commits 0d9f835/2602501; owner 2026-11-07 window",
       "evidence": "receipts/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-dflash2k.json",
       "claimed_by": "",
-      "claimed_at": "",
-      "recipe": "recipes/glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-dflash2k.yaml",
-      "tp": 4,
-      "env": {
-        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
-        "ARM_OPTS": "-e TF_GLM_DFLASH_POLICY=fnc5:0.3",
-        "ARM_EXTRA_CLIENT": "[ -s \"$ARM_RECEIPT_DIR/image.txt\" ] && [ \"${ARM_IMAGE_ID:-unknown}\" != unknown ] || { echo \"no image id in the receipt\"; exit 1; }"
-      }
+      "claimed_at": ""
     },
     {
       "id": "glm-flash-conc-scheduler-knob",
@@ -1454,19 +1428,11 @@
       "state": "done",
       "model": "glm-5.3-flash",
       "node_cost": "quartet",
-      "notes": "estimate: provisional — scheduler/slot lever: C5/C10 over 4 slots against the 8-slot baseline, deliberately slot-limited (ARM_ALLOW_FEW_SLOTS=1). TRACKED VARIANT recipe declaring parallel: 8, overridden by ARM_OPTS. No extra client. ARM_EXTRA_CLIENT here is a boot gate, not a cell: run-arm.sh writes image.txt only for extra-client arms, so the gate proves the receipt carries the resolved image id (it runs after the ladder, so the cells are untouched). — RECEIPT NOTE 2026-11-08 04:36 ET (campaign-ops): the three legs of this triad ran one image id, sha256:7f8f1b38bcf1770e527bdc9ceacdc663063d2871e464f7693a8602e0efbd4a95 (each leg's image.txt), which is the local id recorded by docker inspect. The recipe pins ghcr.io/miaai-lab/glm-5.3-flash-exl3-2x-dgx-sparks-tensorfold@sha256:eb17e092fa56ea23ca385c3aba0a4250d0cb46c705b9455f2e4c29d1ca4847e8, and that digest-pinned ref is not in this head's image store, so the pin-to-local-id mapping is UNVERIFIED here. The triad is comparable to itself (one id across control and both levers) but not provably the same bytes as the recipe pin until a pull by digest or a carried image supplies the mapping.",
+      "notes": "RECIPE RETIRED 2026-11-19: the `zz-` arm this row booted is archived at `attic/glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-parallel.yaml` (it ran or refused on record; see the lane attic index), so the row is no longer bootable. estimate: provisional — scheduler/slot lever: C5/C10 over 4 slots against the 8-slot baseline, deliberately slot-limited (ARM_ALLOW_FEW_SLOTS=1). TRACKED VARIANT recipe declaring parallel: 8, overridden by ARM_OPTS. No extra client. ARM_EXTRA_CLIENT here is a boot gate, not a cell: run-arm.sh writes image.txt only for extra-client arms, so the gate proves the receipt carries the resolved image id (it runs after the ladder, so the cells are untouched). — RECEIPT NOTE 2026-11-08 04:36 ET (campaign-ops): the three legs of this triad ran one image id, sha256:7f8f1b38bcf1770e527bdc9ceacdc663063d2871e464f7693a8602e0efbd4a95 (each leg's image.txt), which is the local id recorded by docker inspect. The recipe pins ghcr.io/miaai-lab/glm-5.3-flash-exl3-2x-dgx-sparks-tensorfold@sha256:eb17e092fa56ea23ca385c3aba0a4250d0cb46c705b9455f2e4c29d1ca4847e8, and that digest-pinned ref is not in this head's image store, so the pin-to-local-id mapping is UNVERIFIED here. The triad is comparable to itself (one id across control and both levers) but not provably the same bytes as the recipe pin until a pull by digest or a carried image supplies the mapping.",
       "provenance": "glm-flash-concurrency-degradation-search; concurrency-variants commit bd4671d; owner 2026-11-07 window",
       "evidence": "receipts/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-parallel.json",
       "claimed_by": "",
-      "claimed_at": "",
-      "recipe": "recipes/glm/zz-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-parallel.yaml",
-      "tp": 4,
-      "env": {
-        "ARM_RECEIPTS_ROOT": "/home/red/benchmarks/h2h-20261107",
-        "ARM_OPTS": "-o parallel=4",
-        "ARM_ALLOW_FEW_SLOTS": "1",
-        "ARM_EXTRA_CLIENT": "[ -s \"$ARM_RECEIPT_DIR/image.txt\" ] && [ \"${ARM_IMAGE_ID:-unknown}\" != unknown ] || { echo \"no image id in the receipt\"; exit 1; }"
-      }
+      "claimed_at": ""
     },
     {
       "id": "w4-survey-arm5-control-boot",
@@ -2453,18 +2419,11 @@
       "state": "done",
       "model": "",
       "node_cost": "quartet",
-      "notes": "MEASURED 2026-11-11 (pre-ready client, `--load-format dummy`, `.31`-`.35`, 25 rounds @5 s, image `sha256:e5fcda3386c8b498e6cdd011792c0d83e71f93cdcbda21f66119b2fbefec8651`): verdict `measured`. The parameter-set dive reads 112.05 / 109.84 / 108.20 / 109.46 GiB on the four ranks (inside the 110.7 +/- 10 % sanity gate), floors after it 5.012 / 7.565 / 9.170 / 7.856 GiB, first sample ~117 GiB free. The pre-registered falsifier (>=6 GiB on all four) is NOT met because one rank reached 5.012 GiB, so the reading is: the parameter set alone sits at five to nine GiB per rank, and the 2026-11-10 sub-4 GiB trough was not parameter allocation. Engine-core init then failed at t=174 s and earlyoom took the remaining rank -- the floor is a measurement, not a failed boot.\n\nCLAIMED 2026-11-11 (`session:tp4-20261111`): a director-session claim for the scheduled probe boot, not a campaign lease. The artefact contract this row waited on has landed -- the pre-ready client, the `ARM_EXTRA_CLIENT_AT` hook and their tests -- so the only remaining evidence is one real boot, scheduled in this session. Nothing is measured yet, and `dummy-load-artefact-contract` stays queued with its own live evidence named.\n\nOWNER 2026-11-11 (#6): the owner's fix is the client, not a hand run — the probe writes its own floor artefact and is leased normally. This row stays blocked until dummy-load-artefact-contract lands that client. Provenance: mad-science/TODO.md §\"Settled questions\" ## Owner round 2026-11-11 — TP>=4 survey S6; .scratch/tp4-survey/evidence.md §5. | `--load-format dummy` with `max_model_len 8192`, `max_num_seqs 1`, `max_num_batched_tokens 512` reads nothing and allocates only the parameter set, so it separates 'the weights do not fit' from 'loading them does'. Predicted floor 0.8-4.1 GiB: the 2026-11-10 trough was parameter allocation, not loading. FALSIFIED if the floor is >=6 GiB on all four ranks, which would move the gap to staging. SANITY GATE: the dive must be ~110.7 GiB or the test is void. | BLOCKED 2026-11-10 BEFORE THE NEXT CAMPAIGN POLL: the experiment lives in the **uncommitted** `recipes/explore/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4.yaml`, while this row's registered `recipe` is the plain arm. A lease would boot the plain recipe with `--load-format` at its default and measure the arm's already-known failure — a false negative of exactly the class the owner's 'hunt before rejecting' rule forbids. LEASEABLE ONLY WHEN THE FLAGS LIVE IN A TRACKED RECIPE. Flip back to `queued` in the commit that lands the dummy variant, citing that commit. | UNBLOCKED BY EVIDENCE 2026-11-10: the dummy variant is tracked — `recipes/explore/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4.yaml`, landed verbatim from `32d2ec7` by `72dfa0c`, carries `--load-format dummy`, so the registered `recipe` is now the shape under test and a lease measures the experiment rather than the arm's known failure. LEASEABLE ONLY WHEN THE FLAGS LIVE IN A TRACKED RECIPE. | BLOCKED 2026-11-10 (campaign spinning on it): this is a BOOT-ONLY probe that writes no artefact — no ladder, no house, no JSON — so `tools/run-arm.sh` can only record `rc=4 \"never ready — no marker and no machine-readable artefact\"`. The director therefore leases it, fails it, retries to its ceiling, and each attempt re-holds `.30`-`.33` for ~5 min: measured tonight, leases `@1` at 20:12:45Z and `@4` at 20:18:41Z, every attempt `rc=4`, receipts at `head:~/benchmarks/h2h-20261107/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4{.prev-151842,.prev-151546}`. Same rule as the shape-in-notes blocks: **a row with no artefact contract is not leaseable.** UNBLOCK CONDITION: the arm gains an artefact `run-arm` can read (see `dummy-load-artefact-contract`). LEASEABLE ONLY WHEN THE FLAGS LIVE IN A TRACKED RECIPE — and only when the run leaves something to read. 2026-11-11: the client and its pre-ready slot landed (`tools/mem-floor-probe.py`, `ARM_EXTRA_CLIENT_AT=pre-ready`, this row's `env`), so the sentence above now waits on the contract row's boot proof, not on the code.",
+      "notes": "RECIPE RETIRED 2026-11-19: the `zz-` arm this row booted is archived at `attic/explore/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4.yaml` (it ran or refused on record; see the lane attic index), so the row is no longer bootable. MEASURED 2026-11-11 (pre-ready client, `--load-format dummy`, `.31`-`.35`, 25 rounds @5 s, image `sha256:e5fcda3386c8b498e6cdd011792c0d83e71f93cdcbda21f66119b2fbefec8651`): verdict `measured`. The parameter-set dive reads 112.05 / 109.84 / 108.20 / 109.46 GiB on the four ranks (inside the 110.7 +/- 10 % sanity gate), floors after it 5.012 / 7.565 / 9.170 / 7.856 GiB, first sample ~117 GiB free. The pre-registered falsifier (>=6 GiB on all four) is NOT met because one rank reached 5.012 GiB, so the reading is: the parameter set alone sits at five to nine GiB per rank, and the 2026-11-10 sub-4 GiB trough was not parameter allocation. Engine-core init then failed at t=174 s and earlyoom took the remaining rank -- the floor is a measurement, not a failed boot.\n\nCLAIMED 2026-11-11 (`session:tp4-20261111`): a director-session claim for the scheduled probe boot, not a campaign lease. The artefact contract this row waited on has landed -- the pre-ready client, the `ARM_EXTRA_CLIENT_AT` hook and their tests -- so the only remaining evidence is one real boot, scheduled in this session. Nothing is measured yet, and `dummy-load-artefact-contract` stays queued with its own live evidence named.\n\nOWNER 2026-11-11 (#6): the owner's fix is the client, not a hand run — the probe writes its own floor artefact and is leased normally. This row stays blocked until dummy-load-artefact-contract lands that client. Provenance: mad-science/TODO.md §\"Settled questions\" ## Owner round 2026-11-11 — TP>=4 survey S6; .scratch/tp4-survey/evidence.md §5. | `--load-format dummy` with `max_model_len 8192`, `max_num_seqs 1`, `max_num_batched_tokens 512` reads nothing and allocates only the parameter set, so it separates 'the weights do not fit' from 'loading them does'. Predicted floor 0.8-4.1 GiB: the 2026-11-10 trough was parameter allocation, not loading. FALSIFIED if the floor is >=6 GiB on all four ranks, which would move the gap to staging. SANITY GATE: the dive must be ~110.7 GiB or the test is void. | BLOCKED 2026-11-10 BEFORE THE NEXT CAMPAIGN POLL: the experiment lives in the **uncommitted** `recipes/explore/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4.yaml`, while this row's registered `recipe` is the plain arm. A lease would boot the plain recipe with `--load-format` at its default and measure the arm's already-known failure — a false negative of exactly the class the owner's 'hunt before rejecting' rule forbids. LEASEABLE ONLY WHEN THE FLAGS LIVE IN A TRACKED RECIPE. Flip back to `queued` in the commit that lands the dummy variant, citing that commit. | UNBLOCKED BY EVIDENCE 2026-11-10: the dummy variant is tracked — `recipes/explore/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4.yaml`, landed verbatim from `32d2ec7` by `72dfa0c`, carries `--load-format dummy`, so the registered `recipe` is now the shape under test and a lease measures the experiment rather than the arm's known failure. LEASEABLE ONLY WHEN THE FLAGS LIVE IN A TRACKED RECIPE. | BLOCKED 2026-11-10 (campaign spinning on it): this is a BOOT-ONLY probe that writes no artefact — no ladder, no house, no JSON — so `tools/run-arm.sh` can only record `rc=4 \"never ready — no marker and no machine-readable artefact\"`. The director therefore leases it, fails it, retries to its ceiling, and each attempt re-holds `.30`-`.33` for ~5 min: measured tonight, leases `@1` at 20:12:45Z and `@4` at 20:18:41Z, every attempt `rc=4`, receipts at `head:~/benchmarks/h2h-20261107/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4{.prev-151842,.prev-151546}`. Same rule as the shape-in-notes blocks: **a row with no artefact contract is not leaseable.** UNBLOCK CONDITION: the arm gains an artefact `run-arm` can read (see `dummy-load-artefact-contract`). LEASEABLE ONLY WHEN THE FLAGS LIVE IN A TRACKED RECIPE — and only when the run leaves something to read. 2026-11-11: the client and its pre-ready slot landed (`tools/mem-floor-probe.py`, `ARM_EXTRA_CLIENT_AT=pre-ready`, this row's `env`), so the sentence above now waits on the contract row's boot proof, not on the code.",
       "provenance": "2026-11-10 memo (trough = parameter allocation); recipe recipes/explore/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4.yaml; vLLM --load-format dummy semantics",
       "evidence": "head:~/benchmarks/tp4-20261111/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4/mem-floor.json (verdict measured; 25 rounds @5 s; image sha256:e5fcda33...)",
       "claimed_by": "",
-      "claimed_at": "",
-      "recipe": "recipes/explore/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4.yaml",
-      "tp": 4,
-      "env": {
-        "ARM_EXTRA_CLIENT": "python3 -B tools/mem-floor-probe.py --task-id-file $L/task-id.txt --image-id-file $L/image.txt --hosts $HOSTS --interval 5 --out $L/mem-floor.json --log $L/launch.log --expect-dive-gib 110.7",
-        "ARM_EXTRA_CLIENT_AT": "pre-ready",
-        "ARM_EXTRA_TIMEOUT": "900"
-      }
+      "claimed_at": ""
     },
     {
       "id": "ds4-arm5-flashinfer-073-port",

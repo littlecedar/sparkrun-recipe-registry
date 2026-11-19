@@ -33,10 +33,10 @@ metadata:
   kv_dtype: fp8
   tags: large_context, fast, reasoning, tools, vision
 
-# The mod ships the gate + the launcher shim; the recipe references it
-# unscoped (lane-local: the published clone does not carry it).
+# The mod ships the gate + the launcher shim; the recipe reaches it back into
+# the live lane (lane-local: the published clone does not carry it).
 mods:
-  - "mods/tensorfold-glm-exl3-launcher"
+  - "../../recipes/glm/mods/tensorfold-glm-exl3-launcher"
 
 # The image's ENTRYPOINT is /opt/nvidia/nvidia_entrypoint.sh; clear it so the
 # recipe's own command runs instead of being parsed as the image's flags.
