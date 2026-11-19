@@ -16100,3 +16100,28 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   short-lived preflight for the rejected boot — all `--rm`, 0–14 s each, none
   serving. The issuer is this session's prefill workstream, not the killed cell.
 
+## 2026-11-19 02:01 ET — board tick: the empty fleet holds for a second hour
+
+- **Census** `2026-11-19T07:01:57Z`–`07:01:59Z`, `59 min 31 s` after the
+  `01:03 ET` base's first node read: all six hosts at `0` containers, `0`
+  volumes, `0` `:8000` listeners, head's `sparkrun status` idle. The zero-event
+  window is **bounded** — every dockerd ring holds `256` and begins before the
+  window start (`2026-11-19T05:23:16Z` is the newest, on `.31`) — so nothing
+  aged out of it.
+- **Nothing ran and nothing was claimed**: `.local/fleet-window.lock` absent in
+  the clone and on the head, the lease ledger still the base's `48 B`
+  `34eed267…` write at `00:42:47 ET`, the campaign user unit `inactive` and
+  nine `state.json` files carrying `38` arms with `0` live leases.
+- **Pool** serving: head units `active`/`success`/`0` restarts, mount `used`
+  `14,060,732,547,072 B` at `07:02:05Z` (`+100,139,008 B` over the base's read,
+  `59 min 39 s`), `103` hub entries and the ds4 arm's `config.json` `3311 B`.
+- **Roots fell with no workload**: `avail` dropped on all six nodes
+  (`−7,319,552` B on `.30`, `−11,976,704`–`−22,241,280` B on the workers) while
+  `MemAvailable` moved by no more than `259,788 kB` anywhere; with no container,
+  listener or dockerd event on any host, the roots and the rising pool are
+  `LIKELY` the same shared chunk-store traffic by exclusion.
+- **Untracked carry-over**: `.31`–`.35`'s `beegfs-meta` still restart-loops
+  (`activating`, `exit-code`, `NRestarts` `119,983`–`120,007`, one every ~5 s),
+  the register row `beegfs-meta-restart-loop-non-meta-hosts`' own subject; on
+  this read `.35` showed the loop too, where the base caught it `active`.
+
