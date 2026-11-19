@@ -16095,4 +16095,8 @@ and `destroy`ed `19:07:29Z` on all four hosts.
 - **Pool** serving, seven identical reads `14,060,632,408,064 B` `used`,
   `+50,331,648 B` on the base's `05:13:19Z` read; `103` hub entries and the
   ds4 arm's `config.json` `3311 B` on all six hosts.
+- **Addendum (attribution)**: those ten containers were the prefill investigation's
+  own image probes — `python3 -m sglang.launch_server --help` re-runs and the
+  short-lived preflight for the rejected boot — all `--rm`, 0–14 s each, none
+  serving. The issuer is this session's prefill workstream, not the killed cell.
 
