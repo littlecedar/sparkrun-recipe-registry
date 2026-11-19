@@ -610,7 +610,10 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
   +5.5 % C5** (117.6 vs 111.5), **+3.9 % C10** (134.4 vs 129.2; `phase5/ladder.csv`,
   `phase6/ladder.csv`) — the gain landing where the probe said it would, smaller because the
   shipped exact control read high at C5. Both gains exceed the within-boot spread on either side,
-  but one boot per side is a same-window LIKELY effect, not an interleaved A/B. **What it costs**
+  but one boot per side is a same-window LIKELY effect, not an interleaved A/B. The
+  2026-11-18/19 tuning window re-confirmed it against its own control, C10 **+11.7 %** and
+  C5 **+6.9 %** (`head:~/benchmarks/picom-tuning-20261118/README.md`), and its batch-shape probe
+  found **0/16** answer changes on either arm. **What it costs**
   is structural, not tuning: on calls of ≥9 rows each row keeps its top 4 and fills its last two
   picks from ranks 5–12 by preferring the batch's core, then renormalises the six scores
   (`engine/kernels/common.cuh:366-377`; the armed gate is `engine/kernels/moe.cu:78`, the identity

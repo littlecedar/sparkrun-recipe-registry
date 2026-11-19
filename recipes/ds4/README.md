@@ -2481,7 +2481,8 @@ identifiers, and continuations whose preferred expert the rest of the batch does
 share. This is **not** a measured per-token loss — no cell decomposes logit divergence,
 and the batch-shape probe is what would.
 
-Stays shipped — never the default serve — while all of these hold:
+Stays shipped — never the default serve — while all of these hold; gate 5 is met by the
+2026-11-18/19 tuning window, gates 1–4 stand as written:
 
 1. **Identity, offline and on the box.** The twin is the exact arm plus one env key
    (`tests/test_ds4_recipes.py`, `PicomOeaArmContract`, controls included), and the
@@ -2504,7 +2505,9 @@ Stays shipped — never the default serve — while all of these hold:
 5. **Batch-shape probe.** A fixed prompt set with graded answers, temperature 0, each
    prompt once alone and once inside a 16-request burst, on both arms. Record the
    twin's alone-vs-batch agreement rate and name the classes that flip; a graded answer
-   that flips is measured exposure, not noise.
+   that flips is measured exposure, not noise. **Met 2026-11-18/19:** 16 graded prompts on
+   both arms, **0/16** answers changed between alone and simultaneous, 16/16 correct in
+   both shapes (`head:~/benchmarks/picom-tuning-20261118/README.md`).
 
 **Demote** on any of: a lost house, needle or agentic task on an unpolluted run; the
 full-leg BFCL below the exact arm; the ladder lead failing to reproduce on a second
@@ -2512,6 +2515,35 @@ boot per side; or the probe flipping a graded answer in tool-call arguments or a
 patch. **Roll back** by serving `deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` — same
 image digest and every other env key, `PICOM_OEA: ""` — so the only cost is the ladder
 delta, and the twin stays as the experiment record.
+
+#### Measured: picom knob tuning window (2026-11-18/19)
+
+Five boots, control first, one knob each, 5 runs/cell at depth 0, pp 2048, tg 128
+(`--skip-run --fresh`), on the production digest `1e529c67…`. The control reads C1 **88.1**
+(CV 3.6 %), C2 **96.6** (8.0 %), C5 **110.8** (2.0 %), C10 **125.1** (7.5 %) tok/s, agentic
+13/13 on both passes, 0/16 batch-shape answers changed. Receipt
+`head:~/benchmarks/picom-tuning-20261118/README.md`.
+
+| knob | C1 / C2 / C5 / C10 tok/s | vs control | verdict |
+|:--|:--|:--|:--|
+| `--spec-cost 19.4,3.6,3.3` | 85.2 / 94.2 / 115.8 / 127.6 | −3.3 / −2.5 / +4.5 / +2.0 % | dropped |
+| `--slice 128` | 92.0 / 92.8 / 110.5 / 130.6 | +4.4 / −3.9 / −0.3 / +4.4 % | dropped — no target cell clears 5 %, C2 loses 3.9 % |
+| `--small-rows 16` | refused at argument parse | — | not a lever |
+| `--ring-cap 16777216` | 983,040 needle prefill 98.4 s vs 97.4 s | +1.0 % worse | dropped |
+| `PICOM_OEA=4,12,9` (lossy twin) | 83.2 / 96.8 / 118.5 / 139.7 | −5.6 / +0.2 / +6.9 / +11.7 % | shipped; second same-window confirmation |
+
+Nothing earned a recipe line. Two of the four knobs are not levers at all:
+`--spec-cost 19.4,3.6,3.3` is the engine's own default — `engine/server/main.cpp` (pin
+`7c123ad4`) holds `float spec_cost[3] = {19.4f, 3.6f, 3.3f};`, and both boots log
+`gate 0.159`, so passing it restates the default rather than moving it — and `--small-rows 16`
+never reached the model, argument parse failing with `--small-rows must be 0..8` 15.2 s into
+container start, the default 8 already being the maximum.
+
+This window also meets the lossy arm's gate 5: 16 graded prompts run alone and then
+simultaneously changed **0/16** answers on the control and on the lossy boot alike, 16/16
+correct in both shapes (`probe.json` per boot). Agentic repeat-draw spread on this battery
+is ±2 tasks — E1's argv was functionally identical to the control's and its second pass
+read 11/13 — so "agentic unchanged" can only mean "inside that spread".
 
 ### Probe arms: prefill chunk budget, Engram read batch, output ceiling (authored 2026-11-17; all three booted in the 2026-11-18 production window)
 
