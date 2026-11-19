@@ -85,6 +85,14 @@ QUESTIONS = {
         "What is the access code stated in the document? Begin your reply with the "
         "code, then write a long, detailed continuation of the report in the same "
         "style, at least 300 words.",
+    # High-entropy counterpart to long-generation: the report prose is a
+    # repeated word list, which speculative decoding accepts almost perfectly
+    # and so measures draft-accepted throughput, not ordinary decode. Distinct
+    # code lines give the drafter less to accept.
+    "varied-generation":
+        "What is the access code stated in the document? Begin your reply with the "
+        "code, then write a Python module of 16 different small functions, each "
+        "with a unique name and a one-line docstring, no repetition.",
 }
 LEVER_FIELDS = ("ignore_eos", "min_tokens")
 WORDS = (
@@ -118,8 +126,12 @@ def resolve_model(base: str, model: str, api_key: str | None, timeout: float) ->
 
 
 def build_prompt(target_tokens: int, seed: int, cpt: float,
-                 task: str = "retrieval") -> tuple[str, str]:
-    """Return ``(prompt, code)``: a unique haystack with one access code at ~50 %."""
+                 task: str = "retrieval", nonce: str = "") -> tuple[str, str]:
+    """Return ``(prompt, code)``: a unique haystack with one access code at ~50 %.
+
+    ``nonce`` is prepended so a repeated cell cannot be answered from a prefix
+    cache: a cached prompt reports a tiny TTFT and would be read as prefill speed.
+    """
     rng = random.Random(seed)
     code = "ZX81-%04d" % rng.randrange(1000, 9999)
     question = QUESTIONS[task]
@@ -136,7 +148,7 @@ def build_prompt(target_tokens: int, seed: int, cpt: float,
         written += len(sentence)
         sentences += 1
     body = "".join(parts)
-    prompt = "<document>\n" + body + "\n</document>\n\n" + question
+    prompt = (nonce + "\n" if nonce else "") + "<document>\n" + body + "\n</document>\n\n" + question
     return prompt, code
 
 
@@ -207,6 +219,7 @@ def run_request(base, model, prompt, code, max_tokens, timeout, api_key,
         gaps = [b - a for a, b in zip(st, st[1:])]
         rec["ms_per_step"] = round(statistics.median(gaps) * 1000.0, 1)
     rec["answer_tokens"] = rec["completion_tokens"] or rec["steps"]
+    rec.setdefault("finish_reason", None)
     rec["decode_steps"] = rec["steps"]
     rec["needle"] = needle_hit(rec["reply"], code, prefix)
     rec["wall_s"] = round(time.perf_counter() - started, 3)
@@ -236,6 +249,8 @@ def _consume(resp, rec):
             if usage.get("completion_tokens"):
                 rec["completion_tokens"] = usage["completion_tokens"]
             for choice in chunk.get("choices") or []:
+                if choice.get("finish_reason"):
+                    rec["finish_reason"] = choice["finish_reason"]
                 delta = choice.get("delta") or {}
                 piece = (delta.get("content") or delta.get("reasoning_content")
                          or choice.get("text") or "")
@@ -277,7 +292,8 @@ def probe_lever(base, model, min_answer_tokens, task, timeout, api_key,
 
 
 def cell(args, base, model, cpt, concurrency, sent_min=0):
-    prompts = [build_prompt(args.context_length, args.seed * 1000 + i, cpt, args.task)
+    prompts = [build_prompt(args.context_length, args.seed * 1000 + i, cpt, args.task,
+                            args.nonce)
                for i in range(concurrency)]
     recs: list = [None] * concurrency
 
@@ -380,6 +396,9 @@ def parse(argv):
     ap.add_argument("--seed", type=int, default=1017)
     ap.add_argument("--chars-per-token", type=float, default=None,
                     help="skip calibration and size the haystack with this ratio")
+    ap.add_argument("--nonce", default="",
+                    help="text prepended to the prompt so a repeated cell cannot be "
+                         "served from a prefix cache; use a fresh value per cold run")
     ap.add_argument("--json", default=None, help="write the full result here")
     ap.add_argument("--image-id", default=None,
                     help="served image id/ref, echoed into the report so a receipt "
@@ -454,6 +473,7 @@ def main(argv=None):
         "endpoint": request_target(args.completions)[1],
         "context_length": args.context_length, "max_tokens": args.max_tokens,
         "chars_per_token": round(cpt, 4), "image_id": args.image_id,
+        "nonce": args.nonce,
         "task": args.task, "min_answer_tokens": args.min_answer_tokens,
         "sampling": {"fields_sent": list(fields), "note": note},
         "cells": cells, "problems": problems,
@@ -487,6 +507,12 @@ def selftest():
     long_prompt, long_code = build_prompt(2000, 7, 3.5, "long-generation")
     assert long_prompt.count("ZX81-") == 1 and long_code in long_prompt
     assert "continuation" in long_prompt
+    varied, varied_code = build_prompt(2000, 7, 3.5, "varied-generation")
+    assert varied.count("ZX81-") == 1 and "Python module" in varied
+    assert varied_code == long_code, "same seed plants the same code"
+    n1, _ = build_prompt(2000, 7, 3.5, nonce="run-a")
+    n2, _ = build_prompt(2000, 7, 3.5, nonce="run-b")
+    assert n1.startswith("run-a\n<document>") and n1 != n2, "nonce must bust the prefix"
     assert needle_hit("the code is " + code + " then filler", code, True)
     assert not needle_hit("x" * 400 + code, code, True)
     assert needle_hit("x" * 400 + code, code, False)
