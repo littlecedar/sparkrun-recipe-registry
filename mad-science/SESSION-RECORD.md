@@ -16536,3 +16536,31 @@ and `destroy`ed `19:07:29Z` on all four hosts.
 - **Self-corrections this round**: the "13× prefill gap" (harness metric),
   the "two-cards" hardware claim, the cached-prompt "3 s prefill" at 1M,
   and the client-rate against engine-rate disagreement.
+- **The two cheap cells closed** on one shipped-exact-arm boot: the
+  grant drew 40,000 tokens, `finish_reason: length`, in
+  210.235 / 210.581 s (190.26 / 189.95 tok/s client), text sha256
+  `3616f8ac…` twice; shared-prefix caching read TTFT **0.0284 s against
+  0.5706 s** for a fresh prefix of the same length, engine
+  `reused 4752 (live)` against `reused 0 (cold)`. Receipt
+  `head:~/benchmarks/cheap-cells-20261119/`; commits `787fbf8`
+  (comparison rows) and `5d4c3b8` (protocol's unmeasured list).
+- **A claim of ours was wrong and is corrected**: picom's `cached_tokens`
+  field was never dead — it read 0 because every cell we built used a
+  unique prefix. A verbatim repeat reports `cached_tokens: 4752`; the
+  correction lands in the comparison's cache row and in the protocol's
+  void rule.
+- **Instrument defect fixed** (`1cfce76e`): `longctx-cell`'s per-step
+  median measured inter-chunk gaps while `decode_s` measured the decode
+  window; the step cost now derives from the window, the gap median is
+  kept labelled, and `--selftest` asserts they cannot disagree (negative
+  control: the burst shape that produced 18.3 beside 2.685). One
+  published cell (the second cold varied 131k cell, 136.7) was
+  client-derived where the rest were engine-reported and is now marked.
+- **Deliberately out of scope**: the long-context fan-out, with the
+  wedge evidence (`head:~/benchmarks/lc-vision-20261119/knapcio/wedge*-nccl.txt`)
+  and the sentence that it stays unmeasured until a restart risk is
+  accepted or the engine is fixed — recorded in `MATCHED-BENCHMARK.md`
+  §8 and its unmeasured paragraph.
+- **Provenance note** worth keeping: 11 of 12 picom long-context cells
+  are engine-reported; the caption now says so and the exception is
+  marked.
