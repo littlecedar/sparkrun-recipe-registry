@@ -16298,3 +16298,10 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   window makes the zero vacuous — and the `.31`–`.34` rings start *after* the
   base read, so absence there is unprovable from a ring; the row now quotes the
   filtered state query instead.
+- **Correction, same hour**: the instrument clause above is already stale. The
+  peer's retirement landed as `dfd1734` and repaired both Beam rows in the same
+  commit (`recipe`/`tp` cleared, no `env`), so `render --board` and `check` pass
+  against the live worktree again (`check` prints `ok: 201 task(s)`). The
+  board's queue cell still carries the clone-workaround clause because it was
+  composed before that commit; the next tick re-censuses and drops it rather
+  than stamping a fresh title over a 25-minute-old census.
