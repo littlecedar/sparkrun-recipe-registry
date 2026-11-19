@@ -16227,4 +16227,39 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   `beegfs-meta-restart-loop-non-meta-hosts` still `queued`; head's ssh to `.30`
   still fails host-key verification (`head-mesh-cannot-reach-30`, `.30` read by
   local exec on the head instead).
+## 2026-11-19 08:06 ET — board tick: eighth empty hour, roots fall what the pool takes
+- **Census** `2026-11-19T13:02:51Z`–`13:02:53Z`, `1 h 00 min 41 s` after the
+  `07:09 ET` base's first node read (`12:02:10Z`) and `1 h 00 min 09 s` after its
+  last (`12:02:44Z`): all six hosts hold `0` containers, `0` volumes, `0`
+  `:8000` listeners and no serve child; head's `sparkrun status` reads
+  `Idle hosts (no sparkrun containers, nothing pending)` at `13:04:47Z`.
+  Eighth consecutive empty hour.
+- **Ring bound, not a capacity claim**: each dockerd ring holds
+  `199`/`233`/`249`/`249`/`249`/`245` events with oldest
+  `2026-11-17T06:07:30Z` (`.30`), `2026-11-19T05:23:16Z` (`.31`), `05:17:58Z`
+  (`.32`), `05:14:59Z` (`.33`/`.34`), `2026-11-12T05:50:09Z` (`.35`) — every one
+  before the window start, so the `0` in-window events is observed. The rows
+  quote the counts, not "full at 256", per the `07:05` correction.
+- **Nothing claimed**: `.local/fleet-window.lock` absent here and on head; lease
+  ledger byte-identical to the base (`48 B`, `34eed267…`, mtime
+  `00:42:47 ET`); campaign user unit `inactive`; nine `state.json` files carry
+  `38` arms and `0` live leases. Register unchanged (`26d51f1b…`, `201` tasks /
+  `42` open, `check` prints `ok: 201 task(s)`).
+- **Pool** serving, `14,060,974,768,128 B` `used` at `13:04:48Z`
+  (`+42,467,328 B` on the base's `12:02:13Z` read over `1 h 02 min 35 s`),
+  `103` hub entries, ds4 `config.json` `3311 B`.
+  **Roots net `−39,854,080 B` while the pool rose `+42,467,328 B`**:
+  `.30` `−3,784,704`, `.31` `+44,920,832`, `.32` `−22,343,680`,
+  `.33` `−22,343,680`, `.34` `−22,339,584`, `.35` `−13,963,264`; residual
+  `+2,613,248 B`, so `LIKELY` the same shared chunk-store traffic with no
+  process set changing on any host. `.31` is again the one root that gained,
+  as at the `03:00` tick. `MemAvailable` moved at most `59,944 kB` (`.33`).
+- **Re-probed, not carried**: head → `.30` by name still fails host-key
+  verification (`REMOTE HOST IDENTIFICATION HAS CHANGED`) while head →
+  `10.0.4.30` answers `spark-41e1`, so `head-mesh-cannot-reach-30` stands.
+  This tick read `.30` from the workstation (`spark-head` alias resolves here),
+  not by local exec on head as the base did.
+- **Untracked carry-over**: `.31`–`.35`'s `beegfs-meta` still restart-loops
+  (`activating`, `exit-code`, `NRestarts` `124,132`–`124,155`), row
+  `beegfs-meta-restart-loop-non-meta-hosts` still `queued`.
 
