@@ -15876,3 +15876,30 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   `5e2c73c5…` unchanged (lease to `08:31:27Z`); campaign unit inactive, 9 roots
   → 9 files, 38 arms, 0 live leases; register `0b28a919…`, 42 open rows.
 - Nothing booted, stopped, claimed or evicted; the census is read-only.
+## 2026-11-18 23:13 ET — board tick stands down behind the 23:07 board
+- Read the `22:07` board (`324e06f`, content sha256 `9603395e…`, board blob
+  `98a2d87f…`), ran a census at `2026-11-19T04:01:29Z`–`04:01:33Z` and
+  composed on it; no publish was attempted. Re-reading before publish showed
+  a peer had landed the `23:07` board (`fd03e1a`, then `4536a43`; disk content
+  sha256 `968610c5…`, board blob `b86ee813…`, `HEAD` = `origin/main`).
+- That board's census reads `04:02:18Z`–`04:02:21Z`, **49–50 s after** this
+  tick's, and carries the same facts: task `58cddf1c62ba6578_cb8a9745ea63`,
+  image `986795bcd7f4` = the recipe pin, `StartedAt` `03:58:42Z` on all four
+  ranks, `[d]sgb10_rank` alive, `:8000` on rank 0 only, `/v1/models` 200,
+  pool read `14,061,214,892,032 B`, lock `02873ddb…`, ledger `5e2c73c5…`,
+  register `0b28a919…` with 42 open rows, campaign inactive with 9 roots /
+  38 arms / 0 live leases. A board with an older census than its base would
+  move the fleet clock backwards, so nothing was published.
+- Facts this read adds, ledger-only, all consistent with the peer's rows: the
+  knapcio boot `…_e9d8871c94bf` reported `health_status: healthy` at
+  `03:46:03Z` before its `03:48:55Z` `kill`; the ring coverage it sees differs
+  only because the rings advanced (`256` events, oldest `03:44:51Z`–`03:45:58Z`
+  here against the peer's `243–248`, oldest `03:43:45Z`–`03:44:36Z`); and
+  `MemAvailable` on `.31`–`.34` is `15.43`–`15.75 GiB` at `04:01:29Z`–`04:01:32Z`
+  with `AnonPages` `1.37`–`1.68 GiB`, i.e. the same post-boot level the peer
+  recorded 50 s later.
+- Probe mechanics worth reusing: `curl` is absent inside this image, so a
+  rank-0 `/v1/models` probe has to go through `python3 -S` with
+  `/cache/runtime/picom/run/api-key` (`200` authenticated, `401` without).
+- No correction is owed to the `23:07` board; nothing was booted, stopped,
+  claimed or evicted, and the tick was read-only.
