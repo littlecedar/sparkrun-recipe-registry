@@ -2546,6 +2546,8 @@ written:
    `--fresh` (a run without it prints the archived table and writes nothing,
    `paired-20261118/L2/ladder.log`). The shipped +5.4 % C5 / +4.0 % C10 read one boot
    per side (`phase5/ladder.csv`, `phase6/ladder.csv`); that is a start, not this gate.
+   **Measured 2026-11-19 and still open** — see
+   [the final ladder window](#measured-final-ladder-window-2026-11-19) below.
 3. **Accuracy parity on clean runs.** House 37/37, needle 3/3 at 131,072 and PASS at
    983,040, and the 13-task agentic totals inside the exact arm's range, on receipts
    whose `polluted_runs` and `harness_timeouts` are 0 (`final-20261118/bootA-exact/`,
@@ -2569,6 +2571,46 @@ boot per side; or the probe flipping a graded answer in tool-call arguments or a
 patch. **Roll back** by serving `deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` — same
 image digest and every other env key, `PICOM_OEA: ""` — so the only cost is the ladder
 delta, and the twin stays as the experiment record.
+
+#### Measured: final ladder window (2026-11-19)
+
+Six boots, order **E, K, L, L, K, E**, ranks `.31`–`.34`, lease and window lock held, one
+instrument on every boot: `benchmarking/concurrency-ladder.yaml`, depth 0, pp 2048, tg 128,
+5 runs/cell, `--skip-run --fresh`. Receipt `head:~/benchmarks/final-ladder-20261119/README.md`
+(the rules were written before the first boot, `ADMISSION.md`). **This is the first window with a
+ladder on every boot of the alternation**, not the earlier pattern where only each arm's second
+boot carried one.
+
+| boot | arm | TTR port / HTTP | C1 | C2 | C5 | C10 tok/s (CV) |
+|:--|:--|:--|:--|:--|:--|:--|
+| E1 | picom exact | 25.8 / 25.8 s | 87.08 | 96.65 | 116.41 | 126.07 (4.71 %) |
+| K1 | knapcio | 702.3 / 755.7 s | 51.02† | 88.75 | 128.21 | 150.26 (7.20 %) |
+| L1 | picom lossy | 26.3 / 26.3 s | 85.33 | 97.21‡ | 116.93 | 134.42 (3.15 %) |
+| L2 | picom lossy | 26.6 / 26.6 s | 85.56 | 93.82 | 123.17 | 134.60 (3.92 %) |
+| K2 | knapcio | 699.0 / 712.2 s | 65.72 | 90.98 | 127.28 | 155.79 (7.94 %) |
+| E2 | picom exact | 26.2 / 26.2 s | 81.01 | 90.56 | 108.25 | 127.92 (2.71 %) |
+
+Arm medians, exact / lossy / knapcio: C1 **84.05 / 85.45 / 65.72†**, C2 **93.61 / 93.82 / 89.87**,
+C5 **112.33 / 120.05 / 127.75**, C10 **127.00 / 134.51 / 153.02**. † K1's C1 is inadmissible at
+**36.87 % within-cell CV with no retry** — the CV-retry rule post-dates that boot — and ‡ L1's C2
+is inadmissible at 10.17 %, its retry at 17.52 % also failing: both cells are quoted and never
+ranked or averaged, which is why knapcio's C1 median rests on K2 alone.
+
+**Gate 2 verdict: still open, no throughput claim.** Cell admission and cross-boot comparison used
+one adjudication rule — a cell keeps its boot's first ladder unless that ladder breached 10 % CV,
+in which case that boot's single `-retry` ladder decides. Both arms' C5 and C10 cells cleared
+admission and the lossy medians are ahead at both, but a lead only counts if it exceeds the exact
+pair's own boot-to-boot spread, and only C10 does:
+
+| cell | exact (E1, E2) → median | exact own spread | lossy (L1, L2) → median | lossy lead | verdict |
+|:--|:--|--:|:--|--:|:--|
+| C5 | 116.41 / 108.25 → **112.33** | **7.27 %** (8.16 / 112.33) | 116.93 / 123.17 → **120.05** | **6.87 %** (7.72 / 112.33) | **fails** — 6.87 % < 7.27 % |
+| C10 | 126.07 / 127.92 → **127.00** | **1.46 %** (1.85 / 127.00) | 134.42 / 134.60 → **134.51** | **5.92 %** (7.52 / 127.00) | **passes** — 5.92 % > 1.46 % |
+
+Both cells had to clear, so the gate stays open and the arm keeps shipping **without** a
+throughput claim; nothing is demoted, because a gate that has not been cleared has not failed. A
+reader who rejects the rule above should note it cuts both ways: quoting E2's retry C5 (110.64)
+instead of its first ladder (108.25) shrinks the exact spread to 5.2 % and would clear C5.
 
 #### Measured: picom knob tuning window (2026-11-18/19)
 

@@ -9,8 +9,15 @@ says in advance which numbers may be quoted and which may not.
 The protocol is in force, and part of it has run since. Measured with receipts: the
 four-boot paired window and the five-boot tuning window under
 `head:~/benchmarks/picom-prod-20261118/` (`paired-20261118/`, `picom-tuning-20261118/`),
-and the full BFCL leg under `head:~/benchmarks/fabric-lossless-20261118/`. Unmeasured:
-the two-boots-per-arm cross-arm delta, the 40,000-token grant and shared-prefix caching
+and the full BFCL leg under `head:~/benchmarks/fabric-lossless-20261118/`. The
+two-boots-per-arm cross-arm delta is now measured too, in the six-boot ladder window
+`E, K, L, L, K, E` under `head:~/benchmarks/final-ladder-20261119/`: arm medians, exact /
+lossy / knapcio, read **C1 84.05 / 85.45 / 65.72†**, **C2 93.61 / 93.82 / 89.87**,
+**C5 112.33 / 120.05 / 127.75**, **C10 127.00 / 134.51 / 153.02** tok/s († K1's C1 is
+inadmissible at 36.87 % within-cell CV, so knapcio's C1 median is K2 alone). That is **boot
+alternation, not cell-level interleaving**, for the reason section 8 already gives: two
+engines cannot serve one four-rank set at once, so no cell here was measured against another
+engine in the same minute. Still unmeasured: the 40,000-token grant and shared-prefix caching
 cells, and the long-context fan-out. Every flag named is in the recipe or launcher it names
 (`file:line`); every number quoted as a bound comes from a receipt under
 `head:~/benchmarks/picom-prod-20261118/` (the production window) or
