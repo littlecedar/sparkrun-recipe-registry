@@ -91,14 +91,99 @@ log "${MOD_NAME} - ${MOD_DESCRIPTION}"
 log "${MOD_MAINTAINER}"
 
 #####################################################################
+# Fabric inputs: operator override, else sparkrun's detection, else sysfs
+#####################################################################
+# sparkrun detects the RoCE fabric on every host and injects NCCL_IB_HCA (the
+# ACTIVE devices) and NCCL_IB_GID_INDEX into the container
+# (orchestration/infiniband.py:246-259). It passes no rail address, so the two
+# /24s come from each device's own IPv4-mapped RoCE v2 GID in sysfs — the entry
+# the engine re-checks the fleet file against at start.
+PICOM_IB_SYSFS="${PICOM_IB_SYSFS:-/sys/class/infiniband}"
+
+# DEV IDX -> the IPv4 that GID carries, empty when the entry is missing or is
+# not IPv4-mapped RoCE v2 (an fe80:: link-local GID is not a fabric address).
+gid_ipv4() {
+  local dev="${1}" idx="${2}" base type gid hi lo
+  base="${PICOM_IB_SYSFS}/${dev}/ports/1"
+  type=$(cat "${base}/gid_attrs/types/${idx}" 2>/dev/null) || return 0
+  [[ "${type}" == *"RoCE v2"* ]] || return 0
+  gid=$(cat "${base}/gids/${idx}" 2>/dev/null) || return 0
+  [[ "${gid}" == 0000:0000:0000:0000:0000:ffff:* ]] || return 0
+  hi=${gid##*:ffff:}
+  hi=${hi%%:*}
+  lo=${gid##*:}
+  printf '%d.%d.%d.%d\n' "$((16#${hi} >> 8))" "$((16#${hi} & 255))" "$((16#${lo:0:2}))" "$((16#${lo:2:2}))"
+}
+
+# DEV -> "<index> <ipv4>" of its first IPv4-mapped RoCE v2 GID, numeric order.
+gid_first_ipv4() {
+  local dev="${1}" idx ip
+  for idx in $(ls "${PICOM_IB_SYSFS}/${dev}/ports/1/gid_attrs/types" 2>/dev/null | sort -n); do
+    ip=$(gid_ipv4 "${dev}" "${idx}")
+    if [[ -n "${ip}" ]]; then
+      printf '%s %s\n' "${idx}" "${ip}"
+      return 0
+    fi
+  done
+}
+
+# NAME DEV NET -> die unless DEV's GID at PICOM_GID_INDEX is a NET.x address.
+verify_fabric() {
+  local which="${1}" dev="${2}" net="${3}" ip
+  ip=$(gid_ipv4 "${dev}" "${PICOM_GID_INDEX}")
+  [[ -n "${ip}" ]] ||
+    die "${which}: ${dev} has no IPv4-mapped RoCE v2 GID at index ${PICOM_GID_INDEX}: the engine's fleet check would refuse every rank"
+  [[ "${ip%.*}" == "${net}" ]] ||
+    die "${which}: ${dev} GID ${PICOM_GID_INDEX} is ${ip}, not a ${net}.0/24 address"
+}
+
+resolve_fabric() {
+  local -a pairs=()
+  local dev ip
+  if [[ -n "${PICOM_DEV_A:-}" && -z "${PICOM_DEV_B:-}" ]] ||
+    [[ -z "${PICOM_DEV_A:-}" && -n "${PICOM_DEV_B:-}" ]]; then
+    die "set PICOM_DEV_A and PICOM_DEV_B together, or neither (sparkrun's NCCL_IB_HCA then names them)"
+  fi
+  if [[ -z "${PICOM_DEV_A:-}" ]]; then
+    [[ -n "${NCCL_IB_HCA:-}" ]] ||
+      die "PICOM_DEV_A/PICOM_DEV_B unset and sparkrun injected no NCCL_IB_HCA: no RoCE device source"
+    for dev in ${NCCL_IB_HCA//,/ }; do
+      ip=$(gid_first_ipv4 "${dev}")
+      if [[ -n "${ip}" ]]; then
+        pairs+=("${ip#* } ${dev}")
+      fi
+    done
+    mapfile -t pairs < <(printf '%s\n' "${pairs[@]}" | sort)
+    [[ ${#pairs[@]} -ge 2 ]] ||
+      die "NCCL_IB_HCA='${NCCL_IB_HCA}' names fewer than two devices with an IPv4-mapped RoCE v2 GID"
+    read -r ip PICOM_DEV_A <<< "${pairs[0]}"
+    read -r ip PICOM_DEV_B <<< "${pairs[1]}"
+    [[ "${PICOM_DEV_A}" != "${PICOM_DEV_B}" ]] ||
+      die "NCCL_IB_HCA names one usable device ('${PICOM_DEV_A}'): the engine's switched ring needs two"
+  fi
+  if [[ -z "${PICOM_FABRIC_A:-}" || -z "${PICOM_FABRIC_B:-}" ]]; then
+    ip=$(gid_first_ipv4 "${PICOM_DEV_A}")
+    PICOM_FABRIC_A="${PICOM_FABRIC_A:-$(printf '%s' "${ip#* }" | cut -d. -f1-3)}"
+    ip=$(gid_first_ipv4 "${PICOM_DEV_B}")
+    PICOM_FABRIC_B="${PICOM_FABRIC_B:-$(printf '%s' "${ip#* }" | cut -d. -f1-3)}"
+  fi
+  if [[ -z "${PICOM_GID_INDEX:-}" ]]; then
+    PICOM_GID_INDEX="${NCCL_IB_GID_INDEX:-}"
+    if [[ ! "${PICOM_GID_INDEX}" =~ ^[0-9]+$ ]]; then
+      PICOM_GID_INDEX=$(gid_first_ipv4 "${PICOM_DEV_A}")
+      PICOM_GID_INDEX="${PICOM_GID_INDEX%% *}"
+    fi
+  fi
+  [[ "${PICOM_GID_INDEX}" =~ ^[0-9]+$ ]] ||
+    die "PICOM_GID_INDEX='${PICOM_GID_INDEX}' is not a GID index and ${PICOM_DEV_A} carries no IPv4-mapped RoCE v2 GID"
+  verify_fabric A "${PICOM_DEV_A}" "${PICOM_FABRIC_A}"
+  verify_fabric B "${PICOM_DEV_B}" "${PICOM_FABRIC_B}"
+}
+
+#####################################################################
 # Main: validate the fabric inputs, then render the fleet file
 #####################################################################
 : "${PICOM_RANK_TAILS:?set PICOM_RANK_TAILS to the four fabric address tails, rank 0-3, comma-separated (e.g. 30,31,32,33)}"
-PICOM_FABRIC_A="${PICOM_FABRIC_A:-192.168.0}"
-PICOM_FABRIC_B="${PICOM_FABRIC_B:-192.168.1}"
-PICOM_DEV_A="${PICOM_DEV_A:-rocep1s0f0}"
-PICOM_DEV_B="${PICOM_DEV_B:-roceP2p1s0f0}"
-PICOM_GID_INDEX="${PICOM_GID_INDEX:-3}"
 PICOM_ENGRAM_READ_BATCH="${PICOM_ENGRAM_READ_BATCH:-1}"
 
 IFS=, read -r -a TAILS <<< "${PICOM_RANK_TAILS}"
@@ -107,11 +192,27 @@ for t in "${TAILS[@]}"; do
   [[ "${t}" =~ ^[0-9]{1,3}$ ]] || die "PICOM_RANK_TAILS entry '${t}' is not an IPv4 octet"
 done
 
+resolve_fabric
+# This node's own rail address is knowable; the other three ranks' are not, so
+# PICOM_RANK_TAILS stays the operator's. Check this rank's entry against the
+# rail rather than trusting it: a stale list fails here, not in a peer's QP.
+: "${PICOM_NODE_RANK:?PICOM_NODE_RANK missing: the recipe must render it from the launch node_rank template}"
+own_ip=$(gid_ipv4 "${PICOM_DEV_A}" "${PICOM_GID_INDEX}")
+[[ "${TAILS[${PICOM_NODE_RANK}]}" == "${own_ip##*.}" ]] ||
+  die "PICOM_RANK_TAILS[${PICOM_NODE_RANK}]='${TAILS[${PICOM_NODE_RANK}]}' but this node's ${PICOM_DEV_A} GID ${PICOM_GID_INDEX} is ${own_ip:-absent}"
+log "fabric resolved: A=${PICOM_FABRIC_A}/24 via ${PICOM_DEV_A}, B=${PICOM_FABRIC_B}/24 via ${PICOM_DEV_B}, GID ${PICOM_GID_INDEX}"
+log_var PICOM_DEV_A
+log_var PICOM_DEV_B
+log_var PICOM_FABRIC_A
+log_var PICOM_FABRIC_B
+log_var PICOM_GID_INDEX
+
 for d in run logs weights engram spill fleet; do
   mkdir -p "${PICOM_ROOT}/${d}"
 done
 
 FLEET="${PICOM_ROOT}/fleet.conf"
+export PICOM_FABRIC_A PICOM_FABRIC_B PICOM_DEV_A PICOM_DEV_B PICOM_GID_INDEX
 bash "${MOD_DIR}/fleet-render.sh" "${FLEET}.new" ||
   die "fleet rendering refused the fabric inputs (see the message above)"
 mv -f "${FLEET}.new" "${FLEET}"

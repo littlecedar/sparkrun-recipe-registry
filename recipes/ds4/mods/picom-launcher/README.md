@@ -13,9 +13,9 @@ node, and all four processes take the same argv except `--rank`.
 
 `run.sh` (pre_exec, root, before the serve command) stages what is environment-shaped:
 
-- renders `/cache/runtime/picom/fleet.conf` from `PICOM_RANK_TAILS` +
-  `PICOM_FABRIC_A/B` + `PICOM_DEV_A/B` + `PICOM_GID_INDEX` — the engine's own contract
-  (`engine/comm/fleet.cpp` upstream): four device names that must exist by exact `ibv`
+- renders `/cache/runtime/picom/fleet.conf` from `PICOM_RANK_TAILS` plus the
+  fabric resolved from sparkrun (devices, /24s, GID index) — the engine's own contract
+  (`engine/comm/fleet.cpp` upstream): the four device names must exist by exact `ibv`
   name, one IPv4 per netdev (each device's GID at `GID_INDEX` must equal it), and all
   four ranks' `NEXT`/`PREV` addresses;
 - creates the runtime directories and a mode-600 API key (`dsfront` refuses to start
@@ -35,10 +35,10 @@ drops: the ring lock, restart supervision and kept sessions — a sparkrun arm i
 dedicated serve and sparkrun's lifecycle owns restarts.
 
 Both paths also pass a fail-closed RDMA gate before the engine starts: `ibv_devices`
-must list both `PICOM_DEV_A` and `PICOM_DEV_B`, or the launcher dies naming the device
+must list both devices the fleet file names, or the launcher dies naming the device
 and the container's RDMA user space. That is the 2026-11-17 shape — an image with
 `libibverbs` but no `ibverbs-providers` aborted on every rank with
-`RDMA device rocep1s0f0 not found` after the one-time artifact work.
+`RDMA device <name> not found` after the one-time artifact work.
 
 ## First boot prepares the per-rank artifacts
 
@@ -67,10 +67,10 @@ All are env (recipe `env:` or `-o env.KEY=value`):
 
 | key | default | meaning |
 |---|---|---|
-| `PICOM_RANK_TAILS` | — (required) | fabric address tails, rank 0-3, comma-separated; rendered as `<PICOM_FABRIC_A>.<tail>` / `<PICOM_FABRIC_B>.<tail>` |
-| `PICOM_FABRIC_A` / `PICOM_FABRIC_B` | `192.168.0` / `192.168.1` | the two f0 /24s (cluster-internal values are never committed) |
-| `PICOM_DEV_A` / `PICOM_DEV_B` | `rocep1s0f0` / `roceP2p1s0f0` | the two RDMA devices (PCI domains 0 and 2, port f0) |
-| `PICOM_GID_INDEX` | `3` | RoCEv2 GID index, must match every device |
+| `PICOM_RANK_TAILS` | — (required) | fabric address tails, rank 0-3, comma-separated; rendered `<PICOM_FABRIC_A>.<tail>` / `<PICOM_FABRIC_B>.<tail>`. sparkrun passes only the node's own host, so the other three ranks are the operator's; each rank's own entry is checked against its rail GID and a mismatch fails closed |
+| `PICOM_DEV_A` / `PICOM_DEV_B` | sparkrun's `NCCL_IB_HCA` | the two RDMA devices, lower /24 first; derived from the active HCAs sparkrun detects, each device's netdev IPv4 taken from its own RoCE v2 GID |
+| `PICOM_FABRIC_A` / `PICOM_FABRIC_B` | derived | the two f0 /24s, from the same GIDs; never stored in the tree |
+| `PICOM_GID_INDEX` | sparkrun's `NCCL_IB_GID_INDEX`, else derived | RoCEv2 GID index; `-1`/absent falls back to the device's first IPv4-mapped RoCE v2 GID, and both devices must carry the declared /24 at that index |
 | `PICOM_RING_DIRECT` | `2` | switch mode: every rank writes to all peers itself (no relay); `0` for a cabled ring |
 | `PICOM_ENGINE_ARGS` | upstream's production line | engine argv, minus `DSGB10_OEA` (see below). The engine parses strictly — an unknown token is `unknown argument <x>` and a start-time exit on every rank, and there is no `--help` |
 | `PICOM_OEA` | empty | opt-in lossy batch-aware MoE re-route (`4,12,9` upstream); empty = strictly lossless |
@@ -104,8 +104,8 @@ patch series over the source pin: #15 (service-owned vision encoder) and #7
 Upstream's reference fleet is a cabled ring: port f0 faces rank r+1, port f1 faces
 rank r-1, two RDMA devices per port (one per PCI domain). On this fleet's ConnectX-7
 both **f1 ports are down** and the fabric is one switch, so the ring's two directions
-ride the same two f0 devices: `NEXT_DEV0 == PREV_DEV0 == rocep1s0f0`,
-`NEXT_DEV1 == PREV_DEV1 == roceP2p1s0f0`, and each rank's `NEXT_IP* == PREV_IP*`. The
+ride the same two f0 devices (`NEXT_DEV0 == PREV_DEV0`, `NEXT_DEV1 == PREV_DEV1`), and
+each rank's `NEXT_IP* == PREV_IP*`. The
 engine accepts that shape (one QP per role, the GID check passes because each address is
 on the named device); the TCP 18620 bootstrap binds rank r's `PREV_IP0` and dials rank
 r+1's `PREV_IP0`, which is the same /24, one L2 domain on the switch. `DSGB10_RING_DIRECT=2`

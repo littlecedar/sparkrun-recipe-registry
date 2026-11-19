@@ -208,13 +208,19 @@ engine() {
 require_rdma_devices() {
   command -v ibv_devices >/dev/null ||
     die "ibv_devices missing from the image (install ibverbs-utils): the container's RDMA user space cannot be checked"
-  local listed dev
+  # The devices are the ones the fleet file names, resolved by the mod from
+  # sparkrun's NCCL_IB_HCA / the RoCE GIDs: no literal device name lives here.
+  local dev_a dev_b listed dev
+  dev_a=$(sed -n 's/^NEXT_DEV0=//p' "${FLEET}")
+  dev_b=$(sed -n 's/^NEXT_DEV1=//p' "${FLEET}")
+  [[ -n "${dev_a}" && -n "${dev_b}" ]] ||
+    die "${FLEET} names no RDMA devices: the picom-launcher mod must run before the command"
   listed=$(ibv_devices 2>&1 | awk 'NR > 2 && NF { print $1 }' | tr '\n' ' ')
-  for dev in "${PICOM_DEV_A:-rocep1s0f0}" "${PICOM_DEV_B:-roceP2p1s0f0}"; do
+  for dev in "${dev_a}" "${dev_b}"; do
     printf '%s\n' ${listed} | grep -qx "${dev}" ||
       die "RDMA device ${dev} is not visible in the container's RDMA user space (ibv_devices lists: ${listed:-none}); the engine would abort with 'RDMA device ${dev} not found' — the image's libibverbs/provider stack is incomplete"
   done
-  log "rank ${R}: RDMA devices visible: ${PICOM_DEV_A:-rocep1s0f0} ${PICOM_DEV_B:-roceP2p1s0f0}"
+  log "rank ${R}: RDMA devices visible: ${dev_a} ${dev_b}"
 }
 require_rdma_devices
 

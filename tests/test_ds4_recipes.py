@@ -2696,6 +2696,26 @@ def _run_picom_disk_gate(tc, launch: str, avail_gib: int, artifact: bool,
                               capture_output=True, text=True)
 
 
+def _picom_fake_sysfs(root, devices: dict[str, str]) -> Path:
+    """A `/sys/class/infiniband` stand-in: per device, the four GIDs a ConnectX-7
+    port answers — RoCE v1/v2 link-local, then RoCE v1/v2 IPv4-mapped (index 3)."""
+    for dev, ip in devices.items():
+        base = Path(root) / dev / "ports" / "1"
+        (base / "gid_attrs" / "types").mkdir(parents=True)
+        (base / "gids").mkdir()
+        mapped = "0000:0000:0000:0000:0000:ffff:%02x%02x:%02x%02x" % tuple(
+            int(p) for p in ip.split("."))
+        for idx, (kind, gid) in enumerate([
+            ("RoCE v1", "fe80:0000:0000:0000:4ebb:47ff:fee8:41e6"),
+            ("RoCE v2", "fe80:0000:0000:0000:4ebb:47ff:fee8:41e6"),
+            ("RoCE v1", mapped),
+            ("RoCE v2", mapped),
+        ]):
+            (base / "gid_attrs" / "types" / str(idx)).write_text(kind + "\n")
+            (base / "gids" / str(idx)).write_text(gid + "\n")
+    return Path(root)
+
+
 class PicomLaneContract(unittest.TestCase):
     """The picom arm's launch contract, as far as it can be checked without
     four GPUs (the probe booted and was smoke-verified on 2026-11-17; the shipped
@@ -2856,6 +2876,64 @@ class PicomLaneContract(unittest.TestCase):
             self.assertNotEqual(proc.returncode, 0, "three tails were accepted")
             self.assertFalse(bad.exists(), "a refused input still wrote a fleet file")
             self.assertIn("exactly four", proc.stderr)
+
+    def test_fabric_resolves_from_sparkruns_hcas_and_the_device_gids(self):
+        """Run the mod with no fabric env at all: sparkrun's NCCL_IB_HCA names the
+        devices, their own RoCE v2 GIDs name the /24s, and the fleet file follows."""
+        import os
+        import subprocess
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            # TEST-NET ranges: real addresses are cluster-internal and banned from
+            # tracked files (tests/test_tracked_address_hygiene.py).
+            sysfs = _picom_fake_sysfs(root / "ib", {
+                "roceP2p1s0f0": "203.0.113.31",   # the name sorts first; the /24 does not
+                "rocep1s0f0": "198.51.100.31",
+            })
+            env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+                   "PICOM_ROOT": str(root / "picom"), "MOD_LOGDIR": str(root / "logs"),
+                   "PICOM_IB_SYSFS": str(sysfs),
+                   "NCCL_IB_HCA": "roceP2p1s0f0,rocep1s0f0",
+                   "NCCL_IB_GID_INDEX": "3",
+                   "PICOM_NODE_RANK": "1",
+                   "PICOM_RANK_TAILS": "30,31,32,33"}
+            proc = subprocess.run(["bash", str(PICOM_MOD_DIR / "run.sh")], env=env,
+                                  capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            rendered = (root / "picom" / "fleet.conf").read_text()
+            self.assertIn("NEXT_DEV0=rocep1s0f0", rendered, "A must be the lower /24")
+            self.assertIn("NEXT_DEV1=roceP2p1s0f0", rendered)
+            self.assertIn("GID_INDEX=3", rendered)
+            self.assertIn("RANK0_NEXT_IP0=198.51.100.30", rendered)
+            self.assertIn("RANK1_PREV_IP1=203.0.113.31", rendered)
+            for line in ("PICOM_DEV_A=rocep1s0f0", "PICOM_FABRIC_B=203.0.113"):
+                self.assertIn(line, proc.stdout, line)
+
+            # A stale tail list: this node's rank 1 entry must match its own rail.
+            env["PICOM_RANK_TAILS"] = "30,41,42,43"
+            (root / "picom" / "fleet.conf").unlink()
+            proc = subprocess.run(["bash", str(PICOM_MOD_DIR / "run.sh")], env=env,
+                                  capture_output=True, text=True)
+            self.assertNotEqual(proc.returncode, 0, "a wrong rank tail was accepted")
+            self.assertFalse((root / "picom" / "fleet.conf").exists())
+            self.assertIn("PICOM_RANK_TAILS[1]='41'", proc.stdout)
+
+            # NCCL's GID index may name the link-local v2 GID: no fabric address.
+            env["PICOM_RANK_TAILS"] = "30,31,32,33"
+            env["NCCL_IB_GID_INDEX"] = "1"
+            proc = subprocess.run(["bash", str(PICOM_MOD_DIR / "run.sh")], env=env,
+                                  capture_output=True, text=True)
+            self.assertNotEqual(proc.returncode, 0, "a link-local GID passed as fabric")
+            self.assertIn("no IPv4-mapped RoCE v2 GID at index 1", proc.stdout)
+
+            # One usable device is not a switched ring.
+            env["NCCL_IB_HCA"] = "roceP2p1s0f0"
+            proc = subprocess.run(["bash", str(PICOM_MOD_DIR / "run.sh")], env=env,
+                                  capture_output=True, text=True)
+            self.assertNotEqual(proc.returncode, 0, "one device was accepted as a ring")
+            self.assertIn("fewer than two devices", proc.stdout)
 
 
 class PicomLaneNegativeControls(unittest.TestCase):

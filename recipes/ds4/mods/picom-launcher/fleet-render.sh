@@ -5,7 +5,8 @@
 # Render the picom engine's fleet file (engine/comm/fleet.cpp schema upstream).
 # Usage: fleet-render.sh OUT
 # Env: PICOM_RANK_TAILS (4 comma-separated tails, rank 0-3);
-#      PICOM_FABRIC_A/B, PICOM_DEV_A/B, PICOM_GID_INDEX, PICOM_ENGRAM_READ_BATCH,
+#      PICOM_FABRIC_A/B, PICOM_DEV_A/B, PICOM_GID_INDEX (resolved by run.sh from
+#      sparkrun's injected NCCL_IB_HCA/GID or the device GIDs), PICOM_ENGRAM_READ_BATCH,
 #      PICOM_ROOT (artifact paths in the file).
 # Fails closed on any input the engine would reject at start: wrong tail count,
 # non-octet tails, or a missing PICOM_ROOT.
@@ -15,11 +16,12 @@ OUT="${1:?usage: fleet-render.sh OUT}"
 ROOT="${PICOM_ROOT:-/cache/runtime/picom}"
 
 : "${PICOM_RANK_TAILS:?PICOM_RANK_TAILS missing (four comma-separated address tails, rank 0-3)}"
-PICOM_FABRIC_A="${PICOM_FABRIC_A:-192.168.0}"
-PICOM_FABRIC_B="${PICOM_FABRIC_B:-192.168.1}"
-PICOM_DEV_A="${PICOM_DEV_A:-rocep1s0f0}"
-PICOM_DEV_B="${PICOM_DEV_B:-roceP2p1s0f0}"
-PICOM_GID_INDEX="${PICOM_GID_INDEX:-3}"
+# Resolved by run.sh (sparkrun's NCCL_IB_HCA/GID or sysfs); no literals live here.
+: "${PICOM_FABRIC_A:?PICOM_FABRIC_A missing: run.sh resolves it from the RoCE GIDs}"
+: "${PICOM_FABRIC_B:?PICOM_FABRIC_B missing: run.sh resolves it from the RoCE GIDs}"
+: "${PICOM_DEV_A:?PICOM_DEV_A missing: run.sh resolves it from the RoCE GIDs}"
+: "${PICOM_DEV_B:?PICOM_DEV_B missing: run.sh resolves it from the RoCE GIDs}"
+: "${PICOM_GID_INDEX:?PICOM_GID_INDEX missing: run.sh resolves it from the RoCE GIDs}"
 PICOM_ENGRAM_READ_BATCH="${PICOM_ENGRAM_READ_BATCH:-1}"
 
 IFS=, read -r -a TAILS <<< "${PICOM_RANK_TAILS}"

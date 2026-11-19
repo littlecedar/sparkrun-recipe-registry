@@ -48,13 +48,10 @@ env:
 # The four fabric address tails, rank 0-3, comma-separated:
 #   -o env.PICOM_RANK_TAILS=30,31,32,33
   PICOM_RANK_TAILS: ""
-  PICOM_FABRIC_A: "192.168.0"
-  PICOM_FABRIC_B: "192.168.1"
-# f1 is down on this fleet: the switched ring rides the same two f0 devices in
-# both directions, one QP per role.
-  PICOM_DEV_A: "rocep1s0f0"
-  PICOM_DEV_B: "roceP2p1s0f0"
-  PICOM_GID_INDEX: "3"
+# Fabric /24s, RDMA devices and the RoCE v2 GID index are not recipe facts: the
+# mod resolves them per node from sparkrun's injected NCCL_IB_HCA/NCCL_IB_GID_INDEX
+# and each device's own IPv4-mapped GID, and fails closed naming the knob it lacks.
+# `-o env.PICOM_DEV_A=…` (and the other four) still overrides it.
   PICOM_RING_DIRECT: "2"
 # One space-separated argv list; the launcher word-splits it positionally and
 # silently drops a token it does not know. `--prefill-rows 16384` dies at startup

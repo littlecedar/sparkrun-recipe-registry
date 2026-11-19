@@ -2394,12 +2394,15 @@ devices per port. This fleet's f1 ports are **down** (probed on `.30` and `.31`,
 `rocep1s0f1`/`roceP2p1s0f1` `PORT_DOWN`), and both f0 devices are up on `192.168.0.x` /
 `192.168.1.x`. So the ring's two directions ride the same two devices; the engine accepts one
 QP per role, and its GID check passes because each address named for a role is on the device
-named for it. `recipes/ds4/mods/picom-launcher/fleet-render.sh` emits that shape and fails
-closed on a wrong tail count.
+named for it. `recipes/ds4/mods/picom-launcher/run.sh` resolves the devices, both /24s and the
+GID index per node — sparkrun injects `NCCL_IB_HCA`/`NCCL_IB_GID_INDEX`, and each device's
+IPv4 comes from its own RoCE v2 GID in sysfs — then `fleet-render.sh` emits that shape and
+fails closed on a wrong tail count or a device whose GID does not carry the declared /24.
 
 Hard preconditions, each a start gate the 2026-11-17 smoke depended on (the receipt records the engine
 starting under them, not a per-condition probe): one IPv4 per netdev;
-`GID_INDEX=3` matching the RoCEv2 IPv4 GID on all four devices; all four `PREV_IP0`s in one
+the same RoCEv2 IPv4 GID index on both f0 devices (3 on this fleet, now derived per boot
+rather than declared); all four `PREV_IP0`s in one
 L2 domain; `kho=off` (already fleet-wide); ≥100 GiB `MemAvailable` after the page-cache drop.
 The 2026-11-18 fabric probe
 (`head:~/benchmarks/picom-prod-20261118/paired-20261118/fabric-probe/`) confirmed jumbo frames end
@@ -2452,7 +2455,7 @@ picom QP `hop_limit` still has no readable surface.
    `ibverbs-providers`, `librdmacm1t64` and `ibverbs-utils`; the build gates `ibv_devinfo -l` on the
    provider-config warning and asserts `/etc/libibverbs.d/mlx5.driver` plus `libmlx5-rdmav*.so`; the
    launcher has a fail-closed pre-start gate naming any missing
-   `${PICOM_DEV_A}`/`${PICOM_DEV_B}`. Boot 2 (`1e529c67`) prints `[picom-launcher] rank N: RDMA
+   `${PICOM_DEV_A}`/`${PICOM_DEV_B}` (now read from the rendered fleet file). Boot 2 (`1e529c67`) prints `[picom-launcher] rank N: RDMA
    devices visible: rocep1s0f0 roceP2p1s0f0` before starting the engine. Re-probe on every rebuild —
    a new digest is a new image, not this receipt.
 7. **Cleared 2026-11-18 — house, needle and one ladder cell against the knapcio line**:
