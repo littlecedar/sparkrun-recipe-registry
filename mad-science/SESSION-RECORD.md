@@ -16564,3 +16564,27 @@ and `destroy`ed `19:07:29Z` on all four hosts.
 - **Provenance note** worth keeping: 11 of 12 picom long-context cells
   are engine-reported; the caption now says so and the exception is
   marked.
+- **The thinking channel is verified on the shipped picom arm**, one boot
+  on ranks `.31`–`.34` (task `58cddf1c62ba6578_6577f4fd5eaa`, TTR 25.3 s,
+  watchdog `unprobeable=0` exit 0). `chat_template_kwargs.thinking: true`
+  with `reasoning_effort: max`, temperature 0, on `What is 17*23?`:
+  non-empty `reasoning_content` (64 chars), non-empty `content` (`391`)
+  and `reasoning_tokens: 19`; streamed, reasoning deltas precede content
+  deltas (first reasoning 0.026 s, first content 0.244 s, 23 chunks);
+  `thinking: false` and the field absent both returned no reasoning key
+  and 0 reasoning tokens. Two identical thinking-on requests reported
+  `cached_tokens` 42 of 43 each, so the counter keeps reporting with
+  thinking on; `reasoning_effort` moved 19 → 17 tokens at `low` (single
+  sample). Receipt `head:~/benchmarks/picom-thinking-20261119/`.
+- **The switch was proven before spending a boot**: `PICOM_FRONT_ARGS` is
+  word-split and appended to `dsfront`'s argv (`launch.sh:308,327`), the
+  shipped binary declares `--thinking`/`--no-thinking`/`--effort N`, and
+  `dsfront mock-engine` + `serve --thinking` on the same digest produced
+  `reasoning_content` with `reasoning_tokens: 11` in reasoning-first delta
+  order (`mock/mock-probe.txt`) — no GPU.
+- **The page's three stale claims are corrected** (`dab23e4`, request-surface
+  row audit: five rows corrected, two unanchored claims deleted) and the
+  measured numbers land as `2d6f015` (§2 thinking cell, cache cell's
+  thinking-on half, decision row) and `926a15c` (lane README operator knob).
+  The decision row names the asymmetry: knapcio's thinking receipt is a
+  different prompt, so the two arms are not paired on this axis.
