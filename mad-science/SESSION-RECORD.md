@@ -16458,3 +16458,31 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   (a growing read), 103 hub entries, `config.json` 3311 B. Window and lease
   byte-identical to the base (`900dc274…` / `afcb8507…`). Register unchanged
   (`b6fe77a7…`, 201 tasks, 42 open).
+
+## 2026-11-19 11:22 ET — board tick: the quartet serves and takes load
+
+- Recomposed on this hour's `11:13 ET` board (`1725e23`), census
+  `16:21:08Z`–`16:21:10Z` (`.30` `16:21:11Z`), 9 min 16 s after the base's
+  read. The boot the base carried loading now **serves**:
+  `b020d2dd178343a5_6a7e0d618bcc` (image `3f4480818acb`), `StartedAt`
+  `16:01:09Z`, ready `16:12:48Z` by rank 0's own `The server is fired up and
+  ready to roll!` (699 s TTR), `/v1/models` **200**, `/health` **000**. `.31`
+  reads `Up 19 minutes (unhealthy)`, `.32`–`.34` `healthy`.
+- Live long-context load, not merely ready: rank 0 logged 64 `completion`
+  lines and prefill batches `16:20:44Z`–`16:21:01Z` with `#pending-token`
+  797,599 → 764,831; `.32`–`.34` log Engram layer work at
+  `hit_rate=100.0%`.
+- **Correction landed**: the previous row said *every* rank's log reached
+  `Waiting for application startup`; the tails showed it on `.31` only, with
+  `.32`–`.34` at the dummy-health line. Readiness on this arm is rank 0's own
+  ready line.
+- Headroom under load: `MemAvailable` 10,083,084 / 11,154,452 / 11,595,356 /
+  11,706,412 kB on `.31`–`.34`; `.31` lowest at 3,791,628 kB above the
+  6.0 GiB (`6,291,456 kB`) stop-rule floor, so no sampler would fire. Nothing
+  stopped.
+- Pool re-proved on six hosts: `used` 14,059,067,408,384 B identical on
+  `.31`–`.35`, 14,059,066,359,808 B on `.30` one second later (a growing
+  read, −1,048,576 B), +19,398,656 B on the base over 9 min 16 s; 103 hub
+  entries, `config.json` 3311 B. Window and lease byte-identical
+  (`900dc274…` / `afcb8507…`). Register unchanged (`b6fe77a7…`, 201 tasks,
+  42 open; `check` ok).
