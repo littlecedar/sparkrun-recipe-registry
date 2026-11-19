@@ -15761,3 +15761,48 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   the base's `02:01:49Z` read over 7 min 46 s), 103 hub entries, `config.json`
   3,311 B in both snapshots. Register unchanged at `0b28a919…`; campaign unit
   inactive with 9 roots → 9 files, 38 arms, 0 live leases.
+## 2026-11-18 22:07 ET — board tick: fabric C1 retry window opens a knapcio quartet
+- Composed on the `21:23` board (`334a0b1`, content sha256 `07d89204…`, board
+  blob `46f1b9d`); `git fetch` read `origin/main` = `334a0b1`, and the disk board
+  still carried that sha at publish, so both guards passed on one read. The
+  live board was still `0b28a919…` at `task-queue.py check` (`ok: 201 task(s)`).
+- Census `2026-11-19T03:01:59Z`–`03:02:03Z`, 53 min 36 s after the base's first
+  node read: `.31`–`.34` each run one container of task
+  `b020d2dd178343a5_3f029ee842a1` — recipe
+  `recipes/ds4/deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`, image
+  `3f4480818acb`, `StartedAt` `02:55:15Z` — `Up 6 minutes (health: starting)`,
+  `:8000` closed on all four, rank-0 `curl` `000`, `[l]aunch_server` alive on
+  every rank. `.30`/`.35` stay at 0 containers, 0 volumes, 0 listeners.
+- The boot is the window's **K-control** cell: `fabric-c1-20261118/K-control/
+  status.txt` (written `02:55:03Z`) records `mode=ladder`, `extra=-o
+  env.NCCL_IB_TC=`, and the note that `NCCL_IB_TC present but EMPTY` makes NCCL
+  read 0 (unmarked). Its twin `K-marked` already finished: `ladder rc=0`, cells
+  C1 66.369 s (cv 4.9%), C2 93.387 s (3.3%), C5 123.742 s (**INADMISSIBLE**,
+  10.2%), C10 155.66 s (4.1%), `retry_needed: false`, then a six-host
+  `c0 v0 p0` sweep and `DONE`.
+- The old holder is gone and the new one is declared: `session:lossless-roce`
+  and its lease left both files, and `session:fabric-c1-retry-20261118` holds
+  `.31`–`.34` (lock 175 B `02873ddb…`, declared `02:31:33Z`, ends `08:31:33Z`;
+  ledger 545 B `5e2c73c5…`, lease issued `02:31:27Z`, expiring `08:31:27Z`) —
+  a live lease over a live boot, so no escalation.
+- Memory moved on the four running ranks only: `MemAvailable` fell
+  83,047,984 / 82,237,016 / 82,516,648 / 79,497,800 kB on `.31`–`.34` against
+  the base census while `.30`/`.35` moved 124,256 / 43,028 kB. `Cached` reads
+  39.9–40.4 GB and `AnonPages` 0.99–4.85 GB on those ranks at the same instant,
+  so the drain is not anonymous payload; the mechanism is **not identified**
+  by this tick and no attribution is claimed beyond the coincidence with the
+  loading boot.
+- Pool re-proved: head units `active`/`success`/0, `findmnt -M` still prints
+  `SOURCE default` (mount listed, serving proved by reads), `used`
+  14,061,103,218,688 B at `03:02:30Z` (+89,653,248 B on the base's `02:09:35Z`
+  read over 52 min 55 s), 103 hub entries, `config.json` 3,311 B in both
+  snapshots. Campaign unit inactive, 9 roots → 9 files by `(st_dev, st_ino)`,
+  38 arms, 0 live leases.
+- Rings: `.31` keeps 253 events from `02:55:58Z`, `.32` 253, `.33` 252, `.34`
+  250 from `02:56:02Z` — the boot's own `create`/`start` are evicted by its
+  health probes, so the start is dated from `StartedAt` and no absence is
+  claimed below those instants. `.30` (256, oldest `2026-11-17T06:05:11Z`) and
+  `.35` (256, oldest `2026-11-12T05:50:09Z`) predate the window, so their 0
+  in-window counts hold. `beegfs-meta` still restart-loops on `.31`–`.35`
+  (`activating`, `NRestarts` 117225–117248) — the queued row, not new.
+- Nothing booted, stopped, claimed or evicted; the census is read-only.
