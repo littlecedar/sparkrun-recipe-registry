@@ -1,6 +1,6 @@
 # Production picom (dsgb10) arm — the shipped serve, strictly lossless. The three
-# `zz-ds4-1017-picom-*` arms are the experiment record; this pair supersedes them
-# for serving. Boot receipt: `head:~/benchmarks/picom-prod-20261118/`.
+# `zz-ds4-1017-picom-*` arms (now `attic/ds4/`) are the experiment record; this pair
+# supersedes them for serving. Boot receipt: `head:~/benchmarks/picom-prod-20261118/`.
 recipe_version: "2"
 model: deepseek-ai/DeepSeek-V4.1-Flash-1017
 runtime: vllm

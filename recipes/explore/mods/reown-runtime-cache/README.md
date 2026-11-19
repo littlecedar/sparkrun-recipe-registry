@@ -38,19 +38,18 @@ writes the cache root (list it last), because its repair is a check of what
 that hook just did. It also repairs leftover root-owned trees from an earlier
 boot, which is the failure the row measured.
 
-## Reference form and the clone you boot from
+## Reference form
 
-A shared mod is `mods/<name>` inside the registry's **top-level** `mods/`, so a
-recipe references it as `@littlecedar/mods/reown-runtime-cache` — the scoped
-form, never `mods/reown-runtime-cache` (an unscoped `mods/…` ref resolves only
-next to the recipe, `core/mods.py` rule 2, so a file-path launch cannot see it;
-measured on the arm-5 verify-route boot, which only ran because it launched by
-registry name). AGENTS.md states the rule in its mods section and, in the same
-place, the consequence for booleans: a `@littlecedar/mods/<name>` ref is served
-from the registry's per-host clone, that clone pins **no commit**, so a changed
-shared mod — this one included — must have the clone refreshed
-(`sparkrun registry update littlecedar`) before the boot that relies on the
-change. Boot a stale clone and the launch runs the old mod with no warning.
+This mod moved from the shared `mods/` to `recipes/explore/mods/` on 2026-11-18,
+when the ds4 arm that was its second user retired to `attic/ds4/`: the tree's
+rule is that a shared mod serves at least two lanes, and this one then served
+one. A recipe in this lane references it as `mods/reown-runtime-cache`
+(`core/mods.py` rule 2 resolves an unscoped `mods/…` ref next to the recipe).
+The old scoped form `@littlecedar/mods/reown-runtime-cache` is served from the
+registry's per-host clone, which pins **no commit** — that caveat (refresh the
+clone with `sparkrun registry update littlecedar`, or boot the old mod with no
+warning) applied while the mod lived at the top level and does not apply to the
+lane-local form.
 
 ## What it does not cover
 

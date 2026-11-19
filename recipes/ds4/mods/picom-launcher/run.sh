@@ -11,7 +11,8 @@ set -euo pipefail
 # from-scratch TP=4 DeepSeek-V4.1-Flash build; it is NOT an SGLang/vLLM
 # server, so sparkrun launches it through the vllm-distributed family
 # contract with tensor_parallel: 1 and one container per rank
-# (recipes/ds4/README.md, "zz-deepseek-v4.1-flash-1017-picom-tp4-1m").
+# (recipes/ds4/README.md, "zz-deepseek-v4.1-flash-1017-picom-tp4-1m"; the recipe
+# itself is retired to attic/ds4/).
 #
 # This mod owns what is environment-shaped and therefore cannot be baked
 # into the image or committed to the tree: the per-node fleet file the

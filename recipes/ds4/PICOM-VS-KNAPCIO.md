@@ -75,7 +75,7 @@ serve line: one long-lived process holding a 1M-token KV pool, 16 uniform reques
 multimodal stack as the tuning surface
 (`launcher.py:148-300`).
 
-picom (`zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` as the probe, shipped as
+picom (`attic/ds4/zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` as the probe, shipped as
 `deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` with a lossy twin
 `…-picom-tp4-1m-oea.yaml`) is a from-scratch C++/CUDA engine (`dsgb10_rank`, one process per node,
 its own RDMA ring) behind a Rust front-end (`dsfront`), from `Picom-code/pico-dgx-ds4@7c123ad4`
@@ -224,7 +224,7 @@ C1, 5.3 % C10.
 
 ### Probe-window ladder (history)
 
-These came first: `zz-ds4-1017-picom-out256k.yaml`, the shipped engine plus `PICOM_MAX_TOKENS=262144`
+These came first: `attic/ds4/zz-ds4-1017-picom-out256k.yaml`, the shipped engine plus `PICOM_MAX_TOKENS=262144`
 but with 8192-row prefill and a probe name, so its cells are not interchangeable with the shipped
 arms above — same image and instrument, different engine shape.
 

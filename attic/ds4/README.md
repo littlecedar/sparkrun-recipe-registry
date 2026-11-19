@@ -29,11 +29,15 @@ recipe was chosen for go-live.
 
 ## Status
 
+- **2026-11-18:** 14 `zz-` arms retired here — the picom probe and its three
+  `zz-ds4-1017-picom-*` variants, the EXL3 TensorFold TP=4 arm, the seven SM121 survey arms, and
+  the template A/B and malloc-pin A/B. Each had booted or been refused on record before it moved;
+  the lane's `README.md` attic index carries each one's receipt.
 - Nothing here is wired into `recipes/` any more.
 - These recipes are **not validated and not shipped from here**; the registry
   ships the SGLang knapcio recipe only.
 - The ds4 guard suite, `tests/test_ds4_recipes.py`, still covers these files as
-  frozen regression coverage: its EXL3-lane constants resolve under this
+  frozen regression coverage: its EXL3-lane, picom, marlin and pin constants resolve under this
   directory (`ATTIC_DIR`), and the suite passes against them. Restoring a file
   above means editing those constants back to `recipes/ds4/`.
 

@@ -39,6 +39,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 RECIPE_DIR = REPO / "recipes" / "ds4"
+# The overlay arms retired to the attic on 2026-11-18 keep their pin/env proof
+# here: the files are frozen, so the guard still covers what they shipped.
+ATTIC_DIR = REPO / "attic" / "ds4"
 LAUNCHER = RECIPE_DIR / "mods" / "dsv41-sglang-overlay" / "launcher.py"
 KNAPCIO = RECIPE_DIR / "deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml"
 # The env key the mod's launcher reads. Only recipes that mount the overlay are
@@ -149,7 +152,7 @@ def _recipe(pin: str = "aaaa", env: str = "DSV41_MODEL_REVISION: aaaa") -> str:
 class RecipePinMatchesEnv(unittest.TestCase):
     def test_every_overlay_recipe_carries_its_pin_in_env(self):
         covered = []
-        for path in sorted(RECIPE_DIR.glob("*.yaml")):
+        for path in sorted(RECIPE_DIR.glob("*.yaml")) + sorted(ATTIC_DIR.glob("zz-*.yaml")):
             text = path.read_text(encoding="utf-8")
             if _serves_overlay(text) and _top_level(text, "model_revision"):
                 covered.append(path.name)

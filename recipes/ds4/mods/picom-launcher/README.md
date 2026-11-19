@@ -1,7 +1,8 @@
 # picom-launcher
 
 Pre-exec staging and the per-node launcher for the picom (`dsgb10`) arm —
-[`recipes/ds4/zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml`](../../zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml).
+[`attic/ds4/zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml`](../../../../attic/ds4/zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml)
+(the probe the shipped pair superseded; retired 2026-11-18).
 
 The engine is [Picom-code/pico-dgx-ds4](https://github.com/Picom-code/pico-dgx-ds4) at
 `7c123ad4` (MIT): a from-scratch C++/CUDA TP=4 engine with its own Rust front-end

@@ -1266,6 +1266,10 @@ have.
 
 ## SM121 survey arms (zz-, DeepGEMM gate cleared 2026-11-07)
 
+**All arms in this section retired to `attic/ds4/` on 2026-11-18**, each after the boots recorded
+in its own row (refusals included — an arm the engine rejected is a measured negative). Rows keep
+their numbers here; the files are frozen provenance.
+
 Trial arms on two local-only images. Neither is a ship candidate; all ride the production
 environment (`DSV41_C3_EXCLUDES=1`, kernel 0.4.7 held, `--fp8-gemm-backend flashinfer_cutlass`,
 DSpark k=5, 1M window).
@@ -1316,7 +1320,7 @@ its receipt stays comparable; the backend probe is its own file,
 argv and has no `{extra_args}` slot, so `-o extra_args=…` reaches nothing; the launcher appends a
 supplied `EXTRA_SGLANG_ARGS` verbatim to boot.py's argv (`launcher.py:479-503`) and the
 `required_sglang_args()` guard strips only `--fp8-gemm-backend`. Evidence, no boot:
-`sparkrun export recipe recipes/ds4/zz-ds4-1017-sm121-arm3-control-marlin.yaml | grep
+`sparkrun export recipe attic/ds4/zz-ds4-1017-sm121-arm3-control-marlin.yaml | grep
 EXTRA_SGLANG_ARGS` prints `EXTRA_SGLANG_ARGS: --moe-runner-backend marlin`, while `sparkrun run <same
 file> -H <four nodes> -n` prints the control's serve command unchanged — the flag rides container
 env, not argv.
@@ -2076,9 +2080,12 @@ verify-route build/probe and the blocked-serve record in
 
 ## zz-deepseek-v4.1-flash-1017-picom-tp4-1m (booted 2026-11-17)
 
+Retired to `attic/ds4/` on 2026-11-18; the production pair above superseded it, and the contract
+it booted is still what those arms ship.
+
 | | |
 |:--|:--|
-| Recipe | `recipes/ds4/zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` |
+| Recipe | `attic/ds4/zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` |
 | Engine | [Picom-code/pico-dgx-ds4](https://github.com/Picom-code/pico-dgx-ds4) @ `7c123ad4e4c49e…` (2026-11-16), MIT — a from-scratch C++/CUDA TP=4 engine (`dsgb10_rank`) with its own Rust front-end (`dsfront`), its own RDMA ring and its own chat encoding. Not SGLang, not vLLM, no NCCL, no PyTorch |
 | Model | `deepseek-ai/DeepSeek-V4.1-Flash-1017`, pin `08c8657f…` — the lane's pin. Upstream validated at `1bae0e10`, whose 48 shards are byte-identical to this one (the only delta is `chat_template.jinja`, which this engine never reads: `dsfront` tokenises and chats from its own `--encoding 1017`) |
 | Image | `ghcr.io/littlecedar/dgx-picom-ds41f@sha256:1e529c67…` (tag `ds41f-7c123ad4-pr15-pr7`) — built from source on `.30` 2026-11-17, linux/arm64, 7.47 GB; **rebuilt the same day with the full RDMA user space (`ibverbs-providers`, `librdmacm1t64`, `ibverbs-utils`) after the first build shipped a lone `libibverbs1` and its engine aborted, and probe-verified in a `--device /dev/infiniband` container: `ibv_get_device_list` returns 4 and `ibv_devices` lists `rocep1s0f0` and `roceP2p1s0f0`**; the encoder's import chain (torch 2.11.0+cu130, numpy 2.5.5, PIL, safetensors, av) is an in-image gate, and the encoder itself was started against the real snapshot in a container. `recipes/ds4/Dockerfile.picom-ds41f` pins the upstream commit, the two PR patches and both CUDA 13.0.1 base digests; the build gate is the binaries existing as AArch64 **and** the merged front-end's own suite (49 tests, `cargo test --release --locked`) passing |
@@ -2308,7 +2315,7 @@ text unaffected) and `-o env.PICOM_STREAM_TOOL_ARGS=0`.
 
 ```bash
 # the fabric tails are cluster-internal and never committed; supply ranks 0-3 in rank order.
-sparkrun run recipes/ds4/zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml \
+sparkrun run attic/ds4/zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml \
   --cluster WOPR -H <ip0>,<ip1>,<ip2>,<ip3> -o env.PICOM_RANK_TAILS=30,31,32,33
 ```
 
@@ -2514,7 +2521,9 @@ phases 1–2 (its own boot, then the same arm with `PICOM_OEA`), `prefill16k` ph
 register rows (`picom-prefill16k-boot`, `picom-engram-batch8-boot`,
 now `state: done`; `tp: 4`, `node_cost: quartet`, receipts root
 `/home/red/benchmarks/picom-probes-20261117`), and the window's own cells sit in
-`/home/red/benchmarks/picom-prod-20261118/phase{1,2,3,4}/`.
+`/home/red/benchmarks/picom-prod-20261118/phase{1,2,3,4}/`. All three retired to `attic/ds4/` on
+2026-11-18; pieces of them (the prefill pair, the reply ceiling) were adopted into the production
+pair above.
 
 - `zz-ds4-1017-picom-prefill16k.yaml` appends `--prefill-rows 16384 --snap-every 2048` to the
   shipped argv, which sizes the prefill buffers for 16384-row chunks instead of 8192
@@ -2707,8 +2716,9 @@ unquantized model in [`benchmarks/REFERENCE-SCORES.md`](benchmarks/REFERENCE-SCO
 
 ## Attic index
 
-Everything under `attic/ds4/` — the retired EXL3/vLLM lane and all lane history.
-Nothing here is shipped or covered by `recipes/` guards. Restore a file with
+Everything under `attic/ds4/` — the retired EXL3/vLLM lane, the SM121 survey and picom probe
+arms, and all lane history. Nothing here is a shipped recipe; some of it is still read by frozen
+regression guards in `tests/` (via `ATTIC_DIR`), which is deliberate. Restore a file with
 `git mv attic/ds4/<file> recipes/ds4/<file>`.
 
 | File | What it holds / the question it answers |
@@ -2721,6 +2731,20 @@ Nothing here is shipped or covered by `recipes/` guards. Restore a file with
 | `MEMORY-RECLAIM-PLAN.md` | Host-memory reclaim analysis for the EXL3 lane: the `instanttensor` load path is closed (incompatible with this checkpoint) and cache drops are not a mitigation. |
 | `PERF-ISSUES.md` | Long-context performance triage of the EXL3 1M arms: the observed collapse is the cost of a cold deep prefill, not decode starvation. |
 | `zz-ds4-1017-main-tree-sglang.yaml` | Retired 2026-11-03 — the S0 control arm: stock main-tree SGLang `6563312`, no adapter overlay, flag-level survey vehicle. Measured NEGATIVE on the two runners tried (cutlass ÷128 geometry, triton OOM; `marlin` untried there): the 1017 did not boot in that image without the vendored padding. Its `container:` is a fleet-local tag, never published — why the file moved instead of gaining a registry pin (the publish command is in `AGENTS.md`). |
+| `zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` | Retired 2026-11-18 — the picom probe arm: booted and smoke-verified 2026-11-17 (`head:~/benchmarks/picom-20261117/`), and its configuration is what the shipped picom pair carries. The contract guards now read the shipped exact arm. |
+| `zz-deepseek-v4.1-flash-exl3-tp4-1m-tensorfold-sglang.yaml` | Retired 2026-11-18 — EXL3 TensorFold TP=4 topology arm: **refused at argument validation** 2026-10-24 (task `0e1ba22adca89044_62e26734c214`, `--tp 4: DeepSeek-V4.1-Flash runs on one or two GPUs on CUDA`), so the TP=2-vs-TP=4 number cannot exist on that stack. A measured negative, not a boot. |
+| `zz-ds4-1017-08c8657f-template-ab.yaml` | Retired 2026-11-18 — chat-template A/B treatment half: booted in `head:~/benchmarks/fit-ds4-template-ab-20261110/` and `fit-ds4-rev08c8657f-validate-20261110/` (cells with exits and JSON). |
+| `zz-ds4-1017-malloc-pin-sglang.yaml` | Retired 2026-11-18 — glibc malloc-pin A/B treatment: booted 2026-11-10, `head:~/benchmarks/tp4-20261110b/malloc-ab32-treatment/` (ladder JSON, task id, launch log) against `malloc-ab32-control/`. |
+| `zz-ds4-1017-picom-engram-batch8.yaml` | Retired 2026-11-18 — Engram read batch 8: booted phase 4 (`head:~/benchmarks/picom-prod-20261118/phase4/`); FLAT, not adopted. |
+| `zz-ds4-1017-picom-out256k.yaml` | Retired 2026-11-18 — 262,144-token reply ceiling: booted phases 1–2 (`…/picom-prod-20261118/phase{1,2}/`); adopted into the production pair. |
+| `zz-ds4-1017-picom-prefill16k.yaml` | Retired 2026-11-18 — 16384-row prefill chunks: booted phase 3 (`…/phase3/`); PASS, adopted into the production pair. |
+| `zz-ds4-1017-sm121-arm3-control-marlin-dummy.yaml` | Retired 2026-11-18 — `load_format: dummy` loader probe: booted 2026-11-10, `head:~/benchmarks/tp4-20261110b/marlin-dummy-{078,085}/`. |
+| `zz-ds4-1017-sm121-arm3-control-marlin-serial.yaml` | Retired 2026-11-18 — single-thread loader variant: **attempted and refused** 2026-11-09/10, both boots died 4–6 s after `Load weight begin` (`head:~/benchmarks/tp4-20261110b/marlin-streamer-085{,b}/`). |
+| `zz-ds4-1017-sm121-arm3-control-marlin.yaml` | Retired 2026-11-18 — marlin MoE backend variant: boot attempt 7 (task `1c0dffa45afa6e47_ea9d4f8276e4`), and the canonical `/tmp/sparkrun_serve.log` capture limitation was measured on it. |
+| `zz-ds4-1017-sm121-arm3-control.yaml` | Retired 2026-11-18 — the arm-3 serve line and arm 5's paired control: several boots 2026-11-09 (`head:~/benchmarks/sm121-arm3-control-20261109/`, `sm121-arm5-20261109/`). |
+| `zz-ds4-1017-sm121-arm5-fi073.yaml` | Retired 2026-11-18 — FlashInfer 0.7.3 sparse-MLA port: boots 1–7 on 2026-11-11 (`head:~/benchmarks/arm5-fi073c-20261111/`). |
+| `zz-ds4-1017-sm121-arm5-trtllm-mla.yaml` | Retired 2026-11-18 — TRT-LLM sparse MLA: **attempted and refused** 2026-11-10 by the in-image arch gate (`backend='trtllm-gen' requires SM100/SM103, got SM121`, task `1c0dffa45afa6e47_e3ca507fd4c2`). |
+| `zz-ds4-1017-sm121-indexer-scoring.yaml` | Retired 2026-11-18 — indexer-scoring arm 3: booted 2026-11-09/10 (task `1c0dffa45afa6e47_41b2d1c0cb36`, `head:~/benchmarks/sm121-arm3-control-20261109/`). |
 | `deepseek-v4.1-flash-exl3-tp3-vllm.yaml` | Retired EXL3/vLLM recipe — TP=3, 300K context (3 nodes). |
 | `deepseek-v4.1-flash-exl3-tp4-vllm.yaml` | Retired EXL3/vLLM recipe — TP=4, 300K context (4 nodes). |
 | `deepseek-v4.1-flash-exl3-tp4-1m-vllm.yaml` | Retired EXL3/vLLM recipe — TP=4, 1M context (4 nodes). |

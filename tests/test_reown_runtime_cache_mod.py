@@ -1,4 +1,4 @@
-"""Guard `mods/reown-runtime-cache`: reown, verify, fail closed, and order.
+"""Guard `recipes/explore/mods/reown-runtime-cache`: reown, verify, fail closed, and order.
 
 The mod exists because a root pre_exec hook left a root-owned FlashInfer cache
 behind and every later uid-1000 serve died on it (register row
@@ -19,7 +19,7 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MOD = REPO_ROOT / "mods" / "reown-runtime-cache"
+MOD = REPO_ROOT / "recipes" / "explore" / "mods" / "reown-runtime-cache"
 RUN = MOD / "run.sh"
 
 
@@ -95,7 +95,7 @@ class FailsClosedOnStuckRepair(unittest.TestCase):
 class RecipesOrderTheModAfterTheWriter(unittest.TestCase):
     MODS = (
         REPO_ROOT / "recipes" / "explore" / "ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang.yaml",
-        REPO_ROOT / "recipes" / "ds4" / "zz-ds4-1017-sm121-arm5-fi073.yaml",
+        REPO_ROOT / "attic" / "ds4" / "zz-ds4-1017-sm121-arm5-fi073.yaml",
     )
     WRITER = {
         MODS[0]: "ernie55-flashinfer-sparse-sglang",

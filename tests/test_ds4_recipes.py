@@ -1754,8 +1754,8 @@ class SglangLaneNegativeControls(unittest.TestCase):
 # The SM121 survey's marlin variant: one flag, one channel.
 # --------------------------------------------------------------------------
 
-MARLIN_RECIPE = RECIPE_DIR / "zz-ds4-1017-sm121-arm3-control-marlin.yaml"
-ARM3_CONTROL = RECIPE_DIR / "zz-ds4-1017-sm121-arm3-control.yaml"
+MARLIN_RECIPE = ATTIC_DIR / "zz-ds4-1017-sm121-arm3-control-marlin.yaml"
+ARM3_CONTROL = ATTIC_DIR / "zz-ds4-1017-sm121-arm3-control.yaml"
 MARLIN_FLAG = "--moe-runner-backend"
 
 
@@ -2577,16 +2577,19 @@ class TensorfoldLaneNegativeControls(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------
-# Picom (dsgb10) probe arm — an external engine behind the vllm-distributed
-# family contract (2026-11-17)
+# Picom (dsgb10) arm — an external engine behind the vllm-distributed
+# family contract (probe booted 2026-11-17, shipped pair 2026-11-18)
 #
 # The recipe is the only arm in this family that is not an SGLang/vLLM
 # process tree: four from-scratch engine processes, one per node, with the
 # distribution contract carrying placement and per-node env only. These
 # guards pin the coupling points that would otherwise fail silently at
 # launch — or worse, boot a serve whose model bytes are not the pinned ones.
+# They read the shipped exact arm: the probe that booted first carries the
+# same launcher fields and is retired to `attic/ds4/`, so the guards now
+# defend a recipe someone can actually serve.
 # --------------------------------------------------------------------------
-PICOM_RECIPE = RECIPE_DIR / "zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml"
+PICOM_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-1017-picom-tp4-1m.yaml"
 PICOM_MOD_DIR = RECIPE_DIR / "mods" / "picom-launcher"
 PICOM_DOCKERFILE = RECIPE_DIR / "Dockerfile.picom-ds41f"
 PICOM_PATCHES = (
@@ -2695,8 +2698,9 @@ def _run_picom_disk_gate(tc, launch: str, avail_gib: int, artifact: bool,
 
 class PicomLaneContract(unittest.TestCase):
     """The picom arm's launch contract, as far as it can be checked without
-    four GPUs (the arm booted and was smoke-verified on 2026-11-17; the
-    receipt is a per-session file under `~/benchmarks/` on the head, not tracked)."""
+    four GPUs (the probe booted and was smoke-verified on 2026-11-17; the shipped
+    pair followed on 2026-11-18 and carries the same contract. Receipts are
+    per-session files under `~/benchmarks/` on the head, not tracked)."""
 
     def setUp(self):
         self.text = PICOM_RECIPE.read_text()
