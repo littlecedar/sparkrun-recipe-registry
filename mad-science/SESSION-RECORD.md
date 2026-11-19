@@ -15850,9 +15850,15 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   K-control-2 and K-marked-2 boots are dated by their receipt headers
   (`03:34:06Z`, `03:14:43Z`), never by an absence in the ring.
 - Repeatability split inside the window: `K-marked-2` failed its own C1 bar
-  twice (**65.262 s**, cv 10.3 %; retry **62.863 s**, 12.3 %, with C2 12.3 %),
+  twice (**65.262**, cv 10.3 %; retry **62.863**, 12.3 %, with C2 12.3 %),
   while `K-control-2` cleared all four cells (**C1 67.736**, 8.1 %; **C2 88.11**,
-  1.8 %; **C5 139.701**, 8.8 %; **C10 153.936**, 9.2 %).
+  1.8 %; **C5 139.701**, 8.8 %; **C10 153.936**, 9.2 %). The cells are quoted
+  unitless on the board because the receipt does not establish their unit:
+  `ladder.csv`'s `t_s_mean` cannot be seconds — the `E2` ladder wall-clocked
+  `03:59:08Z`→`04:00:58Z`, **110 s** for nine rows — while `est_ppt_mean` 40.57
+  on the same row only shows `pp2048`'s 50,496.43 is divided by 1,000 somewhere
+  in the cells tool, and no assumption reproduces `tg128`'s `peak_ts_mean`
+  90.29. Read the CVs and the admissibility verdicts, not an absolute.
 - `E2` (picom exact, `PICOM_RANK_TAILS=31,32,33,34`, `PICOM_OEA` empty) already
   returned `ladder rc=0`, all four cells admissible (**89.448** / **93.894** /
   **108.144** / **125.514**, cv 8.7 / 6.7 / 5.4 / 3.9 %), `agentic1 rc=0` and
