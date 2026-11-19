@@ -15668,7 +15668,7 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   rows and the node rows split the table (`6 row(s) begin here but line 13 is not
   a 3-column delimiter row`).
 - **`publish` wrote the file before refusing it.** The second refusal was
-  `cluster-address: 10.0.4.30`; the bytes on disk were already this tick's
+  `cluster-address` (one literal of the head's management address); the bytes on disk were already this tick's
   composition, so the base was restored with `cp $T/base.md mad-science/STATUS.md`
   — never `git checkout`, because the shared index still carried a peer's staged
   board and a checkout would have restored *that* instead of the base.
