@@ -16064,3 +16064,35 @@ and `destroy`ed `19:07:29Z` on all four hosts.
 - **Three self-corrections recorded**: a two-stream "win" became a tie, accuracy
   "parity" became an SGLang edge, and the prefill "chasm" became a metric artifact.
 
+## 2026-11-19 01:13 ET — board tick: the picom window closed and the fleet emptied
+- **Census** `2026-11-19T06:02:26Z`–`06:02:27Z`, read-only on all six hosts:
+  `0` containers, `0` volumes, `0` `:8000` listeners, no serve child, head's
+  `sparkrun status` idle. The base's picom `-oea` quartet was killed at
+  `05:18:03Z` and the window ran three more launches on `.31`–`.34` before it
+  released: `…cf0cbfdfe019` `05:18:21Z`→`05:22:19Z`, `…00fb8b9beff1`
+  `05:22:37Z`→`05:26:01Z`, then a knapcio prefill-graph boot
+  `b020d2dd178343a5_7c70e9a52c05` `05:38:57Z`→`05:41:52Z`.
+- **The window's last launch never served**: `/opt/dsv41/boot.py` line 105
+  raised `ValueError: --enable-decoder-swa-bounded-replay cannot be combined
+  with the prefill CUDA graph yet`, under `EXTRA_SGLANG_ARGS` ending
+  `--cuda-graph-backend-prefill=full`; `~/benchmarks/prefill-graph-20261119/`
+  holds the `rejection.txt` that quotes it, and the task was torn down with no
+  `/v1/models` reply.
+- **Window released without a dated act**: `.local/fleet-window.lock` is gone
+  in this clone and on the head; `.local/fleet-leases.json` still reads
+  `leases: []` at `34eed267…` but its mtime is `05:42:47Z`, so the ledger was
+  rewritten after the last launch died. No file records when the lock left.
+- **Ten one-shot containers on `.31`** between `05:37:57Z` and `05:42:52Z` are
+  full of docker's random names on
+  `ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb394…`, each living 0–14 s,
+  two carrying `boot.py health` exec probes. They bracket the rejected boot and
+  nothing names their issuer; `LIKELY` that cell's own preflight.
+- **Memory came back with the quartet**: `MemAvailable` on `.31`–`.34` reads
+  123.0–123.2 GB against the base's 15.4–16.0 GB, `+107.2–107.6 GiB` per rank,
+  while `AnonPages` after teardown is only 195–289 MB and `Cached`
+  0.4–1.7 GB — so the returning gigabytes were neither anonymous memory nor
+  page cache, and `LIKELY` are the serve's own GB10 unified-memory allocation.
+- **Pool** serving, seven identical reads `14,060,632,408,064 B` `used`,
+  `+50,331,648 B` on the base's `05:13:19Z` read; `103` hub entries and the
+  ds4 arm's `config.json` `3311 B` on all six hosts.
+
