@@ -433,6 +433,55 @@ ladder stay in `rerun-20261118/README.md`, and the new boot's own receipts are
 `head:~/benchmarks/picom-prod-20261118/knapcio-newfix-20261118/` (`README.md`, `ttr.txt`,
 `watchdog.log`, `run{1,2,3}/summary.json`).
 
+### The lossless-fabric experiment (2026-11-18 window)
+
+Receipt: `head:~/benchmarks/fabric-lossless-20261118/README.md` and `AB-INTERIM.md`, the same day's
+own window; nothing here is interleaved with the paired-window cells above.
+
+What changed: PFC priority 3 plus `dscp2prio 26→3` plus `cma_roce_tos 104` on all six hosts, one
+switch ACL rule sending UDP/4791 to the `roce` profile (tc3) on the six host ports, and
+`NCCL_IB_TC: "104"` in the knapcio recipe. The switch's own DSCP→tc3 mapping was already correct
+and needed no change.
+
+| boot | arm | C1 | C2 | C5 | C10 |
+|:--|:--|--:|--:|--:|--:|
+| control (marking off) | knapcio | 65.62 | 92.93 | 124.60 | 161.51 |
+| armed (marking on) | knapcio | 52.08 | 82.33 | 134.11 | 153.22 |
+| armed | picom exact (E1) | 87.15 | 92.39 | 111.75 | 126.77 |
+| armed | picom lossy (L1) | 87.41 | 92.94 | 120.41 | 137.11 |
+| pre-change | knapcio (K2) / picom exact (E2) / lossy (L2) | 66.94 / 77.29 / 91.29 | 89.59 / 97.39 / 93.05 | 123.92 / 106.89 / 114.66 | 161.23 / 124.92 / 138.09 |
+
+- **The bare fabric change is neutral.** The control boot reproduces the pre-change cells within
+  drift, and picom's two boots sit inside it as well.
+- **The C1 comparison is inadmissible, not a result.** The armed knapcio boot's C1 within-boot
+  spread was **30.9 %**, which the protocol's ≤10 % rule rejects — the same rule that discarded
+  L2's 20.8 % C1. The only defensible statement is at **C2: −11 % with marking on against the
+  control**; C1 stays open until a repeat boot.
+- **The pre-registered null holds.** During every measured ladder cell the pause counters did not
+  move — `tx-pause` unchanged at 75/42 from the synthetic proof, host `rx_prio3_pause` flat — while
+  `tx-queue3-packet` carried the traffic and `tx-drop-queue3` stayed 0. The served workload never
+  congested the lossless class, so "the fabric was not the bottleneck" is the finding, with the
+  caveat that a saturating transfer *did* produce 32 pauses in the mechanism proof.
+- **Asymmetric QoS is a property of this window.** SGLang's collectives can be marked, picom's
+  cannot (no ToS surface; confirmed against its binaries), so any armed-window P-vs-S cell is
+  "measured under asymmetric QoS — SGLang lossless-capable, picom not".
+- **Long-context.** On this fabric picom passed **10 of 10** needles at 131,072 (12.6 s) and **10 of
+  10** at 983,040 (98.7 s), `--needles-per-depth 10`. The earlier `of: 3` cells from the same
+  window are **void, not results** — their runs exited rc=3 and rc=143 (the 983k run was killed), so
+  both the E1 and L1 three-probe files record a failed instrument, not a model answer. The old
+  `of: 1` PASS rows stand as they are.
+- **Tool calling, full set** (this window, for the record): E 1,094/1,240, L 1,094/1,240,
+  K 1,092/1,240, `transport_errors` 0 in all three.
+- **Current state.** The fabric is still armed, nothing is persisted, and a reboot reverts the host
+  half — so `dcb pfc show` reading off means a reboot, not a revert.
+
+```sh
+sudo mlnx_qos -i <dev> --pfc 0,0,0,0,0,0,0,0 ; sudo mlnx_qos -i <dev> --dscp2prio flush
+sudo cma_roce_tos -d <rdma> -t 0
+/interface ethernet switch rule remove [find]
+delete `NCCL_IB_TC` line from knapcio recipe
+```
+
 ## 4. The same numbers as bars
 
 Mermaid cannot draw a value axis honestly, so the quantitative comparisons are fixed-width bars.

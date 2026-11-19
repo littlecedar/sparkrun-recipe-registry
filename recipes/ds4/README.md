@@ -2451,9 +2451,9 @@ this configuration; the production pair supersedes them for serving.
 
 #### The lossy arm's bar
 
-`PICOM_OEA=4,12,9` is a decision, not a toggle. The arm serves by default only while
-every gate below holds with a receipt of its own; miss one and it is demoted to the
-experiment record rather than shipped with a caveat.
+`PICOM_OEA=4,12,9` is a decision, not a toggle. The arm stays shipped — never the
+default serve — only while every gate below holds with a receipt of its own; miss one
+and it is demoted to the experiment record rather than shipped with a caveat.
 
 **What the knob approximates away.** The exact router takes each row's top 6 of
 `sqrt(softplus(logit)) + bias` (`engine/kernels/common.cuh:266-318`, pinned source
@@ -2474,7 +2474,7 @@ identifiers, and continuations whose preferred expert the rest of the batch does
 share. This is **not** a measured per-token loss — no cell decomposes logit divergence,
 and the batch-shape probe is what would.
 
-Ships by default while all of these hold:
+Stays shipped — never the default serve — while all of these hold:
 
 1. **Identity, offline and on the box.** The twin is the exact arm plus one env key
    (`tests/test_ds4_recipes.py`, `PicomOeaArmContract`, controls included), and the
