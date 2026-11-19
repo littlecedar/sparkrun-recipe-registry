@@ -16254,11 +16254,12 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   `+2,613,248 B`, so `LIKELY` the same shared chunk-store traffic with no
   process set changing on any host. `.31` is again the one root that gained,
   as at the `03:00` tick. `MemAvailable` moved at most `59,944 kB` (`.33`).
-- **Re-probed, not carried**: head → `.30` by name still fails host-key
-  verification (`REMOTE HOST IDENTIFICATION HAS CHANGED`) while head →
-  `10.0.4.30` answers `spark-41e1`, so `head-mesh-cannot-reach-30` stands.
-  This tick read `.30` from the workstation (`spark-head` alias resolves here),
-  not by local exec on head as the base did.
+- **Re-probed, not carried**: head → `.30` by its node name still fails
+  host-key verification (`REMOTE HOST IDENTIFICATION HAS CHANGED`) while the
+  same node answers by its own address from the same head, so
+  `head-mesh-cannot-reach-30` stands. This tick read `.30` from the
+  workstation over the cluster's ssh alias, not by local exec on head as the
+  base did.
 - **Untracked carry-over**: `.31`–`.35`'s `beegfs-meta` still restart-loops
   (`activating`, `exit-code`, `NRestarts` `124,132`–`124,155`), row
   `beegfs-meta-restart-loop-non-meta-hosts` still `queued`.
