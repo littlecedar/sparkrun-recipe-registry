@@ -391,7 +391,10 @@ opposed to a needle answered in a few tokens. `tools/longctx-cell.py`, one reque
 **varied** = `varied-generation`, no levers, a Python module of 16 functions that ends itself
 (`finish_reason: stop`). `tok/s` is the **engine's own per-request line** where it prints one —
 picom does (`serve: req N session …: prompt …, 512 tokens in X ms (Y tok/s)`); knapcio prints
-per-batch throughput only, so its column is the client integral. Cache state is quoted per run
+per-batch throughput only, so its column is the client integral. One picom cell is not an
+engine line: 131,072 varied, second cold run, `136.7`† is 284 tokens ÷ 2.078 s to 0.02 %
+where every other picom cell sits 0.5–2 % below its own client integral, so that one is
+quoted client-derived. Cache state is quoted per run
 because it decides what the cell means: a warm prompt reports a sub-second TTFT and is not a
 prefill fact. Receipt `head:~/benchmarks/lc-vision-20261119/README.md`.
 
@@ -402,13 +405,19 @@ picom (image `sha256:1e529c67…`), prompts 135,355 / 1,013,474 server tokens:
 | 131,072 | repetitive | 1 cold (`reused 0`) | 12.234 | 2.685 | 512 | **95.8** |
 | 131,072 | repetitive | 2–3 warm (`reused 135,354`) | 0.035 / 0.038 | 4.87 / 4.89 | 512 | **104.5 / 104.2** |
 | 131,072 | varied | 1 cold (`reused 0`, nonce prefix) | 12.251 | 2.086 | 284 | **134.9** |
-| 131,072 | varied | 2 cold, other prefix | 12.201 | 2.078 | 284 | 136.7 |
+| 131,072 | varied | 2 cold, other prefix | 12.201 | 2.078 | 284 | 136.7 † |
 | 131,072 | varied | 3 warm (`reused 135,360`) | 0.039 | 2.008 | 279 | **137.2** |
 | 983,040 | repetitive | 1 cold (`reused 65,536`) | 94.156 | 4.913 | 512 | **103.6** |
 | 983,040 | repetitive | 2–3 warm (`reused 1,011,712`) | 0.44 / 0.44 | 4.90 / 4.91 | 512 | **103.9 / 103.7** |
 | 983,040 | varied | 1 cold (`reused 0`, nonce prefix) | 100.118 | 2.740 | 374 | **133.6** |
 | 983,040 | varied | 2 cold-ish (`reused 65,536`) | 94.570 | 3.481 | 469 | **132.6** |
 | 983,040 | varied | 3 warm (`reused 1,011,712`) | 0.422 | 3.481 | 469 | **132.6** |
+
+† client-derived (`tokens / decode_s`); the serve log's own per-request line for that run is not
+what produced it. The engine line and the client integral are not the same clock: on the 512-token
+cold run the engine counted 5,335.5 ms of generation against a client `decode_s` of 2.685 s
+(95.8 against 190.7 tok/s), so every other picom cell being 0.5–2 % under its client integral is
+the normal case, not an error.
 
 knapcio (image `sha256:7c3cb394…`), two boots (A, B), prompts 135,355–135,361 / 1,013,474–1,013,480:
 

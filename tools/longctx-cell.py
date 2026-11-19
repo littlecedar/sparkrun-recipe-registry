@@ -14,10 +14,17 @@ one extra client an arm runs before its serve is torn down.
 
 It builds a synthetic retrieval haystack at the requested token length, plants
 one access code at ~50 %, and sends it as a greedy streaming request. Streaming
-*is* the step measurement: a speculative-decode engine emits one SSE chunk per
-decode step, so the median gap between chunks is ms/step. The reply is checked
-for the code, so the cell carries its own quality witness -- a decode win with a
-lost needle is not a win.
+*is* the step measurement: one content-bearing SSE chunk is one step (an engine
+may pack several tokens into a chunk, so `decode_steps` can be fewer than
+`completion_tokens`). `decode_s` runs from the first content chunk to the last,
+and `ms_per_step` is that same window divided by its gaps, so
+`decode_steps * ms_per_step` reproduces `decode_s` by construction. The raw
+inter-chunk gap median is kept beside it as `ms_per_step_gap_median`: an engine
+that flushes SSE in bursts clusters its gaps at zero, so the gap median is not
+the mean (this one was 18.3 ms against a 12.2 ms mean) and quoting it as the
+step cost is how 220 steps of 18.3 ms were once written beside a 2.685 s
+window. The reply is checked for the code, so the cell carries its own quality
+witness -- a decode win with a lost needle is not a win.
 
 Prompt length is calibrated against the server's own tokenizer with one small
 probe request, then verified from the streaming response's `usage.prompt_tokens`.
@@ -73,7 +80,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSION = "1.2"
+VERSION = "1.3"
 DEFAULT_CPT = 3.5  # chars per token, only a starting guess; calibrated in run
 CALIBRATION_TOKENS = 8192
 REACHED_FRACTION = 0.97
@@ -217,7 +224,10 @@ def run_request(base, model, prompt, code, max_tokens, timeout, api_key,
         rec["ttft_s"] = round(st[0] - started, 3)
         rec["decode_s"] = round(st[-1] - st[0], 3)
         gaps = [b - a for a, b in zip(st, st[1:])]
-        rec["ms_per_step"] = round(statistics.median(gaps) * 1000.0, 1)
+        # The window rate, so decode_steps * ms_per_step == decode_s; the gap
+        # median rides beside it because a bursty SSE stream is not uniform.
+        rec["ms_per_step"] = round(1000.0 * (st[-1] - st[0]) / len(gaps), 1)
+        rec["ms_per_step_gap_median"] = round(statistics.median(gaps) * 1000.0, 1)
     rec["answer_tokens"] = rec["completion_tokens"] or rec["steps"]
     rec.setdefault("finish_reason", None)
     rec["decode_steps"] = rec["steps"]
@@ -532,8 +542,68 @@ def selftest():
     assert verdict([short], 200000), "short prompt must be a finding"
     miss = dict(cell_, needle_hits=1)
     assert verdict([miss], 200000), "needle miss must be a finding"
+    base, srv = _stub_serve()
+    try:
+        got = run_request(base, "stub", "p", "", 64, 30.0, None)
+    finally:
+        srv.shutdown()
+    assert got["error"] is None, got
+    steps, span = got["decode_steps"], got["decode_s"]
+    assert steps == 40 and span > 0 and got["ttft_s"] > 0, got
+    one_step = span / (steps - 1)
+    window = steps * got["ms_per_step"] / 1000.0
+    assert abs(window - span) <= one_step + 0.002, (window, span, one_step)
+    jitter = steps * got["ms_per_step_gap_median"] / 1000.0
+    assert abs(jitter - span) > one_step, ("burst gaps must not pass as the window "
+                                           "rate", jitter, span)
     print("selftest: OK")
     return 0
+
+
+def _stub_serve():
+    """SSE serve with a bursty chunk schedule: stalls and near-zero gaps mixed.
+
+    Its gaps are deliberately not uniform, so the raw gap median misses the
+    window by far more than one step -- the exact shape that wrote 18.3 ms
+    beside a 2.685 s decode.
+    """
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    gaps = [0.002] * 34 + [0.050] * 6
+
+    class Stub(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            body = json.dumps({"data": [{"id": "stub"}]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            self.rfile.read(int(self.headers["Content-Length"]))
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.end_headers()
+            try:
+                for i, gap in enumerate(gaps):
+                    time.sleep(gap)
+                    chunk = {"choices": [{"delta": {"content": "t%d " % i}}]}
+                    self.wfile.write(("data: " + json.dumps(chunk) + "\n\n").encode())
+                    self.wfile.flush()
+                tail = {"choices": [{"delta": {}, "finish_reason": "stop"}],
+                        "usage": {"prompt_tokens": 2000, "completion_tokens": len(gaps)}}
+                self.wfile.write(("data: " + json.dumps(tail) + "\n\n").encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), Stub)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return "http://127.0.0.1:%d" % srv.server_port, srv
 
 
 if __name__ == "__main__":
