@@ -16264,78 +16264,37 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   (`activating`, `exit-code`, `NRestarts` `124,132`–`124,155`), row
   `beegfs-meta-restart-loop-non-meta-hosts` still `queued`.
 
-## 2026-11-19 09:19 ET — board tick: the window's quartet reaches serve
-- **Two publishes in one cycle**: this tick's own census read
-  `14:01:46Z`–`14:01:48Z` against the `08:06 ET` board, then a peer published
-  the `09:07 ET` board (`410a20c`) whose census (`14:02:11Z`–`14:02:13Z`) was
-  25 s fresher. The census was re-read (`14:13:28Z` on all six) and the board
-  was composed on the peer's base with every delta, pair and interval
-  recomputed — the skill's own rule that a recomposition invalidates the first
-  composition's figures.
-- **State**: a knapcio tp=4 quartet (`b020d2dd178343a5_82815fc3f420`, image
-  `3f4480818acb`) serves on `.31`–`.34`, `StartedAt` `13:53:33Z`, ready
-  `14:04:55Z` (**682 s**) by the engine's own `The server is fired up and
-  ready to roll!`; `.30`/`.35` idle at `0/0/0`. Window
-  `lc-vision-20261119` holds `.31`–`.34` to `22:00Z`, lease to `19:45:18Z`.
-- **Under load**: rank 0 counted `38` `completion` lines by `14:13:55Z` and
-  prefill batches at `14:14:19Z`–`14:14:36Z` carried `#pending-token`
-  `145,122` → `112,354` — a request chunking through the 16,384-token prefill
-  path the window declares, i.e. the serve is warm and working, not idle.
-- **Headroom**: `MemAvailable` `9,060,812 / 7,267,216 / 6,590,204 /
-  5,977,056 kB` on `.31`–`.34` with `Cached` at `1,124,248`–`2,187,872 kB` and
-  `AnonPages` at `5,001,956`–`7,514,684 kB`, so the fall is the serve's own
-  anonymous set (`LIKELY`: no other container on any rank). `.34` sits
-  **307 MiB below** the 6.0 GiB stop-rule floor; that is a state reading, not
-  a verdict, and nothing was stopped.
-- **Instrument refusal, not a register defect**: `render --board` and `check`
-  now exit 1 in this worktree because a peer's staged `recipes/explore`
-  retirements leave done row `h2h-beam-house-boot` naming a recipe the disk no
-  longer carries (`_bootable` validates every row, done ones included). Both
-  blocks were rendered from a `git clone --no-hardlinks .` of HEAD; the
-  register bytes are the live ones (`26d51f1b…`). Worth a tool change — a
-  `done` row's recipe should not gate a render — but that is the register's
-  row to fix, not this tick's.
-
-## 2026-11-19 09:38 ET — board tick: the quartet lost three ranks and was replaced
-- **State**: the quartet the 09:19 entry left serving is **gone**; task
-  `b020d2dd178343a5_82815fc3f420` has no container on any node, and
-  `…_907303a0d0e8` (image `3f4480818acb`, `StartedAt` **`14:34:00Z`**) is
-  **loading** one rank each on `.31`–`.34`, `Up 4 minutes (health: starting)`,
-  no `:8000` listener. `.30`/`.35` at `0/0/0`. The window lock
-  (`2026-11-19 08:45:29 ET`, 242 B) and its one lease (`1823dcab…`, to
-  `19:45:18Z`) are byte-identical across the teardown, so both boots are the
-  same holder's.
-- **The death is on record now**: `.32`/`.34` logs quote `Scheduler or
-  DataParallelController 369/374 terminated with -15` at `14:15:17Z`/`14:15:15Z`,
-  then `kill_process_tree` and the shutdown path's
-  `AttributeError: 'NoneType' object has no attribute 'set_server_stop_hook'`
-  (`http_server.py:2709`); rank 0 logged `Server couldn't get a response from
-  detokenizer` every ~30 s with `last_heartbeat time: 14:14:43`; `.33` kept
-  serving Engram stats to `14:14:56`. The cell in flight was the window's own
-  `tools/longctx-cell.py --context-length 983040`, begun `14:08:33Z` — **LIKELY**
-  the trigger, not a measured one.
-- **`/v1/models` is not a readiness probe**: rank 0 answered **200** for the
-  model list at `14:23:22Z` while `/health` timed out (**000**); by `14:33:20Z`
-  both were **000** and all four ranks read `docker ps` empty. A tick that
-  quoted only the model list would have published a serve that had stopped
-  answering 8 min earlier.
-- **Which low readings were live**: `.34`'s `5,977,056 kB` was read at
-  `14:13:28Z` with its engine still running, two minutes before that engine
-  exited, and `.33`'s `5,176,964 kB` at `14:29:36Z` with a serve child still
-  alive — both are live-but-tight ranks, not post-mortem counters. Four minutes
-  into the replacement, `MemAvailable` reads
-  `39,048,684 / 38,541,524 / 38,884,420 / 39,249,896 kB` on `.31`–`.34` with
-  `Cached` ~38 GB and `AnonPages` `5.4`–`6.2 GB`, the same ~38 GB-per-rank
-  loading shape the first boot showed, so nothing about the fleet's headroom
-  changed between the two boots — only which ranks were holding it.
-- **Lands on the peer's 09:32 board, not its 09:07 or 09:19 ones**: two peers
-  published inside this tick (content sha `1665200b…` then `c76db6af…`), and
-  `publish` refused the first composition on the stale base with
-  `carries … newer than this read`. A recomposition invalidates the figures
-  computed against the base it replaced, so this tick's intervals and deltas
-  were re-derived against `14:22:06Z`, never carried across.
-- **Instrument cost, twice**: `docker events` full-ring enumeration hangs
-  (~60 s/node, and a `| head` on the captured stream kills the `tee` by
-  SIGPIPE, truncating the capture), and a nested `ssh -n` drops a
-  script-on-stdin hop — both bit this tick before the census was clean.
-
+## 2026-11-19 09:45 ET — board tick: a served quartet, then its replacement
+- **Three bases in one cycle.** This tick read the `08:06 ET` board and censused
+  at `14:01:46Z`–`14:01:48Z`; a peer published `09:07 ET` (`410a20c`) with a
+  census 25 s fresher, then a second peer published `09:38 ET` (`467a507`,
+  `c88c494`) covering the teardown this tick was watching. The board is
+  composed on the third base with every delta, pair and interval recomputed
+  against it. The first composition was published to disk (09:19) and never
+  committed, so a peer's publish replaced it; nothing of it reached origin.
+- **Served, then replaced.** The knapcio tp=4 launch `…82815fc3f420` served on
+  `.31`–`.34` — ready `14:04:55Z`, **682 s** after `StartedAt` `13:53:33Z`, by
+  the engine's own `The server is fired up and ready to roll!` — and was under
+  live long-context load (`38` `completion` lines by `14:13:55Z`, prefill
+  batches carrying `#pending-token` `145,122` → `112,354`). It was killed
+  `14:32:46Z` and replaced at `14:34:00Z` by `…907303a0d0e8`, which was still
+  `health: starting` with `:8000` closed at this tick's `14:40:03Z` read.
+- **The handover is observed**: a state-filtered `docker events` read on all
+  four ranks at `14:35:13Z` returns exactly five events per rank —
+  `kill`/`die`/`destroy` `14:32:46Z`–`14:32:48Z`, then `create`/`start`
+  `14:34:00Z`. No third launch intervened.
+- **Headroom reversed at teardown**: the served launch read `MemAvailable`
+  `5,977,056 kB` (`.34`, **307 MiB below** the 6.0 GiB stop-rule floor) at
+  `14:13:28Z`; after the kill and the replacement's weight load the same four
+  ranks read `40.2–40.5 GB`, so the figure was that serve's working set and not
+  a leaking node. Nothing was stopped by this tick.
+- **Instrument defect worth a tool change**: `render --board` and `check` exit 1
+  in this worktree while a peer's `recipes/explore` retirements are staged,
+  because `_bootable` validates the recipe path of every row — `done` rows
+  included. Both queue blocks were rendered from a `git clone --no-hardlinks .`
+  of HEAD; the register bytes are the live ones (`26d51f1b…`, `201` tasks,
+  `42` open). Also caught here: my first node-row event cell read
+  `container events in <census read>→<census read> window 0` — a zero-width
+  window makes the zero vacuous — and the `.31`–`.34` rings start *after* the
+  base read, so absence there is unprovable from a ring; the row now quotes the
+  filtered state query instead.
