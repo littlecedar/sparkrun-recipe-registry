@@ -16192,3 +16192,39 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   (`activating`, `exit-code`, `NRestarts` `122,807`–`122,830`), the register row
   `beegfs-meta-restart-loop-non-meta-hosts` still `queued`.
 
+## 2026-11-19 07:08 ET — board tick: seventh empty hour, and the base's ring-count claim retired
+- **Census** `2026-11-19T12:02:10Z`–`12:02:44Z`, `54 min 36 s` after the
+  `06:10 ET` base's first node read (`11:07:34Z`) and `55 min 8 s` after its last
+  (`11:07:36Z`): all six hosts hold `0` containers, `0` volumes, `0` `:8000`
+  listeners and no serve child; head's `sparkrun status` reads
+  `Idle hosts (no sparkrun containers, nothing pending)`. Seventh consecutive
+  empty hour.
+- **Nothing claimed**: `.local/fleet-window.lock` absent here and on the head;
+  lease ledger byte-identical to the base (`48 B`, `34eed267…`, mtime
+  `00:42:47 ET`); campaign user unit `inactive`; nine `state.json` files carry
+  `38` arms and `0` live leases. Register unchanged (`26d51f1b…`, `201` tasks /
+  `42` open, `check` prints `ok: 201 task(s)`).
+- **Pool** serving, `14,060,932,300,800 B` `used` at `12:02:13Z`
+  (`+32,505,856 B` on the base's `11:07:36Z` read over `54 min 37 s`), `103` hub
+  entries, ds4 `config.json` `3311 B`.
+- **Roots net `−33,325,056 B` while the pool rose `+32,505,856 B`**:
+  `.30` `−4,345,856`, `.31` `−21,823,488`, `.32` `−21,811,200`,
+  `.33` `−21,815,296`, `.34` `−13,422,592`, `.35` `+49,893,376`; residual
+  `−819,200 B`, so `LIKELY` the same shared chunk-store traffic, with no process
+  set changing on any host. `MemAvailable` moved at most `108,908 kB` (`.34`).
+- **Base claim retired**: the `06:10` row's "each ring full at `256`" does not
+  reproduce — the same enumeration reads `199`/`233`/`249`/`249`/`249`/`245` a
+  hour later with **every oldest entry identical** to the base's, and dockerd on
+  `.31` has run since `2026-11-11 20:04`. The empty window rests only on "oldest
+  retained event predates the window start", which still holds on all six, so no
+  absence claim moves. Board row `07:05 board correction` carries it.
+- **Instrument note for later ticks**: `docker events` prints its own line
+  timestamps in **local** time, so `cut -c1-24` yields ET mislabelled as `Z`
+  unless `TZ=UTC` is exported — the same trap class as `uptime -s`. Every
+  timestamp above was re-read under `TZ=UTC`.
+- **Untracked carry-over**: `.31`–`.35`'s `beegfs-meta` still restart-loops
+  (`activating`, `exit-code`, `NRestarts` `123,435`–`123,458`), row
+  `beegfs-meta-restart-loop-non-meta-hosts` still `queued`; head's ssh to `.30`
+  still fails host-key verification (`head-mesh-cannot-reach-30`, `.30` read by
+  local exec on the head instead).
+
