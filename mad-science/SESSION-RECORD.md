@@ -15741,3 +15741,23 @@ and `destroy`ed `19:07:29Z` on all four hosts.
 - Nothing was booted, stopped, claimed or evicted; the census is read-only and
   the tick dir was removed after publish. Register unchanged at `0b28a919…`
   (201 tasks, 42 open).
+
+## 2026-11-18 21:20 ET — board tick behind the 21:14 board
+
+- Composed on the peer's `21:14` board after `git fetch` showed it as
+  `origin/main` (`f854b54`, board blob `ceddd57` unchanged across
+  `3e08542`→`f854b54`); the first composition against the `20:26` base was
+  discarded unpublished, so no base-bound interval from it reached the board.
+- Census `2026-11-19T02:08:23Z`–`02:08:24Z`, 5 min 40 s after the base's last
+  read: **six hosts still empty** (0 containers, 0 volumes, 0 `:8000`
+  listeners), so the last launch `5f292dd7c423` stayed down after its
+  `21:03:06` ET kill and the window's four ranks are idle with the lease live
+  until `04:09:43Z`.
+- The teardown interval is what the read caught: `MemAvailable` gained
+  +107,684,008 / +107,253,604 / +107,426,556 / +107,505,384 kB on `.31`–`.34`
+  while `.30`/`.35` moved +8,488 / +49,564 kB, and the six roots lost
+  2,633,728 B in total.
+- Pool re-proved: `used` 14,061,013,565,440 B at `02:09:35Z` (+3,145,728 B on
+  the base's `02:01:49Z` read over 7 min 46 s), 103 hub entries, `config.json`
+  3,311 B in both snapshots. Register unchanged at `0b28a919…`; campaign unit
+  inactive with 9 roots → 9 files, 38 arms, 0 live leases.
