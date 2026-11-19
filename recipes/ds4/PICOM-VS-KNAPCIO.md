@@ -447,25 +447,33 @@ the experiment.
 
 | boot | arm | C1 | C2 | C5 | C10 |
 |:--|:--|--:|--:|--:|--:|
-| control (marking off) | knapcio | 65.62 | 92.93 | 124.60 | 161.51 |
-| armed (marking on) | knapcio | 52.08 | 82.33 | 134.11 | 153.22 |
-| armed | picom exact (E1) | 87.15 | 92.39 | 111.75 | 126.77 |
+| control (marking off) | knapcio | 65.62 (4.8 %) | 92.93 (11.0 %, inadmissible) | 124.60 (10.5 %, inadmissible) | 161.51 (3.2 %) |
+| armed (marking on) | knapcio | 52.08 (30.9 %, **inadmissible**) | 82.33 (9.7 %) | 134.11 (1.7 %) | 153.22 (4.4 %) |
+| armed | picom exact (E1) | 87.15 (6.5 %) | 92.39 (8.2 %) | 111.75 (5.3 %) | 126.77 (2.4 %) |
 | armed | picom lossy (L1) | 87.41 | 92.94 | 120.41 | 137.11 |
 | pre-change | knapcio (K2) / picom exact (E2) / lossy (L2) | 66.94 / 77.29 / 91.29 | 89.59 / 97.39 / 93.05 | 123.92 / 106.89 / 114.66 | 161.23 / 124.92 / 138.09 |
+
+The marked knapcio boot's cells carry their within-boot CV and the protocol's ≤10 % verdict, so none
+is quoted bare: **C1 52.08 s is inadmissible** (30.9 %) and is retained only as the outlier the repeat
+window explains. The same rule also disciplines the control's C2/C5 (11.0 % / 10.5 %), which is why the
+verdict comes from the repeat window rather than this table.
 
 **Repeat window, marked against control, two boots each**
 (`head:~/benchmarks/fabric-c1-20261118/README.md`): C1 66.37 / 65.26 / 62.86 against 67.74 / 68.70,
 C2 93.39 / 86.42 / 78.03 against 88.11 / 89.48 / 94.87, C10 155.66 / 151.09 against 153.94 / 165.05 —
 every admissible cell inside drift, C1 −2.0 % (marked faster) and C2 +6.0 % (marked slower, inside the
-control's own 7.7 % boot-to-boot span). **The earlier −21 % / −11 % reading is not reproduced**; the
-30.9 % CV cell was the artifact.
+control's own 7.7 % boot-to-boot span). The one marked C5 cell, 123.74 s, is **inadmissible** by the
+same rule (10.2 % CV), so no C5 delta is claimed. **The earlier −21 % / −11 % reading is not
+reproduced**; the 30.9 % CV cell was the artifact.
 
 - **The bare fabric change is neutral.** The control boot reproduces the pre-change cells within
   drift, and picom's two boots sit inside it as well.
-- **The C1 comparison is inadmissible, not a result.** The armed knapcio boot's C1 within-boot
-  spread was **30.9 %**, which the protocol's ≤10 % rule rejects — the same rule that discarded
-  L2's 20.8 % C1. The only defensible statement is at **C2: −11 % with marking on against the
-  control**; C1 stays open until a repeat boot.
+- **The repeat window settles it: no marking effect, and C1 is no longer open.** Two boots per
+  condition put marked against control at C1 66.37 / 65.26 against 67.74 / 68.70 (≈−2 %, marked
+  marginally faster) and C2 93.39 / 86.42 against 88.11 / 89.48 (≈+6 %, marked slower, inside the
+  control's own 7.7 % boot-to-boot span). Both sit inside drift, so the earlier −21 % / −11 %
+  reading is not reproduced and the single 52.08 s K1 cell stays the artifact its 30.9 % CV
+  flagged (`head:~/benchmarks/fabric-c1-20261118/README.md`).
 - **The pre-registered null holds.** During every measured ladder cell the pause counters did not
   move — `tx-pause` unchanged at 75/42 from the synthetic proof, host `rx_prio3_pause` flat — while
   `tx-queue3-packet` carried the traffic and `tx-drop-queue3` stayed 0. The served workload never
@@ -654,10 +662,12 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
   (`launcher.py:270-278`). The shipped picom arms prefill 16384 rows (`--prefill-rows 16384`) and have
   no interleave at all (`docs/engine.md:451-460`); the probe arm's 8192 rows is the one engine
   difference between the two ladder tables. Both engines now have a same-instrument prefill cell,
-  and picom is faster: **1.45×** at 2048 tokens (time to first token 384–391 ms against 549–571,
-  `picom-tuning-20261118/E0/ladder.json` and `fabric-c1-20261118/{K-marked,K-control-2}`) and
-  **2.47×** at ~1M (10,071 against 4,077 tok/s by wall clock, `picom-tuning-20261118/README.md` §4
-  and `~/benchmarks/tp4-window-20261024/`) — measured by time to first token and client-side wall
+  and picom is faster: **1.45×** at 2048 tokens on prompt tokens ÷ time to first token — a
+  TTFT-normalized rate that still includes queueing and scheduler time, not raw prefill (time to
+  first token 384–391 ms against 549–571, `picom-tuning-20261118/E0/ladder.json` and
+  `fabric-c1-20261118/{K-marked,K-control-2}`) — and **2.47×** at ~1M (10,071 against 4,077 tok/s
+  by client-side wall clock, `picom-tuning-20261118/README.md` §4 and
+  `~/benchmarks/tp4-window-20261024/`) — measured by time to first token and client-side wall
   time, not the ladder's `pp_throughput`, which the harness inflates on picom
   (`benchmarking/README.md` rule 5).
 - **The client contract is where the engines differ most in kind.** SGLang's surface honors

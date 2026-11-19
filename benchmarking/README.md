@@ -105,7 +105,9 @@ inferred from a comparison you already decided is null.
    doubles the cell count and fakes bimodal boots; select the phase explicitly and print the record
    count per cell before interpreting any table.
 5. **`pp_req_throughput` is prompt-size ÷ TTFT, not a prefill speed** (verified numerically:
-   `pp_req_throughput × e2e_ttft == prompt_size`). The aggregate `pp_`/`tg_` columns are windows
+   `pp_req_throughput × ttfr == prompt_size`; it is `e2e_ttft` only on a server whose first chunk
+   is its first token — picom's role delta makes 48,676 × 0.388 ≈ 18,900, not 2,048). The aggregate
+   `pp_`/`tg_` columns are windows
    opening at submission, so they charge scheduler queueing to a phase; use the per-request columns
    for any "this phase got slower" claim. The denominator is time to the first *chunk*, not to the
    first token: `first_response_ts` is set on any `choices` entry (`llama_benchy/client.py:352-353`)

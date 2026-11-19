@@ -16029,3 +16029,38 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   returned six empty node blocks at `rc=0` in 2 s; the fix is dropping `-n`
   on any hop whose stdin is the script. Worth a guard, it has now cost two
   sessions.
+
+## 2026-11-19 01:10 ET — session close: the paired engine window, a fabric null, and a prefill correction
+
+- **The paired window is the session's measurement**: six boots, two per arm
+  (`E, K, L, L, K, E`), picom **24.8–30.9 %** ahead of SGLang on agentic totals and
+  **LIKELY**, not established, because the arms never interleaved at cell level;
+  exact against lossy is a tie (122.5–123.4 s within exact's own 119.9–123.4 s);
+  the full BFCL tools leg reads **1,094 / 1,094 / 1,092 of 1,240**, so tool calling
+  separates nothing.
+- **Knapcio's output ceiling was raised, not proved under shipping config.** The
+  `DSV41_MAX_NEW_TOKENS` knob now stands at **262,144** and was exercised, but the
+  shipped loop guard ended the degenerate 262k request at **6,136 tokens**, and only
+  a probe-only `DSV41_LOOP_ABORT=0` run reached the full 262,144 — so a full-262k
+  reply under the shipped configuration is **not demonstrated**.
+- **The lossless-fabric experiment returned a null and was fully reverted.** Armed
+  on six hosts with counter proof (`tx-queue3-packet` 0 → ~11 M–177 M), the
+  marking-off control boot stayed neutral, the repeat window showed **no marking
+  effect** (C1 −2 %, C2 +6 %, both inside drift) and pause counters never moved
+  during any ladder cell; the four layers — recipe line, two test pins, switch rule
+  and host settings — were then reverted, with the revert itself proven by counter.
+- **The "13×" prefill gap was a harness artifact.** `pp_throughput` divides by
+  time-to-first-chunk and picom answers with an empty role delta before prefilling,
+  inflating the figure ~9×; prompt tokens ÷ time to first token puts the real gap at
+  **≈1.45×** at 2k and **≈2.47×** at 1M. Prefill CUDA graphs are unreachable on that
+  image — the engine refuses the flag combination and caps prefill graphs at 16,384.
+- **The picom tuning window kept no knob.** Four were tried and two are not levers at
+  all (`--spec-cost` is the engine default; `--small-rows 16` is out of range); the
+  lossy arm's batch-shape gate was met at **0/16** answer changes.
+- **Fourteen `zz-` experiment arms retired to `attic/ds4/`** on run evidence, with
+  tests re-pointed to the shipped arms and queue rows de-pathed.
+- **Calibration facts standing behind the verdicts**: the agentic battery spreads
+  ±2 tasks on identical argv, and ladder boot-to-boot drift is **3.2–7.3 %**.
+- **Three self-corrections recorded**: a two-stream "win" became a tie, accuracy
+  "parity" became an SGLang edge, and the prefill "chasm" became a metric artifact.
+
