@@ -45,7 +45,7 @@ interleaved.
 | Tool calling, scored | either | BFCL full leg, 1,240 questions: E 1,094 / L 1,094 / K 1,092, `transport_errors` 0 in all three (`fabric-lossless-20261118/{E1,L1,K1}/bfcl_*.json`) | tie, within 2 questions of 1,240 |
 | Million-token context | **picom** | picom answered every cold ~1M request (3/3: two cold 983,040 varied cells at 133.6 and 132.6 tok/s after 100 s and 94 s prefill, `reused 0` / `reused 65,536`), and its needles are 10/10 at 131,072 (12.6 s) and 10/10 at 983,040 (98.7 s) on the lossy arm, `--needles-per-depth 10` (`fabric-lossless-20261118/L1/needle-*-n10.json`; the older 1-of-1 983,040 PASS on both shipped arms stands as history, `phase5`/`phase6` `needle-983k-d10.json`). **Knapcio wedged 2 of 4 cold ~1M requests** and had to be restarted: one cold generation hung in `_ALLGATHER_BASE` (SeqNum=14471) and one cold 32-token retrieval in `ALLREDUCE` (SeqNum=25870); prefill completed in both, the detokenizer heartbeat then stopped and the GPU spun at 17.9 W until the 600 s NCCL watchdog aborted (`head:~/benchmarks/lc-vision-20261119/knapcio/wedge*-nccl.txt`) | PASS and decode measured on picom; knapcio's 983,040 cells are two completions against two wedges |
 | Vision | either | 6/6 graded answers on the same three images, 184 prompt tokens per 512×512 image on both arms, 0.30–0.41 s (`head:~/benchmarks/lc-vision-20261119/`); the difference is architectural — picom pays a supervised rank-0 child | cost and correctness measured, one resolution |
-| Long-form generation | picom | 40,000 tokens in 207.9 s (192.4 tok/s) under a 262,144 cap | measured on picom; both engines cap at 262,144, but picom binds a long request to one of four big slots while SGLang spends 4.5 % of a shared KV pool |
+| Long-form generation | picom | shipped exact arm: 40,000 tokens, `finish_reason: length`, in 210.235 / 210.581 s (190.26 / 189.95 tok/s client, engine line 190.4 / 190.1), text sha256 `3616f8ac…` identical across both runs, under a 262,144 cap (`head:~/benchmarks/cheap-cells-20261119/`) | measured on picom; both engines cap at 262,144, but picom binds a long request to one of four big slots while SGLang spends 4.5 % of a shared KV pool |
 | Restart-sensitive work | picom | 27.7 s warm-cached vs 708.4 s cold | one boot each, not like-for-like |
 
 ## Architecture
@@ -142,7 +142,7 @@ table once read a harness timeout as an engine property (section 3, old fixture'
 | Weights as served | checkpoint as shipped: native MXFP4/F8, 510 GB resident, Engram read from NVMe (`recipes/ds4/README.md` knapcio table; arm `metadata.model_dtype: mxfp4`) | same checkpoint converted once per rank to a 72.38 GiB `.dsw` file (≈289.5 GiB across 4 ranks) plus 50.7 GB Engram shards on that rank's SSD (`docs/engine.md:90-116`; lane README artifacts row) |
 | Vision | in-engine native multimodal; the measured boot's gate line records full-budget native vision passing (`knapcio-bench-20261117/boot/serve-rank0.log:447`) | separate supervised ViT child on rank 0, `127.0.0.1:18950`, ~0.90 GiB, front-end reaches it by `--vision-addr` (`launch.sh:269-271`, PR #15 patch) |
 | Tool calls | `--tool-call-parser deepseekv41` with `--reasoning-parser deepseek-v41`; name then argument pieces, `finish_reason: tool_calls` (`knapcio-live-20261117/README.md` probes 4 and 8) | dsfront parses the model's own tool-call text (`frontend/src/server.rs:1006`) and streams argument pieces (`server.rs:1073-1076`; `--stream-tool-args` at `launch.sh:242`, PR #7 patch) |
-| Prefix / cache behavior | radix prefix cache with 128 SWA tails and cache reporting on; a repeated ~4.8k prompt reports `prompt_tokens_details.cached_tokens: 4608` (`launcher.py:268`, `knapcio-live-20261117/README.md` probe 6) | session table matched by longest shared *text* prefix, 64 shared bytes minimum (`frontend/src/session.rs:17`), state spilled per slot; every measured cell ran cold — `reused 0 (cold)`, `cached_tokens: 0` (`picom-ladder-20261117/README.md` falsifiers, `knapcio-live-20261117/README.md` probe 6) |
+| Prefix / cache behavior | radix prefix cache with 128 SWA tails and cache reporting on; a repeated ~4.8k prompt reports `prompt_tokens_details.cached_tokens: 4608` (`launcher.py:268`, `knapcio-live-20261117/README.md` probe 6) | session table matched by longest shared *text* prefix, 64 shared bytes minimum (`frontend/src/session.rs:17`), state spilled per slot; on a verbatim repeated ~4.75k prefix it reports `prompt_tokens_details.cached_tokens: 4752`, the front end logs the match plan (`it shares 27068 of 27068 bytes, 4753 ids in common`) and the engine logs `reused 4752 (live)`, against `reused 0 (cold)` on first use; TTFT **0.0284 s vs 0.5706 s** for a fresh prefix of the same length (engine prefill 25.6 ms vs 567.3 ms; streamed with `stream_options.include_usage`, `head:~/benchmarks/cheap-cells-20261119/`). Every earlier all-zero reading came from cache-defeating cells (random prefix in `bench.py`), so the field was never dead — that corrects our own claim |
 | Readiness (container start → HTTP ready) | 696.2 s port-open / **708.4 s** HTTP-ready, one cold boot (`knapcio-bench-20261117/README.md`) | **27.7 s** with per-rank artifacts cached; 166.4 s on the boot that had to convert weights and Engram (`picom-gap-20261117/README.md`) |
 
 ## 2. Request surface
@@ -734,11 +734,16 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
 - **The output ceiling is measured, and it is a slot question.** The shipped front end clamps
   `max_tokens` at its `--max-tokens` (`frontend/src/server.rs:522-528`), which used to be 32,768, so
   a longer request ended at 32,768 with `finish_reason: length` and no way to tell that from a stop.
-  The shipped arms pass 262,144 (`launch.sh:311,324`): a 40,000-token request returns
-  `completion_tokens` 40,000 and `finish_reason` `length` in 207.9 s (192.4 tok/s) on both
-  configurations. Because `engine/server/serve.cpp:1195` admits only where `prompt + max_new` fits,
-  every request that budgets 262k needs one of the four big slots, and a fifth waits in `wait_`
-  rather than drawing a refusal or a timeout. Knapcio's ceiling is now the same **262,144**, and it
+  The shipped arms pass 262,144 (`launch.sh:311,324`). The shipped exact arm now carries the
+  cell: `max_tokens` 40000 with `ignore_eos` returns `completion_tokens` 40,000 and
+  `finish_reason: length` in 210.235 / 210.581 s (190.26 / 189.95 tok/s client; engine lines
+  190.4 / 190.1), text sha256 `3616f8ac…` identical across both runs
+  (`head:~/benchmarks/cheap-cells-20261119/cell-a.json`). That supersedes the probe-era
+  192.4 tok/s figure (207.9 s) as the shipped-arm number; the probe ran the lossy
+  `PICOM_OEA=4,12,9` configuration. Because `engine/server/serve.cpp:1195` admits only where
+  `prompt + max_new` fits, every request that budgets 262k needs one of the four big slots,
+  and a fifth waits in `wait_` rather than drawing a refusal or a timeout. Knapcio's ceiling
+  is now the same **262,144**, and it
   is the image's adapter policy rather than an engine default: the `DSV41_MAX_NEW_TOKENS` env knob
   raises `DEFAULT_MAX_NEW_TOKENS` (`encoding_compat.py:42,63-71`), and `apply_request_max_tokens()`
   fills an omitted `max_tokens` and clamps a larger one to the cap. Both engines therefore bound the
@@ -792,10 +797,11 @@ _Coverage._
 - **The 983,040 needle gap closed, not widened.** Both shipped boots pass it at depth 10, and decode
   at that length is now a cell (see "Long-context decode" above), not an inference from the needle.
 - **The long-context decode ladder exists now, and it is decode-only.** Repeated-prefix / multi-turn
-  cells at depth are still absent, and what the prefix cache costs is still unmeasured — the new
-  cells quote `reused` / `cached-token` per run precisely so a cache hit cannot pass for a cold
-  prefill. The knapcio 131,072 varied cell is inadmissible (CV 54 %) and no cold repetitive 983,040
-  cell exists on that arm.
+  cells at depth are still absent, and what the prefix cache costs at depth is still unmeasured — the
+  cheap-cells boot prices only the second request of a repeated ~4.75k prefix (TTFT 0.0284 s against
+  0.5706 s, `head:~/benchmarks/cheap-cells-20261119/`). The new cells quote `reused` / `cached-token`
+  per run precisely so a cache hit cannot pass for a cold prefill. The knapcio 131,072 varied cell is
+  inadmissible (CV 54 %) and no cold repetitive 983,040 cell exists on that arm.
 - **The BFCL tools leg is full now, and it still separates nothing.** All 1,240 questions on the
   first boot of each arm: E 1,094/1,240, L 1,094/1,240, K 1,092/1,240, `transport_errors` 0 in all
   three (`head:~/benchmarks/fabric-lossless-20261118/README.md` and `{E1,L1,K1}/bfcl_*.json`) — a tie
