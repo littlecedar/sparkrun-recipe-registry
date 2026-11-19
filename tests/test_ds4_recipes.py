@@ -1013,16 +1013,14 @@ class SglangLaneContract(unittest.TestCase):
         self.assertEqual(self.r.min_nodes, 4)
 
     def test_recipe_env_carries_the_metrics_flag_and_the_pin(self):
-        # The recipe's env: carries five keys: DSV41_MODEL_REVISION (the
+        # The recipe's env: carries four keys: DSV41_MODEL_REVISION (the
         # checkpoint pin the launcher resolves the HF cache at -- it no longer
         # guesses from refs/main), EXTRA_SGLANG_ARGS (2026-11-08 metrics rollout),
         # DSV41_FAST_LOAD (2026-11-17: this long-lived production serve runs
         # the stock loader, whose profiled KV pool is 6,849,792 tokens against the
         # fast loader's measured 2.79M, so the radix cache is not saturated and
-        # agent sessions stop re-prefilling), DSV41_MAX_NEW_TOKENS (the
-        # image adapter's completion default/clamp, 262,144 to match picom) and
-        # NCCL_IB_TC (2026-11-18 lossless fabric: DSCP 26 << 2 = 104, so NCCL's
-        # RoCE lands in the switch's PFC-armed traffic class 3).
+        # agent sessions stop re-prefilling) and DSV41_MAX_NEW_TOKENS (the
+        # image adapter's completion default/clamp, 262,144 to match picom).
         # Everything else -- the production config, and the checkpoint dir derived
         # from the pin -- lives in
         # recipes/ds4/mods/dsv41-sglang-overlay/launcher.py, and the serve
@@ -1036,7 +1034,6 @@ class SglangLaneContract(unittest.TestCase):
             "EXTRA_SGLANG_ARGS": "--enable-metrics",
             "DSV41_FAST_LOAD": "0",
             "DSV41_MAX_NEW_TOKENS": "262144",
-            "NCCL_IB_TC": "104",
         })
         for key in ("MODEL_PATH", "DSV41_SOURCE", "TP_SIZE", "CONTEXT_LENGTH", "SERVER_PORT"):
             self.assertNotIn(key, self.r.env)
@@ -1051,15 +1048,13 @@ class SglangLaneContract(unittest.TestCase):
         # 4e5002ab…) makes `boot.py health` DISCOVER the served port at runtime
         # (env override -> persisted port file -> the engine's own --port -> a
         # LISTEN port from /proc/net/tcp). Guard the recipe-side half: no env
-        # beyond the metrics rollout's flag, the checkpoint pin the launcher
-        # resolves at, and the fabric's NCCL_IB_TC, and the launcher persists the
-        # port for the probe.
+        # beyond the metrics rollout's flag and the checkpoint pin the launcher
+        # resolves at, and the launcher persists the port for the probe.
         self.assertEqual(self.r.env, {
             "EXTRA_SGLANG_ARGS": "--enable-metrics",
             "DSV41_FAST_LOAD": "0",
             "DSV41_MAX_NEW_TOKENS": "262144",
             "DSV41_MODEL_REVISION": "08c8657f02291e11b6f6b63e0e16014f8e748518",
-            "NCCL_IB_TC": "104",
         })
         launcher = (SGLANG_MOD_DIR / "launcher.py").read_text()
         self.assertIn("HEALTH_PORT_FILE", launcher)

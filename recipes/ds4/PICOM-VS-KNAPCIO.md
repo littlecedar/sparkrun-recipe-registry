@@ -439,9 +439,11 @@ Receipt: `head:~/benchmarks/fabric-lossless-20261118/README.md` and `AB-INTERIM.
 own window; nothing here is interleaved with the paired-window cells above.
 
 What changed: PFC priority 3 plus `dscp2prio 26→3` plus `cma_roce_tos 104` on all six hosts, one
-switch ACL rule sending UDP/4791 to the `roce` profile (tc3) on the six host ports, and
-`NCCL_IB_TC: "104"` in the knapcio recipe. The switch's own DSCP→tc3 mapping was already correct
-and needed no change.
+switch ACL rule sending UDP/4791 to the `roce` profile (tc3) on the six host ports, and an NCCL
+traffic-class env line (`"104"`, DSCP 26 << 2) in the knapcio recipe. All four layers — the recipe
+line, the two test pins, the switch rule and the host settings — have since been **reverted**; what
+remains the domain is the switch's own DSCP→tc3 mapping, which was already correct and pre-dates
+the experiment.
 
 | boot | arm | C1 | C2 | C5 | C10 |
 |:--|:--|--:|--:|--:|--:|
@@ -450,6 +452,13 @@ and needed no change.
 | armed | picom exact (E1) | 87.15 | 92.39 | 111.75 | 126.77 |
 | armed | picom lossy (L1) | 87.41 | 92.94 | 120.41 | 137.11 |
 | pre-change | knapcio (K2) / picom exact (E2) / lossy (L2) | 66.94 / 77.29 / 91.29 | 89.59 / 97.39 / 93.05 | 123.92 / 106.89 / 114.66 | 161.23 / 124.92 / 138.09 |
+
+**Repeat window, marked against control, two boots each**
+(`head:~/benchmarks/fabric-c1-20261118/README.md`): C1 66.37 / 65.26 / 62.86 against 67.74 / 68.70,
+C2 93.39 / 86.42 / 78.03 against 88.11 / 89.48 / 94.87, C10 155.66 / 151.09 against 153.94 / 165.05 —
+every admissible cell inside drift, C1 −2.0 % (marked faster) and C2 +6.0 % (marked slower, inside the
+control's own 7.7 % boot-to-boot span). **The earlier −21 % / −11 % reading is not reproduced**; the
+30.9 % CV cell was the artifact.
 
 - **The bare fabric change is neutral.** The control boot reproduces the pre-change cells within
   drift, and picom's two boots sit inside it as well.
@@ -472,14 +481,15 @@ and needed no change.
   `of: 1` PASS rows stand as they are.
 - **Tool calling, full set** (this window, for the record): E 1,094/1,240, L 1,094/1,240,
   K 1,092/1,240, `transport_errors` 0 in all three.
-- **Current state.** The fabric is still armed, nothing is persisted, and a reboot reverts the host
-  half — so `dcb pfc show` reading off means a reboot, not a revert.
+- **Current state.** The fabric is no longer armed: the host settings, the switch rule, the recipe
+  line and the two test pins have all been rolled back. The block below stays as the record of what
+  was undone, and it has been executed.
 
 ```sh
 sudo mlnx_qos -i <dev> --pfc 0,0,0,0,0,0,0,0 ; sudo mlnx_qos -i <dev> --dscp2prio flush
 sudo cma_roce_tos -d <rdma> -t 0
 /interface ethernet switch rule remove [find]
-delete `NCCL_IB_TC` line from knapcio recipe
+delete the NCCL traffic-class env line from the knapcio recipe
 ```
 
 ## 4. The same numbers as bars
