@@ -15903,3 +15903,64 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   `/cache/runtime/picom/run/api-key` (`200` authenticated, `401` without).
 - No correction is owed to the `23:07` board; nothing was booted, stopped,
   claimed or evicted, and the tick was read-only.
+## 2026-11-19 00:12 ET — hourly tick stands down behind the 00:15 board
+- Read the `23:07` board (`fd03e1a`, content sha256 `968610c5…`, board blob
+  `b86ee813…` unchanged across `fd03e1a`→`6a34bab`), ran a census at
+  `05:01:51Z`–`05:01:52Z` and composed on it; no publish landed. Both
+  attempts were refused by the board lock (90 s each, no holder left visible
+  to `fuser` afterwards — and the wrapper `flock -o` must never be put around
+  `publish`, which locks internally), and by the time the lock cleared a peer
+  had composed `00:15` on the same base and published it: `0add421` at
+  `00:15` ET (`00:19` after its correction `d72d9fb`), so `origin/main` =
+  `d72d9fb` and the board's content sha256 is `60fd6325…`, not the
+  `fcab33af…` this tick read on disk before that correction. The published
+  census (`05:03:55Z`–`05:03:59Z`) is **2 min 4 s fresher** and carries the
+  same task `58cddf1c62ba6578_4642bb741f95`, recipe, image pin, lock
+  `4c4e4267…` and register `26d51f1b…`, so nothing was published: a board
+  with an older census than its base moves the fleet clock backwards.
+- **The window turned over inside this hour.** `session:fabric-c1-retry-20261118`
+  (lock `02873ddb…`, lease to `08:31:27Z`) is gone from both files; the lock
+  now reads session `picom-tuning (ViBoard t1)`, ranks `.31`–`.34`, declared
+  `04:40:55Z`, `window` "open, close on release" (no end stamp), 335 B, sha
+  `4c4e4267…`. `.local/fleet-leases.json` is **48 B, sha `34eed267…`**,
+  `leases: []` and `fenced: []` — the new window is declared in the lock
+  only and holds **no lease** in the campaign ledger.
+- Launch churn, observed on all four ranks (`docker events`, not inferred):
+  the base's `cb8a9745ea63` `kill`ed `04:06:27Z` (`die`+`destroy`
+  `04:06:29Z`); `98d34292ddf7` `create`+`start` `04:45:51Z`, `kill`ed
+  `04:54:34Z` (`die`+`destroy` `04:54:36Z`); `f23b44893528` `create`
+  `04:55:02Z`, `start` `04:55:03Z`, `kill`ed `05:02:41Z` (`die`+`destroy`
+  `05:02:43Z`); `4642bb741f95` `create`+`start` `05:02:59Z`. `.31`'s ring
+  holds **282** events with oldest `04:01:30Z` and `.32`–`.34` hold **256**
+  with oldest `04:01:16Z`–`04:01:13Z`, so every transition sits inside the
+  retained ring and none is a bound. `.30` (ring 256, oldest
+  `2026-11-17T06:07:30Z`) and `.35` (256, oldest `2026-11-12T05:50:09Z`)
+  predate the window: their in-window counts (**10** and **0**) hold.
+- `.30`'s ten in-window events are **ad-hoc, not sparkrun**: `pensive_bardeen`
+  `create`+`attach`+`start`+`disconnect`+`die`+`destroy` all at `04:36:44Z`,
+  then `hopeful_pasteur` `create`+`archive-path`+`destroy` at `04:36:47Z`,
+  docker's random names with no `sparkrun_` prefix and no receipt naming them.
+- The window's own receipt moved: `picom-tuning-20261118/E2/ladder.csv` was
+  written `05:06:07Z` naming `4642bb741f95` with an **inadmissible C1**
+  (tg128 **73.551** ± 7.978, cv **10.8 %**), and its retry
+  `ladder-c1-retry.csv` at `05:06:59Z` clears it at tg128 **91.976** ± 6.454
+  (cv **7.0 %**) with pp2048 **50,581.6**. Both CSVs name the same launch.
+- Readiness: `/health` returned **200** from head at `05:05:09Z` while
+  `/v1/models` unauthenticated returned **401**; rank 0 with the image's own
+  `/cache/runtime/picom/run/api-key` (48 B) returned **200** naming
+  `deepseek-ai/DeepSeek-V4.1-Flash-1017` with `max_model_len` **1,048,576**,
+  and its serve log already held **43** `req` lines at the `05:04:17Z` read.
+- Pool re-proved by head units (`active`/`success`/0), mount listed
+  (`SOURCE default`/`FSTYPE beegfs`) and reads: `used`
+  **14,060,888,260,608 B** at `05:05:09Z`, **14,060,890,882,048 B** at
+  `05:08:51Z` (**+2,621,440 B** in 3 min 42 s), a net **-325,058,560 B** on
+  the base's own head read (`14,061,215,940,608 B`, `04:03:34Z`) over
+  65 min 17 s with no mover named; **103** hub entries; `config.json`
+  **3,311 B** in both snapshots; campaign unit inactive, 49 hidden-inclusive
+  paths → **9** files, 38 arms, 0 live leases; register `26d51f1b…`
+  (changed from the base's `0b28a919…`), **42 open** of 201.
+- Root `avail` fell on `.30` only (**-104,620,032 B**) while all five other
+  nodes gained (+46,977,024 to +121,491,456 B); `MemAvailable` deltas against
+  the base read are noise on every host (**-46,440** `.30`, **-2,596** `.31`,
+  **+36,128** `.32`, **-28,092** `.33`, **-36,000** `.34`, **+56,956** kB
+  `.35`). Nothing was booted, stopped, claimed or evicted by this tick.
