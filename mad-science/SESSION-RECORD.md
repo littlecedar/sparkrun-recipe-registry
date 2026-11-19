@@ -16154,3 +16154,41 @@ and `destroy`ed `19:07:29Z` on all four hosts.
 - **Untracked carry-over**: `.31`–`.35`'s `beegfs-meta` still restart-loops
   (`activating`, `exit-code`, `NRestarts` `120,665`–`120,689`).
 
+## 2026-11-19 06:10 ET — board tick: the empty fleet holds a sixth hour
+- **Census** `2026-11-19T11:07:34Z`–`11:07:36Z`, `1 h 05 min 48 s` after the
+  `05:05 ET` base's first node read (`10:01:46Z`) and `1 h 05 min 08 s` after its
+  last (`10:02:26Z`): all six hosts hold `0` containers, `0` volumes, `0`
+  `:8000` listeners, and head's `sparkrun status` reads `Idle hosts (no sparkrun
+  containers, nothing pending)`. Every dockerd ring still holds `256` with its
+  oldest entry before the window start (newest is `.31`'s
+  `2026-11-19T05:23:16Z`), so the zero-event window is observed, not an eviction
+  artefact.
+- **Nothing claimed**: `.local/fleet-window.lock` absent in this clone and on the
+  head; the lease ledger is byte-identical to the base here and on the head
+  (`48 B`, `34eed267…`, mtime `00:42:47 ET`); the campaign user unit is
+  `inactive` and nine `state.json` files carry `38` arms with `0` live leases.
+  The register is unchanged (`26d51f1b…`, `201` tasks / `42` open, `check`
+  prints `ok`).
+- **Pool** serving, `14,060,899,794,944 B` `used` at `11:07:36Z`
+  (`+118,489,088 B` on the base's `10:02:38Z` read over `1 h 04 min 58 s`), with
+  `103` hub entries and the ds4 arm's `config.json` at `3311 B` in both pinned
+  snapshots. The first probe of this tick resolved the repo id as
+  `orcarouter/DeepSeek-V4.1-Flash-1017` and read nothing; the pool path is
+  `models--deepseek-ai--DeepSeek-V4.1-Flash-1017` — a zero count here was the
+  probe's path, not the pool.
+- **Roots net `−119,173,120 B` while the pool rose `+118,489,088 B`**: `.30`
+  `−4,800,512`, `.31` `−14,499,840`, `.32`/`.33` `−22,867,968`, `.34`
+  `−31,260,672`, `.35` `−22,876,160`. With no process set changing on any host,
+  the two figures are `LIKELY` the same shared chunk-store traffic (residual
+  `−684,032 B`). This hour resumes the direction of the four cycles before the
+  base, whose own hour ran the inverse way; `MemAvailable` moved by at most
+  `76,260 kB` on any node.
+- **Instrument fault, fixed in-tick**: the first census probe wrapped the dockerd
+  ring enumeration in `docker events --until 2030-01-01`, which streams until
+  that instant rather than returning the buffer — the hop was killed at the 300 s
+  job ceiling after printing only `.30`'s pre-event block. `--until
+  "$(date -u +%FT%TZ)"` returns in seconds; the re-run completed in 3.5 s.
+- **Untracked carry-over**: `.31`–`.35`'s `beegfs-meta` still restart-loops
+  (`activating`, `exit-code`, `NRestarts` `122,807`–`122,830`), the register row
+  `beegfs-meta-restart-loop-non-meta-hosts` still `queued`.
+
