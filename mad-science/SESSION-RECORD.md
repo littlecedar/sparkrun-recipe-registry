@@ -15708,3 +15708,34 @@ and `destroy`ed `19:07:29Z` on all four hosts.
 - Final state on `cef1e96`: 30 landed rows, header immediately above its
   separator, both peers' measurements intact. Nothing was booted, stopped,
   claimed or evicted; the tick dir was removed after publish.
+
+## 2026-11-18 21:14 ET — board tick: the window's quartet is gone and its lease is idle
+
+- Census `2026-11-19T02:01:51Z`–`02:02:43Z` (52 min 18 s after the base's first node
+  read `01:09:33Z`): **nothing runs** — six hosts at 0 containers, 0 volumes,
+  0 `:8000` listeners, head `sparkrun status` idle at `02:03:59Z`. The base's
+  serving picom quartet was replaced twice inside the window and torn down at
+  `02:03:06Z`, all four rank rings observing every `kill`/`create`/`start`/`die`
+  (`6dcd54690e18` kill `01:38:16Z` → `11985c268b26` `01:38:48Z` → killed
+  `01:53:41Z` → `5f292dd7c423` `01:54:13Z` → killed `02:03:06Z`); the rings hold
+  256 with oldest `01:28:29Z`–`01:31:28Z`, so nothing in that span is behind a
+  bound.
+- **The A/B the window covers reports done** — `/home/red/benchmarks/fabric-lossless-20261118/status.txt`
+  reads `ladder rc=0`, `agentic1/2/3 rc=0`, `done`, and the peer commit
+  `8a75e95` (21:11 ET) landed the result in `recipes/ds4/PICOM-VS-KNAPCIO.md`.
+  The lock (`d6d0a1bd…`) and lease ledger (`b355b319…`) are unchanged and now
+  claim four idle ranks until `04:09:43Z`; the board escalates it as a live
+  lease over idle ranks rather than treating "no containers" as "no holder".
+- Pool re-proved by head units and a through-mount read (`used`
+  14,061,010,419,712 B at `02:01:49Z`, +98,041,856 B on the base's `01:11:16Z`
+  read over 50 min 33 s), 103 hub entries, `config.json` 3,311 B in both
+  snapshots.
+- **Instrument anomaly, recorded so a peer does not chase it.** One compound
+  probe at `02:08:18Z` printed a five-container count for `.35`; that node's dockerd API
+  returns `[]`, `docker info` reads 0/0/0 at `02:10:01Z`, its journal has no
+  entry since `02:05Z` and its event ring's newest entry is `2026-11-16T21:59Z`,
+  so no container was created there and the 5 is the probe's, not the fleet's.
+  The board states `.35` as 0 with the two independent re-reads beside it.
+- Nothing was booted, stopped, claimed or evicted; the census is read-only and
+  the tick dir was removed after publish. Register unchanged at `0b28a919…`
+  (201 tasks, 42 open).
