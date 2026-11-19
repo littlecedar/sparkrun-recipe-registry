@@ -16339,3 +16339,49 @@ and `destroy`ed `19:07:29Z` on all four hosts.
 - **Register moved mid-cycle**: `b6fe77a7…` (peer edit) replaced `26d51f1b…`;
   counts unchanged at 201 tasks / 42 open. Both blocks re-rendered from that
   snapshot after `c52449f`.
+
+## 2026-11-19 10:11 ET — board tick: the quartet stalls and loses rank 3 again
+
+- Census re-read `2026-11-19T15:02:27Z`–`15:02:30Z`, **16 min 10 s** after the
+  base's read (`14:46:17Z`). The knapcio tp=4 quartet the base carried serving
+  is **stalling and has lost rank 3**: `.34`'s engine died at **`15:00:55Z`**,
+  the Engram heartbeat on `.31`–`.33` stops at **`15:00:38Z`** (rank 0's own
+  health line names `last_heartbeat 15:00:43`), and rank 0's last served
+  request was **`14:55:12Z`** while its `/v1/models` still answers **200** —
+  a rank-0-only readiness probe cannot see this state.
+- The rank-3 death **repeats the `09:34` signature exactly**:
+  `Scheduler or DataParallelController 372 terminated with -15`,
+  `kill_process_tree called: parent_pid=310, include_parent=False`, then
+  `AttributeError: 'NoneType' object has no attribute 'set_server_stop_hook'`
+  at `http_server.py:2709`. The container stayed `running` with `RestartCount`
+  **0**, `ExitCode` **0** and an empty `FinishedAt`, so it is an inner-process
+  death inside a live container.
+- **No container lifecycle event in the window on any node**: a state-filtered
+  `docker events` scan returns **0** `create`/`start`/`kill`/`die`/`destroy`
+  lines since the base read, and every ring is full at **256** with its oldest
+  entry at or before the window (`14:44:32Z`–`14:44:43Z` on `.31`–`.34`), so
+  the zero is measured rather than evicted. The only in-window lines are the
+  ranks' own exec-based health probes.
+- `.32`/`.33` answer **404** to `/v1/models` on their own loopback while their
+  serve child is alive and their heartbeat stops at the same `15:00:38Z`; this
+  tick records the reading and does not interpret it (earlier ticks probed
+  rank 0 only, so the non-rank-0 route was never characterised).
+- Memory: `.34` gave its allocation back (**+111,046,048 kB** `MemAvailable`,
+  `AnonPages` down to **285,704 kB**), while `.31`–`.33` fell
+  **−5,511,412 / −6,383,000 / −4,365,704 kB** with `Cached` near **1.0 GiB** —
+  page cache plus the live serve's own set, not a release. Nothing was
+  stopped by this tick.
+- Pool **+10,485,760 B** over the interval; the six roots moved net
+  **−10,657,792 B** with no process change anywhere, so the pair is LIKELY the
+  same shared chunk-store traffic (one cell carries the inference).
+- Window lock (`lc-vision-20261119`, 242 B, to `22:00:00Z`), its one lease
+  (`1823dcab…`, to `19:45:18Z`), the inactive campaign unit (9 files / 38 arms
+  / 0 live leases) and the register (`b6fe77a7…`, 201 tasks / 42 open) are all
+  unchanged from the base.
+- **Two composition faults caught before the publish guard**: the first build
+  dropped the `## In flight` header and delimiter rows (refused
+  `table-missing-delimiter`), and an earlier build replaced the whole section
+  without re-appending the six node rows. Both were fixed in the composing
+  script and re-composed; nothing incomplete reached the tool. A row name in
+  the census cell had also been garbled (`head-mesh-canreach-30`) and was
+  corrected to the register's `head-mesh-cannot-reach-30` before publishing.
