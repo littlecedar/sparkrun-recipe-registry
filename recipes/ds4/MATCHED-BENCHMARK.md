@@ -6,7 +6,12 @@ change" item is cell-level interleaving. This is the window that would do it: th
 arms, four boots, one instrument, one declared set of cells, and an admission rule that
 says in advance which numbers may be quoted and which may not.
 
-Nothing here is measured yet. Every flag named is in the recipe or launcher it names
+The protocol is in force, and part of it has run since. Measured with receipts: the
+four-boot paired window and the five-boot tuning window under
+`head:~/benchmarks/picom-prod-20261118/` (`paired-20261118/`, `picom-tuning-20261118/`),
+and the full BFCL leg under `head:~/benchmarks/fabric-lossless-20261118/`. Unmeasured:
+the two-boots-per-arm cross-arm delta, the 40,000-token grant and shared-prefix caching
+cells, and the long-context fan-out. Every flag named is in the recipe or launcher it names
 (`file:line`); every number quoted as a bound comes from a receipt under
 `head:~/benchmarks/picom-prod-20261118/` (the production window) or
 `head:~/benchmarks/picom-gap-20261117/` (the upstream `bench.py` cells).
@@ -129,7 +134,7 @@ Out of the grid, and why:
   an override reaching the engine (benchmarking/README.md rule 8). The single exception is
   `-o env.PICOM_RANK_TAILS=31,32,33,34`, which the recipe requires on P (P `:50`).
 - **No full BFCL leg.** The scoped 100-question leg already reads 87/100 both and
-  separates nothing; it is named as unsettled instead of spent here (section 8).
+  separates nothing; the full leg runs outside this window (section 8) rather than in it.
 ## 3. One instrument
 
 The decode instrument is **`benchmarking/concurrency-ladder.yaml`**, unmodified:
@@ -270,5 +275,7 @@ temperatures disagree is reported with that caveat.
   packet has moved; picom's QP `hop_limit` still has no readable surface, and no rank's power
   is captured. Two engines cannot serve one four-rank set at once, so there is no cell-level
   interleaving either — only boot alternation.
-- **Quality beyond identity.** The scoped BFCL leg separates nothing at 87/100 both, and
-  no cell here scores free-form code or prose.
+- **Quality beyond identity.** The scoped BFCL leg separated nothing at 87/100 both; the full
+  1,240-question leg reads E 1,094 / L 1,094 / K 1,092 with `transport_errors` 0
+  (`head:~/benchmarks/fabric-lossless-20261118/{E1,L1,K1}/bfcl_*.json`), so tool calling is
+  measured outside this window, and no cell here scores free-form code or prose.

@@ -2422,8 +2422,10 @@ picom QP `hop_limit` still has no readable surface.
    `${PICOM_DEV_A}`/`${PICOM_DEV_B}`. Boot 2 (`1e529c67`) prints `[picom-launcher] rank N: RDMA
    devices visible: rocep1s0f0 roceP2p1s0f0` before starting the engine. Re-probe on every rebuild —
    a new digest is a new image, not this receipt.
-7. House/needle and one ladder cell against the knapcio line — the only comparison this lane
-   can quote, and the reason the arm exists.
+7. **Cleared 2026-11-18 — house, needle and one ladder cell against the knapcio line**:
+   house **37/37** and needle **3/3 at 131,072** on both picom arms (`final-20261118/bootA-exact/`,
+   `bootB-oea/`), and the E2/K2 ladder cells in one window (`paired-20261118/E2/`, `K2/`) —
+   the only comparison this lane can quote, and the reason the arm exists.
 8. **Open hazard — pid-1 survival**: boot 1's rank-0 launcher printed `FATAL` yet its container was
    killed by the watchdog at 08:24:29Z (exit 137) instead of exiting itself; pid-1 survival through
    its helper children is unresolved.
@@ -2498,7 +2500,8 @@ share. This is **not** a measured per-token loss — no cell decomposes logit di
 and the batch-shape probe is what would.
 
 Stays shipped — never the default serve — while all of these hold; gate 5 is met by the
-2026-11-18/19 tuning window, gates 1–4 stand as written:
+2026-11-18/19 tuning window, gate 4 is met by the full BFCL leg below, and gates 1–3 stand as
+written:
 
 1. **Identity, offline and on the box.** The twin is the exact arm plus one env key
    (`tests/test_ds4_recipes.py`, `PicomOeaArmContract`, controls included), and the
@@ -2514,10 +2517,12 @@ Stays shipped — never the default serve — while all of these hold; gate 5 is
    983,040, and the 13-task agentic totals inside the exact arm's range, on receipts
    whose `polluted_runs` and `harness_timeouts` are 0 (`final-20261118/bootA-exact/`,
    `bootB-oea/`).
-4. **Tool-calling parity.** The full BFCL leg — 1,240 questions, fixture `61fc0608…`,
-   `--max-tokens 4096`, temperature 0, `tool_choice auto` — no worse than the exact arm
-   on the same window, `transport_errors` 0. The scoped 100-question leg (87/100 both,
-   `paired-20261118/E1/`, `K1/`) does not clear this.
+4. **Tool-calling parity.** The scoped 100-question leg (87/100 both, `paired-20261118/E1/`,
+   `K1/`) was the earlier reading and did not clear this. The full BFCL leg — 1,240 questions,
+   fixture `61fc0608…`, `--max-tokens 4096`, temperature 0, `tool_choice auto` — ran and reads
+   **E 1,094 / L 1,094 / K 1,092** with `transport_errors` 0
+   (`head:~/benchmarks/fabric-lossless-20261118/{E1,L1,K1}/bfcl_*.json`), no worse than the
+   exact arm: **met 2026-11-18**.
 5. **Batch-shape probe.** A fixed prompt set with graded answers, temperature 0, each
    prompt once alone and once inside a 16-request burst, on both arms. Record the
    twin's alone-vs-batch agreement rate and name the classes that flip; a graded answer
