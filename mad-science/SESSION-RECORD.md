@@ -15579,3 +15579,52 @@ and `destroy`ed `19:07:29Z` on all four hosts.
 - Published through the tool (`publish rc=0`, `lint ok: 1 markdown file(s)
   render`, base `aa2a9083…` with `--expect-sha` and `--expect-remote-sha`
   both carrying it after a `git fetch`).
+
+## 2026-11-18 19:12 ET — hourly tick: the quartet holds, its memory footprint grows inside the engine
+
+- Read the `18:14 ET` board (content sha256 `b6fd1ed3…`, blob `f566baf5`)
+  with `HEAD` and `origin/main` both at `9474ca8` and a `git fetch` before
+  compose; read-only census at `2026-11-19T00:02:09Z`–`00:02:12Z` (the head's
+  own pass at `00:01:51Z`), 51 min 17 s after the base's first node read.
+- **The quartet is unchanged and serving.** One container each on `.31`–`.34`
+  (`b020d2dd178343a5_6944191a4b29`, image id `3f4480818acb`), `Up About an
+  hour (healthy)`, bracketed `pgrep -c -f '[s]glang.launch_server'` reads **1**
+  on every rank, `:8000` has one listener per rank, rank-0 `/v1/models` **200**
+  naming `deepseek-ai/DeepSeek-V4.1-Flash-1017`, `StartedAt` `22:56:41Z` on
+  all four. `.30`/`.35` remain at 0 containers / 0 volumes / 0 listeners.
+- **No container event in the window on any node** — every line on the four
+  serving ranks is the launcher's own health probes (`exec_create`/
+  `exec_die`: 85 each) plus this tick's own `pgrep`. `.30` and `.35` logged 0.
+  The `.31`–`.34` rings now hold **253** with oldest `23:40:58Z`–`23:41:22Z`,
+  so the quartet's `22:56:41Z` `create` is **evicted, not absent**, for the
+  second tick running.
+- **`MemAvailable` fell 8,249,036–9,098,228 kB on each serving rank** against
+  the base (17.3/18.5/18.6/18.5 GiB → 8.6/9.8/9.7/8.9 GiB), while `.30`/`.35`
+  moved only −13,364/−26,928 kB. Container count, health, serve child and
+  listener are identical to the base and no lifecycle event appears, so the
+  growth is the running engine's KV pool and page cache — **LIKELY**, by
+  exclusion; no other process set changed within this tick's observations.
+- Root avail moved −13,455,360 / **+46,899,200** / −13,279,232 / −13,287,424 /
+  −13,316,096 / −13,127,680 B on `.30`–`.35`: one riser (`.31`) against five
+  fallers, net **−19,566,592 B**. Per the rising-node rule the net is quoted
+  and the mover named; the mechanism is not attributable from a single window.
+- Pool re-proved by head units (`active`, `Result=success`, `NRestarts` 0) and
+  seven reads: mount **14,060,974,768,128 B** at `00:01:51Z`, all six nodes
+  **14,060,975,292,416 B** at `00:02:09Z`–`00:02:12Z` (one distinct value,
+  residue **+524,288 B**), **+79,167,488 B** against the base's head read and
+  **+21,495,808 B** against its worker pass. `findmnt -M` still prints the
+  bogus `SOURCE default`/`FSTYPE beegfs`. Hub **103** entries.
+- Window lock (241 B, `d6d0a1bd…`) and lease ledger (350 B, `b355b319…`) are
+  byte-identical here and on the head; nine campaign files, 38 arms, 0 live
+  leases; register `0b28a919…` unchanged and re-checked live before publish.
+- **The base's `## Landed session` table was malformed.** Its header row
+  `| time ET | commit | one clause |` appeared **twice** and the delimiter row
+  was gone, which `publish` refused with `stdin:107: table-missing-delimiter: 2
+  row(s) begin here but line 108 is not a 3-column delimiter row`. Replaced
+  the duplicate with header + `|---|---|---|` in the composition; the rows keep
+  their bytes. A second refusal followed because the new rows were appended
+  after a blank line, opening a headerless table; they now continue the same
+  table.
+- Published through the tool (`publish rc=0`, board read `2026-11-19T00:02:12Z`,
+  disk base `2026-11-18T23:10:53Z`, `lint ok: 1 markdown file(s) render`),
+  new content sha256 `a6e1126c…`.
