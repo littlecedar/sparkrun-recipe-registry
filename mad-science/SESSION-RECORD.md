@@ -15617,14 +15617,16 @@ and `destroy`ed `19:07:29Z` on all four hosts.
 - Window lock (241 B, `d6d0a1bd…`) and lease ledger (350 B, `b355b319…`) are
   byte-identical here and on the head; nine campaign files, 38 arms, 0 live
   leases; register `0b28a919…` unchanged and re-checked live before publish.
-- **The base's `## Landed session` table was malformed.** Its header row
-  `| time ET | commit | one clause |` appeared **twice** and the delimiter row
-  was gone, which `publish` refused with `stdin:107: table-missing-delimiter: 2
-  row(s) begin here but line 108 is not a 3-column delimiter row`. Replaced
-  the duplicate with header + `|---|---|---|` in the composition; the rows keep
-  their bytes. A second refusal followed because the new rows were appended
-  after a blank line, opening a headerless table; they now continue the same
-  table.
+- **The first refusal was this tick's own blank line, not the base's table.**
+  `publish` said `stdin:107: table-missing-delimiter: 2 row(s) begin here but
+  line 108 is not a 3-column delimiter row`, and the two rows were the ones
+  this tick appended: they landed after a blank line and so opened a second,
+  headerless table. The base's table was well formed — its rows are header at
+  `:73` and `|---|---|---|` at `:74` (`ea05851` did carry a stray duplicate
+  header row *below* the delimiter, which renders as a data row; that is a
+  cosmetic wart and not a lint failure). The fix was to continue the same
+  table; a header-dedupe patch composed alongside it matched nothing and is
+  not part of the fix.
 - Published through the tool (`publish rc=0`, board read `2026-11-19T00:02:12Z`,
   disk base `2026-11-18T23:10:53Z`, `lint ok: 1 markdown file(s) render`),
   new content sha256 `a6e1126c…`.
@@ -15636,6 +15638,24 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   against this tick's −8,318,776 / −8,249,036 / −8,518,112 / −9,098,228 kB),
   adding rank 0's serve log — 2,803 completions since `23:08:19Z` — which is
   the live-load evidence this tick could not claim.
+- **Correction, 19:27 ET: the memory fall was page cache and it reclaimed
+  itself.** `/proc/meminfo` on `.31`–`.34` at `00:26:10Z`–`00:26:12Z` reads
+  `MemAvailable` **35,420,652 / 36,366,348 / 38,092,216 / 37,105,256 kB** with
+  `Cached` **26,350,984 / 35,215,964 / 36,218,780 / 36,244,336 kB** against
+  `AnonPages` only **6,962,668 / 5,687,104 / 6,130,152 / 5,625,716 kB**; `.30`
+  holds the pool's page cache (`Cached` **103,054,676 kB**, `MemAvailable`
+  **121,053,328 kB**). So the 8.2–9.1 GiB the 19:12 row recorded as lost was
+  reclaimable cache, the anonymous footprint never approached it, and nothing
+  on any rank comes near the 6.0 GiB `MemAvailable` sampler floor. That
+  decomposition *is* the discriminator the earlier row lacked — process-set
+  exclusion cannot separate reclaimable cache from real consumption — and the
+  headroom warning in the 19:14 reply is withdrawn as falsified a read later.
+  Landed as a `board correction` row on the `19:27 ET` board.
+- CI was read pinned to this session's commit, not the shared tip:
+  `gh run list --commit cef1e967` returns `gate` **success**. A `--limit 1`
+  query had already handed back a peer's in-progress run (`589c7f81`), which is
+  the same class as the ring-versus-absence trap: the query's default is "the
+  newest thing", not "my thing".
 
 ## 2026-11-18 19:13 ET — hourly tick: quartet serves under live load, and the board it displaced
 - Read the `18:14 ET` board (content sha256 `b6fd1ed3…`, blob `f566baf`), worktree
