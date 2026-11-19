@@ -15964,3 +15964,37 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   the base read are noise on every host (**-46,440** `.30`, **-2,596** `.31`,
   **+36,128** `.32`, **-28,092** `.33`, **-36,000** `.34`, **+56,956** kB
   `.35`). Nothing was booted, stopped, claimed or evicted by this tick.
+
+## 2026-11-19 00:15 ET — hourly tick publishes the picom window's third boot
+
+- Published the `00:15` board (commit `0add421`) on the `23:07` base, census
+  `05:03:55Z`–`05:03:59Z`, **1 h 01 min 37 s** after the base's first read.
+  The base's serving picom quartet was killed `04:06:27Z` (`die`+`destroy`
+  `04:06:29Z`) and its `fabric-c1-retry-20261118` window went with it: the
+  lock is `picom-tuning (ViBoard t1)` (declared `04:40:55Z`) and the lease
+  ledger is empty (48 B, `34eed267…`), so the only claim on `.31`–`.34` is a
+  manual window with no campaign lease.
+- Three boots in 17 min under that window: `98d34292ddf7`
+  `04:45:51Z`→killed `04:54:34Z`, `f23b44893528` `04:55:02Z`→killed
+  `05:02:41Z`, `4642bb741f95` `05:02:59Z` and serving — `/v1/models` **200**
+  at `05:06:26Z` naming `deepseek-ai/DeepSeek-V4.1-Flash-1017`, `max_model_len`
+  **1,048,576**, ranks logging `ready after 14 s`, spill tier 32 GiB each.
+  `.30`/`.35` at 0 containers, 0 volumes, 0 listeners.
+- Pool on the base's `04:02:18Z` six-node read (`14,061,214,892,032 B`):
+  **fell 322,961,408 B** over 1 h 05 min 25 s, no mover named; 103 hub
+  entries and `config.json` 3,311 B in both snapshots.
+- **Instrument fault 1 — `ssh -n` on a script-fed hop.** The first census
+  fed `node_probe.sh` through `ssh -n … "bash -s"`, which nulls stdin: six
+  empty node blocks and `rc=0` in 3.8 s, the shape that reads as "fleet
+  idle". Re-run without `-n` produced all six node blocks.
+- **Instrument fault 2 — an unquoted heredoc eats backticks.** The first
+  correction publish was composed with `<<PY` instead of `<<'PY'`, so the
+  shell command-substituted every backticked identifier in the row and it
+  landed as "the  measurement row's clause". Re-published the corrected row
+  against `origin/main` as the remote base before committing, so the mangled
+  bytes never reached a commit.
+- Appended a `board correction` row (commit `d72d9fb`) retiring the `00:07`
+  measurement row's "page cache already warm" clause: `Cached` on `.31`–`.34`
+  reads 1,754,260–1,854,904 kB with `resident 1.92 GiB`, a mapped resident
+  set, so the fast readiness stands as measured and its cause is not
+  identified by that tick.
