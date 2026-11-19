@@ -681,6 +681,23 @@ under sparkrun's managed runtime cache, mounted at `/cache/runtime`.
   it must show `[moe_b12x_next] armed`, a `server_args=` dump naming `fp8_gemm_backend='flashinfer_cutlass'`,
   **no** `WARNING: DSV41_MXFP8_BACKEND=` line, and `launch.json`'s `args` carrying exactly one
   `--fp8-gemm-backend flashinfer_cutlass`.
+- **The other MXFP8 dense kernel SM121 has is not a prefill win, and it moves the answer.**
+  `DSV41_MXFP8_BACKEND=cudnn` (route line `… routed to FlashInfer backend 'cudnn'`, 0 `rejected N=`),
+  measured 2026-11-19 on this recipe as a same-window two-boot A/B against the shipped b12x boot,
+  identical `server_args` (`tp 4 / ep 1 / chunked_prefill_size 16384`): pp2048 c1 **4,040.9 → 3,791.2**
+  tok/s (−6.2 %, client TTFT ÷ prompt tokens, engine per-batch agrees −7.8 %), pp256k c1
+  **2,221.9 → 2,424.2** (+9.1 %), pp998k c1 **2,279.6 → 1,790.5** (−21.5 %). **The two rungs are n=1:
+  direction, not magnitude** — neither is admissible throughput evidence on its own.
+  The verdict is "keep b12x" for correctness, not for speed: greedy text at `temperature 0` **differs**
+  across the swap on a fixed four-prompt capture, sha256 `5c6ba7cd8fdf8405eee23d1e5fcbb67313a5ed1873d61fabf73aa2e3a9ebacfb`
+  → `b1941545ee131e272a917297429ab581a94debfa660eea51f2035c809e39a089`, while the easy battery is
+  **19/19 on both boots** — a different arithmetic route (cudnn's bf16 reduction order), not a capability
+  change, and inadmissible for serving without a determinism story. Microbenchmark supporting that the
+  route *has* GEMM headroom the end-to-end number does not show: at 16,384 rows cudnn is 1.5×
+  (5120²) to 3.4× (15360×5120) faster than b12x, and 1.7× slower at the M=6 decode shape b12x was chosen
+  for; `cute-dsl` is absent on SM121 (`is_backend_supported('cute-dsl', 121) = False`, cutlass and cudnn
+  true), so b12x/cutlass/cudnn are the whole menu. Receipts `~/benchmarks/prefill-cudnn-20261119/`
+  (README, gate lines, cells, `hash.diff`).
 - **Any recipe *default* can be overridden with `-o`** (e.g. `-o max_model_len=…`); the
   launcher's flags are applied after `RECIPE_ENV`, so the recipe/CLI wins for every value it
   takes a flag for. `boot.py` asserts `4096 ≤ CONTEXT_LENGTH ≤ 1048576`. A value that exists only
