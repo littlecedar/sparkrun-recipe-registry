@@ -16486,3 +16486,53 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   entries, `config.json` 3311 B. Window and lease byte-identical
   (`900dc274…` / `afcb8507…`). Register unchanged (`b6fe77a7…`, 201 tasks,
   42 open; `check` ok).
+## 2026-11-19 21:15 ET — session close: long-context decode and vision measured, prefill falsified
+- **Long-context decode and vision, both measured.** Picom holds a flat
+  **96–137 tok/s** from 131,072 to 983,040 tokens on both stream shapes,
+  cold and warm recorded per run; the ~1M prefill runs **94–100 s**
+  (10.0–11.1k tok/s). SGLang reads **79.78** tok/s at 131,072 cold, its
+  varied cell is **inadmissible** at 54 % CV, and at 983,040 it scores
+  **two completions against two wedges**: an `_ALLGATHER_BASE` timeout
+  SeqNum=14471 in cold generation and an `ALLREDUCE` timeout SeqNum=25870
+  in cold 32-token retrieval, prefill completed, detokenizer heartbeat
+  stopped, GPU spinning; 2 of 4 cold ~1M requests killed the serve.
+  Vision: both arms **6/6** graded on identical PNG bytes, 184 prompt
+  tokens/image, 0.30–0.41 s; picom pays a supervised rank-0 child
+  (63 ms, ~0.9 GiB), SGLang runs it in-engine. Receipts
+  `head:~/benchmarks/lc-vision-20261119/`.
+- **Two instruments shipped with their traps named**:
+  `tools/longctx-cell.py` (varied-generation task, `--nonce` cache defeat,
+  engine-rate against client-integral disagreement of 190.69 against 95.8
+  on one request) and new `tools/vision-cell.py`. Both selftested; 18 tests.
+- **Prefill: H4 dead, H5 closed, one candidate void.** H4 (parallelism
+  shape) is unreachable — every rank holds all 384 experts, no token
+  dispatch, and the fork's prefill accelerator refuses attention-DP. H5:
+  `cute-dsl` absent on SM121; the alternative dense kernel `cudnn`
+  measured same-window two-boot A/B — pp2048 c1 **4,040.9 → 3,791.2**
+  (−6.2 %), pp256k **+9.1 %**, pp998k **−21.5 %** (rungs n=1, direction
+  only) — and **greedy text differs** (sha256 `5c6ba7cd…` → `b1941545…`)
+  with easy battery 19/19 both, so inadmissible without a determinism
+  story; keep b12x. Microbenchmark at 16,384 rows: cudnn 1.5×–3.4× faster
+  per GEMM, 1.7× slower at M=6.
+- **Eight TP≥4 `zz-` arms retired** to `attic/{explore,glm,media}/` on
+  run-or-refusal evidence (Beam pair, ERNIE control, Kimi dummy-load, three
+  GLM levers, MiniMax H3 TP4); `zz-` in `recipes/` 43 → 35; tracked
+  recipes 117 → 109; tests re-pointed; the GLM lane's stale "not booted"
+  replaced with measured cells.
+- **Stale records corrected**: lossy gate 4 (full BFCL 1,094/1,094/1,092)
+  and gate 7 marked met; the MATCHED preamble no longer says "nothing
+  measured yet".
+- **Final ladder window**: six boots, ladder on **every** boot
+  (`E,K,L,L,K,E`); arm medians exact/lossy/knapcio C5
+  112.33/120.05/127.75, C10 127.00/134.51/153.02; **gate 2 stays open** —
+  C5 lead 6.87 % < exact's own 7.27 % spread, C10 5.92 % > 1.46 %; both
+  had to clear. K1 C1 and L1 C2 inadmissible and quoted as such. Receipt
+  `head:~/benchmarks/final-ladder-20261119/`.
+- **Environment trap worth recording**: `git push` from a shell inheriting
+  `SSH_ASKPASS=/usr/bin/false` and `GIT_TERMINAL_PROMPT=0` fails with an
+  askpass error that reads like lost credentials;
+  `env -u GIT_ASKPASS -u SSH_ASKPASS -u GIT_TERMINAL_PROMPT git push`
+  works.
+- **Self-corrections this round**: the "13× prefill gap" (harness metric),
+  the "two-cards" hardware claim, the cached-prompt "3 s prefill" at 1M,
+  and the client-rate against engine-rate disagreement.
