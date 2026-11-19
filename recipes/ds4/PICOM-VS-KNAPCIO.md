@@ -22,10 +22,13 @@ interleaved.
 - **Fast restart matters: picom.** 27.7 s to HTTP-ready against 708.4 s.
 - **Client contract matters: knapcio.** It echoes token ids, has a real thinking channel and
   reports prefix-cache hits; picom drops unknown fields silently and clamps `max_tokens`.
-- **Exact vs lossy picom: a tie on this evidence, with the lossy arm cheaper under concurrency.**
-  Same wall clock inside either arm's spread; the lossy arm is ahead **+5.5 % at C5 and +3.9 % at
-  C10** (`phase5/ladder.csv`, `phase6/ladder.csv`, section 5) at the cost of a batch-dependent
-  approximation, so it ships only while the [lossy arm's bar](README.md#the-lossy-arms-bar) holds.
+- **Exact vs lossy picom: a tie on wall clock, with the lossy arm cheaper under concurrency.**
+  Same wall clock inside either arm's spread; against the tuning window's own control the lossy arm
+  is ahead **+6.9 % at C5 and +11.7 % at C10** (118.5 vs 110.8 and 139.7 vs 125.1,
+  `head:~/benchmarks/picom-tuning-20261118/README.md`), where the earlier same-window reading was
+  **+5.5 % at C5 and +3.9 % at C10** (`phase5/ladder.csv`, `phase6/ladder.csv`), at the cost of a
+  batch-dependent approximation, so it ships only while the
+  [lossy arm's bar](README.md#the-lossy-arms-bar) holds.
 - **What would change the answer: cell-level interleaving.** The agentic ordering now rests on two
   boots per arm, disjoint at the per-boot median level and still LIKELY; every ladder ordering rests
   on one boot per side.
@@ -39,8 +42,8 @@ interleaved.
 | 2 users | either | shipped exact C2 90.8 vs knapcio 90.3 rerun / 83.4 October (section 3) | tie on the same-day column |
 | 5–10 fan-out | knapcio | C5 111.5 vs 122.6 / 127.3, C10 129.2 vs 153.3 / 160.9 (rerun / October) | holds on both columns — other boots |
 | Agentic tool loop | picom | per-boot median totals 119.9–123.4 / 122.5–124.4 vs 159.5–178.6 s, two boots each | LIKELY, two boots per arm |
-| Tool calling, scored | either | BFCL scoped 87/100 both, `transport_errors` 0, per-category 19/17/17/20/14 vs 19/17/18/19/15 | tie; 100 of 1,240 questions |
-| Million-token context | either | 983,040 needle PASS at depth 10 on both shipped arms | PASS measured; decode unmeasured |
+| Tool calling, scored | either | BFCL full leg, 1,240 questions: E 1,094 / L 1,094 / K 1,092, `transport_errors` 0 in all three (`fabric-lossless-20261118/{E1,L1,K1}/bfcl_*.json`) | tie, within 2 questions of 1,240 |
+| Million-token context | either | ten-needle 10/10 at 131,072 (12.6 s) and 10/10 at 983,040 (98.7 s) on the lossy picom arm, `--needles-per-depth 10` (`fabric-lossless-20261118/L1/needle-*-n10.json`); the older 1-of-1 983,040 PASS on both shipped arms stands as history (`phase5`/`phase6` `needle-983k-d10.json`) | PASS measured; decode unmeasured |
 | Vision | knapcio | native in-engine stack; picom needs a supervised child | functional on both, no cost cell |
 | Long-form generation | picom | 40,000 tokens in 207.9 s (192.4 tok/s) under a 262,144 cap | measured on picom; both engines cap at 262,144, but picom binds a long request to one of four big slots while SGLang spends 4.5 % of a shared KV pool |
 | Restart-sensitive work | picom | 27.7 s warm-cached vs 708.4 s cold | one boot each, not like-for-like |
@@ -348,8 +351,9 @@ no file (`L2/ladder.log`); it is not evidence and the recorded L2 numbers are th
 `tool_choice auto`, serial. **E1 87/100 and K1 87/100, `transport_errors` 0 in both**; per category
 (simple / multiple / parallel / parallel_multiple / irrelevance) E1 19/17/17/20/14 and K1
 19/17/18/19/15. This is the page's first tool-calling score and it **separates nothing**: it is not
-comparable to a full-leg or `/1,240` number (section 6), only to itself and to the other engine on
-the same 100 questions. Receipts: `paired-20261118/E1/`, `paired-20261118/K1/`.
+comparable to a full-leg or `/1,240` number, only to itself and to the other engine on
+the same 100 questions. Receipts: `paired-20261118/E1/`, `paired-20261118/K1/`; the full
+1,240-question leg ran in the later fabric window (section 5).
 
 ### Knapcio output ceiling (probe)
 
@@ -637,7 +641,9 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
   cells were already 3/3 on both (12.8–12.9 s per 131k cell), and the 40,000-token grant returns
   byte-identical text on both probes (content sha256 `3616f8ac…`). That bounds the cost on exact-match
   retrieval and this fixed task set; it is not a free-form code-quality measurement, and tool
-  calling is scored on only 100 of 1,240 questions. The [lossy arm's bar](README.md#the-lossy-arms-bar)
+  calling is a tie within 2 of 1,240 on the full leg
+  (`head:~/benchmarks/fabric-lossless-20261118/README.md`, section 5). The
+  [lossy arm's bar](README.md#the-lossy-arms-bar)
   is what keeps the twin shipped: parity on these cells plus the full BFCL leg and a batch-shape
   probe, or the arm is demoted.
 - **The output ceiling is measured, and it is a slot question.** The shipped front end clamps
@@ -704,10 +710,11 @@ _Coverage._
 - **No long-context decode ladder.** The 131k and 983k needles are one retrieval probe each, and no
   repeated-prefix / multi-turn cell exists — so the prefix-cache difference (SGLang reports hits,
   picom ran cold in every receipt) is unmeasured as a cost.
-- **The BFCL tools leg is scoped, not full.** 100 of 1,240 questions (`--limit 20` across five
-  categories) on the first boot of each arm scored 87/100 on both engines with `transport_errors` 0
-  (section 3). It is the first tool-calling score here and it separates nothing; the full leg is
-  still unmeasured.
+- **The BFCL tools leg is full now, and it still separates nothing.** All 1,240 questions on the
+  first boot of each arm: E 1,094/1,240, L 1,094/1,240, K 1,092/1,240, `transport_errors` 0 in all
+  three (`head:~/benchmarks/fabric-lossless-20261118/README.md` and `{E1,L1,K1}/bfcl_*.json`) — a tie
+  within 2 questions. The earlier scoped 100-question leg (87/100 both, `transport_errors` 0,
+  section 3) was the first score here and is comparable only to itself.
 - **Vision is functional only.** The path answers; no cost, latency or quality cell exists.
 - **No free-form quality metric.** The needle and house cells are exact-match and pass/fail; nothing
   here scores generated code or prose.
@@ -729,11 +736,13 @@ _Design._
    interleaved turns against both engines, and putting the ladder's C1, C5 and C10 (where the lossy
    margin is largest) inside one alternation at 5 runs/cell. The agentic ordering is disjoint at both
    ends of the per-boot medians over two boots per arm and still LIKELY; an interleaved run is what
-   would take it to established, and where the shipped +5.5 % / +3.9 % has to settle into the
-   shortcut or the boot order. The flags, cells, boot order and admission rules for that
+   would take it to established, and where the shortcut's +6.9 % / +11.7 % has to settle between the
+   shortcut and the boot order. The flags, cells, boot order and admission rules for that
    window are fixed in [MATCHED-BENCHMARK.md](MATCHED-BENCHMARK.md) — boot it, do not
    re-improvise it.
-2. **Run the full BFCL leg** — all 1,240 questions, same fixture revision and turn budget on both
-   engines. The scoped 100-question leg is a dead heat at 87/100 (section 3), so it settles nothing
-   about whether the client-contract differences in section 2 (thinking channel, token-id echo,
-   unknown-field handling) cost anything an agent can feel.
+2. **The full BFCL leg has run and still does not settle the client-contract question** — all 1,240
+   questions, same fixture revision and turn budget on both engines: E 1,094 / L 1,094 / K 1,092,
+   `transport_errors` 0 (section 5). The scoped 100-question leg was a dead heat at 87/100
+   (section 3) and the full leg a tie within 2, so neither says whether the client-contract
+   differences in section 2 (thinking channel, token-id echo, unknown-field handling) cost anything
+   an agent can feel; a workload that exercises them is what would say.
