@@ -15832,3 +15832,41 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   growth — both consistent with the peer's rows, neither contradicting one.
 - No correction is owed to the `22:07` board; nothing booted, stopped, claimed
   or evicted, and the tick is read-only.
+
+## 2026-11-18 23:07 ET board tick: the window turns over to the picom exact arm
+- Composed on the `22:07` board (`9b44c45`, content sha256 `9603395e…`, board
+  blob `98a2d87f…` unchanged across `9b44c45`→`324e06f`), census read
+  `2026-11-19T04:02:18Z`–`04:02:21Z`, **1 h 00 min 19 s** after the base's first
+  node read (`03:01:59Z`).
+- The base's loading knapcio quartet is gone: `kill` at **`03:48:55Z`**
+  (`die`+`destroy` `03:48:57Z`) after `health_status: healthy` at `03:46:03Z`.
+  Then picom `…_e9dacd6f5d6e` `create`+`start` **`03:53:42Z`**, killed
+  **`03:58:02Z`**, and picom `…_cb8a9745ea63` `create`+`start` **`03:58:42Z`**,
+  serving at the read (task `58cddf1c62ba6578_cb8a9745ea63`, image
+  `986795bcd7f4` = the arm's pin `sha256:1e529c67…`, `/v1/models` 200 from head
+  to `.31:8000`, `max_model_len` 1,048,576, unauthenticated 401).
+- Rings on the four ranks hold **243–248** events with oldest
+  `03:43:45Z`–`03:44:36Z`, so nothing before that instant is claimable: the
+  K-control-2 and K-marked-2 boots are dated by their receipt headers
+  (`03:34:06Z`, `03:14:43Z`), never by an absence in the ring.
+- Repeatability split inside the window: `K-marked-2` failed its own C1 bar
+  twice (**65.262 s**, cv 10.3 %; retry **62.863 s**, 12.3 %, with C2 12.3 %),
+  while `K-control-2` cleared all four cells (**C1 67.736**, 8.1 %; **C2 88.11**,
+  1.8 %; **C5 139.701**, 8.8 %; **C10 153.936**, 9.2 %).
+- `E2` (picom exact, `PICOM_RANK_TAILS=31,32,33,34`, `PICOM_OEA` empty) already
+  returned `ladder rc=0`, all four cells admissible (**89.448** / **93.894** /
+  **108.144** / **125.514**, cv 8.7 / 6.7 / 5.4 / 3.9 %), `agentic1 rc=0` and
+  rank 0 at req 222 by `04:03:33Z`. Its predecessor `E2-abort-1` carries no
+  model verdict: both ladder attempts died in `cells.py` with `FileNotFoundError`
+  on `E2/ladder.csv` / `E2/ladder-retry.csv`, an instrument fault.
+- Memory: the four serving ranks sit at `MemAvailable` 15.42–15.71 GiB with
+  `AnonPages` only 1.38–1.68 GiB and `Cached` 1.37–1.83 GiB, far above the
+  6.0 GiB sampler floor; `.30` (121.0 GiB) and `.35` (122.3 GiB) hold the pool's
+  page cache outside the window.
+- Pool re-proved: head units `active`/`success`/0, six identical node reads
+  `used` 14,061,214,892,032 B, **+111,673,344 B** on the base's `03:02:30Z` read
+  over 59 min 50 s, head read +1,048,576 B above that pass, 103 hub entries,
+  `config.json` 3,311 B in both snapshots. Lock `02873ddb…` and ledger
+  `5e2c73c5…` unchanged (lease to `08:31:27Z`); campaign unit inactive, 9 roots
+  → 9 files, 38 arms, 0 live leases; register `0b28a919…`, 42 open rows.
+- Nothing booted, stopped, claimed or evicted; the census is read-only.
