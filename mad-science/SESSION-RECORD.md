@@ -16385,3 +16385,50 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   script and re-composed; nothing incomplete reached the tool. A row name in
   the census cell had also been garbled (`head-mesh-canreach-30`) and was
   corrected to the register's `head-mesh-cannot-reach-30` before publishing.
+
+## 2026-11-19 11:09 ET — board tick: the stalled quartet is replaced twice and the window changes hands
+
+- Census re-read `2026-11-19T16:04:03Z`–`16:05:46Z`, **61 min 5 s** after the
+  `10:15 ET` base's node read (`15:04:41Z`). The base's stalled
+  `b020d2dd178343a5_907303a0d0e8` is gone; an intermediate
+  `…_7af57d7186e7` reached container-healthy **`15:58:54Z`** and was killed
+  **`16:00:13Z`** (`die`+`destroy` `16:00:15Z`/`16:00:16Z`); a third boot
+  `…_6a7e0d618bcc` was created and started **`16:01:09Z`** on all four ranks
+  and is **loading** at the read (`Up` 2–4 minutes, health `starting`, serve
+  child `170/218/212/212`, `:8000` closed, `/v1/models` **000**
+  in-container and from the head, shard load finishing at `16:03:56Z`–
+  `16:04:00Z`, `Finished streaming dequant fp8 wo_a`).
+- The window changed hands: `lc-vision-20261119`'s lock and lease are gone and
+  `prefill-cudnn-20261119` declared `.31`–`.34` with one lease `h5-cudnn`
+  issued **`15:34:02Z`**, expiring **`19:34:02Z`**, window end
+  `2026-11-19T17:00:00Z`. Lock and ledger are byte-identical here and on the
+  head (`900dc274…` / `afcb8507…`, mtime `10:34 ET`). The lock's own
+  `declared=` field still reads `12:14:00Z`, ~3 h 20 min before its own
+  lease's issue instant — recorded as a reading, not interpreted.
+- Only `.31` retains the intermediate boot's transitions; `.32`–`.34`'s rings
+  begin at `15:54:59Z`–`15:55:24Z`, so its `create`/`start` are **evicted, not
+  absent** and are bounded `(15:54:59Z, 15:57:43Z]`. The base's boot teardown
+  lies before every surviving ring and is left undated rather than claimed.
+- Memory: `.31`–`.33` gave the dead engines' working set back (**+30,911,228 /
+  +34,034,900 / +32,941,368 kB** `MemAvailable` against the base) and the new
+  boot refilled page cache to the ~35–40 GB-per-rank shape the `09:38` boot
+  showed (`Cached` 38.9–41.1 GB, `AnonPages` 3.7–5.9 GB); `.34` fell
+  **−81,749,812 kB** because the base read it already empty after its engine
+  died at `15:00:55Z`.
+- Pool **−1,551,892,480 B** over the interval while the six roots moved net
+  **+1,552,011,264 B** (`.34` the one gainer, +1,675,214,848 B). The pair
+  nearly cancels but the mechanism is **not identified** by this tick; no
+  deletion is claimed.
+- Five one-shot containers on `.30` between `15:27:16Z` and `15:30:04Z`
+  (`hopeful_elbakyan`, `cranky_blackburn`, `funny_banach`, `musing_hoover`,
+  `inspiring_darwin`) are docker-random-named, live 5–23 s, bracket the
+  interval before the lock's mtime, and are named by no lease, lock or
+  receipt — issuer unidentified.
+- Campaign unit inactive; 9 roots / 38 arms / **0 live leases**. Register
+  unchanged (`b6fe77a7…`, 201 tasks, 42 open, `check` ok) and both blocks
+  rendered from the one snapshot.
+- Instrument note: the first census attempt armed `docker events --since
+  2026-11-01 --until <today's end>`, which **streams live** until that
+  boundary and hung two hops past their ssh timeout, truncating those
+  captures. `--until $(date -u …)` bounded it; the re-run completed in under
+  four seconds for six nodes.
