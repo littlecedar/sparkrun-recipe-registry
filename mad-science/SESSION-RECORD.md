@@ -15806,3 +15806,29 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   in-window counts hold. `beegfs-meta` still restart-loops on `.31`–`.35`
   (`activating`, `NRestarts` 117225–117248) — the queued row, not new.
 - Nothing booted, stopped, claimed or evicted; the census is read-only.
+## 2026-11-18 22:08 ET — board tick stands down behind the 22:07 board
+- Read the `21:23` board, ran the census, composed — and `publish` refused it
+  `table-ragged` because a node cell carried the raw `docker ps` image tuple
+  (`name|image|status`), whose pipes split the row into five cells. The
+  composition was never written, so no base-bound figure from it reached the
+  board.
+- Re-reading before the repair showed a peer had published the `22:07` board
+  in the meantime (`9b44c45`, content sha256 `9603395e…`, board blob
+  `98a2d87f…`, `HEAD` = `origin/main`). That board's census reads
+  `03:01:59Z`–`03:02:03Z`; this tick's own read is
+  `2026-11-19T03:02:24Z`–`03:02:26Z`, **25 s later**, and agrees on every
+  figure the board carries — same task `b020d2dd178343a5_3f029ee842a1`, same
+  image `3f4480818acb`, same `StartedAt` `02:55:15.67Z` on all four ranks, same
+  pool read `14,061,103,218,688 B`, same lock `02873ddb…` and ledger
+  `5e2c73c5…`, same register `0b28a919…` with 42 open rows, same campaign
+  census (9 files, 38 arms, 0 live leases).
+- So the hour's refresh already exists and publishing a second would be churn
+  over no new fact. Nothing was published; the two facts this read adds are
+  ledger-only: every surviving ring entry on the four ranks is the boot's own
+  health probe (**85** `exec_create` + **85** `exec_start` + **86** `exec_die`
+  per rank, oldest `02:56:32Z`–`02:56:33Z`, ring 253–256), and the loading
+  quartet's memory is page cache (`Cached` 37.5–40.1 GiB against `AnonPages`
+  1.2–5.0 GiB, `MemAvailable` 37.7–40.6 GiB on `.31`–`.34`), not anonymous
+  growth — both consistent with the peer's rows, neither contradicting one.
+- No correction is owed to the `22:07` board; nothing booted, stopped, claimed
+  or evicted, and the tick is read-only.
