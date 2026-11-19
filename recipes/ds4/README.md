@@ -2507,6 +2507,14 @@ root `head:~/benchmarks/picom-prod-20261118/`; each boot's lane cells are its ow
 The three `zz-ds4-1017-picom-*` arms below are the experiment record that selected
 this configuration; the production pair supersedes them for serving.
 
+**Thinking is an operator knob, off by default.** Per request:
+`chat_template_kwargs: {thinking: true}` (with `reasoning_effort`); or default the
+whole serve on with `PICOM_FRONT_ARGS=--thinking`, which the launcher word-splits and
+appends to `dsfront`'s argv (`launch.sh:308,327`). Reasoning text is re-injected into
+history, so it costs prompt bytes on later tool turns (`encoding.rs:906`). Measured
+2026-11-19 on the exact arm: 19 reasoning tokens on a 3-token answer, content intact,
+`head:~/benchmarks/picom-thinking-20261119/`.
+
 #### The lossy arm's bar
 
 `PICOM_OEA=4,12,9` is a decision, not a toggle. The arm stays shipped — never the
