@@ -43,8 +43,8 @@ interleaved.
 | 5–10 fan-out | knapcio | C5 111.5 vs 122.6 / 127.3, C10 129.2 vs 153.3 / 160.9 (rerun / October) | holds on both columns — other boots |
 | Agentic tool loop | picom | per-boot median totals 119.9–123.4 / 122.5–124.4 vs 159.5–178.6 s, two boots each | LIKELY, two boots per arm |
 | Tool calling, scored | either | BFCL full leg, 1,240 questions: E 1,094 / L 1,094 / K 1,092, `transport_errors` 0 in all three (`fabric-lossless-20261118/{E1,L1,K1}/bfcl_*.json`) | tie, within 2 questions of 1,240 |
-| Million-token context | either | ten-needle 10/10 at 131,072 (12.6 s) and 10/10 at 983,040 (98.7 s) on the lossy picom arm, `--needles-per-depth 10` (`fabric-lossless-20261118/L1/needle-*-n10.json`); the older 1-of-1 983,040 PASS on both shipped arms stands as history (`phase5`/`phase6` `needle-983k-d10.json`) | PASS measured; decode unmeasured |
-| Vision | knapcio | native in-engine stack; picom needs a supervised child | functional on both, no cost cell |
+| Million-token context | **picom** | picom answered every cold ~1M request (3/3: two cold 983,040 varied cells at 133.6 and 132.6 tok/s after 100 s and 94 s prefill, `reused 0` / `reused 65,536`), and its needles are 10/10 at 131,072 (12.6 s) and 10/10 at 983,040 (98.7 s) on the lossy arm, `--needles-per-depth 10` (`fabric-lossless-20261118/L1/needle-*-n10.json`; the older 1-of-1 983,040 PASS on both shipped arms stands as history, `phase5`/`phase6` `needle-983k-d10.json`). **Knapcio wedged 2 of 4 cold ~1M requests** and had to be restarted: one cold generation hung in `_ALLGATHER_BASE` (SeqNum=14471) and one cold 32-token retrieval in `ALLREDUCE` (SeqNum=25870); prefill completed in both, the detokenizer heartbeat then stopped and the GPU spun at 17.9 W until the 600 s NCCL watchdog aborted (`head:~/benchmarks/lc-vision-20261119/knapcio/wedge*-nccl.txt`) | PASS and decode measured on picom; knapcio's 983,040 cells are two completions against two wedges |
+| Vision | either | 6/6 graded answers on the same three images, 184 prompt tokens per 512×512 image on both arms, 0.30–0.41 s (`head:~/benchmarks/lc-vision-20261119/`); the difference is architectural — picom pays a supervised rank-0 child | cost and correctness measured, one resolution |
 | Long-form generation | picom | 40,000 tokens in 207.9 s (192.4 tok/s) under a 262,144 cap | measured on picom; both engines cap at 262,144, but picom binds a long request to one of four big slots while SGLang spends 4.5 % of a shared KV pool |
 | Restart-sensitive work | picom | 27.7 s warm-cached vs 708.4 s cold | one boot each, not like-for-like |
 
@@ -381,6 +381,82 @@ floor is unenforced. KV: the pinned `MAX_TOTAL_TOKENS` 6,849,792 is clamped to a
 **5,909,504 / 5,820,416** tokens on the two boots; a 262,144-token generation is 4.5 % of that pool
 and 16 × 262,144 = 4.19 M still fits. `sglang:num_used_tokens` peaked 236,544 and returned to 0.
 
+### Long-context decode (measured 2026-11-19, quartet `.31`–`.34`)
+
+The gap every earlier cell left: a prompt many tokens deep with the model still generating, as
+opposed to a needle answered in a few tokens. `tools/longctx-cell.py`, one request per cell,
+`max_tokens` 512, 3 runs per depth, prompt from the tool's own generator (one ZX81 access code at
+~50 %, filler report prose). Two stream shapes, because they are different questions: **repetitive**
+= `long-generation` with `ignore_eos` + `min_tokens 512`, a degenerate "Report entry N:" list;
+**varied** = `varied-generation`, no levers, a Python module of 16 functions that ends itself
+(`finish_reason: stop`). `tok/s` is the **engine's own per-request line** where it prints one —
+picom does (`serve: req N session …: prompt …, 512 tokens in X ms (Y tok/s)`); knapcio prints
+per-batch throughput only, so its column is the client integral. Cache state is quoted per run
+because it decides what the cell means: a warm prompt reports a sub-second TTFT and is not a
+prefill fact. Receipt `head:~/benchmarks/lc-vision-20261119/README.md`.
+
+picom (image `sha256:1e529c67…`), prompts 135,355 / 1,013,474 server tokens:
+
+| depth | stream | run order and cache | TTFT s | decode s | tokens | tok/s |
+|:--|:--|:--|--:|--:|--:|--:|
+| 131,072 | repetitive | 1 cold (`reused 0`) | 12.234 | 2.685 | 512 | **95.8** |
+| 131,072 | repetitive | 2–3 warm (`reused 135,354`) | 0.035 / 0.038 | 4.87 / 4.89 | 512 | **104.5 / 104.2** |
+| 131,072 | varied | 1 cold (`reused 0`, nonce prefix) | 12.251 | 2.086 | 284 | **134.9** |
+| 131,072 | varied | 2 cold, other prefix | 12.201 | 2.078 | 284 | 136.7 |
+| 131,072 | varied | 3 warm (`reused 135,360`) | 0.039 | 2.008 | 279 | **137.2** |
+| 983,040 | repetitive | 1 cold (`reused 65,536`) | 94.156 | 4.913 | 512 | **103.6** |
+| 983,040 | repetitive | 2–3 warm (`reused 1,011,712`) | 0.44 / 0.44 | 4.90 / 4.91 | 512 | **103.9 / 103.7** |
+| 983,040 | varied | 1 cold (`reused 0`, nonce prefix) | 100.118 | 2.740 | 374 | **133.6** |
+| 983,040 | varied | 2 cold-ish (`reused 65,536`) | 94.570 | 3.481 | 469 | **132.6** |
+| 983,040 | varied | 3 warm (`reused 1,011,712`) | 0.422 | 3.481 | 469 | **132.6** |
+
+knapcio (image `sha256:7c3cb394…`), two boots (A, B), prompts 135,355–135,361 / 1,013,474–1,013,480:
+
+| depth | stream | run order and cache | TTFT s | decode s | tokens | tok/s |
+|:--|:--|:--|--:|--:|--:|--:|
+| 131,072 | repetitive | 1 cold | 51.755 | 6.418 | 512 | **79.78** |
+| 131,072 | repetitive | 2–3 warm | 0.564 / 0.581 | 8.89 / 8.52 | 512 | **57.61 / 60.07** |
+| 983,040 | repetitive | 1 cold | — | — | 0 | **WEDGED** (`_ALLGATHER_BASE`, SeqNum=14471) |
+| 131,072 | varied | 1 cold | 45.354 | 4.992 | 279 | 55.89 |
+| 131,072 | varied | 2–3 warm | 1.306 / 0.604 | 6.46 / 2.55 | 281 / 284 | 43.48 / 111.46 |
+| 983,040 | varied | 1 cold | 404.175 | 3.788 | 400 | **105.6** |
+| 983,040 | varied | 2–3 warm | 5.112 / 2.893 | 4.18 / 3.53 | 382 / 379 | 91.45 / 107.52 |
+
+Two things to read off this table, and no third:
+
+- **picom is flat from 131k to 983k**, 96–137 tok/s at every depth and stream shape, with a 12 % spread
+  between the repetitive (96–104) and varied (133–137) shapes and CV ≤ 1.3 % inside either cold pair.
+  Prefill is the only thing depth changes: 12.2 s at 131k, 94–100 s at 983k (10.0–11.1k tok/s).
+- **knapcio's 983,040 cells are two completions against two wedges.** The completions are 105.6 tok/s
+  after a 404 s cold prefill and 91.45/107.52 warm; the wedges are the failure in the decision table
+  above. The **131,072 varied cell is inadmissible** — 55.89 / 43.48 / 111.46 is CV 54 %, over the
+  10 % bar, and no retry was run, so it is quoted run by run and averaged nowhere. **No cold repetitive
+  983,040 cell exists on knapcio**: boot A wedged on it and boot B's run hit the prefix cache
+  (`cached-token 1,013,248`, TTFT 3.23 s, 72.4 tok/s) — that receipt is a warm cell and must not be
+  read as a cold one.
+
+### Vision (measured 2026-11-19)
+
+`tools/vision-cell.py`, three 512×512 PNGs the tool renders itself and both arms received
+byte-identically (sha256 in each `vision.json`): a red circle, a blue square left of a yellow circle,
+the word SPARK in a 5×7 block font. Per image, one graded question at temperature 0 three times
+(colour/count, relative position, the word), one description request, and a text-only control whose
+prompt-token delta is the image's cost.
+
+| arm | answers keyed | key match | latency median | completion tokens | image token delta |
+|:--|:--|:--|--:|--:|--:|
+| picom | shape / layout / text | 6/6 | 0.341 / 0.330 / 0.353 s | 3 / 2 / 3 | **184** |
+| knapcio | shape / layout / text | 6/6 | 0.307 / 0.301 / 0.407 s | 3 / 2 / 3 | **184** |
+
+Both engines describe correctly, including reading "SPARK" out of the block-letter image. The cost is
+the same 184 prompt tokens per image and the same wall time; **the difference is architectural**:
+picom runs a supervised ViT child on rank 0 (`rank 0: starting the vision encoder on 127.0.0.1:18950`,
+`image 2380 B -> 13x13 tokens (184 rows) in 63 ms`, ~0.9 GiB of rank-0 GPU, restart ladder never
+exercised) and reports the image tokens inside `usage.prompt_tokens` with no separate image field;
+knapcio answers from an in-engine native multimodal stack with no child process. That is one
+resolution, one image per request, and three synthetic pictures: it says nothing about 4K inputs,
+multi-image requests, or OCR quality on real documents.
+
 ### The old fixture's rows (history)
 
 This section used to carry a mixed-instrument table: the knapcio rows **127.7 / 160.2 / 149.4 s**
@@ -704,18 +780,23 @@ _Instrument._
 
 _Coverage._
 
-- **The 983,040 needle gap closed, not widened.** Both shipped boots pass it at depth 10; what stays
-  unmeasured at that length is decode throughput, since the reply is a few tokens and no ladder
-  covers depth > 0.
-- **No long-context decode ladder.** The 131k and 983k needles are one retrieval probe each, and no
-  repeated-prefix / multi-turn cell exists — so the prefix-cache difference (SGLang reports hits,
-  picom ran cold in every receipt) is unmeasured as a cost.
+- **The 983,040 needle gap closed, not widened.** Both shipped boots pass it at depth 10, and decode
+  at that length is now a cell (see "Long-context decode" above), not an inference from the needle.
+- **The long-context decode ladder exists now, and it is decode-only.** Repeated-prefix / multi-turn
+  cells at depth are still absent, and what the prefix cache costs is still unmeasured — the new
+  cells quote `reused` / `cached-token` per run precisely so a cache hit cannot pass for a cold
+  prefill. The knapcio 131,072 varied cell is inadmissible (CV 54 %) and no cold repetitive 983,040
+  cell exists on that arm.
 - **The BFCL tools leg is full now, and it still separates nothing.** All 1,240 questions on the
   first boot of each arm: E 1,094/1,240, L 1,094/1,240, K 1,092/1,240, `transport_errors` 0 in all
   three (`head:~/benchmarks/fabric-lossless-20261118/README.md` and `{E1,L1,K1}/bfcl_*.json`) — a tie
   within 2 questions. The earlier scoped 100-question leg (87/100 both, `transport_errors` 0,
   section 3) was the first score here and is comparable only to itself.
-- **Vision is functional only.** The path answers; no cost, latency or quality cell exists.
+- **Vision is measured now, at one resolution.** Cost (184 prompt tokens per 512×512 image on both
+  arms), latency (0.30–0.41 s) and correctness (6/6 keyed answers on three byte-identical synthetic
+  images, `head:~/benchmarks/lc-vision-20261119/`), plus the architectural difference — a supervised
+  rank-0 child on picom, in-engine on knapcio. It does **not** cover resolution, multi-image
+  requests, or OCR quality at scale.
 - **No free-form quality metric.** The needle and house cells are exact-match and pass/fail; nothing
   here scores generated code or prose.
 - **OEA's accuracy question is answered on this battery only.** It loses `shell-repro-rounding` in

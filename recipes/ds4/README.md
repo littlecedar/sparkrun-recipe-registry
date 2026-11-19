@@ -85,9 +85,25 @@ The 983,040 rung landed after the ship (00:07Z, wrapper in full): **10/10 PASS**
 980,835 prompt tokens, finish `stop` on every item, 289.7 s at depth 10 — the full needle bar
 3/3 on the new overlay closes clean (`trial-needle-983040.json`).
 
+**Known failure — cold ~1M requests wedge this engine (2 of 4 measured, 2026-11-19).** On the
+shipped serve a request whose cold prefill is ~1,000,000 tokens can hang on its first decode step
+inside a TP collective: the prefill completes and is logged, the detokenizer heartbeat stops, the GPU
+sits at ~96 % utilisation and ~17.9 W (a spin, not compute) and the request never returns; 600 s
+later the server's own `ProcessGroupNCCL` watchdog aborts the collective. Both reproductions are in
+`head:~/benchmarks/lc-vision-20261119/knapcio/` — `wedge-nccl.txt` is a cold 512-token generation
+(`OpType=_ALLGATHER_BASE`, `SeqNum=14471`) and `wedge2-nccl.txt` is a cold **32-token retrieval**
+(`OpType=ALLREDUCE`, `SeqNum=25870`), so it is not generation-specific. It is intermittent: two other
+cold ~1M requests on the same image completed (105.6 tok/s after a 404 s prefill). The pool is not
+the cause — `max_total_num_tokens` is 5,755,136 and a 1.01M-token request is 17.6 % of it. Operationally:
+treat any ~1M request as restart-risky (send it with a smaller `--context-length` window if the answer
+allows, or expect to restart the serve), and read
+[`PICOM-VS-KNAPCIO.md`](PICOM-VS-KNAPCIO.md) §"Long-context decode" before choosing this arm for
+million-token work — picom answered 3 of 3 cold ~1M requests in the same window.
+
 The c3 candidate line (the #43401 candidate-block indexer-scoring re-port, survey arm 3) **did not
 ship** — terminal arch gate: DeepGEMM's paged-sparse logits family is SM100-only at csrc and GB10
 is SM121 (`mad-science/DEEPSEEK.md` §19.1); the shipped line above is unchanged.
+
 **Protocol comparability (upstream `aff52fa5`).** Upstream publishes two decode protocols whose c1
 figures are not interchangeable: sparkDash 1.8.8 prose c1 **91.3** (one prose prompt, 256 new tokens,
 temp 0, thinking off, median of 3 after two discarded warm-up runs) and speedbench 0.3 prose c1
