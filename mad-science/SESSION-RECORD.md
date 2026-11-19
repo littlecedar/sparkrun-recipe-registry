@@ -16432,3 +16432,29 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   boundary and hung two hops past their ssh timeout, truncating those
   captures. `--until $(date -u …)` bounded it; the re-run completed in under
   four seconds for six nodes.
+
+## 2026-11-19 11:13 ET — board tick that corrected a serve-child figure
+
+- Recomposed on the peer's `11:09 ET` board (`4229ff3`) after a second census
+  at `16:11:52Z`–`16:11:54Z` (`.30` `16:12:37Z`), 7 min 49 s later. The
+  replacement quartet `b020d2dd178343a5_6a7e0d618bcc` is unchanged and still
+  loading: `Up 10 minutes (health: starting)`, no `:8000` listener, rank 0
+  **000** on `/v1/models` and `/health` at `16:11:55Z`, while every rank's
+  engine log reached `Dummy health check server started … 0.0.0.0:80`
+  `16:12:35Z` and `Waiting for application startup` `16:12:36Z`.
+- **Correction landed**: the four rank rows had carried `serve child` figures
+  of 170/218/212. On the same containers in the same second the bare
+  `pgrep -c -f sglang.launch_server` reads 2 and the bracketed
+  `pgrep -c -f '[s]glang.launch_server'` reads 1 on all four ranks
+  (`16:07:03Z` and `16:11:52Z`); `pgrep -f` scans the `docker exec sh -c`
+  wrapper's own argv, and the 170–218 figures exceed even that self-match with
+  no process evidence behind them. The rows now publish `serve child alive`
+  with the bracketed count, and a `board correction` row records the change.
+- Headroom is the loading shape, not the stalled one: `MemAvailable`
+  37,900,132 / 38,640,696 / 38,151,548 / 38,927,860 kB on `.31`–`.34`, with
+  `Cached` 6.4 GB on `.31` (still refilling) and 35.7–37.1 GB on `.32`–`.34`.
+- Pool re-proved on all six hosts: `used` 14,059,048,009,728 B identical on
+  five at `16:11:52Z`–`16:11:54Z`, 14,059,053,252,608 B on `.30` 45 s later
+  (a growing read), 103 hub entries, `config.json` 3311 B. Window and lease
+  byte-identical to the base (`900dc274…` / `afcb8507…`). Register unchanged
+  (`b6fe77a7…`, 201 tasks, 42 open).
