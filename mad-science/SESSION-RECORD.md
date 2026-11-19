@@ -16305,3 +16305,37 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   board's queue cell still carries the clone-workaround clause because it was
   composed before that commit; the next tick re-censuses and drops it rather
   than stamping a fresh title over a 25-minute-old census.
+
+## 2026-11-19 09:51 ET — board tick: the replacement serves, and two triggers are ruled out
+- **State**: `b020d2dd178343a5_907303a0d0e8` **serves** on `.31`–`.34` —
+  same image `3f4480818acb`, `StartedAt` `14:34:00Z`, four ranks healthy,
+  `:8000` listening, `/v1/models` **200**, ready **`14:45:38Z`** by the
+  engine's own line (**698 s** TTR), **34** completions by `14:46:43Z`.
+  `.30`/`.35` at `0/0/0`; lock (242 B, `2026-11-19 08:45:29 ET`) and lease
+  (`1823dcab…`, to `19:45:18Z`) byte-identical across two boots and one
+  teardown.
+- **Image identity verified, not inherited**: `docker image inspect 3f4480818acb`
+  returns `ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb394…` on `.31`,
+  `.32` and `.34` — the knapcio pin, not picom's `1e529c67…`. The boards had
+  carried that mapping by repetition since a picom/knapcio switch.
+- **The `-15` was not memory**: kernel OOM lines **0** for `14:10Z`–`14:20Z`
+  on `.31`/`.32`/`.34`; `earlyoom` `active`/`Result=success` with no kill line;
+  `.32`/`.34` already read **96.16 %** available (`119,821` of `124,608` MiB)
+  at `14:19:59Z` and `.31` held **5.77 %** (`7,185` MiB) with no action. So the
+  SIGTERM came from inside the container's process tree or its launcher, and
+  the `set_server_stop_hook` AttributeError stays downstream of it. The
+  long-context cell remains LIKELY, not measured.
+- **`/health` is a transition on this arm**: **404** at `14:46:18Z`, **200**
+  (empty body) at `14:46:43Z`, `/v1/models` **200** at both — so a 404 is the
+  route registering late and the earlier **000** was a real timeout. Readiness
+  rests on the engine's ready line plus `/v1/models`.
+- **Two self-corrections before committing**: the first composition of this
+  cycle carried an interval computed against `14:38:00Z`, but the base a peer
+  had published over it carried `14:40:03Z` — recomputed to **6 min 14 s** and
+  the publication row re-attributed to the peer's `09:45` board
+  (`83a98538…`, commit `3a80c69`) rather than to this session's own. Its queue
+  cell also still claimed the worktree refuses `check`, which `c52449f` had
+  already fixed; both cells were rewritten and re-published before any commit.
+- **Register moved mid-cycle**: `b6fe77a7…` (peer edit) replaced `26d51f1b…`;
+  counts unchanged at 201 tasks / 42 open. Both blocks re-rendered from that
+  snapshot after `c52449f`.
