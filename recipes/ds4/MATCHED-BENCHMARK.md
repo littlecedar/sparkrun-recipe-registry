@@ -17,11 +17,20 @@ lossy / knapcio, read **C1 84.05 / 85.45 / 65.72†**, **C2 93.61 / 93.82 / 89.8
 inadmissible at 36.87 % within-cell CV, so knapcio's C1 median is K2 alone). That is **boot
 alternation, not cell-level interleaving**, for the reason section 8 already gives: two
 engines cannot serve one four-rank set at once, so no cell here was measured against another
-engine in the same minute. Still unmeasured: the 40,000-token grant and shared-prefix caching
-cells, and the long-context fan-out. Every flag named is in the recipe or launcher it names
-(`file:line`); every number quoted as a bound comes from a receipt under
-`head:~/benchmarks/picom-prod-20261118/` (the production window) or
-`head:~/benchmarks/picom-gap-20261117/` (the upstream `bench.py` cells).
+engine in the same minute. The **40,000-token grant** and **shared-prefix caching** are now
+measured on one boot of the shipped picom arm (`head:~/benchmarks/cheap-cells-20261119/`):
+40,000 `completion_tokens`, `finish_reason: length`, 210.235 / 210.581 s (190.26 / 189.95
+tok/s), text sha256 `3616f8ac…` identical across both runs; and a verbatim repeated ~4.75k
+prefix returns TTFT 0.0284 s against 0.5706 s for a fresh prefix of the same length
+(`reused 4752 (live)` / `reused 0 (cold)`, engine prefill 25.6 ms / 567.3 ms). **Deliberately
+out of scope: the long-context fan-out** — the SGLang arm wedges on 2 of 4 cold ~1M requests
+(`head:~/benchmarks/lc-vision-20261119/knapcio/wedge-nccl.txt`, `wedge2-nccl.txt`), so a
+16-way fan-out against that arm would drive the failing path; it stays unmeasured until
+someone accepts a restart risk or the engine fixes it. Every flag named is in the recipe or
+launcher it names (`file:line`); every number quoted as a bound comes from a receipt under
+`head:~/benchmarks/picom-prod-20261118/` (the production window),
+`head:~/benchmarks/picom-gap-20261117/` (the upstream `bench.py` cells), or
+`head:~/benchmarks/cheap-cells-20261119/` (the two cells above).
 
 Arms: **P** = `deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` (exact picom),
 **S** = `deepseek-v4.1-flash-knapcio-tp4-1m-sglang.yaml`.
@@ -189,8 +198,10 @@ non-streaming, temperature 0, three requests, prompt+reply inside 131,072.
 
 The cell is **void** ("no hit observed") unless request 2 shows a hit on at least one
 engine: SGLang's `prompt_tokens_details.cached_tokens` above 0, or picom's rank-0 engine
-log carrying `reused <n>` for that prompt. Picom's `cached_tokens` is always 0 — the log
-counter, not the response field, decides. The number reported is TTFT(2)/TTFT(1), and
+log carrying `reused <n>` for that prompt. Picom's `cached_tokens` was 0 on every
+cache-defeating cell, but on a verbatim repeat it reports the hit (`cached_tokens: 4752`,
+`head:~/benchmarks/cheap-cells-20261119/`); the log counter still decides, so both are
+read. The number reported is TTFT(2)/TTFT(1), and
 request 3 proves the boot had not gone warm globally.
 ## 5. Acceptance criteria
 
@@ -271,7 +282,11 @@ temperatures disagree is reported with that caveat.
   margin; the mechanism stays INFERRED.
 - **Long context at concurrency.** Above 131,072 tokens picom's 12 small slots are out, so
   a 16-way long-context cell is a different machine. Max-budget fan-out — 16 requests on
-  SGLang against 4 on picom at the 262,144 cap — is unmeasured and named as structure.
+  SGLang against 4 on picom at the 262,144 cap — is **deliberately out of scope**: the
+  SGLang arm wedges on 2 of 4 cold ~1M requests
+  (`head:~/benchmarks/lc-vision-20261119/knapcio/wedge-nccl.txt`, `wedge2-nccl.txt`), so a
+  16-way fan-out against that arm would drive the failing path; it stays unmeasured until
+  someone accepts a restart risk or the engine fixes it.
 - **The weight representation.** `.dsw` plus NVMe Engram against native MXFP4 cannot be
   equalized; the identity cells bound the output, not the cost of reaching it.
 - **Steady-state cache value.** The shared-prefix cell measures a second request's TTFT,
