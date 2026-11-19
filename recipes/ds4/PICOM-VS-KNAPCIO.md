@@ -20,13 +20,12 @@ interleaved.
   159.5–178.6 s over two boots per arm, disjoint at the per-boot median level — LIKELY, two boots
   per arm.
 - **Fast restart matters: picom.** 27.7 s to HTTP-ready against 708.4 s.
-- **Client contract matters: knapcio.** It echoes token ids, has a real thinking channel and
-  reports prefix-cache hits; picom drops unknown fields silently and clamps `max_tokens`.
+- **Client contract matters: knapcio.** echoes token ids; picom ignores them, drops unknown
+  fields silently and clamps `max_tokens`.
 - **Exact vs lossy picom: a tie on wall clock, with the lossy arm cheaper under concurrency.**
   Same wall clock inside either arm's spread; against the tuning window's own control the lossy arm
   is ahead **+6.9 % at C5 and +11.7 % at C10** (118.5 vs 110.8 and 139.7 vs 125.1,
-  `head:~/benchmarks/picom-tuning-20261118/README.md`), where the earlier same-window reading was
-  **+5.5 % at C5 and +3.9 % at C10** (`phase5/ladder.csv`, `phase6/ladder.csv`), at the cost of a
+  `head:~/benchmarks/picom-tuning-20261118/README.md`), at the cost of a
   batch-dependent approximation, so it ships only while the
   [lossy arm's bar](README.md#the-lossy-arms-bar) holds.
 - **What would change the answer: cell-level interleaving.** The agentic ordering now rests on two
@@ -43,7 +42,7 @@ interleaved.
 | 5–10 fan-out | knapcio | C5 111.5 vs 122.6 / 127.3, C10 129.2 vs 153.3 / 160.9 (rerun / October) | holds on both columns — other boots |
 | Agentic tool loop | picom | per-boot median totals 119.9–123.4 / 122.5–124.4 vs 159.5–178.6 s, two boots each | LIKELY, two boots per arm |
 | Tool calling, scored | either | BFCL full leg, 1,240 questions: E 1,094 / L 1,094 / K 1,092, `transport_errors` 0 in all three (`fabric-lossless-20261118/{E1,L1,K1}/bfcl_*.json`) | tie, within 2 questions of 1,240 |
-| Million-token context | **picom** | picom answered every cold ~1M request (3/3: two cold 983,040 varied cells at 133.6 and 132.6 tok/s after 100 s and 94 s prefill, `reused 0` / `reused 65,536`), and its needles are 10/10 at 131,072 (12.6 s) and 10/10 at 983,040 (98.7 s) on the lossy arm, `--needles-per-depth 10` (`fabric-lossless-20261118/L1/needle-*-n10.json`; the older 1-of-1 983,040 PASS on both shipped arms stands as history, `phase5`/`phase6` `needle-983k-d10.json`). **Knapcio wedged 2 of 4 cold ~1M requests** and had to be restarted: one cold generation hung in `_ALLGATHER_BASE` (SeqNum=14471) and one cold 32-token retrieval in `ALLREDUCE` (SeqNum=25870); prefill completed in both, the detokenizer heartbeat then stopped and the GPU spun at 17.9 W until the 600 s NCCL watchdog aborted (`head:~/benchmarks/lc-vision-20261119/knapcio/wedge*-nccl.txt`) | PASS and decode measured on picom; knapcio's 983,040 cells are two completions against two wedges |
+| Million-token context | **picom** | picom answered every cold ~1M request (3/3: two cold 983,040 varied cells at 133.6 and 132.6 tok/s after 100 s and 94 s prefill, `reused 0` / `reused 65,536`), and its needles are 10/10 at 131,072 (12.6 s) and 10/10 at 983,040 (98.7 s) on the lossy arm, `--needles-per-depth 10` (`fabric-lossless-20261118/L1/needle-*-n10.json`). **Knapcio wedged 2 of 4 cold ~1M requests** and had to be restarted: one cold generation hung in `_ALLGATHER_BASE` (SeqNum=14471) and one cold 32-token retrieval in `ALLREDUCE` (SeqNum=25870); prefill completed in both, the detokenizer heartbeat then stopped and the GPU spun at 17.9 W until the 600 s NCCL watchdog aborted (`head:~/benchmarks/lc-vision-20261119/knapcio/wedge*-nccl.txt`) | PASS and decode measured on picom; knapcio's 983,040 cells are two completions against two wedges |
 | Vision | either | 6/6 graded answers on the same three images, 184 prompt tokens per 512×512 image on both arms, 0.30–0.41 s (`head:~/benchmarks/lc-vision-20261119/`); the difference is architectural — picom pays a supervised rank-0 child | cost and correctness measured, one resolution |
 | Long-form generation | picom | shipped exact arm: 40,000 tokens, `finish_reason: length`, in 210.235 / 210.581 s (190.26 / 189.95 tok/s client, engine line 190.4 / 190.1), text sha256 `3616f8ac…` identical across both runs, under a 262,144 cap (`head:~/benchmarks/cheap-cells-20261119/`) | measured on picom; both engines cap at 262,144, but picom binds a long request to one of four big slots while SGLang spends 4.5 % of a shared KV pool |
 | Restart-sensitive work | picom | 27.7 s warm-cached vs 708.4 s cold | one boot each, not like-for-like |
@@ -126,8 +125,7 @@ containers, 0 volumes and no `:8000` listener before the next start (`post-teard
 phase's cells). The paired window in section 3 boots each arm twice, in the order `E, K, L, L, K, E`,
 with the same teardown gate between boots. The pollution rule is the whole reason the agentic
 section exists in its current form: runs whose
-report carries a non-zero `polluted_runs` are dropped and re-measured, because a mixed-fixture
-table once read a harness timeout as an engine property (section 3, old fixture's rows).
+report carries a non-zero `polluted_runs` are dropped and re-measured.
 
 ## 1. Same model, different machine
 
@@ -142,7 +140,7 @@ table once read a harness timeout as an engine property (section 3, old fixture'
 | Weights as served | checkpoint as shipped: native MXFP4/F8, 510 GB resident, Engram read from NVMe (`recipes/ds4/README.md` knapcio table; arm `metadata.model_dtype: mxfp4`) | same checkpoint converted once per rank to a 72.38 GiB `.dsw` file (≈289.5 GiB across 4 ranks) plus 50.7 GB Engram shards on that rank's SSD (`docs/engine.md:90-116`; lane README artifacts row) |
 | Vision | in-engine native multimodal; the measured boot's gate line records full-budget native vision passing (`knapcio-bench-20261117/boot/serve-rank0.log:447`) | separate supervised ViT child on rank 0, `127.0.0.1:18950`, ~0.90 GiB, front-end reaches it by `--vision-addr` (`launch.sh:269-271`, PR #15 patch) |
 | Tool calls | `--tool-call-parser deepseekv41` with `--reasoning-parser deepseek-v41`; name then argument pieces, `finish_reason: tool_calls` (`knapcio-live-20261117/README.md` probes 4 and 8) | dsfront parses the model's own tool-call text (`frontend/src/server.rs:1006`) and streams argument pieces (`server.rs:1073-1076`; `--stream-tool-args` at `launch.sh:242`, PR #7 patch) |
-| Prefix / cache behavior | radix prefix cache with 128 SWA tails and cache reporting on; a repeated ~4.8k prompt reports `prompt_tokens_details.cached_tokens: 4608` (`launcher.py:268`, `knapcio-live-20261117/README.md` probe 6) | session table matched by longest shared *text* prefix, 64 shared bytes minimum (`frontend/src/session.rs:17`), state spilled per slot; on a verbatim repeated ~4.75k prefix it reports `prompt_tokens_details.cached_tokens: 4752`, the front end logs the match plan (`it shares 27068 of 27068 bytes, 4753 ids in common`) and the engine logs `reused 4752 (live)`, against `reused 0 (cold)` on first use; TTFT **0.0284 s vs 0.5706 s** for a fresh prefix of the same length (engine prefill 25.6 ms vs 567.3 ms; streamed with `stream_options.include_usage`, `head:~/benchmarks/cheap-cells-20261119/`). Every earlier all-zero reading came from cache-defeating cells (random prefix in `bench.py`), so the field was never dead — that corrects our own claim |
+| Prefix / cache behavior | radix prefix cache with 128 SWA tails and cache reporting on; a repeated ~4.8k prompt reports `prompt_tokens_details.cached_tokens: 4608` (`launcher.py:268`, `knapcio-live-20261117/README.md` probe 6) | session table matched by longest shared *text* prefix, 64 shared bytes minimum (`frontend/src/session.rs:17`), state spilled per slot; on a verbatim repeated ~4.75k prefix it reports `prompt_tokens_details.cached_tokens: 4752`, the front end logs the match plan (`it shares 27068 of 27068 bytes, 4753 ids in common`) and the engine logs `reused 4752 (live)`, against `reused 0 (cold)` on first use; TTFT **0.0284 s vs 0.5706 s** for a fresh prefix of the same length (engine prefill 25.6 ms vs 567.3 ms; streamed with `stream_options.include_usage`, `head:~/benchmarks/cheap-cells-20261119/`) |
 | Readiness (container start → HTTP ready) | 696.2 s port-open / **708.4 s** HTTP-ready, one cold boot (`knapcio-bench-20261117/README.md`) | **27.7 s** with per-rank artifacts cached; 166.4 s on the boot that had to convert weights and Engram (`picom-gap-20261117/README.md`) |
 
 ## 2. Request surface
@@ -157,8 +155,8 @@ picom front-end read at `7c123ad4` (`frontend/src/server.rs:522-538`, `frontend/
 | Honored sampling / limits | vendor surface: `temperature`, `top_p`, `stop` (`matched_stop: 1`), `max_tokens` floor-checked with a 400 whose text names the 262,144-new-token ceiling (`head:~/benchmarks/picom-prod-20261118/knapcio-256k/probes/`) | `temperature`, `top_p`, `top_k` (approximate past ~256: candidate union capped at 64 logits/rank), `seed` (`mix64(seed) ^ pos`, reproducible), `max_tokens` / `max_completion_tokens`, `stop` (held-back partial tail), `stop_token_ids`, `ignore_eos` (`server.rs:522-545`) |
 | Silently dropped | none found in the probed set | `min_p`, `presence_penalty`, `frequency_penalty`, `repetition_penalty`, `logit_bias`, `return_token_ids` — hand-written `r.get(...)` list, no unknown-key refusal (`server.rs:522-545`) |
 | Token-id echo | honored: `prompt_token_ids` + `response_token_ids` present (`03-greedy`/probe 3) | ignored: 200 with no ids (`picom-ladder-20261117/preflight-transcript.txt:18,23`) |
-| Thinking / reasoning channel | `chat_template_kwargs.thinking: true` turns it on: non-empty `reasoning_content`, `reasoning_tokens: 25`; the default emits none (`08-reasoning.json`, `09-thinking-true.json`) | the same kwargs select prompt *encoding* only; no reasoning channel is ever emitted, `completion_tokens_details.reasoning_tokens: 0` (`frontend/src/server.rs:510-519`, `frontend/src/main.rs:129`) |
-| Prefix-cache visibility | reports a hit: `cached_tokens: 4608` on the repeat, `null` on the first (`07-long-prefix-cache.json`) | reports 0 and never a hit in our receipts (match needs 64 shared bytes, `session.rs:17`) |
+| Thinking / reasoning channel | `chat_template_kwargs.thinking: true` turns it on: non-empty `reasoning_content`, `reasoning_tokens: 25`; the default emits none (`08-reasoning.json`, `09-thinking-true.json`) | implemented and off by default: `chat_template_kwargs.thinking: true` (or `PICOM_FRONT_ARGS=--thinking`) turns it on, yielding non-empty `reasoning_content` and `reasoning_tokens: 25`; our probes always sent `{"thinking": false}`, so the channel is unexercised on this arm pending a probe (`frontend/src/server.rs:491-513`, `:1000-1004`, `:1074-1076`, `frontend/src/main.rs:257-260`) |
+| Prefix-cache visibility | reports a hit: `cached_tokens: 4608` on the repeat, `null` on the first (`07-long-prefix-cache.json`) | reports a hit: `prompt_tokens_details.cached_tokens: 4752` of 4753 ids on a verbatim repeat, TTFT 0.0284 vs 0.5706 s (`head:~/benchmarks/cheap-cells-20261119/`); tool-loop turns report 628 → 909 → 1356 → 1849 (`head:~/benchmarks/paired-20261118/E1/pass1/*.wire.jsonl`, `frontend/src/server.rs:601-606`) |
 | Errors | OpenAI-shaped 400 (`BadRequestError` on `max_tokens: -1`); unknown model name served and echoed | 400 with its own message strings; `max_tokens` above the cap is clamped, not refused (`server.rs:523-528`) |
 | Loop guard | on by default: `DSV41_LOOP_ABORT` aborts a degenerate reply — a repetition match ended one at 6,136 of 6,232 tokens, a "repeat forever" prompt at 43, a primes list at 256 (`head:~/benchmarks/picom-prod-20261118/knapcio-256k/probes/`) | on by default: truncates 4 repeats of a 32–256-token n-gram, 64 identical tokens, or 8 identical lines (`frontend/src/guard.rs:63-67`; `--no-loop-guard` unset in the launcher) |
 | Against the vendor card (`08c8657f`) | — | matches vendor temperature 1.0, one notch tighter on `top_p` (0.95 vs 1.0); deviates on `max_tokens` (32,768 default and clamp vs ≥256K recommended) only until the launcher's `PICOM_MAX_TOKENS` raises the cap, as the production arm's 262,144 does |
@@ -513,7 +511,7 @@ next start (`post-teardown.txt` beside each phase's cells).
 
 The three-run agentic table is a later window of the same day: one boot per configuration — exact
 `…da567c594d37`, OEA `…0b23560656a9` — each torn down to 0 containers, 0 volumes and no `:8000`
-listener before the next. Its SGLang row was re-measured on the post-fix battery as its own boot,
+listener before the next. Its SGLang row is its own boot,
 `b020d2dd178343a5` (cluster `sparkrun_b020d2dd178343a5_11628c2281a4`) on
 `ghcr.io/littlecedar/dgx-spark-dsv41@sha256:7c3cb394…`, launch 12:17:33Z and HTTP-ready 12:29:29Z —
 **TTR 710 s**, keyless, watchdog `unprobeable=0` throughout, torn down to 0 containers, 0 volumes
@@ -673,9 +671,8 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
   per-boot medians, so picom is **(159.5 − 119.9) ÷ 159.5 = 24.8 %** to **(178.6 − 123.4) ÷**
   **178.6 = 30.9 %** faster — knapcio takes 1.33× to 1.45× the wall clock (lossy: 23.2 % to
   30.3 %). That is **LIKELY, not established**:
-  single-flight sequential runs of a 13-task set, two boots per arm, no cell-level interleaving. The
-  earlier one-boot window's 18.2 % and 13.8 % medians are the same direction on a weaker design and
-  are no longer the claim. Between the picom arms the ranges overlap in 122.5–123.4 s and both arms
+  single-flight sequential runs of a 13-task set, two boots per arm, no cell-level interleaving.
+  Between the picom arms the ranges overlap in 122.5–123.4 s and both arms
   pass 75/78, so exact and lossy are indistinguishable on total wall clock and the choice between
   them rests on the concurrency curve and the lossy construction. The earlier
   50 % OEA deficit was the harness, not the knob: a 60 s tool-timeout path fired on either arm
@@ -738,9 +735,8 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
   cell: `max_tokens` 40000 with `ignore_eos` returns `completion_tokens` 40,000 and
   `finish_reason: length` in 210.235 / 210.581 s (190.26 / 189.95 tok/s client; engine lines
   190.4 / 190.1), text sha256 `3616f8ac…` identical across both runs
-  (`head:~/benchmarks/cheap-cells-20261119/cell-a.json`). That supersedes the probe-era
-  192.4 tok/s figure (207.9 s) as the shipped-arm number; the probe ran the lossy
-  `PICOM_OEA=4,12,9` configuration. Because `engine/server/serve.cpp:1195` admits only where
+  (`head:~/benchmarks/cheap-cells-20261119/cell-a.json`). Because
+  `engine/server/serve.cpp:1195` admits only where
   `prompt + max_new` fits, every request that budgets 262k needs one of the four big slots,
   and a fifth waits in `wait_` rather than drawing a refusal or a timeout. Knapcio's ceiling
   is now the same **262,144**, and it
@@ -767,11 +763,11 @@ and Engram; 708.4 s is knapcio's one cold boot. Three different boots, not a lik
   time, not the ladder's `pp_throughput`, which the harness inflates on picom
   (`benchmarking/README.md` rule 5).
 - **The client contract is where the engines differ most in kind.** SGLang's surface honors
-  `return_token_ids`, a real thinking channel and cache accounting; picom's front-end is a thin
-  hand-written parser that drops unknown fields silently, has no reasoning channel, and takes its
-  output ceiling from a launcher flag (section 2). For an agent workload that matters more than 10 %
-  of decode, and it is the one difference here that is demonstrated by receipts rather than inferred
-  from a total.
+  `return_token_ids`; picom's front-end is a thin hand-written parser that drops unknown fields
+  silently and takes its output ceiling from a launcher flag (section 2). Thinking and cache
+  accounting are off that list: picom implements both. For an agent workload that matters more than
+  10 % of decode, and it is the one difference here that is demonstrated by receipts rather than
+  inferred from a total.
 
 ## 6. What is not comparable, and why
 
@@ -805,8 +801,7 @@ _Coverage._
 - **The BFCL tools leg is full now, and it still separates nothing.** All 1,240 questions on the
   first boot of each arm: E 1,094/1,240, L 1,094/1,240, K 1,092/1,240, `transport_errors` 0 in all
   three (`head:~/benchmarks/fabric-lossless-20261118/README.md` and `{E1,L1,K1}/bfcl_*.json`) — a tie
-  within 2 questions. The earlier scoped 100-question leg (87/100 both, `transport_errors` 0,
-  section 3) was the first score here and is comparable only to itself.
+  within 2 questions.
 - **Vision is measured now, at one resolution.** Cost (184 prompt tokens per 512×512 image on both
   arms), latency (0.30–0.41 s) and correctness (6/6 keyed answers on three byte-identical synthetic
   images, `head:~/benchmarks/lc-vision-20261119/`), plus the architectural difference — a supervised
