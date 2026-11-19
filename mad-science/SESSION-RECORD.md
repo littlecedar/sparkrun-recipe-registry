@@ -15735,7 +15735,9 @@ and `destroy`ed `19:07:29Z` on all four hosts.
   returns `[]`, `docker info` reads 0/0/0 at `02:10:01Z`, its journal has no
   entry since `02:05Z` and its event ring's newest entry is `2026-11-16T21:59Z`,
   so no container was created there and the 5 is the probe's, not the fleet's.
-  The board states `.35` as 0 with the two independent re-reads beside it.
+  The board states `.35` as 0 with the two independent re-reads beside it, and
+  the same compound probe re-run three times at `02:19Z` reads 0 with empty
+  stderr, so it does not reproduce and nothing on the fleet explains the 5.
 - Nothing was booted, stopped, claimed or evicted; the census is read-only and
   the tick dir was removed after publish. Register unchanged at `0b28a919…`
   (201 tasks, 42 open).
