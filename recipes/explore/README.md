@@ -1873,13 +1873,13 @@ Spark N1X with every expert resident; and the pack's own `--max-context 131072` 
 vendor documents as untested. The vendor's own Spark row for the base Qwen NVFP4 pack (42.8/40.5/40.1
 decode at 4K/16K/32K) is the only performance evidence on this hardware, and it is another pack.
 
-**Licence — an open register question (`#87`), not a lane decision.** Edge0 Community Model License
-1.0 over the Qwen Community License 1.0, both binding (`§2` "Permission from Edge0 is not permission
-from Qwen, and permission from Qwen is not permission from Edge0"). §3(b) puts benchmarking and
-publication of findings inside the grant with no prior approval, §4(b)/(c) reserve commercial inference
-services and independent coding/office assistants to a separate written Edge0 licence. Nothing is sold
-and the arm is authored-not-booted, so exposure today is nil; the `zz-` prefix stands until the row is
-answered.
+**Licence — settled (`#87`): the terms do not apply to our use, not a lane decision.** Edge0 Community
+Model License 1.0 over the Qwen Community License 1.0, both binding (`§2` "Permission from Edge0 is not
+permission from Qwen, and permission from Qwen is not permission from Edge0"). §3(b) puts benchmarking
+and publication of findings inside the grant with no prior approval, §4(b)/(c) reserve commercial
+inference services and independent coding/office assistants to a separate written Edge0 licence. The
+owner ruled on 2026-11-20 that the licence terms do not apply to our use case, so the licence no longer
+blocks; the `zz-` prefix stands until a measured boot, not for licence reasons.
 
 ## [zz-hy4-flash-220b-bf16-thinking-tools-vllm](zz-hy4-flash-220b-bf16-thinking-tools-vllm.yaml)
 
@@ -1911,10 +1911,12 @@ boot is also the engine test. `instrumented: false`.
 an owner-declared TP4 window with the ring free. Then stage 410.29 GiB in the pool, carry the image to
 all four ranks with the same arm64 child id, and boot. `readiness.inference: false`.
 
-**Licence — register question (row `#86`), not a lane decision.** Tencent Hy License 1.0: Apache-2.0
-plus §10 MaaS terms (§10.2 revenue > US$50M or > 100M MAU → separate written licence; §10.3
-internal-use exemption; §6 trademarks; §4(c) attribution; derivatives include quantized/pruned/merged
-weights). The `zz-` prefix stands until answered.
+**Licence — settled (`#86`): the terms do not apply to our use, not a lane decision.** Tencent Hy
+License 1.0: Apache-2.0 plus §10 MaaS terms (§10.2 revenue > US$50M or > 100M MAU → separate written
+licence; §10.3 internal-use exemption; §6 trademarks; §4(c) attribution; derivatives include
+quantized/pruned/merged weights). The owner ruled on 2026-11-20 that the licence terms do not apply to
+our use case, so the licence no longer blocks; the `zz-` prefix stands until a measured boot, not for
+licence reasons.
 
 ## [zz-sensenova-loop-9b-bf16-thinking-ref-vllm](zz-sensenova-loop-9b-bf16-thinking-ref-vllm.yaml)
 
