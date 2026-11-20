@@ -48,6 +48,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
   - [Production arms (2026-11-18)](#production-arms-2026-11-18)
   - [Probe arms: prefill chunk budget, Engram read batch, output ceiling (authored 2026-11-17; all three booted in the 2026-11-18 production window)](#probe-arms-prefill-chunk-budget-engram-read-batch-output-ceiling-authored-2026-11-17-all-three-booted-in-the-2026-11-18-production-window)
   - [License](#license-2)
+- [zz-deepseek-v4.1-flash-1017-weightless-tp4-1m (authored 2026-11-20, never booted)](#zz-deepseek-v41-flash-1017-weightless-tp4-1m-authored-2026-11-20-never-booted)
 - [picom vs knapcio: one model, two engines on four GB10s](#picom-vs-knapcio-one-model-two-engines-on-four-gb10s)
 - [External stack: spark-ds41f (survey, 2026-11-08)](#external-stack-spark-ds41f-survey-2026-11-08)
 - [Upgrade candidates (measured elsewhere, not queued)](#upgrade-candidates-measured-elsewhere-not-queued)
@@ -2766,6 +2767,63 @@ MIT: upstream's `LICENSE` and `NOTICE` are unchanged and cover the fork. The dra
 weights `tools/stack4/cfmlp_cml.bin` (5,536 B, fitted on this checkpoint) ship in the image
 under the same license. The checkpoint carries its own license.
 
+## zz-deepseek-v4.1-flash-1017-weightless-tp4-1m (authored 2026-11-20, never booted)
+
+| | |
+|:--|:--|
+| Recipe | `recipes/ds4/zz-deepseek-v4.1-flash-1017-weightless-tp4-1m.yaml` |
+| Engine | spark-ds41f's patched vLLM (641 active patches at `1107`, TileLang kernels, rebuilt NCCL 2.30.7, sparknet one-shot RoCE collectives), `runtime: vllm` → `vllm-distributed` |
+| Model | [`deepseek-ai/DeepSeek-V4.1-Flash-1017`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017) at `1bae0e10` — the revision the steering vector was derived against |
+| Second name | `deepseek-v4.1-flash-weightless`, the same weights with the GLP vector projected out of the residual stream **per request** |
+| Artifact | [`msuiche/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75`](https://huggingface.co/msuiche/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75) at `2715ffd5`: one 803,392-byte GGUF, sha256 `9c66d477…f5cf`, 39 layers, α 0.75, MIT, access-gated |
+| Topology | TP=4, four GB10 nodes, one rank per node |
+| Context | 1,048,576 tokens served |
+| Image | `spark-ds41f:1107` — **a local tag, never published** (`bin/spark build image --apply`); `distribution_config.containers.enabled: false` |
+| Status | **Probe.** Nothing here has been booted on this fleet; no throughput, quality or memory number is ours |
+
+**What the two names mean.** One deployment, one checkpoint, two served names, and the
+client picks per request. `deepseek-v4.1-flash` is the stock model. Requests addressed to
+`deepseek-v4.1-flash-weightless` have a per-layer unit direction projected out of their
+residual stream at each configured layer — `h ← h − α·(h·d̂)d̂`, α 0.75 from the file — while
+the stock requests in the same batch, through the same prefix cache, keep their own text
+(upstream forum posts [#122](https://forums.developer.nvidia.com/t/384438/122) and
+[#124](https://forums.developer.nvidia.com/t/384438/124), 2026-10-30). The weights are never
+modified or re-quantized: this is activation steering, not an abliterated checkpoint, which
+is what separates it from the [`deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang`](../cybersec/deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang.yaml)
+arm in `recipes/cybersec/` (that one grafts replaced `attn.wo_b` weights). The words in the
+served name are the technique's, not a capability claim: upstream measured AdvBench's 520
+prompts at 13 answered stock against 266 steered, and calls it a cyber-refusal ablation, not
+a general uncensored model. Beam search is refused on the steered name (HTTP 400) because
+the steering is per-token-schedule, not per-beam.
+
+**The gated vector.** The file rides the checkpoint's distribution path as a second
+`distribution_config.models.entries` entry, and the lane mod `mods/glp-vector-stage` resolves
+it in each node's hub cache, checks its sha256 and stages it at `/cache/runtime/glp/vector.gguf`
+— a missing file or a wrong digest fails the launch before the weights load, rather than
+serving the stock model under the steered name. The repository is access-gated: accept its
+agreement once per Hugging Face account, then `hf download msuiche/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75 glp.deepseek-v41-flash-1017-GLP-39-L1-39-a0.75.gguf --revision 2715ffd51f59899115853e1118db080536966c44`
+on every node. No personal-information field is collected, which is why this ships under the
+2026-11-20 gate rule and needs no eval-only banner — the vector is MIT and the base checkpoint
+is MIT.
+
+**Why it is a `zz-` probe.** The only engine that can serve this pair is spark-ds41f's patched
+vLLM, and its image is built on an idle node and copied to the others — never pushed. A
+digest-pinned `container:` cannot exist until someone publishes it, so the recipe carries the
+local tag and turns image distribution off, the same shape as the Ripple BF16 probe. The
+second dependency is the host: the `1M` shapes want the 64 KiB-page kernel
+(`7.0.0-1019-nvidia-64k`), memory-saver DKMS 0.4.1 and driver 580.178.04, none of which a
+recipe can install.
+
+**Not established here.** Every number above is upstream's, measured on their fabric and
+their client; this lane has no cell. The boot gate, once an image exists and is pinned:
+publish it to `ghcr.io/littlecedar`, prove an anonymous pull, then in a declared 4-rank window
+with a watchdog — `GET /v1/models` listing both names, one request per name, and a beam-search
+request on the steered name expecting HTTP 400. Two further unknowns worth a boot: whether the
+built image still carries the Spec v1 branch for the GLP-39 file (upstream PR #738 added Spec
+v3 beside it; `candidate-55/README.md:25` says v1 still steers), and whether the second
+distribution entry lands under `HF_HOME` where the mod looks — its failure message is the
+falsifier for the second.
+
 ## External stack: spark-ds41f (survey, 2026-11-08)
 
 The stack inspected above is a fully engineered **vLLM** stack for the identical checkpoint and
@@ -2788,6 +2846,20 @@ route reaches `boot.py`, so "the dry run looked identical" proves nothing about 
 **Do not** copy their `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` — our launcher sets `False`
 deliberately (`launcher.py:332-334`): expandable segments produced NaN logits above 64 prefill query
 tokens on V4.1.
+
+**Update 2026-11-20: the stack now serves a second, steered name, and this survey predates it.** Two
+releases after the survey above, `spark-ds41f-1030` and `1107` serve one checkpoint under two names —
+stock, and a GLP-steered one addressed per request — with the weights untouched (forum posts
+[#122](https://forums.developer.nvidia.com/t/384438/122) and
+[#124](https://forums.developer.nvidia.com/t/384438/124), 2026-10-30). Steering landed as `0258`
+("off unless `WEIGHTLESS_STEER_PATH` is set", #401), the per-request selector as `0541-0542`, and
+Spec v3 (`hc_fold_pre_engram`) vectors as `0805` via PR #738 while the shipped GLP-39 file keeps
+steering as Spec v1 (`experiments/2026-10-26-spark-ds41f-candidate/candidate-55/README.md:25`). That
+changes none of the survey's conclusions — same patches-plus-kernels image, still unpublished, still
+not a fit lever — but it does mean the stack's config carries a second distribution entry (an 803 KB
+GGUF in a gated MIT repository) and two `--served-model-name` flags whose order matters. Our probe for
+it is [`zz-deepseek-v4.1-flash-1017-weightless-tp4-1m`](#zz-deepseek-v41-flash-1017-weightless-tp4-1m-authored-2026-11-20-never-booted),
+authored and never booted: the image blocker above is the first gate, not the steering.
 
 ### The boot log, mined (2026-11-10): config, memory, and what the "2× prefill" claim rests on
 

@@ -1,0 +1,118 @@
+recipe_version: "2"
+model: deepseek-ai/DeepSeek-V4.1-Flash-1017
+# The revision the GLP-39 vector was derived against (the vector repo's own
+# base_model tag). Not the lane's 08c8657f: that pin differs only in
+# chat_template.jinja, which no engine here reads, but a steering vector is
+# checkpoint-bound and this arm must not be the test of that.
+model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
+runtime: vllm
+# TRIAL PROBE: the image is spark-ds41f's patched vLLM (641 active patches,
+# TileLang kernels, rebuilt NCCL 2.30.7, sparknet collectives), built on an idle
+# node with `bin/spark build image --apply` and NEVER published — a local tag,
+# not a registry artifact (upstream docker/README.md; the lane survey at
+# recipes/ds4/README.md §"External stack: spark-ds41f"). Same shape as the
+# Ripple BF16 probe's relayed image: every rank must already carry this tag, and
+# sparkrun's image distribution is off because there is no registry to pull from.
+# A third party cannot run this arm until the image is published and pinned by
+# digest.
+container: spark-ds41f:1107
+distribution_config:
+  containers:
+    enabled: false
+  models:
+    entries:
+      - model: deepseek-ai/DeepSeek-V4.1-Flash-1017
+        revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
+      # The steering vector rides the checkpoint's distribution path so every
+      # rank has it before the serve starts; the mod resolves it out of the hub
+      # cache and verifies its sha256 (no download at boot).
+      - model: msuiche/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75
+        revision: 2715ffd51f59899115853e1118db080536966c44
+min_nodes: 4
+max_nodes: 4
+description: >-
+  TRIAL PROBE (zz-): DeepSeek-V4.1-Flash-1017 at native weights served under two
+  names from one deployment — `deepseek-v4.1-flash` (stock) and
+  `deepseek-v4.1-flash-weightless`, which projects msuiche's GLP-39 vector out of
+  the residual stream for that request only. The weights are never modified, and
+  a stock request in the same batch keeps its own text. Measured upstream on
+  AdvBench's 520 prompts: 13 answered stock, 266 steered; beam search is refused
+  on the steered name. The vector is a gated MIT file (803,392 B) that every node
+  must hold — see the lane README for the one-time download. Needs the 64 KiB-page
+  kernel and the memory-saver DKMS, and an image this registry cannot pull; not
+  bootable until that image is published and pinned by digest.
+metadata:
+  model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: mxfp4
+  kv_dtype: fp8
+  tags: ds4, reasoning, agent, large_context, vision, tools, uncensored
+  caveats: >
+    GLP-39 is MIT, but its Hugging Face repository is access-gated: accept the
+    Responsible Use Agreement once per account, then `hf download` the pinned
+    revision on every node. This is a cyber-refusal ablation, not a general
+    uncensored model. Steering needs the patched engine's own reader
+    (vllm/models/deepseek_v4_1/glp.py); a stock vLLM image loads none of it and
+    would serve two aliases of the stock model.
+mods:
+  - "mods/glp-vector-stage"
+executor_config:
+  # The Dockerfile defines no ENTRYPOINT of its own, so the image inherits the
+  # vLLM nightly's — which would prepend its own `vllm serve` to this command.
+  # Clear it so the recipe's command is the process.
+  entrypoint: ""
+  # Upstream's own container flags for this engine: 16 GiB of /dev/shm for the
+  # multiprocessing workers, and unlocked-memory limits for the RDMA collectives.
+  shm_size: 16gb
+  ulimit:
+    - memlock=-1:-1
+env:
+  WEIGHTLESS_STEER_PATH: /cache/runtime/glp/vector.gguf
+  WEIGHTLESS_STEER_ALPHA: "0.75"
+  # Without this the second name is a second alias of the stock model: the
+  # engine steers the requests addressed to this name, and only those.
+  WEIGHTLESS_STEER_MODEL: deepseek-v4.1-flash-weightless
+  VLLM_NO_USAGE_STATS: "1"
+defaults:
+  host: 0.0.0.0
+  port: 8000
+  tensor_parallel: 4
+  max_model_len: 1048576
+  max_num_seqs: 16
+  max_num_batched_tokens: 16384
+  # Declared rather than spelled in the command: sparkrun reads the memory
+  # budget and placement from the config chain, so a literal hides the knob.
+  gpu_memory_utilization: "0.82"
+  served_model_name: deepseek-v4.1-flash
+  weightless_model_name: deepseek-v4.1-flash-weightless
+# The stock name is first on purpose: upstream's doctor requires the steered
+# name to follow the first `--served-model-name`. Never spell
+# --nnodes/--node-rank/--master-addr here: vllm-distributed appends them.
+command: >
+  vllm serve {model}
+  --revision {model_revision}
+  --served-model-name {served_model_name}
+  --served-model-name {weightless_model_name}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --tokenizer-mode deepseek_v41
+  --dtype bfloat16
+  --load-format direct
+  --enable-force-include-usage
+  --enable-prompt-tokens-details
+  --enable-per-request-metrics
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --enable-chunked-prefill
+  --async-scheduling
+  --reasoning-parser deepseek_v41
+  --tool-call-parser deepseek_v41
+  --enable-auto-tool-choice
+readiness:
+  inference: true
+  port_timeout_s: 3600
+  health_timeout_s: 1800
