@@ -2740,6 +2740,46 @@ def _run_picom_disk_gate(tc, launch: str, avail_gib: int, artifact: bool,
                               capture_output=True, text=True)
 
 
+def _picom_mount_gate(tc, run: str) -> str:
+    """Slice the runtime-cache mount guard out so it can be run, not grepped."""
+    tc.assertIn("require_runtime_cache_mount() {", run,
+                "the runtime-cache mount guard vanished from the mod")
+    start = run.index("require_runtime_cache_mount() {")
+    end = run.index("\n}\n", start) + 3
+    return run[start:end]
+
+
+def _picom_dir_on_root_fs() -> Path | None:
+    """A throwaway directory on the same filesystem as `/` — the overlay side."""
+    import os
+    import tempfile
+
+    for parent in (None, "/var/tmp"):
+        try:
+            path = Path(tempfile.mkdtemp(dir=parent))
+        except OSError:
+            continue
+        if os.stat(path).st_dev == os.stat("/").st_dev:
+            return path
+        path.rmdir()
+    return None
+
+
+def _run_picom_mount_gate(tc, run: str, base: Path, snippet: str | None = None):
+    """Run the extracted guard with `PICOM_ROOT` under *base*, real `stat` aside."""
+    import subprocess
+    import tempfile
+
+    script = Path(tempfile.mkdtemp()) / "gate.sh"
+    script.write_text(
+        "set -u\n"
+        'die() { echo "FATAL: $*" >&2; exit 2; }\n'
+        f'PICOM_ROOT="{base}/picom"\n'
+        + (snippet if snippet is not None else _picom_mount_gate(tc, run))
+        + "\nrequire_runtime_cache_mount\n")
+    return subprocess.run(["bash", str(script)], capture_output=True, text=True)
+
+
 def _picom_fake_sysfs(root, devices: dict[str, str]) -> Path:
     """A `/sys/class/infiniband` stand-in: per device, the four GIDs a ConnectX-7
     port answers — RoCE v1/v2 link-local, then RoCE v1/v2 IPv4-mapped (index 3)."""
@@ -2771,6 +2811,7 @@ class PicomLaneContract(unittest.TestCase):
         self.clean = _strip_comment_lines(self.text)
         self.r = Recipe(self.text, PICOM_RECIPE.name)
         self.launch = (PICOM_MOD_DIR / "launch.sh").read_text()
+        self.run_sh = (PICOM_MOD_DIR / "run.sh").read_text()
         self.fleet = (PICOM_MOD_DIR / "fleet-render.sh").read_text()
         self.dockerfile = PICOM_DOCKERFILE.read_text()
 
@@ -2899,6 +2940,39 @@ class PicomLaneContract(unittest.TestCase):
         self.assertIn("needs 78 GiB free", relow.stderr)
         self.assertNotIn("fresh convert", relow.stderr,
                          "the re-convert refusal must name its own case")
+
+    def test_a_disabled_runtime_cache_refuses_the_overlay(self):
+        """Guard the 130 GB/rank mode measured 2026-11-20: with the cache on,
+        `/cache/runtime` is a bind mount from the node's own ext4
+        (`~/benchmarks/picom-runtimecache-20261120/mounts-rank0.json`; container
+        writable layer 76.8 kB). The guard must pass that and refuse the overlay.
+
+        Both directions run the extracted guard for real; the pass side stands in
+        a different filesystem (a tmpfs mount) for the bind mount, the refuse side
+        a directory on `/`, which is the container overlay's own filesystem.
+        """
+        import shutil
+        import tempfile
+
+        if not Path("/dev/shm").is_dir():
+            self.skipTest("no second local filesystem to stand in for the bind mount")
+        mounted = Path(tempfile.mkdtemp(dir="/dev/shm"))
+        self.addCleanup(shutil.rmtree, mounted, True)
+        ok = _run_picom_mount_gate(self, self.run_sh, mounted)
+        self.assertEqual(0, ok.returncode,
+                         "the guard refused a mounted cache: " + ok.stdout + ok.stderr)
+        overlay = _picom_dir_on_root_fs()
+        if overlay is None:
+            self.skipTest("no writable directory on the root filesystem")
+        self.addCleanup(shutil.rmtree, overlay, True)
+        refused = _run_picom_mount_gate(self, self.run_sh, overlay)
+        self.assertEqual(2, refused.returncode,
+                         "the guard let the container overlay through: " + refused.stdout)
+        self.assertIn("runtime cache is not mounted", refused.stderr)
+        self.assertIn("SPARKRUN_NO_RUNTIME_CACHE", refused.stderr)
+        # It must sit before the first artifact directory is created.
+        self.assertLess(self.run_sh.index("\nrequire_runtime_cache_mount\n"),
+                        self.run_sh.index("for d in run logs weights"))
 
     def test_fleet_renderer_executes_and_fails_closed(self):
         """Run the renderer, not a regex over it: the fleet file is the engine's
@@ -3093,6 +3167,28 @@ class PicomLaneNegativeControls(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self.assertEqual(proc.returncode, 0,
                              f"a re-convert with room for its one extra file died: {proc.stderr}")
+
+    def test_control_mount_gate_inverted(self):
+        """Invert the device comparison: the overlay case must sail through.
+
+        A fixture alone proves nothing — the branch, not the harness, has to be
+        what refuses the overlay, so this control runs the same overlay directory
+        against a guard whose comparison was really mutated.
+        """
+        import shutil
+
+        run = (PICOM_MOD_DIR / "run.sh").read_text()
+        overlay = _picom_dir_on_root_fs()
+        if overlay is None:
+            self.skipTest("no writable directory on the root filesystem")
+        self.addCleanup(shutil.rmtree, overlay, True)
+        gate = _picom_mount_gate(self, run)
+        anchor = '"${base_dev}" == "${root_dev}"'
+        self.assertIn(anchor, gate, "control anchor comparison vanished")
+        inverted = gate.replace(anchor, '"${base_dev}" != "${root_dev}"', 1)
+        proc = _run_picom_mount_gate(self, run, overlay, snippet=inverted)
+        self.assertEqual(0, proc.returncode,
+                         "an inverted guard still refused the overlay: " + proc.stderr)
 
     def test_control_prefix_gate_was_fresh_only(self):
         """Execute the pre-fix gate (the inline 150 GiB check) against the guard.

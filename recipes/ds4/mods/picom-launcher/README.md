@@ -22,7 +22,11 @@ node, and all four processes take the same argv except `--rank`.
   `ibv` name, one IPv4 per netdev (each device's GID at `GID_INDEX` must equal it), and
   all four ranks' `NEXT`/`PREV` addresses;
 - creates the runtime directories and a mode-600 API key (`dsfront` refuses to start
-  without one).
+  without one);
+- before it creates anything, refuses a `/cache/runtime` that is not sparkrun's
+  runtime-cache bind mount (same filesystem as `/` = the container overlay): with the
+  cache disabled (`SPARKRUN_NO_RUNTIME_CACHE`, `runtime_cache.enabled: false`) the
+  130 GB/rank of converted artifacts would land in the overlay and vanish on exit.
 
 `launch.sh` (the container command, one container per rank) is the launcher:
 

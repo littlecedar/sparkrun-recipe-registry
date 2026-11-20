@@ -75,6 +75,22 @@ die() {
   exit 2
 }
 
+# /cache/runtime is sparkrun's runtime-cache bind mount (core/runtime_cache.py:
+# RUNTIME_CACHE_CONTAINER_PATH), so it is a different filesystem from the
+# container's overlay root. With the cache disabled (`SPARKRUN_NO_RUNTIME_CACHE`,
+# or `runtime_cache.enabled: false`) it is an ordinary overlay directory and the
+# 130 GB/rank of converted artifacts would vanish with the container — refuse
+# here, where a non-zero mod exit tears the launch down, not after an hour of
+# conversion.
+require_runtime_cache_mount() {
+  local base="${PICOM_ROOT%/*}" root_dev base_dev
+  root_dev=$(stat -c %d / 2>/dev/null) || root_dev=""
+  base_dev=$(stat -c %d "${base}" 2>/dev/null) || base_dev=""
+  if [[ -z "${base_dev}" || "${base_dev}" == "${root_dev}" ]]; then
+    die "runtime cache is not mounted: ${base} is the container overlay, not sparkrun's runtime-cache bind mount, so the artifacts would land in the overlay — drop SPARKRUN_NO_RUNTIME_CACHE or re-enable runtime_cache"
+  fi
+}
+
 #####################################################################
 # Rotate logs
 #####################################################################
@@ -192,6 +208,7 @@ resolve_fabric() {
 # PICOM_RANK_TAILS stays an explicit override and is validated as before.
 PICOM_ENGRAM_READ_BATCH="${PICOM_ENGRAM_READ_BATCH:-1}"
 
+require_runtime_cache_mount
 resolve_fabric
 : "${PICOM_NODE_RANK:?PICOM_NODE_RANK missing: the recipe must render it from the launch node_rank template}"
 own_ip=$(gid_ipv4 "${PICOM_DEV_A}" "${PICOM_GID_INDEX}")
