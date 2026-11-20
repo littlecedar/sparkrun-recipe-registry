@@ -1,0 +1,108 @@
+recipe_version: "2"
+model: atakans/Hy4-flash-NVFP4
+# Pinned body, never refs/main: 50 shards, 164,691,130,443 B = 153.36 GiB.
+model_revision: 30f201acf0b4f9ba178817bcbc04ccfa3ec473f9
+# The vendor Hy4-flash image, same multi-arch manifest the BF16 quartet arm pins;
+# its arm64 child is sha256:5e2c1badbca6..., the base atakann's six files were
+# written against. No atakann container exists to pull (ghcr 404, no Docker Hub
+# repos), so the SM121/ModelOpt files ride the lane mod below, not a new image.
+container: vllm/vllm-openai:hy4-flash@sha256:6b645bfbf4b89602d38f6e93c1c418516ec0bfbf54b64cd661b8075bfec01da1
+runtime: vllm
+min_nodes: 2
+max_nodes: 2
+mods:
+  - "mods/hy4-sm121-patch"
+
+description: >-
+  TRIAL (zz-, authored 2026-11-20, never booted): Tencent Hunyuan Hy4 Flash as a
+  ModelOpt NVFP4 build (experts NVFP4 at 0.66 % mean weight error, attention
+  projections and Engram tables FP8, everything else BF16) on TWO DGX Sparks,
+  TP=2 with expert parallel. The same 220B-total / 12B-active multimodal MoE as
+  the BF16 quartet arm, at 153.36 GiB instead of 410.29 GiB: 76.68 GiB of weights
+  per rank against 103.44 GiB of budget (0.85 x 121.69 GiB), which is why this
+  shape needs a pair and not a quartet. Expert parallel is not optional: without
+  --enable-expert-parallel each rank holds all 41 MoE layers' experts and the
+  boot OOMs. The six-file patch that makes the vendor image load ModelOpt NVFP4
+  experts and route Hy4's learnable attention sink through FlashInfer's SM120
+  sparse-MLA kernel is staged by mods/hy4-sm121-patch from a pinned atakann
+  commit; the recipe's env carries CUTE_DSL_ARCH=sm_121a and the spawn worker
+  method, which the upstream image used to bake. Upstream measured 2026-11-18 on
+  two Sparks: JSON 38.3 / code 36.5 / rewrite 36.1 / explain 25.0 / story 17.3
+  tok/s, prefill 1,110 t/s at 4K and 1,461 at 32K, 15 t/s without the DFly
+  drafter, 12.8 GiB lowest free memory. Not a substitute for the production ds4
+  serve: this is a capability arm, and its own quality cells are unmeasured.
+metadata:
+  model_url: https://huggingface.co/atakans/Hy4-flash-NVFP4
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "220B"
+  model_dtype: nvfp4
+  kv_dtype: fp8
+  tags: explore, reasoning, tools, multimodal, large_context
+  # Unknown pins: the image's own --help has not been read on a node, and an
+  # unknown flag is an argparse boot failure, so no metrics flags ship.
+  instrumented: false
+  caveats: >-
+    Tencent Hy License 1.0, as the base model: Apache-2.0 derived with section 10
+    added, so a MaaS business above US$50M 12-month gross revenue or a product
+    with over 100M monthly active users needs a separate written licence;
+    section 10.3 exempts internal-only use. atakans/Hy4-flash-NVFP4 is a
+    third-party quantisation, not a Tencent release, and its card states no
+    whole-model evaluation — the quality cells for this arm are unmeasured.
+    Engine support is a patch, not upstream: vllm-project/vllm#68296 takes FP8
+    only and needs Hopper or data-center Blackwell for attention, so the six
+    staged files are the whole route. The 6G KV pool is ~578k tokens (upstream's
+    count), so four 262k sessions do not co-reside; the measured run was one
+    user. Thinking is on by default; disable with chat_template_kwargs
+    {"reasoning_effort":"no_think"}.
+env:
+  # Capability-12 kernels compile through CUTE DSL; without the SM121a arch the
+  # first serve compiles for the wrong target (upstream Dockerfile's ENV).
+  CUTE_DSL_ARCH: sm_121a
+  # vLLM multiprocessing under a unified-memory node (upstream Dockerfile's ENV).
+  VLLM_WORKER_MULTIPROC_METHOD: spawn
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 2
+  # Repo id of the base model, not {model}: on a launch {model} renders the
+  # prepared snapshot path and /v1/models would advertise a cache path.
+  served_model_name: tencent/Hy4-flash
+  # 76.68 GiB/rank of weights + 6G KV + engine overhead; 0.85 is upstream's
+  # measured setting and leaves 12.8 GiB free on a 121.69 GiB unified pool.
+  gpu_memory_utilization: "0.85"
+  max_model_len: 262144
+  max_num_seqs: 4
+  max_num_batched_tokens: 8192
+  kv_cache_memory_bytes: 6G
+  limit_mm_per_prompt: '{"image":1,"video":0}'
+  # The checkpoint's config declares the DFly drafter; passing it explicitly
+  # keeps the choice visible. Dropping it is the first lever if the boot OOMs.
+  speculative_config: '{"num_speculative_tokens":5,"method":"dfly"}'
+  tool_call_parser: hy_v4
+  reasoning_parser: hy_v4
+command: >
+  vllm serve {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --enable-expert-parallel
+  --dtype bfloat16
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --kv-cache-memory-bytes {kv_cache_memory_bytes}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --limit-mm-per-prompt '{limit_mm_per_prompt}'
+  --speculative-config '{speculative_config}'
+  --tool-call-parser {tool_call_parser}
+  --reasoning-parser {reasoning_parser}
+  --enable-auto-tool-choice
+readiness:
+  # 153 GiB of weights over two ranks from the BeeGFS pool, then the first
+  # serve's kernel autotune: upstream measured ready 9.7 min after a 2.5 min
+  # setup with the model already in cache.
+  inference: false
+  port_timeout_s: 3600
+  health_timeout_s: 3600
