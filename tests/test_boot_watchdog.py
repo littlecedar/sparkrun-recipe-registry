@@ -227,7 +227,8 @@ class StallIsNotLoading(unittest.TestCase):
 _GONE = (False, None, 0, None, None)
 
 
-def _drive(per_rank, stall="25", ranks=(), dead_grace="0", endpoint=False, extra=()):
+def _drive(per_rank, stall="25", ranks=(), dead_grace="0", endpoint=False, extra=(),
+           log_dir=None, docker_exec_out="", checks=None):
     """main() over per-rank serve_state returns on a fake clock that steps 10 s a call.
 
     `per_rank` is `{node: [samples]}` (or a bare list for the single-rank shape); each node's
@@ -246,14 +247,22 @@ def _drive(per_rank, stall="25", ranks=(), dead_grace="0", endpoint=False, extra
         # The arming check lists containers once; the fixture's container must exist, as it
         # does on the node by the time a watchdog is armed after `node0 container up`.
         if argv[0] == "ssh" and "docker ps --format" in argv[-1]:
-            return mock.Mock(stdout="sparkrun_abc123_solo\n", stderr="")
-        return mock.Mock(stdout="", stderr="")
+            return mock.Mock(stdout="sparkrun_abc123_solo\n", stderr="", returncode=0)
+        if docker_exec_out and "docker exec" in argv[-1] and " cat " in argv[-1]:
+            return mock.Mock(stdout=docker_exec_out, stderr="", returncode=0)
+        return mock.Mock(stdout="", stderr="", returncode=1)
 
     if isinstance(per_rank, list):
         per_rank = {"n1": per_rank}
     queues = {node: list(samples) for node, samples in per_rank.items()}
 
+    sampler_checks = [0]
+
     def sampler(node, _ctn, _pattern):
+        sampler_checks[0] += 1
+        if checks is not None and sampler_checks[0] > checks:
+            # A no_probe boot never stops itself; end a test that only needs one check.
+            raise RuntimeError("check budget exhausted")
         queue = queues.get(node, [])
         return queue.pop(0) if queue else _GONE
 
@@ -271,7 +280,7 @@ def _drive(per_rank, stall="25", ranks=(), dead_grace="0", endpoint=False, extra
         def sleep(self, _seconds):
             pass
 
-    tmp = Path(tempfile.mkdtemp())
+    tmp = Path(log_dir or tempfile.mkdtemp())
     fake = mock.Mock(run=fake_run, SubprocessError=subprocess.SubprocessError)
     url = endpoint if isinstance(endpoint, str) else "http://127.0.0.1:1"
     patchers = [
@@ -844,6 +853,50 @@ class InferenceProbe(unittest.TestCase):
         self.assertIn("verdict=healthy", log, log)
         self.assertEqual(rc, 0)
         self.assertNotIn("inference=", log)
+
+    def test_an_unreadable_key_is_no_probe_never_healthy(self):
+        """Field report 2026-11-20: the default key path is a container path, absent on the
+        control machine. A key that cannot be read is a broken instrument: no verdict of
+        health, no stop, and the message names both attempted locations."""
+        missing = str(Path(tempfile.mkdtemp()) / "api-key")
+        tmp = Path(tempfile.mkdtemp())
+        with self.assertRaises(RuntimeError):
+            _drive(
+                [self.GONE], endpoint=self._stub(200), log_dir=str(tmp), checks=1,
+                extra=["--require-inference", "--api-key-file", missing],
+            )
+        log = (tmp / "watchdog.log").read_text()
+        self.assertNotIn("verdict=healthy", log, log)
+        self.assertIn("verdict=no_probe", log, log)
+        self.assertIn("inference=unprobed", log)
+        self.assertIn(missing, log)
+        self.assertIn(f"n1:sparkrun_abc123_solo:{missing}", log,
+                      "the node-side location must be named too")
+        self.assertNotIn("sparkrun stop abc123", log)
+
+    def test_resolve_api_key_reads_through_the_node_when_the_host_copy_is_absent(self):
+        missing = str(Path(tempfile.mkdtemp()) / "api-key")
+        fake_run = mock.Mock(
+            return_value=mock.Mock(stdout="test-key\n", stderr="", returncode=0)
+        )
+        fake = mock.Mock(run=fake_run, SubprocessError=subprocess.SubprocessError)
+        with mock.patch.object(bw, "subprocess", fake):
+            key, tried = bw.resolve_api_key(missing, "n1", "sparkrun_abc123_solo")
+        self.assertEqual(key, "test-key")
+        self.assertEqual(tried, [missing, f"n1:sparkrun_abc123_solo:{missing}"])
+        self.assertIn("docker exec", fake_run.call_args.args[0][-1])
+
+    def test_a_key_written_inside_the_container_is_read_through_the_node(self):
+        """The operator's key lives at the container path; `--node` supplies the route."""
+        missing = str(Path(tempfile.mkdtemp()) / "api-key")
+        rc, _calls, log = _drive(
+            [self.GONE], endpoint=self._stub(200),
+            extra=["--require-inference", "--api-key-file", missing],
+            docker_exec_out="test-key\n",
+        )
+        self.assertIn("verdict=healthy", log, log)
+        self.assertIn("inference=ok", log)
+        self.assertEqual(rc, 0)
 
 
 if __name__ == "__main__":

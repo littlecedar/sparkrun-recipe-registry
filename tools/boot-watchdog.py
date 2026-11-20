@@ -14,10 +14,14 @@ distinction explicit and acts on it:
     401 from a keyed front-end counts)                        -> healthy
     ...unless `--require-inference` is passed: then healthy also needs an
     authenticated `/v1/models` AND one tiny completion 2xx. A `/health` 200 with the
-    completion refused is `loading`, never healthy, never exit 0. Pass it on arms whose
-    `/health` answers before the engine: on picom `dsfront` binds `/health` ~90 s early
-    and the receipt `head:~/benchmarks/picom-bareh-20261120-head/watchdog.log` shows the
-    keyless rule reporting `verdict=healthy` at t=1 s on a boot that could not answer.
+    completion refused is `loading`, never healthy, never exit 0. The bearer is read
+    from `--api-key-file` on this host, else through `--node`'s container by
+    `docker exec cat` (the picom arm writes it inside the container); when neither
+    reads, the check is `no_probe` -- never `healthy`, never a silent keyless probe.
+    Pass the flag on arms whose `/health` answers before the engine: on picom `dsfront`
+    binds `/health` ~90 s early and the receipt
+    `head:~/benchmarks/picom-bareh-20261120-head/watchdog.log` shows the keyless rule
+    reporting `verdict=healthy` at t=1 s on a boot that could not answer.
   * serve pattern matched nothing while the container is up and the endpoint
     answers                                                    -> loading (a fingerprint
     miss is not death; one log line names the miss)
@@ -130,6 +134,38 @@ def read_api_key(path: str) -> str:
         return Path(path).expanduser().read_text(encoding="utf-8").strip()
     except OSError:
         return ""
+
+
+def resolve_api_key(path: str, node: str, container: str) -> tuple[str, list[str]]:
+    """(key, attempted locations): the host path, else the same path inside `node`'s container.
+
+    `/cache/runtime/picom/run/api-key` is written inside the container, while the watchdog
+    runs on the control machine, so a host-readable copy is not guaranteed. Reading it through
+    `docker exec` on the rank container is the operator's own route. Two failed attempts are
+    reported by the caller as `no_probe` -- never a silent keyless probe.
+    """
+    tried = [path]
+    key = read_api_key(path)
+    if key or not node or not container:
+        return key, tried
+    remote = f"{node}:{container}:{path}"
+    tried.append(remote)
+    try:
+        proc = subprocess.run(
+            [
+                "ssh", "-o", "BatchMode=yes", f"red@{node}",
+                f"docker exec {shlex.quote(container)} cat {shlex.quote(path)}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return "", tried
+    if proc.returncode != 0:
+        return "", tried
+    return proc.stdout.strip(), tried
 
 
 def http_call(
@@ -687,8 +723,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--api-key-file",
         default="/cache/runtime/picom/run/api-key",
-        help="bearer key for the inference probe, read where the arm writes it; empty means "
-        "a keyless probe (which a keyed front-end answers 401, so the probe stays not-ready)",
+        help="bearer key for the inference probe: the host path is tried first, then the same "
+        "path inside --node's container (`docker exec cat`, where the picom arm writes it). "
+        "Neither readable is `no_probe`: never healthy, never a keyless fallback",
     )
     ap.add_argument("--log", default="")
     args = ap.parse_args(argv)
@@ -724,19 +761,21 @@ def main(argv: list[str] | None = None) -> int:
     seen_alive = False
     pattern_miss_logged = False
     api_key = ""
+    key_tried: list[str] = []
     if args.require_inference:
-        api_key = read_api_key(args.api_key_file)
+        api_key, key_tried = resolve_api_key(args.api_key_file, args.node, container)
         if not api_key:
             print(
-                f"WATCHDOG: --require-inference: no key readable at {args.api_key_file}; "
-                "the probe sends no bearer and a keyed front-end will answer 401, so this "
-                "boot can only read healthy if the endpoint is truly keyless",
+                "WATCHDOG: --require-inference: no key readable at "
+                f"{' or '.join(key_tried)}; the probe cannot authenticate, so every check "
+                "is no_probe (never healthy, never a keyless fallback)",
                 file=log,
                 flush=True,
             )
+    unprobed = args.require_inference and not api_key
     health_only_logged = False
     while True:
-        health_ok = endpoint_reachable(args.endpoint)
+        health_ok = endpoint_reachable(args.endpoint) if not unprobed else False
         infer = not args.require_inference or not health_ok or inference_ok(
             args.endpoint, api_key
         )
@@ -816,14 +855,23 @@ def main(argv: list[str] | None = None) -> int:
         stalled = group_stalled(ok, [sample[0] for sample in samples], idle, args.stall)
         if stalled:
             verdict = "stalled"
+        # Without a key this instrument cannot tell a keyed serve that cannot answer from one
+        # that can: that is a broken probe, so it never contributes health or a stop decision.
+        if unprobed:
+            verdict = "no_probe"
         print(
-            f"WATCHDOG t={elapsed}s verdict={verdict} endpoint={'ok' if ok else 'down'} "
+            f"WATCHDOG t={elapsed}s verdict={verdict} "
+            f"endpoint={('unprobed' if unprobed else 'ok' if ok else 'down')} "
             f"serve_pid={('alive' if alive else 'gone') if alive is not None else 'unprobed'} io_delta={delta} "
             f"log_delta={log_delta} "
             f"mem_delta={mem_delta} idle={int(idle)}s ranks={len(ranks)} "
             f"peer_moved={peer_moved} unprobeable={unprobeable}"
             + (f" cause={fatal!r}" if fatal else "")
-            + (f" inference={'ok' if infer else 'down'}" if args.require_inference else ""),
+            + (
+                f" inference={'unprobed' if unprobed else 'ok' if infer else 'down'}"
+                if args.require_inference
+                else ""
+            ),
             file=log,
             flush=True,
         )
