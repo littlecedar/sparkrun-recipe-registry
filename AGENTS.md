@@ -704,6 +704,11 @@ Rules that follow:
   `mad-science/QUESTIONS.md` `#11` (owner, 2026-10-22), so a *new* license class still goes to that
   register first — this paragraph permits eval-only shipping, it does not decide whether a given
   license allows it.
+- **Prefer a 4-bit-class quantisation over BF16.** Prefer a compressed 4-bit-class quantisation
+  (modelopt NVFP4, EXL3 ~4 bpw, MXFP4) over a BF16 checkpoint whenever the model's own or a
+  reputable community variant exists, because the fleet is GB10 and its decode path favours 4-bit
+  weights. A BF16 arm ships only as an explicit quality control beside a 4-bit arm, and the
+  recipe/lane text says which it is. If no variant exists, say so with the search date.
 
 ### Published artifacts must be public (a rule)
 
