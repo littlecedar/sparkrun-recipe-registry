@@ -88,6 +88,7 @@ env:
   PICOM_MAX_TOKENS: "262144"
 defaults:
   port: 8000
+  tensor_parallel: 4
 # One GPU per node: the engine's TP=4 is four processes, not a torch world, so
 # sparkrun's default tensor_parallel of 1 is exactly right.
   served_model_name: deepseek-ai/DeepSeek-V4.1-Flash-1017
