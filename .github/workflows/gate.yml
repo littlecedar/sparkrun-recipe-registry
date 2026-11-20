@@ -112,6 +112,17 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$version"
+          # The registry ships an out-of-tree runtime (plugins/weightless_dsgb10_runtime.py):
+          # a recipe naming it validates only with the plugin this registry installs, so
+          # point sparkrun at the checkout's plugins/ instead of a stock vocabulary.
+          mkdir -p "$SPARKRUN_HOME/.config/sparkrun"
+          {
+            printf 'plugins:\n'
+            printf '  paths:\n'
+            printf '    - %s/plugins\n' "$PWD"
+            printf 'features:\n'
+            printf '  core.external_plugins: true\n'
+          } > "$SPARKRUN_HOME/.config/sparkrun/config.yaml"
           for f in recipes/*/*.yaml; do
             HOME="$SPARKRUN_HOME" sparkrun recipe validate "$f" >/dev/null
           done
