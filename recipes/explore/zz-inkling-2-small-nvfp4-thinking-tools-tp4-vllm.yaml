@@ -1,0 +1,122 @@
+recipe_version: "2"
+model: thinkingmachines/Inkling-2-Small
+# Pinned body, never refs/main: the 24 shard headers are the fit math below.
+model_revision: 4d564489295e30e9341a9822a8046f0c9ded1a7b
+# `nightly` is a moving tag, so the manifest-list digest is the pin (resolved
+# 2026-11-20; arm64 child sha256:2d900bd38113fc269bf953120f60a302ae7263033da3d53eb8521eb44fb50d51,
+# 10.66 GiB of layers, build commit 8586ccb — 62 commits past 2359b442, the last
+# commit touching vllm/models/inkling2/). No release tag carries this
+# architecture: the registries of v0.32.0, v0.33.0 and v0.34.0 (the newest tag
+# as of the pin) have zero Inkling2 entries; it landed in main on 2026-11-18
+# (#67325, "Add Inkling 2 Small for Blackwell") with Hopper support (#67880) and
+# Humming expert GEMMs (#68761) the next day. The fleet's pinned
+# `vllm/vllm-openai:v0.32.0` and both pinned llama.cpp images cannot serve it.
+container: vllm/vllm-openai:nightly@sha256:c17e9d88fd35e9e0aebad2c09aaa3df5d469378744855db24f3210d8a6db5441
+runtime: vllm
+# AUTHORED-NOT-BOOTED. 363.30 GiB of weights want four ranks: TP=2 is 181.65
+# GiB/rank and TP=1 is 363.30 GiB, both past the 121.69 GiB device, so 4 is the
+# only shape (and 384 experts / 48 heads / 4608 hidden all divide by 4). A
+# quartet on this fleet means .31-.34, which carry the production ds4 serve;
+# .30 is excluded for memory-risky TP4 shapes. The arm boots only inside an
+# owner-declared TP4 window with the ring free.
+min_nodes: 4
+max_nodes: 4
+description: >-
+  TRIAL PROBE (zz-, authored 2026-11-20, never booted): Thinking Machines
+  Inkling-2-Small on four DGX Sparks, TP=4. 594.05B text+vision body plus a
+  1.71B MTP head (595.76B logical), 48 layers at hidden 4608, 48 Q / 8 KV heads
+  at head_dim 128, d_rel 16 over rel_extent 1024, 40 sliding-window-1024 layers
+  with 8 global ones (5/11/17/23/29/35/41/47), short conv kernel 4, per-layer
+  attn_res queries, log-scaling from 8192 tokens, MoE 384 routed / 8 active /
+  0 shared at intermediate 2304 with gate bias and route_scale 8, 201,024 vocab,
+  1,048,576 positions, 0.33B vision tower (23 layers, hidden 1024, 40 px
+  patches) and a 5-layer MTP head. Quantisation is the vendor's ModelOpt mix in
+  hf_quant_config.json, not a card claim: routed experts only, 40 of 48 layers
+  NVFP4 (uint8-packed 2 values/byte, FP8_E4M3 scales per 16) and layers 40-47
+  MXFP8 (FP8_E4M3 weights, ue8m0 scales per 32), everything else BF16
+  (attention, embedding and unembed 926M each, norms, gates, sconv, vision,
+  MTP). 489.24B of 587.07B expert parameters are 4-bit, i.e. 83% of the expert
+  body is 4-bit-class and 366.47 GiB of files carry a 594B model. Fit: 390.09
+  GB = 363.30 GiB excluding the MTP shard, so 90.82 GiB of weights per rank
+  against a 109.52 GiB budget (0.90 x the fleet's measured 121.69 GiB device),
+  leaving 18.70 GiB, ~14.7 GiB of it for KV after a 4 GiB activation/graph
+  reserve. KV is 8 KiB/token per rank over the 8 global layers plus 40 MiB per
+  sequence of sliding-window cache, so 65,536 x 4 sequences is 2.16 GiB on a
+  window-aware allocator and 12.0 GiB if every layer takes the full context:
+  both inside the envelope, and 131,072 context is the next rung rather than
+  the 1M the card claims. Licence apache-2.0 with no usage-policy file in the
+  tree. Engine support is main-only and inferred from upstream source, not read
+  out of the image filesystem, so the first boot is also the engine test.
+metadata:
+  model_url: https://huggingface.co/thinkingmachines/Inkling-2-Small
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "594B"
+  model_dtype: nvfp4
+  kv_dtype: bfloat16
+  tags: explore, reasoning, tools, multimodal, large_context, agent
+  # Unknown pin: an unknown flag is an argparse boot failure, so no metrics
+  # flags ship until this image's own --help is read on a node.
+  instrumented: false
+  caveats: >-
+    GB10 is sm_121 and the model's Blackwell path is gated on capability
+    family 100 (`use_sm100_kernels()` = `is_device_capability_family(100)`,
+    major == 10), so a Spark runs the Hopper/Triton half: Triton attention in
+    `nvidia/ops/attention_sm90.py` and the Humming expert GEMMs, not the
+    tml_fa4 / tcgen05 / TRT-LLM-gen kernels. That path is unproven on sm_121
+    and is the single largest boot risk. No inkling2 entry exists in either
+    pinned llama.cpp image (`src/llama-arch.cpp` at 6023692 and a37cc46), so
+    the 4-bit GGUFs (arch string `inkling2`, 1M context, 384 experts) are not a
+    fallback without a new llama.cpp pin. The MTP shard (3.19 GiB) is staged
+    but not loaded: no `--speculative-config` ships until the base boot is
+    receipted.
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  # Repo id, never {model}: on a launch {model} renders the prepared snapshot
+  # path and /v1/models would advertise a cache path.
+  served_model_name: thinkingmachines/Inkling-2-Small
+  # Envelope: 90.82 GiB/rank of weights + 4 GiB reserve + 2.16 GiB of KV
+  # (65,536 x 4, window-aware) = 96.98 GiB of 109.52 GiB; 12.0 GiB of KV on a
+  # uniform allocator still fits. 131,072 is the next rung once the sliding
+  # window is shown to be accounted per layer.
+  max_model_len: 65536
+  max_num_seqs: 4
+  max_num_batched_tokens: 8192
+  gpu_memory_utilization: 0.90
+  # One image per prompt bounds the vision dummy profile; the template rejects
+  # audio outright.
+  limit_mm_per_prompt: '{"image":1,"video":0}'
+  # `inkling` is the one parser name for both generations: the engine parser
+  # reads <|content_thinking|> and <|content_invoke_tool_json|>, and Inkling2
+  # spells <|content_xml|> natively.
+  reasoning_parser: inkling
+  tool_call_parser: inkling
+command: >
+  vllm serve {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --dtype bfloat16
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --limit-mm-per-prompt '{limit_mm_per_prompt}'
+  --reasoning-parser {reasoning_parser}
+  --tool-call-parser {tool_call_parser}
+  --enable-auto-tool-choice
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so this
+  # recipe's own serve line runs instead of being parsed as the image's flags.
+  entrypoint: ""
+env:
+  PYTHONUNBUFFERED: '1'
+readiness:
+  # 90.82 GiB/rank read from the BeeGFS pool at boot, four ranks, plus the
+  # image pull: no node holds this digest yet.
+  inference: false
+  port_timeout_s: 7200
+  health_timeout_s: 3600
