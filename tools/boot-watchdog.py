@@ -10,23 +10,22 @@ while the endpoint never returns — a keep-alive that MASKS a dead serve. A
 session then sits on a boot that will never be ready. This watchdog makes the
 distinction explicit and acts on it:
 
-  * endpoint answers each check and an inference surface returns 2xx
-                                                              -> healthy
-    Healthy means *served*, not *listening*: an authenticated `/v1/models` plus one tiny
-    request answered 2xx on the engine's own surface — `/v1/chat/completions`, else
-    `/v1/completions`, else `/v1/embeddings`, else `/v1/rerank` (the embedding and reranking
-    lanes have no chat endpoint), and the check line names the one that answered
-    (`inference=ok surface=embeddings`). A `/health` 200 with no surface answering is
-    `loading`, never healthy, never exit 0: on picom `dsfront` binds `/health` ~90 s early and
-    the receipt `head:~/benchmarks/picom-bareh-20261120-head/watchdog.log` shows the old
-    keyless rule reporting `verdict=healthy` at t=1 s on a boot that could not answer.
-    The bearer is read from `--api-key-file` on this host, else through `--node`'s container
-    by `docker exec cat` (the picom arm writes it inside the container); a keyless engine
-    (vLLM/SGLang with no bearer) answers `/v1/models` 200 and probes the same way. When no key
-    reads *and* `/v1/models` refuses a keyless probe, the check is `no_probe` -- never
-    `healthy`, never a silent `/health` fallback. `--no-require-inference` opts back into the
-    plain endpoint rule for an arm whose only readiness signal really is `/health`.
-  * serve pattern matched nothing while the container is up and inference
+  * endpoint answers (keyless `/health` 2xx, or any <500 on `/v1/models`, so a
+    401 from a keyed front-end counts)                        -> healthy
+    ...unless `--require-inference` is passed: then healthy also needs an
+    authenticated `/v1/models` AND one tiny 2xx on the engine's own surface --
+    `/v1/chat/completions`, else `/v1/completions`, else `/v1/embeddings`, else
+    `/v1/rerank`, named in the check line as `inference=ok surface=embeddings` (the
+    embedding and reranking lanes serve only the last two). A `/health` 200 with no
+    surface answering is `loading`, never healthy, never exit 0. The bearer is read from
+    `--api-key-file` on this host, else through `--node`'s container by `docker exec cat`
+    (the picom arm writes it inside the container); when neither reads, the check is
+    `no_probe` -- never `healthy`, never a silent keyless probe. `run-arm.sh` passes the
+    flag for the picom arms, whose `/health` answers before the engine: on picom `dsfront`
+    binds `/health` ~90 s early and the receipt
+    `head:~/benchmarks/picom-bareh-20261120-head/watchdog.log` shows the keyless rule
+    reporting `verdict=healthy` at t=1 s on a boot that could not answer.
+  * serve pattern matched nothing while the container is up and the endpoint
     answers                                                    -> loading (a fingerprint
     miss is not death; one log line names the miss)
   * the probe itself failed (ssh/exec error, no `LOGSIZE`)     -> no_probe: no evidence
@@ -735,12 +734,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--serve-pattern", default=SERVE_PATTERN)
     ap.add_argument(
         "--require-inference",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="default: healthy needs a served inference surface (an authenticated "
-        "`/v1/models` plus one 2xx completion, or `/v1/embeddings` / `/v1/rerank` where the "
-        "engine has no chat surface), never just a `/health` 200. `--no-require-inference` "
-        "opts out for an arm whose only readiness signal really is `/health`",
+        action="store_true",
+        help="opt-in: healthy then needs an authenticated `/v1/models` plus one tiny 2xx on "
+        "the engine's own surface (`/v1/chat/completions`, `/v1/completions`, "
+        "`/v1/embeddings`, `/v1/rerank`), not just a `/health` 200. `run-arm.sh` passes it "
+        "for the `recipes/ds4/*picom*` arms; a manual picom launch must pass it too",
     )
     ap.add_argument(
         "--api-key-file",

@@ -2479,13 +2479,14 @@ The pair that serves. Both are this image digest (`1e529c67…`), 1M context, 16
 root `head:~/benchmarks/picom-prod-20261118/`; each boot's lane cells are its own
 `phase5/` or `phase6/` directory of that root.
 
-Watch either arm with `tools/boot-watchdog.py`: healthy needs a served inference surface, and
-keyless `/health` answers about 90 s before the engine exists, so the old keyless rule read
-healthy at t=1 s and exited 0 on a boot that could not answer
-(`head:~/benchmarks/picom-bareh-20261120-head/watchdog.log`). The bearer key must be readable
-where the watchdog runs — a host copy of the file, or `--node` so the probe reads
-`/cache/runtime/picom/run/api-key` through `docker exec` on the rank container; when neither
-reads and the front end refuses a keyless `/v1/models`, every check is `no_probe`, never healthy.
+Watch either arm with `tools/boot-watchdog.py --require-inference`: keyless `/health` answers
+about 90 s before the engine exists, so a run without the flag reads healthy at t=1 s and exits 0
+on a boot that cannot answer (`head:~/benchmarks/picom-bareh-20261120-head/watchdog.log`). These
+endpoints are keyless, so the probe runs keyless too; an arm that sets `PICOM_AUTH` needs its
+bearer readable where the watchdog runs — a host copy of `--api-key-file`, or `--node` so the
+probe reads `/cache/runtime/picom/run/api-key` through `docker exec` on the rank container — and
+when neither reads it, every check is `no_probe`, never healthy. `run-arm.sh` passes the flag for
+these arms; a manual launch must pass it.
 
 - `deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` — the exact arm, strictly lossless
   (`PICOM_OEA` empty). Confirmed 2026-11-18 on its own boot, 5-run concurrency ladder

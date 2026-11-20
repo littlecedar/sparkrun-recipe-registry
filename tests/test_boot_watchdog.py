@@ -239,9 +239,8 @@ def _drive(per_rank, stall="25", ranks=(), dead_grace="0", endpoint=False, extra
 
     `endpoint` is a bool for the mocked probe, or a URL string to leave `endpoint_reachable`
     real against a stub server (the inference-probe tests). `extra` appends argv.
-    `require_inference` is the watchdog's readiness rule: it is on by default, and this helper
-    opts *out* (`--no-require-inference`) so the death/stall tests keep their plain
-    reachability fixture; the inference tests opt in.
+    `require_inference` passes `--require-inference` (opt-in; death/stall fixtures leave it
+    off, the inference tests turn it on).
     """
     calls: list[list[str]] = []
 
@@ -306,7 +305,7 @@ def _drive(per_rank, stall="25", ranks=(), dead_grace="0", endpoint=False, extra
             "--stall", stall,
             *(f"--rank={rank}" for rank in ranks),
             "--log", str(tmp / "watchdog.log"),
-            "--require-inference" if require_inference else "--no-require-inference",
+            *(["--require-inference"] if require_inference else []),
             *extra,
         ])
     return rc, calls, (tmp / "watchdog.log").read_text()
@@ -840,10 +839,10 @@ class InferenceProbe(unittest.TestCase):
 
     picom receipt `head:~/benchmarks/picom-bareh-20261120-head/watchdog.log`: `dsfront` binds
     `/health` ~90 s before the engine exists, so the keyless rule reported `verdict=healthy`
-    at t=1 s and exited 0 on a boot that could not answer. A default boot must read that as
-    loading and never exit 0 until an inference surface answers -- and the embedding and
-    reranking lanes must stay healthy on `/v1/embeddings` / `/v1/rerank`, which is all they
-    serve.
+    at t=1 s and exited 0 on a boot that could not answer. With `--require-inference` that
+    boot must read loading and never exit 0 until an inference surface answers -- and the
+    embedding and reranking lanes, which serve only `/v1/embeddings` / `/v1/rerank`, must
+    stay healthy under the flag too. Without the flag every arm keeps the `/health` rule.
     """
 
     GONE = (False, None, None, None, None)  # container not running; nothing to serve
@@ -863,13 +862,15 @@ class InferenceProbe(unittest.TestCase):
 
     def test_a_health_200_with_a_refused_completion_is_not_healthy(self):
         # front-end up (serve pattern matched) while the engine refuses: loading, then the
-        # keep-alive rule takes over on its own verdict path -- never healthy.
+        # keep-alive rule takes over on its own verdict path -- never healthy. A refusal is
+        # `down`, never `no_probe`: an inert verdict here would hide the real defect.
         up = (True, (100, 200), 4096, 8 << 30, None)
         rc, calls, log = _drive(
             [up, up, self.GONE], endpoint=self._stub(503), extra=self._argv(self._key_file()),
             require_inference=True,
         )
         self.assertNotIn("verdict=healthy", log, log)
+        self.assertNotIn("verdict=no_probe", log, log)
         self.assertIn("verdict=loading", log, log)
         self.assertIn("no inference yet", log, "the missing surface must be named")
         self.assertIn("inference=down", log)
@@ -925,23 +926,24 @@ class InferenceProbe(unittest.TestCase):
         self.assertNotIn("verdict=healthy", log, log)
         self.assertNotEqual(rc, 0)
 
-    def test_a_health_only_front_end_never_reads_healthy_by_default(self):
-        """The picom class, with no flags: `/health` 200, no surface, so never healthy."""
+    def test_a_surface_answering_500_is_not_healthy(self):
+        """A surface that exists and refuses is the picom shape: never healthy, holds at
+        loading, and the boot is stopped once the container is gone."""
         up = (True, (100, 200), 4096, 8 << 30, None)
         rc, calls, log = _drive(
-            [up, up, self.GONE], endpoint=self._stub(404), extra=self._argv(self._key_file()),
+            [up, up, self.GONE], endpoint=self._stub(500), extra=self._argv(self._key_file()),
             require_inference=True,
         )
-        self.assertNotIn("verdict=healthy", log, log)
-        self.assertIn("verdict=loading", log, log)
-        self.assertIn("no inference yet", log, "the missing surface must be named")
         self.assertIn("inference=down", log)
-        self.assertNotEqual(rc, 0, "a boot that cannot answer must never exit 0")
+        self.assertNotIn("inference=unprobed", log, log)
+        self.assertIn("verdict=loading", log, log)
+        self.assertNotIn("verdict=healthy", log, log)
+        self.assertNotEqual(rc, 0)
         self.assertIn(["sparkrun", "stop", "abc123"], calls)
 
-    def test_no_require_inference_is_the_escape_hatch(self):
-        """`--no-require-inference` restores the plain `/health` rule for an arm that needs it."""
-        rc, _calls, log = _drive([self.GONE], endpoint=self._stub(404))
+    def test_without_the_flag_a_health_only_boot_still_reads_healthy(self):
+        """The flag is opt-in: an arm that does not pass it keeps the plain `/health` rule."""
+        rc, _calls, log = _drive([self.GONE], endpoint=self._stub(503))
         self.assertIn("verdict=healthy", log, log)
         self.assertEqual(rc, 0)
         self.assertNotIn("inference=", log)
