@@ -112,8 +112,8 @@ is **unchanged and not reopened**; the sweep stays in
 
 The four scored axes are **generation speed** (C1 t/s and the ladder's shape), **concurrency** (KV
 pool at the shipped window plus any `max_num_seqs` / `parallel` clamp), **accuracy** (house battery,
-needle, ARC, GSM8K, BFCL, TEB — whichever the arm actually has), and **size / peak memory**. All 17
-listed arms are measured; fifteen are scored on these axes, the archived bf16 humanizer is a retired
+needle, ARC, GSM8K, BFCL, TEB — whichever the arm actually has), and **size / peak memory**. All 20
+listed arms are measured; eighteen are scored on these axes, the archived bf16 humanizer is a retired
 rewriter row, and the INT8 Spark tier was kernel-rejected. The verdict column is the selection.
 Decode rows only (`is_context_prefill_phase: false`); `×` is the KV pool at the arm's shipped
 `max_model_len`; a `max_num_seqs` / `parallel` clamp — not the pool — is the in-flight ceiling where
@@ -138,6 +138,9 @@ one is set.
 | `spark-x2.6-4b-bf16-sglang` | **20.38 ± 0.09** | 20.38 / 46.38 / 99.27 / **156.20** (still rising at c10) | KV 723,730 tok = **5.52×** at 131,072 (hybrid: 9 full + 27 sliding layers → 24.84 GB + 59.64 GB pools); `max_num_seqs: 32` | **37/37** thinking-on @4096 · **30/37** thinking-off · — · — · tool-call PASS · — | 8.22 GB bf16 loaded as 9.27 GB · util 0.85 (84.48 GB KV, 14.80 GB spare) · TTR 167.4 s port / 252.5 s HTTP | `~/benchmarks/spark-x26-20261022/` (`boot.log`, `serve.log`, `ladder.json`, `battery-thinking-{on,off}.json`) | **accuracy control — 37/37 at C1 20.38; the FP8 tier doubles C1 and ties it** |
 | `spark-x2.6-4b-fp8-sglang` | **40.80 ± 0.09** | 40.80 / 77.06 / 146.63 / **217.58** (still rising at c10) | KV 779,390 tok = **5.95×** at 131,072 (hybrid: 26.76 GB + 64.22 GB pools); `max_num_seqs: 32` | **37/37** thinking-on @4096 on the rerun (111/111, no flaky) · — · — · tool-call not probed on this tier · — | 5.52 GB resident (4.47 GB checkpoint) · util 0.85 (90.98 GB KV, 11.38 GB spare) · TTR 129.5 s port / 136.4 s HTTP | `~/benchmarks/spark-x26-20261022/` (`boot-fp8*.log`, `serve-fp8*.log`, `ladder-fp8.json`, `battery-fp8-thinking-on.json`, `battery-fp8-rerun-4096.json`) | **KEEP — the fast tier: 2× the control's C1 at every rung, quality tied on the rerun** |
 | `zz-spark-x2.6-4b-int8-sglang` | — (never served) | — (never served) | — | — | 5.47 GB resident (4.47 GB checkpoint) · loaded in 28.08 s, died 57 s in | `~/benchmarks/spark-x26-20261022/` (`boot-int8.log`, `serve-int8.log`) | **measured-rejected at the kernel level — `int8_scaled_mm` unimplemented for sm_121** |
+| `zz-ripple-65b-preview-nvfp4-tp1-vllm` | **4.0** | 4.0 / 7.7 / 17.2 / 25.3 (still rising at c10) | — (KV grant not captured on the 2026-11-20 boot; `max_model_len` 524288 configured) | **15/15** house4096 · — · — · — · — · — | TP=1 · 1 node · 57.2 GB weights (~53.3 GiB) · util 0.90 · TTR 375 s | `~/benchmarks/h2h-20261107/zz-ripple-65b-preview-nvfp4-tp1-vllm/` (`ladder.json`, `house.json`, `quality.json`, `watchdog.log`) | **KEEP — the TP=1 reference: 4.0 t/s decode at c1, 25.3 at c10** |
+| `zz-ripple-65b-preview-nvfp4-tp1-dflash2-vllm` | **9.9** | 9.9 / 16.5 / 24.2 / 34.5 (still rising at c10) | — (KV grant not captured; same 524288 window, draft capped 131072) | **15/15** house4096 · — · — · — · — · — | TP=1 · 1 node · 57.2 GB + 8.07 GB draft · util 0.90 · TTR 520 s | `~/benchmarks/h2h-20261107/zz-ripple-65b-preview-nvfp4-tp1-dflash2-vllm/` (`ladder.json`, `house.json`, `quality.json`, `watchdog.log`) | **KEEP — the drafter roughly doubles c1 decode and adds ~36 % at c10 against the plain TP=1 cell** |
+| `zz-ripple-65b-preview-bf16-tp2-vllm` | **3.6** | 3.6 / 6.9 / 15.0 / 14.0 (dips at c10) | — (KV grant not captured; `max_model_len` 1048576; the 2026-11-08 boot measured 1,281,286 tok at 1,048,576) | **15/15** house4096 · — · — · — · — · — | TP=2 · 2 nodes · 129.57 GB (120.67 GiB) · util 0.85 · TTR 354 s | `~/benchmarks/h2h-20261107/zz-ripple-65b-preview-bf16-tp2-vllm/` (`ladder.json`, `house.json`, `quality.json`, `watchdog.log`) | **quality control — unquantized, 2 nodes, slowest c10; not a selection candidate** |
 
 **Memory column read-out:** for vLLM arms it is the shipped `gpu_memory_utilization` cap plus the
 engine's own KV grant (a util is a cap, not a peak); for the llama.cpp arms it is the resident pack
@@ -148,9 +151,11 @@ alloc/reserved pair. Peak *host* RSS is not in every receipt, and none is invent
 item is the near-universal discriminator — `nurkrpas` / `nurkraps` / `nrukraps` / `nurkrasp` on
 Laguna-XS, both Muse-Glimmer exports, K2-Horizon-7B, the knapcio TP-4 and ds4 TP-2 lines, and more —
 while the other 36 tasks are typically clean. A sub-37 house score is almost always this one item, and
-it is a real capability miss there, not an instrument artifact; the bar itself is unchanged.
+it is a real capability miss there, not an instrument artifact; the bar itself is unchanged. The three
+Ripple rows carry **15/15** from the `house4096` cell — a 15-case battery, not the 37-case one — so
+their score is not comparable with the 37/37 rows and is not read as a ranking.
 
-**Tie-break record.** Node count tied at 1 for all 14. Accuracy decided first: Ling is the accuracy
+**Tie-break record.** Node count tied at 1 for all but the BF16 TP=2 control (2). Accuracy decided first: Ling is the accuracy
 leader (ARC/GSM8K/BFCL all measured, house 37/37); the Mellum GGUF ties the house score and leads BFCL
 (88.3 vs 88.0) while also leading speed and size. The `iSkye` 4-bit pack and APEX-24bpw both saturate
 the house battery (37/37, no ranking power), so speed and memory decided: APEX-24bpw wins
