@@ -455,6 +455,71 @@ class WatchdogGetsTheWholeLease(unittest.TestCase):
                          "the rank argument survived the mutation")
 
 
+# The arming argv construction, from the rank build to the launch: executed against a python3
+# stub that records its args, so the test asserts what the watchdog is handed, not source text.
+WD_ARM_START = "RANK_ARGS=()"
+WD_ARM_END = "WD=$!"
+WD_PY_STUB = '#!/usr/bin/env bash\nprintf "%s\\n" "$@" > "$ARGV_FILE"\n'
+
+
+def watchdog_arm_slice(text: str) -> str:
+    """The arming block verbatim: the argv a watchdog run receives."""
+    start = text.index(WD_ARM_START)
+    return text[start : text.index(WD_ARM_END, start) + len(WD_ARM_END)]
+
+
+class ScopedInferenceWatchdog(unittest.TestCase):
+    """Only a picom arm asks the watchdog to require a generated token.
+
+    A canned `/v1/chat/completions` body reads as healthy at t=1 s; `--require-inference` makes
+    health need a token, so a picom boot without a key holds at `loading`/`no_probe` instead.
+    """
+
+    def setUp(self):
+        if not shutil.which("bash"):
+            self.skipTest("bash not on PATH")
+
+    def watchdog_argv(self, recipe: str, body: str | None = None) -> list[str]:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            bins = tmp / "bin"; bins.mkdir()
+            stub = bins / "python3"
+            stub.write_text(WD_PY_STUB)
+            stub.chmod(0o755)
+            argv_file = tmp / "argv.txt"
+            script = tmp / "arm.sh"
+            script.write_text(
+                "#!/usr/bin/env bash\nset -uo pipefail\n"
+                f"L={tmp}\nNODE=head.test\nPORT=8000\nHOSTS=head.test,2.test\nN=sparkrun_abc123_solo\n"
+                "TID=abc123\n"
+                f"RECIPE={recipe}\n"
+                + (body if body is not None else watchdog_arm_slice(read_tool()))
+                + '\nwait "$WD"\n'
+            )
+            env = {**os.environ, "PATH": f"{bins}:{os.environ['PATH']}",
+                   "ARGV_FILE": str(argv_file)}
+            subprocess.run(["bash", str(script)], capture_output=True, text=True, check=True,
+                           env=env)
+            return argv_file.read_text().split()
+
+    def test_picom_arm_requires_inference(self):
+        argv = self.watchdog_argv("recipes/ds4/picom-something.yaml")
+        self.assertIn("--require-inference", argv, "a picom arm armed a plain endpoint probe")
+        self.assertIn("--node", argv, "the key can only be resolved through --node")
+        self.assertIn("--rank", argv, "the rank arguments were lost with the flag")
+
+    def test_other_arm_gets_todays_argv(self):
+        argv = self.watchdog_argv("recipes/glm/some-arm.yaml")
+        self.assertNotIn("--require-inference", argv, "a non-picom arm changed its argv")
+
+    def test_removing_the_case_takes_the_flag_away(self):
+        mutated = watchdog_arm_slice(read_tool()).replace(
+            "WATCHDOG_INFER=(--require-inference)", "WATCHDOG_INFER=()")
+        argv = self.watchdog_argv("recipes/ds4/picom-something.yaml", mutated)
+        self.assertNotIn("--require-inference", argv,
+                         "the case survived the mutation; the picom guard is void")
+
+
 class OverrideEvidence(unittest.TestCase):
     """A row-env ARM_OPTS reaches `sparkrun run` with its values whole and is recorded verbatim.
 

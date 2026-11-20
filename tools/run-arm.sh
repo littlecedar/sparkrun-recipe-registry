@@ -1003,9 +1003,18 @@ for hn in $(echo "$HOSTS" | tr ',' ' '); do
   _rank=$((_rank + 1))
 done
 
+# The picom arms serve an engine whose /v1/chat/completions can answer a canned body while the
+# decode path is dead; a plain endpoint probe reads that as healthy at t=1 s. `--require-inference`
+# makes health need a generated token too, so those arms hold at `loading`/`no_probe` instead of
+# reporting a false healthy. Every other arm keeps the argv it had.
+WATCHDOG_INFER=()
+case "$RECIPE" in
+  recipes/ds4/*picom*) WATCHDOG_INFER=(--require-inference) ;;
+esac
+
 python3 tools/boot-watchdog.py --endpoint "http://$NODE:$PORT" --task-id "$TID" \
   --node "$NODE" --container "$N" --interval 10 \
-  "${RANK_ARGS[@]}" --log "$L/watchdog.log" &
+  "${RANK_ARGS[@]}" "${WATCHDOG_INFER[@]}" --log "$L/watchdog.log" &
 WD=$!
 
 # Only so the readiness-loop guard can drive this loop at 0 s; 15 s in a real arm.
