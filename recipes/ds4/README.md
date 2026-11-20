@@ -2824,6 +2824,13 @@ v3 beside it; `candidate-55/README.md:25` says v1 still steers), and whether the
 distribution entry lands under `HF_HOME` where the mod looks — its failure message is the
 falsifier for the second.
 
+**The placement blocker sits beside the image one.** A TP=4 arm needs four free ranks in one
+lease, and today it cannot get them: `.31`–`.34` carry the production serve and are fenced in
+`.local/fleet-leases.json`, `.30` is the memory-risky exclusion for quartet shapes, and `.35`
+alone cannot host a quartet. So a published, digest-pinned image is necessary but not
+sufficient — even with the image the boot waits for the production serve to end and its fence
+to come down, in a declared 4-rank window. Two gates, not one.
+
 ## External stack: spark-ds41f (survey, 2026-11-08)
 
 The stack inspected above is a fully engineered **vLLM** stack for the identical checkpoint and

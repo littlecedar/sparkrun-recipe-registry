@@ -18,6 +18,17 @@ container: lmsysorg/sglang:dev-cu13@sha256:0a1ba33aa4e032b8c5bcebdc69c45664074c0
   # lane has receipts for. The tag is rebuilt upstream; the digest is the pin.
 min_nodes: 1
 max_nodes: 1
+# The adapter is staged by sparkrun itself, not by hand. A hand-written `models` list is honoured
+# literally (it replaces the auto-generated `{model}` entry), so the served checkpoint is restated
+# with its own pin; the adapter is the second entry. The entry field is `name` — the loader reads
+# `name`, and a `model:` key parses to an empty name and stages nothing.
+distribution_config:
+  models:
+    entries:
+      - name: "{model}"
+        revision: 37561816e66b5b9153b1b64c10968c18c1e6f4a0
+      - name: harness-hub/Qwen3.8-27B-pi-adapted
+        revision: 80d05c9051dfd2ae464e1daf4329cb15524caf60
 
 description: >-
   [PROBE, non-shippable] Qwen3.8-27B (BF16) serving the harness-hub pi-adapted GRPO LoRA
@@ -33,9 +44,11 @@ metadata:
   kv_dtype: bf16
   tags: agent, lora, trial
 
-# The adapter is tiny but it is NOT fetched by sparkrun (only {model} is), so the launch fails
-# closed here instead of inside the LoRA load. A bare snapshot path needs no refs/ seed: the
-# adapter config and weights are read from the directory directly.
+# The adapter rides the checkpoint's distribution path as its own `distribution_config.models`
+# entry above, so every rank stages it before the serve starts. The gate stays fail-closed: a
+# distribution that silently missed the adapter, or a snapshot without a refs/ seed, fails here
+# instead of inside the LoRA load. A bare snapshot path needs no refs/ entry — the adapter config
+# and weights are read from the directory directly.
 pre_exec:
   - >-
     set -e; A=/cache/huggingface/hub/models--harness-hub--Qwen3.8-27B-pi-adapted/snapshots/{lora_revision};
