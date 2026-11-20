@@ -273,7 +273,9 @@ fi
 # API key: only when PICOM_AUTH=1. The shipped default is keyless, because the
 # fleet's API proxy sends no bearer; dsfront warns once and serves unauthenticated.
 #####################################################################
-if [[ "${PICOM_AUTH:-0}" = 1 ]]; then
+PICOM_AUTH="${PICOM_AUTH:-0}"
+log_var PICOM_AUTH
+if [[ "${PICOM_AUTH}" = 1 ]]; then
   KEY="${PICOM_ROOT}/run/api-key"
   if [[ ! -s "${KEY}" ]]; then
     (umask 077; head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n' > "${KEY}")

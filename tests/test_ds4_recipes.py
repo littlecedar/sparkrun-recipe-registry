@@ -2979,8 +2979,11 @@ class PicomLaneContract(unittest.TestCase):
                       "dsfront must take the mode's argv")
         self.assertNotIn('--api-key-file "${KEY}"', serve,
                          "dsfront still gets a hardcoded key")
-        # The mod creates the key only when asked; a keyless arm keeps no file.
-        self.assertIn('if [[ "${PICOM_AUTH:-0}" = 1 ]]; then', self.run_sh)
+        # The mod creates the key only when asked; a keyless arm keeps no file,
+        # and its log states the mode it resolved.
+        self.assertIn('PICOM_AUTH="${PICOM_AUTH:-0}"', self.run_sh)
+        self.assertIn("log_var PICOM_AUTH", self.run_sh)
+        self.assertIn('if [[ "${PICOM_AUTH}" = 1 ]]; then', self.run_sh)
         self.assertIn("no key file is created", self.run_sh)
 
     def test_rank0_clears_the_previous_boots_socket_before_waiting(self):
