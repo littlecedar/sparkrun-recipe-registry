@@ -2046,8 +2046,10 @@ and the spawn worker method live in the recipe's `env:`.
 **The upstream author measured it on the same hardware, 2026-11-18:** ready **~9.7 min** after a
 2.5 min setup with the model in cache, **12.8 GiB lowest free**, JSON 38.3 / code 36.5 / rewrite 36.1
 / explain 25.0 / story 17.3 t/s, prefill 1,110 t/s at 4K and 1,461 at 32K, 15 t/s without the drafter.
-Quality cells for this arm are unmeasured. Licence is Tencent Hy License 1.0, the same class as the
-BF16 arm and covered by the `#86` ruling; the `zz-` prefix stands until a measured boot. This shape is
+Quality cells were unmeasured when that note was written; the 2026-11-20 house battery below reads
+37/37. Licence is Tencent Hy License 1.0, the same class as the
+BF16 arm and covered by the `#86` ruling; boot-verified 2026-11-20 (two passes); the `zz-` prefix now
+stands until a promotion decision, not for lack of evidence. This shape is
 why the BF16 quartet arm does not need a window for throughput.
 
 **Launch — two facts a bare `sparkrun run` does not carry.** The vendor image declares
