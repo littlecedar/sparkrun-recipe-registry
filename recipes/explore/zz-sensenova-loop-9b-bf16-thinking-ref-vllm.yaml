@@ -1,0 +1,95 @@
+recipe_version: "2"
+model: sensenova/SenseNova-Loop-9B
+# Pinned to the repo state probed 2026-11-20 (the only revision, `lastModified`
+# 2026-11-20T05:34:36Z). The pin selects the snapshot sparkrun prepares and mounts —
+# including the remote-code file the loader needs; the command reads that path through
+# {model} and never resolves a hub ref, so there is no --revision to pass. The
+# validator's `unpinned-model-revision` warning is this lane's known shape for a custom
+# launcher (same as `zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm`).
+model_revision: 3cc220e9c14bd7a74813c1299765e22147b1a3d5
+# vLLM's published arm64 image as a carrier only: its `requirements/common.txt` pins
+# `transformers >= 5.16.1, < 5.20.0`, the range the card's checked environment
+# (transformers 5.18.0) sits in, and the range that ships the `qwen3_5` backbone the
+# checkpoint's remote code subclasses. The engine itself CANNOT load this checkpoint
+# (see description), so `runtime: vllm` here is the launcher/distribution contract
+# only — the same shape this lane's other reference arm uses.
+container: vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  PROBE ARM (`zz-`), authored-not-booted: `sensenova/SenseNova-Loop-9B` is a 9.66B-parameter
+  BF16 looped-transformer multimodal checkpoint (19,318,812,640 B: 11 shards plus a 15-tensor
+  `mtp.safetensors` MTP head; every shard header re-read from the Hub and matched against
+  `model.safetensors.index.json` — 872 tensors, no missing and no extra keys, each shard's max
+  tensor end offset equal to its file size) served here through a transformers REFERENCE
+  server because no pinned engine loads it. PROBE EVIDENCE (2026-11-20): the config declares
+  `architectures: [SenseNovaLoopForConditionalGeneration]`, `model_type: sensenova_loop`,
+  `auto_map` for all four auto classes and custom code `modeling_sensenova_loop.py`; that file
+  subclasses transformers' `qwen3_5` text tower and is not a static graph — `loop_settings
+  {start: 4, end: 28, eval_count: 2}` replays physical layers 4..28 a second time (56 layer
+  executions over 32 weight sets, per-visit cache slots), and `mhc {start: 4, end: 28,
+  streams: 2, iterations: 20}` expands the residual into two routed streams with Sinkhorn
+  mixing, backed by 96 `mhc_attn`/`mhc_ffn` tensors in the checkpoint. Text tower is
+  `qwen3_5_text` hybrid (24 linear-attention + 8 full-attention layers, 32 layers, head_dim
+  256, 16 q / 4 kv heads, vocab 248,320, YaRN 2.0 over 262,144 to 524,288); vision tower is
+  `qwen3_5_vision`, 27 blocks at hidden 1152. ENGINE DISCRIMINATORS, each named:
+  (1) llama.cpp — upstream `src/llama-arch.cpp` registers no `sensenova_loop` architecture
+  (the only SenseNova string is `sensenova_u1`), and the official GGUF
+  (`sensenova/SenseNova-Loop-9B-GGUF`, Q4_K_M 5,818,631,072 B, `general.architecture =
+  sensenova_loop`, 57 blocks, ungated) is published for the OpenSenseNova fork at
+  `24ea7bb7` — so every pinned llama.cpp image here rejects the file at load;
+  (2) vLLM — the registry inside this lane's pinned vLLM images has
+  `Qwen3_5ForConditionalGeneration` but no SenseNova entry, and the card points at the
+  unmerged PR #64832; `endpoints_compatible` and the `custom_code` tag are not evidence of
+  engine support; (3) SGLang — unmerged PR #47281, absent from `lmsysorg/sglang:v0.5.22`;
+  (4) transformers — loads it, which is this arm. LICENCE: apache-2.0, and the Apache-2.0 text
+  itself ships in the GGUF sibling (`LICENSE`, 201 lines) — the base repo carries no LICENSE
+  file, a documentation gap in the artifact, not a licence question. GATING: `gated: auto`
+  (no personal fields), accepted under the 2026-11-20 rule. Card claims (2.9x loop scaling,
+  MTP/DSpark spec decode, 15 GiB multimodal at 256K) are UNVERIFIED here — this arm measures
+  the house battery and the ladder, nothing more. Reference route: one request at a time, no
+  batching, no paged KV, greedy decoding, 32768-token prompt cap, thinking block split into
+  `reasoning_content`; every number it produces is a correctness probe, never a serving
+  benchmark.
+metadata:
+  model_url: https://huggingface.co/sensenova/SenseNova-Loop-9B
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "9.66B"
+  model_dtype: bf16
+  kv_dtype: fp16
+  tags: trial, probe, reasoning, tools, multimodal
+
+mods:
+  - "mods/sensenova-loop-ref-launcher"
+
+executor_config:
+  entrypoint: ""
+  shm_size: 16gb
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Client-visible id. sparkrun's vllm runtime appends `--served-model-name` as well; both
+  # carry this value and the launcher parses the flag, so the duplicate is harmless.
+  served_model_name: sensenova/SenseNova-Loop-9B
+  # The config claims 524,288 positions. A reference serve caps the prompt instead: 8
+  # full-attention layers hold 4 kv heads x 256 dim x 2 B x 2 tensors = 32 KiB/token, so the
+  # 56 executed slots cost ~1 GiB of KV at this cap and one prefill cannot dominate the probe.
+  context_length: 32768
+
+command: >
+  python3 /workspace/mods/sensenova-loop-ref-launcher/serve.py
+  --model {model}
+  --port {port}
+  --host {host}
+  --served-model-name {served_model_name}
+  --context-length {context_length}
+
+readiness:
+  # /v1/chat/completions is served (the repo ships chat_template.jinja with thinking and
+  # tool-call branches), so the house battery can speak to it directly.
+  inference: true
+  port_timeout_s: 1800
+  health_timeout_s: 900
