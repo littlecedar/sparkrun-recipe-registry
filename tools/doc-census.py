@@ -68,11 +68,19 @@ PATTERNS = (
 )
 
 
-def tracked(root: Path, glob: str) -> list[str]:
-    """Tracked paths matching `glob`, or a filesystem walk where git is absent."""
+def tracked(root: Path, glob: str, glob_magic: bool = False) -> list[str]:
+    """Tracked paths matching `glob`, or a filesystem walk where git is absent.
+
+    `glob_magic` passes the pattern as `:(glob)`, so `*` does not cross `/` — the
+    same semantics as `Path.glob`. Without it git's own pathspec makes
+    `recipes/*/*.yaml` match `recipes/explore/mods/<mod>/deploy/*.yaml` too, and
+    a git checkout counts one recipe more than `git archive` (which has no
+    `.git`, so it walks). Facts use the magic; the all-file listing does not.
+    """
     if (root / ".git").exists():
+        spec = f":(glob){glob}" if glob_magic else glob
         out = subprocess.run(
-            ["git", "-C", str(root), "ls-files", glob],
+            ["git", "-C", str(root), "ls-files", spec],
             capture_output=True, text=True, check=False,
         )
         if out.returncode == 0:
@@ -83,7 +91,7 @@ def tracked(root: Path, glob: str) -> list[str]:
 def derive(root: Path) -> dict[str, int]:
     facts = {}
     for key, (glob, exclude, _) in FACTS.items():
-        paths = tracked(root, glob)
+        paths = tracked(root, glob, glob_magic=True)
         if exclude:
             paths = [p for p in paths if exclude not in p]
         facts[key] = len(paths)
