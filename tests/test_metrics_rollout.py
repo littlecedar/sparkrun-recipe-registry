@@ -36,6 +36,7 @@ flag to set and are outside the four families; `benchmarking/README.md`
 
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 from typing import Any, Iterator
@@ -254,14 +255,34 @@ def family_recipes(runtime: str, shape: str | None = None) -> Iterator[tuple[Pat
 # Guards.
 # ---------------------------------------------------------------------------
 
+def shipped_runtimes() -> set[str]:
+    """The runtime names a shipped recipe may carry.
+
+    The three engine families this file instruments, plus every runtime a module
+    in `plugins/` declares: an out-of-tree runtime is by construction not one of
+    the three (the weightless dsgb10 arm names its own), and a recipe naming one
+    is still a recipe that must parse and carry a command.
+    """
+    names = set(ENGINE_MARKERS)
+    for path in sorted((REPO_ROOT / "plugins").glob("*.py")):
+        names.update(re.findall(r'^\s*runtime_name\s*=\s*"([a-z0-9][a-z0-9-]*)"',
+                               path.read_text(encoding="utf-8"), re.M))
+    return names
+
+
 class ParseCoverage(unittest.TestCase):
     def test_every_shipped_recipe_parses_and_names_a_runtime(self):
+        vocab = shipped_runtimes()
+        # The plugins/ scan is what keeps an out-of-tree runtime admissible; a
+        # renamed or unreadable plugin module must redden here, not silently
+        # shrink the vocabulary back to the three in-tree families.
+        self.assertIn("weightless-dsgb10", vocab, "the plugins/ scan found no runtime")
         recipes = shipped_recipes()
         self.assertGreater(len(recipes), 100, "the recipe glob found almost nothing")
         for path in recipes:
             with self.subTest(recipe=path.name):
                 recipe = parse(path)
-                self.assertIn(runtime_of(recipe), {"sglang", "vllm", "llama-cpp"})
+                self.assertIn(runtime_of(recipe), vocab)
                 self.assertTrue(recipe["command"], "recipe has no command block")
 
     def test_a_comment_naming_the_flag_is_not_a_pass(self):
