@@ -28,6 +28,26 @@ ADDRESS = re.compile(r"\b(10\.\d+|192\.168|172\.(1[6-9]|2\d|3[01]))\.\d+\.\d+\b"
 # sample set tripping both.
 HOST = re.compile(r"\bspark-(?:head|0[0-9])\b")
 
+# The fleet's head is the `.30` host (owner directive, restated 2026-11-16; `spark-head` /
+# `spark-41e1` / 10.0.4.30). Prose drifts back to naming a worker the head, so the statements
+# that name one are checked against this single digit. Shorthand only: an address here would
+# fail the scan above.
+HEAD_TAIL = "30"
+
+#: Phrasings that name a node as the head; the group is that node's last octet in `.3N` form.
+HEAD_ASSERTION = re.compile(
+    r"(?i)(?:"
+    r"\bhead(?:\s+node)?\s*(?:is|=|:)\s*`?\.(3\d)`?"  # "head node is `.31`", "head: `.32`"
+    r"|`\.(3\d)`\s*(?:is\s+)?the\s+head\b"  # "`.33` is the head"
+    r"|\(head\s+`?\.(3\d)`?\)"  # "(head `.34`)"
+    r")"
+)
+#: A parenthesised list that names `head` beside a node claims two different hosts, and only
+#: one can be the head. Matches "(head, `.30`, `.35`)".
+HEAD_SPLIT = re.compile(r"(?i)\(head[,;]\s*`?\.3\d`?")
+#: `attic/` is frozen provenance: its `.3N` "head" is a past job's rank-0 host, not the fleet's.
+HEAD_EXEMPT_PREFIXES = ("attic/",)
+
 # Path-keyed, never content-keyed: the same bytes are legitimate or not depending on the file.
 EXEMPT = {
     # Published HLE bytes: the question itself discusses 172.20.0.0/16, and masking it would
@@ -88,6 +108,31 @@ def findings(root, paths):
     return hits
 
 
+def head_identity_hits(root, paths):
+    """`path:line: text` for every tracked line that names a node other than `.30` the head."""
+    root = Path(root)
+    if not paths:
+        raise AssertionError("empty walk: nothing was scanned, so nothing is proven clean")
+    hits = []
+    for rel in paths:
+        if rel in EXEMPT or rel.startswith(HEAD_EXEMPT_PREFIXES):
+            continue
+        if Path(rel).suffix.lower() in BINARY_SUFFIXES:
+            continue
+        path = root / rel
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        for n, line in enumerate(text.splitlines(), 1):
+            named = [g for m in HEAD_ASSERTION.finditer(line) for g in m.groups() if g]
+            if HEAD_SPLIT.search(line) or any(tail != HEAD_TAIL for tail in named):
+                hits.append(f"{rel}:{n}: {line.strip()[:160]}")
+    return hits
+
+
 class TrackedFilesAreClean(unittest.TestCase):
     def test_no_tracked_file_carries_a_cluster_address(self):
         hits = findings(REPO_ROOT, tracked_files())
@@ -99,6 +144,11 @@ class TrackedFilesAreClean(unittest.TestCase):
         tracked = set(tracked_files())
         for rel in sorted(EXEMPT):
             self.assertIn(rel, tracked, f"exemption {rel} is not tracked: drop or repoint it")
+
+    def test_no_tracked_file_names_another_node_the_head(self):
+        hits = head_identity_hits(REPO_ROOT, tracked_files())
+        self.assertEqual(hits, [], "tracked file(s) naming a node other than the `.30` head:\n"
+                         + "\n".join(hits))
 
 
 class NegativeControls(unittest.TestCase):
@@ -142,6 +192,29 @@ class NegativeControls(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(AssertionError):
                 findings(tmp, [])
+
+    def test_a_worker_named_the_head_is_caught(self):
+        # The controls are the phrasings the tree has drifted into, plus the correct forms.
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "docs").mkdir()
+            (Path(tmp) / "docs/bad.md").write_text(
+                "the head node is `.31`\n"
+                "refreshed on all three (head, `.30`, `.35`)\n", encoding="utf-8")
+            (Path(tmp) / "docs/good.md").write_text(
+                "the head is `.30`\n"
+                "`.30` is the head\n"
+                "quartet `.30`-`.33` (head `.30` = rank 0)\n"
+                "launch.log:27-28 head `.34` / worker `.35`\n", encoding="utf-8")
+            (Path(tmp) / "attic").mkdir()
+            (Path(tmp) / "attic/frozen.md").write_text("(head `.32`)\n", encoding="utf-8")
+            hits = head_identity_hits(
+                tmp, ["docs/bad.md", "docs/good.md", "attic/frozen.md"])
+        self.assertEqual([h.split(":")[0] for h in hits], ["docs/bad.md"] * 2, hits)
+
+    def test_a_head_scan_over_an_empty_walk_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(AssertionError):
+                head_identity_hits(tmp, [])
 
 
 if __name__ == "__main__":

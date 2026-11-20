@@ -21,7 +21,7 @@ still add no row, because an accuracy declaration belongs inside `metadata:` whe
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1765 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
+suite 1768 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -197,7 +197,7 @@ When `pull` refuses with `unable to update local ref` or `Cannot fast-forward to
 (two tracking refs for one remote), take the branch explicitly:
 `git fetch origin main && git merge --ff-only FETCH_HEAD`. Measured 2026-11-07: a stale clone's
 launcher silently ignored `--serve-debug acceptance` and the campaign still reported **rc=0 measured**;
-refreshing the clone on all three hosts (head, `.30`, `.35`) is what engaged the instrument. This
+refreshing the clone on all three hosts (the head and both serving nodes) is what engaged the instrument. This
 applies to any shared-mod edit a boot must pick up, not only to a pin bump.
 
 **And extend that to the pin itself: commit before you boot, re-tag after a pull.** Two ways a bump
@@ -864,9 +864,10 @@ explanation, and the next session re-derives work that is already done. Mitigati
   address literals left in the repository are **7 by-design ones** (a published HLE question, a planted
   detector control, and the hygiene guard's own pattern plus four controls). Two consequences for a
   contributor: `tests/test_tracked_address_hygiene.py` fails the gate on any RFC1918 or head-hostname
-  literal in a tracked file that is not on its path-keyed exemption list, and **every commit SHA
-  changed in the rewrite** — a SHA cited before 2026-10-22 resolves only against
-  `/tmp/purge-backup/pre-purge-mirror.git`, so cite the rewritten one.
+  literal in a tracked file that is not on its path-keyed exemption list, and on any tracked line that
+  names a node other than `.30` as the head (`attic/` is frozen provenance and keeps its own past job
+  heads). Also, **every commit SHA changed in the rewrite** — a SHA cited before 2026-10-22 resolves
+  only against `/tmp/purge-backup/pre-purge-mirror.git`, so cite the rewritten one.
 
 ## Important Files
 
@@ -969,7 +970,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1765 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1768 tests,
   3 skipped on 2026-11-08** in a clean checkout of the tracked tree, 4 in CI and 2 in this clone (it
   carries the untracked `.local/fleet.yaml`). The first three, by name and cause: `test_ifm_recipes`'
   research-doc case (the git-ignored K2-09B docs are absent on any fresh checkout);

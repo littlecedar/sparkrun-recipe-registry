@@ -1842,13 +1842,13 @@ Appends made by this sweep (the only facts that had no surviving home):
   that matches the `.33` connectivity event seen in the 19:22 census (`.33` SSH timed out, was
   reachable again by 19:57). With meta+storage down, every node's `/mnt/beegfs` and
   `${WOPR_USER_CACHE}/huggingface` returned **Errno 70 (ECOMM)** — `ls` itself failed on the head.
-  Client sessions on `.30` and the head held the dead mount even after the servers came back;
+  Client sessions on the head (`.30`) held the dead mount even after the servers came back;
   `.31`'s client re-attached on its own.
 - **Recovery (20:0x–20:1x ET):** `systemctl restart beegfs-meta beegfs-storage` on `.30`
   (both `active` immediately; the NICs that "couldn't be found" were back UP — enP7s7,
   enp1s0f0np0, enP2p1s0f0np0; `enp1s0f1np1`/`enP2p1s0f1np1` are NO-CARRIER, as before); then
-  `umount + mount /mnt/beegfs` on the head and `.30` to drop the dead client sessions (both
-  `pool-ok` afterwards). `~/.cache/huggingface/token` readable again; sparkrun launches work.
+  `umount + mount /mnt/beegfs` on the head (`.30`) to drop the dead client sessions (`pool-ok`
+  afterwards). `~/.cache/huggingface/token` readable again; sparkrun launches work.
 - **Impact:** two Arm A launch attempts died in sparkrun's "Distributing resources" step on the
   token read before the recovery; the third launch (20:1x ET) booted clean (TTR 190.6 s).
   Nothing else was running (window-4 had drained), so no workload was disturbed.

@@ -5,10 +5,10 @@ description: "Test-boot a sparkrun inference recipe on the WOPR DGX Spark cluste
 
 # Sparkrun recipe test boot (WOPR cluster)
 
-When the user asks to boot-test or trial a recipe on idle nodes. Run `sparkrun` ON ${WOPR_HEAD_NODE} as ${WOPR_USERNAME}; target nodes via `-H <ip>,<ip>` (first host = head/rank0).
+When the user asks to boot-test or trial a recipe on idle nodes. Run `sparkrun` ON ${WOPR_HEAD_NODE} as ${WOPR_USERNAME}; target nodes via `-H <ip>,<ip>`. The first `-H` host is the **job's** rank 0 — a per-launch role, never the fleet head, which is always `.30`.
 
 ## 0. Preconditions
-- Repo tree is rsync'd to `${WOPR_SRC_DIR}` (no `.git` on the head; never `git -C` there).
+- Repo tree is reachable at `${WOPR_SRC_DIR}`, and the head keeps the syncthing-shared clone (`.git` present), so a path is a git tree only if it really is that clone.
 - In-progress recipes need a symlink in `${WOPR_RUN_FROM_DIR}` -> src tree file (old symlink names may dangle).
 - Local (laptop) CLI calls need `HOME="$PWD/.local/sparkrun-home"`; head-side calls don't.
 
