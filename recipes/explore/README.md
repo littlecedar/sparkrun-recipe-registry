@@ -58,6 +58,10 @@ the pyannote diarizer. Explore keeps the language and agentic/RAG arms.
 - [zz-hy4-flash-220b-bf16-thinking-tools-vllm](#zz-hy4-flash-220b-bf16-thinking-tools-vllm)
 - [zz-sensenova-loop-9b-bf16-thinking-ref-vllm](#zz-sensenova-loop-9b-bf16-thinking-ref-vllm)
 - [twil-8b-bf16-reasoning-sglang](#twil-8b-bf16-reasoning-sglang)
+- [zz-hy4-flash-220b-nvfp4-tp2-vllm](#zz-hy4-flash-220b-nvfp4-tp2-vllm)
+- [zz-inkling-2-small-nvfp4-thinking-tools-tp4-vllm](#zz-inkling-2-small-nvfp4-thinking-tools-tp4-vllm)
+- [zz-muse-glimmer-30b-q4km-thinking-tools-llamacpp](#zz-muse-glimmer-30b-q4km-thinking-tools-llamacpp)
+- [zz-haru-4b-bf16-duplex-s2s-vllm-omni](#zz-haru-4b-bf16-duplex-s2s-vllm-omni)
 - [Attic index](#attic-index)
 
 ## Easy-traffic selection (2026-10-22)
@@ -1990,6 +1994,134 @@ serving path is checkpoint-agnostic.
 **Unmeasured, all of it.** No C1–C10, no Mem%, no accuracy, no tool-call or thinking-budget
 measurement — the card's own benchmark claims and `arxiv:2607.02770` are the only quality evidence.
 The 2026-11-10 survey read produced the class and the file sizes; nothing has been booted.
+
+## [zz-hy4-flash-220b-nvfp4-tp2-vllm](zz-hy4-flash-220b-nvfp4-tp2-vllm.yaml)
+
+**Boot in flight 2026-11-20 — receipt pending.** Tencent Hunyuan Hy4 Flash in the house 4-bit class:
+`atakans/Hy4-flash-NVFP4` @ `30f201ac` is a ModelOpt build — routed experts NVFP4 (0.66 % mean weight
+error on every quantized tensor, 1.7× less than the vendor's SPARK-4Bit GGUF), attention projections
+and Engram n-gram tables FP8, everything else BF16 — at **164,691,130,443 B = 153.36 GiB**, against
+410.29 GiB for the BF16 sibling.
+
+**Fit — two nodes, not four.** TP=2 puts **76.68 GiB of weights per rank** against a 103.44 GiB
+budget (0.85 × 121.69 GiB), leaving room for the 6G KV pool (upstream counts ~578k tokens, so four
+262k sessions do not co-reside) plus engine overhead. `--enable-expert-parallel` is required: without
+it each rank holds all 41 MoE layers' experts and the boot OOMs. `max_model_len` 262,144, 4 sequences,
+8192 batched tokens, DFly k=5, `hy_v4` reasoning/tool parsers.
+
+**Image — the vendor image plus a six-file patch mod.** No atakann container is published (`ghcr.io`
+answers 404 for the package and the Docker Hub user has no repositories), so the recipe pins the same
+`vllm/vllm-openai:hy4-flash@sha256:6b645bfb…` manifest the BF16 arm uses (arm64 child
+`sha256:5e2c1bad…`) and `mods/hy4-sm121-patch` stages six MIT-licensed files from
+`atakann/dgx-spark-recipes` @ `e764efa3` into the vLLM tree at pre-exec: the SM120 sparse-MLA sink
+path for the sparse layers, the sliding-window layers and the DFly drafter, `fp8_ds_mla` KV on
+sliding-window MLA, and ModelOpt NVFP4 expert loading. The mod checks every engine anchor and the
+vendored digests before writing, then compiles each staged file in-process; `CUTE_DSL_ARCH=sm_121a`
+and the spawn worker method live in the recipe's `env:`.
+
+**The upstream author measured it on the same hardware, 2026-11-18:** ready **~9.7 min** after a
+2.5 min setup with the model in cache, **12.8 GiB lowest free**, JSON 38.3 / code 36.5 / rewrite 36.1
+/ explain 25.0 / story 17.3 t/s, prefill 1,110 t/s at 4K and 1,461 at 32K, 15 t/s without the drafter.
+Quality cells for this arm are unmeasured. Licence is Tencent Hy License 1.0, the same class as the
+BF16 arm and covered by the `#86` ruling; the `zz-` prefix stands until a measured boot. This shape is
+why the BF16 quartet arm does not need a window for throughput.
+
+## [zz-inkling-2-small-nvfp4-thinking-tools-tp4-vllm](zz-inkling-2-small-nvfp4-thinking-tools-tp4-vllm.yaml)
+
+**Authored 2026-11-20, never booted.** Thinking Machines Inkling-2-Small: a 594.05B text+vision body
+plus a 1.71B MTP head (595.76B logical), 48 layers at hidden 4608, 48 Q / 8 KV heads, 40
+sliding-window-1024 layers with 8 global, MoE 384 routed / 8 active at intermediate 2304, 201,024
+vocab, 1,048,576 positions, a 0.33B vision tower. The vendor's own ModelOpt mix is read from
+`hf_quant_config.json`, not a card: routed experts only, 40 of 48 layers NVFP4 (uint8-packed, FP8
+scales per 16) and layers 40–47 MXFP8, everything else BF16 — 83 % of the expert body is 4-bit-class,
+and **366.47 GiB of files** carry a 594B model.
+
+**Fit — four nodes with 18.70 GiB headroom.** 390.09 GB = **363.30 GiB** excluding the MTP shard, so
+**90.82 GiB of weights per rank** against a 109.52 GiB budget (0.90 × 121.69 GiB). After a 4 GiB
+activation/graph reserve, **~14.7 GiB is KV**: 8 KiB/token per rank over the 8 global layers plus
+40 MiB per sequence of sliding-window cache, so 65,536 × 4 is 2.16 GiB window-aware and 12.0 GiB if
+every layer takes the full context — both inside. 131,072 is the next rung; the card's 1M is not
+reachable. TP=2 is 181.65 GiB/rank and TP=1 is 363.30 GiB, so 4 is the only shape.
+
+**Engine — vLLM main only, and the nightly is not in the fleet.** No release tag carries
+`Inkling2ForConditionalGeneration` (v0.32.0/v0.33.0/v0.34.0 have zero registry entries; it landed in
+main 2026-11-18), so the arm pins `vllm/vllm-openai:nightly@sha256:c17e9d88…` (arm64 child
+`sha256:2d900bd3…`) and **no node holds that digest** — the first boot includes the pull. GB10 is
+`sm_121` and the Blackwell path gates on capability family 100, so a Spark runs the Hopper/Triton half
+(`attention_sm90.py` plus the Humming expert GEMMs), not `tml_fa4`/tcgen05; that path is unproven on
+`sm_121` and is the single largest boot risk. The MTP shard is staged but not loaded.
+
+**Window.** A quartet means `.31`–`.34`, which carry the production ds4 serve, so the arm waits for an
+owner-declared TP4 window with the ring free. Licence is Apache-2.0 with no usage-policy file.
+The only two-node route is a third-party EXL3 pack, `kortexa-ai/Inkling-2-Small-EXL3-2.59bpw`
+(208.47 GB / 194.2 GiB, two-rank split; the author's 2-Spark trial peaks 92.2/98.2 GiB at 8k), and it
+needs an unproven custom runtime — not vLLM or SGLang, text-only, 8k validated — so it is not a
+fallback today.
+
+## [zz-muse-glimmer-30b-q4km-thinking-tools-llamacpp](zz-muse-glimmer-30b-q4km-thinking-tools-llamacpp.yaml)
+
+**Probe arm, authored 2026-11-20, never booted.** `meta-models/Muse-Glimmer-30B` (29.78B BF16) in the
+house 4-bit class, served from the **author org's own GGUF**: `meta-models/Muse-Glimmer-30B-GGUF` @
+`b44f1072`, `Muse-Glimmer-30B-KQuant-17GB-Q4_K_M.gguf`, **16,756,683,904 B**. Header read from the
+file: `general.architecture = muse-glimmer`, Q4_K_M (365 Q4_K, 52 Q6_K, 1 Q5_K, 313 F32 = 731
+tensors), 52 blocks, 131,072 ctx, hidden 6,656, ffn 19,968, 32 q / 2 kv at 128, sliding window 2,048
+over a 3-sliding-to-1-full pattern — every value equal to the BF16 `config.json`.
+
+**Engine — llama.cpp `a37cc46` registers the arch and the parser.** The pinned
+`littlecedar/dgx-spark-llama-cpp:upstream-a37cc46-cu130@sha256:ef2d4bc8…` carries
+`LLM_ARCH_MUSE_GLIMMER` and `src/models/muse-glimmer.cpp`, and a37cc46 detects this checkpoint's own
+ATEM template (`<atem:function_calls>` + `<|eom|>`) into `common_chat_params_init_muse_glimmer`, which
+routes the `to=self` channel to `reasoning_content` and converts `to=<tool>` channels into
+`tool_calls`. Text-only: the perception encoder is a separate `mmproj` file and is not staged.
+
+**It measures decode, not quality.** This is the checkpoint the lane already rejected on 2026-10-21:
+the two shard LFS oids, `config.json`, `generation_config.json` and the tokenizer are byte-identical
+from `7af58019` through `1297fd7` (only the chat template moved), and the control measured house
+**36/37** (`hard-rev` → `nurkrpas`, four of four at temperature 0) at C1 **12.1 t/s bf16** against
+20.2 t/s for the NVFP4 pack. So the open questions are the 4-bit llama.cpp decode rate, the ATEM tool
+round trip through a second parser, and the vendor's per-slot context arithmetic — not quality.
+
+**Usage policy is a new class — register row `#88`.** `LICENSE` is verbatim Apache-2.0, and a separate
+`USAGE_POLICY.md` layers prohibited uses (military/warfare/nuclear/espionage, ITAR, biological and
+chemical weapons conventions, under-18) on top. None of it bites on an authored-not-booted probe that
+is neither sold nor exposed, but the class is the owner's call, not this lane's. Fit TP=1: 16.76 GB of
+weights; 13,312 B/token on the 13 full layers with the 39 sliding layers capped at 2,048, so one
+131,072-token slot costs 1.74 GB and `-c 1310720 -np 10` is 17.4 GB of KV, ~34 GB plus buffers against
+~119 GiB usable.
+
+## [zz-haru-4b-bf16-duplex-s2s-vllm-omni](zz-haru-4b-bf16-duplex-s2s-vllm-omni.yaml)
+
+**Probe arm, authored 2026-11-20, never booted.** `higurashi-ai/Haru-4B` @ `8d6e83bc` is a
+5.27B-parameter BF16 **full-duplex speech-to-speech** model: every 133 ms it takes one frame of user
+audio and emits one frame of its own audio plus text, both summed into a single language-model
+position. One `model.safetensors`, **10,540,113,510 B**, 1,022 BF16 tensors, header-verified complete.
+Backbone is a `qwen3_5_text` hybrid (32 layers, hidden 2560, 16 q / 4 kv at head_dim 256, 8
+full-attention + 24 Gated-DeltaNet layers), with a causal VibeVoice codec and a 4-layer MeanFlow head.
+
+**Route — the author's vLLM-Omni plugin on the 0.32 image.** The checkpoint has no `auto_map` and no
+modeling code, and no engine registers `haru` (llama.cpp, vLLM v0.32/v0.33, vLLM-Omni v0.32, SGLang
+v0.5.22, transformers all have zero matches), so the arm pins
+`vllm/vllm-omni:v0.32.0@sha256:f713b909…` (arm64 child `sha256:6da195b8…`) and
+`mods/haru-4b-realtime-launcher` installs the author's `haru-speech-vllm==0.1.1` +
+`haru-speech==0.1.1` into it, then runs `vllm-omni serve --omni --deploy-config …/haru.yaml`. The
+only API is the realtime duplex WebSocket at `/v1/realtime?duplex=1`, not `/v1/chat/completions`, so
+`readiness.inference` is false. The plugin's `_check_supported` rejects tensor/pipeline parallelism,
+so the arm is TP=1 by construction.
+
+**No servable 4-bit variant on GB10.** Exactly one 4-bit-class artefact exists:
+`Twu31/Haru-4B-MLP-GPTQ-W4A16-G32-Lab` (7,284,305,934 B = 6.78 GiB, GPTQ W4A16 group-32 over the 96
+backbone MLP projections), and its route needs native Haru code at vLLM-Omni v0.34.0rc1 or later —
+no such image is published, and its own pilot reports +400 ms of end-of-speech-to-audio latency
+against BF16. There is no NVFP4, MXFP4, EXL3 or AWQ anywhere; the GGUFs are speech.cpp's private
+layout, whose own README says llama.cpp cannot read them and whose release artifacts have no CUDA
+backend.
+
+**Fit — one node, ~20 GiB.** 9.82 GiB of weights plus 32 KiB/token of KV on the 8 full-attention
+layers (2 sessions × 32,768 positions = 2.0 GiB against the deploy config's 8 GiB grant), plus codec,
+MeanFlow head and per-session activations — ~20 GiB against a 121.7 GiB device at 0.85. Licence
+Apache-2.0, `gated: false`; the checkpoint repo ships no LICENSE file (the GGUF sibling carries the
+Apache text and an MIT notice for the VibeVoice codec parameters). Unmeasured, all of it: no boot, no
+frame latency, no real-time factor, no transcript quality.
 
 ## Attic index
 
