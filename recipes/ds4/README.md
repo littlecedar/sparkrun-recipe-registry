@@ -2478,6 +2478,13 @@ writes under `/cache/runtime/picom/run/api-key`, while `/health` is keyless. Rec
 root `head:~/benchmarks/picom-prod-20261118/`; each boot's lane cells are its own
 `phase5/` or `phase6/` directory of that root.
 
+Watch either arm with `tools/boot-watchdog.py --require-inference`: keyless `/health` answers
+about 90 s before the engine exists, so a run without the flag reads healthy at t=1 s and exits 0
+on a boot that cannot answer (`head:~/benchmarks/picom-bareh-20261120-head/watchdog.log`). The
+bearer key must be readable where the watchdog runs — a host copy of the file, or `--node` so the
+probe reads `/cache/runtime/picom/run/api-key` through `docker exec` on the rank container; when
+neither reads, every check is `no_probe`, never healthy.
+
 - `deepseek-v4.1-flash-1017-picom-tp4-1m.yaml` — the exact arm, strictly lossless
   (`PICOM_OEA` empty). Confirmed 2026-11-18 on its own boot, 5-run concurrency ladder
   (d0, pp 2048, tg 128): **C1 83.4, C2 90.8, C5 111.5, C10 129.2** tok/s
