@@ -7,9 +7,9 @@ as `QUESTIONS.md #9` still resolves through that record, and a settled question 
 
 | summary | value |
 |---|---|
-| unanswered | **1** — `#85` (below), raised 2026-11-17: who deleted the production fence on `.31`–`.34`, and was it authorized. Before it the register held **0** — `#84` (the ERNIE-5.5-Flash-Base licence class) was raised by the **2026-11-11 TP>=4 owner survey round** and answered the same day; it is settled in `TODO.md` §"Settled questions" under `## Owner answer 2026-11-11 — ERNIE licence class` and has left this file's open set. That round's nine survey questions (`S1`–`S9`) were asked and answered in one file and folded verbatim into `TODO.md` §"Settled questions" under `## Owner round 2026-11-11 — TP>=4 survey`, and the `mad-science/SURVEY.md` they lived in was deleted at that fold. Before it the register was empty: the thirteen rows `#69`–`#81` + `#83` were **asked and answered in one batch on 2026-11-09** and moved verbatim to the same section under `## Owner round 2026-11-09`. That batch came from the 2026-11-08 sweep of `mad-science/` and was re-checked against current state before asking, which withdrew two of the original fifteen: `#73` (BeeGFS `Restart=on-failure`) had already been executed the same day, and `#82` (`# DECISIONS` in JSON) is ruled by `QUEUE.md` itself ("a settled question or decision stays prose … correctly outside the JSON"). What the answers produced: the TP1/TP2 freeze **holds** (`#69`); the SM121 trio is **not retired** — the OOM is to be diagnosed, and any risky attempt runs `.31`–`.35` and never `.30` (`#70`); the stale six-node campaign lock is **deleted** (`#71`); the live earlyoom pair `-m 4,1 -s 100,95` is **ratified** and the drafted `-m 14,5 -s 90,80` dropped (`#72`); the single shared HF hub **stays** (`#74`); the storage budget is **restated at pool level** (`#75`); the installed FLARE build is **accepted as-is** (`#76`); the `flare agent` grant **extends to `.31`–`.34`** with the serve port moved to 9000 (`#77`); DSV4-Pro is **closed as a quality gamble** (`#78`); the compute set is **fixed at six GB10 nodes** (`#79`); Mistral-Large-4 **moved to `attic/`** (`#80`); `FLUX.2-dev` and `flux-3-image-klein` licences **accepted**, `dinov3` **declined** (`#81`); and `OOMScoreAdjust=-900` **may** also go on `user@1000.service` (`#83`) |
+| unanswered | **2** — `#85` (below), raised 2026-11-17: who deleted the production fence on `.31`–`.34`, and was it authorized; and `#86` (below), raised 2026-11-20: which licence class `tencent/Hy4-flash` gets under the Tencent Hy License 1.0. Before them the register held **0** — `#84` (the ERNIE-5.5-Flash-Base licence class) was raised by the **2026-11-11 TP>=4 owner survey round** and answered the same day; it is settled in `TODO.md` §"Settled questions" under `## Owner answer 2026-11-11 — ERNIE licence class` and has left this file's open set. That round's nine survey questions (`S1`–`S9`) were asked and answered in one file and folded verbatim into `TODO.md` §"Settled questions" under `## Owner round 2026-11-11 — TP>=4 survey`, and the `mad-science/SURVEY.md` they lived in was deleted at that fold. Before it the register was empty: the thirteen rows `#69`–`#81` + `#83` were **asked and answered in one batch on 2026-11-09** and moved verbatim to the same section under `## Owner round 2026-11-09`. That batch came from the 2026-11-08 sweep of `mad-science/` and was re-checked against current state before asking, which withdrew two of the original fifteen: `#73` (BeeGFS `Restart=on-failure`) had already been executed the same day, and `#82` (`# DECISIONS` in JSON) is ruled by `QUEUE.md` itself ("a settled question or decision stays prose … correctly outside the JSON"). What the answers produced: the TP1/TP2 freeze **holds** (`#69`); the SM121 trio is **not retired** — the OOM is to be diagnosed, and any risky attempt runs `.31`–`.35` and never `.30` (`#70`); the stale six-node campaign lock is **deleted** (`#71`); the live earlyoom pair `-m 4,1 -s 100,95` is **ratified** and the drafted `-m 14,5 -s 90,80` dropped (`#72`); the single shared HF hub **stays** (`#74`); the storage budget is **restated at pool level** (`#75`); the installed FLARE build is **accepted as-is** (`#76`); the `flare agent` grant **extends to `.31`–`.34`** with the serve port moved to 9000 (`#77`); DSV4-Pro is **closed as a quality gamble** (`#78`); the compute set is **fixed at six GB10 nodes** (`#79`); Mistral-Large-4 **moved to `attic/`** (`#80`); `FLUX.2-dev` and `flux-3-image-klein` licences **accepted**, `dinov3` **declined** (`#81`); and `OOMScoreAdjust=-900` **may** also go on `user@1000.service` (`#83`) |
 | settled | **51** — `#1`, `#4`, `#5`, `#8`–`#16` moved verbatim to `TODO.md` §"Settled questions" on 2026-10-23, `#19` joined them **answered 2026-10-24** (the Community license), `#20` (**executed**: the HF cache is entirely on the pool) and `#17` (**authorized**, pending the seccomp route) joined them the same day, `#2` joined **2026-10-24** (the 16384 prefill chunk, measured and shipped), and `#3`, `#7` and `#21` joined them **2026-10-24** (answered via the one-time owner questionnaire and folded per the protocol); `#18` joined them **2026-10-29** (superseded — fixed by `kho=off` fleet-wide), `#54` + `#56` joined them **2026-11-02** (owner answers in session: the ghcr push had already landed, so `#54`'s grant was moot; the LFM arms ship as ordinary arms, no eval-only banner), `#6` + `#53` joined them **2026-11-03** (a phased `flare agent` install via the vendor APT repository, whose key's `apt upgrade` reach the owner accepted; DeepGEMM's SM121 kernels patched in-house rather than tracked upstream), `#57`–`#66` joined them **2026-11-06** — a ten-question round asked and answered in one session because this register was empty while ten queue rows sat `blocked`; `#67` (host memory policy on all six nodes, **with a dated correction: its earlyoom numbers were superseded by measurement the same afternoon**) + `#68` (instrumented vs uninstrumented baseline) joined them **2026-11-08**; and `#69`–`#81` + `#83` joined them **2026-11-09** in one batch (§"unanswered" above). Numbering is stable, so a citation such as `QUESTIONS.md #9` still resolves. The 2026-11-11 survey round answered nine unnumbered survey rows (`S1`–`S9`), and `#84` joined them **2026-11-11** (the ERNIE licence class: a production arm is permitted, subject to the licence's attribution and one-time use notice, with the ship call left to measured performance), so this count is **51** |
-| blocks the most downstream work | **nothing** — the register is empty again: `#84`, the last open row, was answered on 2026-11-11. The blocked set is ordinary queue state now: the TP≤2 rows wait on the production return the 2026-11-11 directive names, the SM121 trio waits on `sm121-marlin-oom-diagnosis` (`#70`), the `.30`-root-target question is moot with the hub left as it is (`#74`), and the FLARE work moved into `flare-agent-rollout` as its phase-2 scope (`#76`, `#77`). Two rows now exist only to turn an answer into a receipt: `host-memory-policy-apply` (the `OOMScoreAdjust` drop-ins on `ssh.service`, `NetworkManager.service` and `user@1000.service`, `#72`/`#83`) and `cache-audit-pool-budget` (the tool must measure the pool, not the node, `#75`) |
+| blocks the most downstream work | **`#86`** — the Hy4 Flash licence class is the only thing between that arm and a promotion out of `zz-`; `#85` blocks nothing downstream (it is authorization and register hygiene). `#84`, the previous open row, was answered on 2026-11-11. The blocked set is otherwise ordinary queue state now: the TP≤2 rows wait on the production return the 2026-11-11 directive names, the SM121 trio waits on `sm121-marlin-oom-diagnosis` (`#70`), the `.30`-root-target question is moot with the hub left as it is (`#74`), and the FLARE work moved into `flare-agent-rollout` as its phase-2 scope (`#76`, `#77`). Two rows now exist only to turn an answer into a receipt: `host-memory-policy-apply` (the `OOMScoreAdjust` drop-ins on `ssh.service`, `NetworkManager.service` and `user@1000.service`, `#72`/`#83`) and `cache-audit-pool-budget` (the tool must measure the pool, not the node, `#75`) |
 
 *(Correction 2026-11-09, later the same day: **the 2026-11-08 freeze this table reports as holding is lifted** — for
 TP4 work, and for those TP1/TP2 items that unblock a TP4 item — by the owner directive recorded in `TODO.md`
@@ -49,9 +49,51 @@ No open rows. The last batch (`#69`–`#83`, 2026-11-09) is settled in `TODO.md`
 
 ## Spend & risk
 
-No open rows. `#84` (the ERNIE licence class) was answered 2026-11-11 and is settled in `TODO.md`
-§"Settled questions" under `## Owner answer 2026-11-11 — ERNIE licence class`; the earlier batch (`#69`–`#83`,
-2026-11-09) and the 2026-11-11 survey round are settled there too.
+- **#86 — Which licence class does `tencent/Hy4-flash` get under the Tencent Hy License 1.0: ship its quartet
+  arm as a normal explore arm, ship it probe-only, or not ship at all?** — `open` — the licence is
+  Apache-2.0 with section 10 added, and the file says so in its own preamble: *"This License is derived
+  from the Apache License, Version 2.0 … with modifications, mainly the additional commercial terms for
+  large Model-as-a-Service ("MaaS") businesses in Section 10. This License is not the Apache License,
+  Version 2.0, and is not endorsed by or affiliated with the Apache Software Foundation."* Four clauses
+  carry the exposure. **§10.2** — *"if You operate a MaaS business, You must obtain a separate written
+  license to use the Work or any Derivative Works from Licensor (including by email), in either of the
+  following cases: (a) if Your aggregate worldwide gross revenue exceeds US$50 million (or the equivalent
+  in other currencies) in any consecutive 12-month period, whether or not such revenue is derived from the
+  Work or any Derivative Works, before using (or continuing to use) the Work or any Derivative Works; or
+  (b) before using the Work or any Derivative Works in or for any product or service provided by You that
+  has more than 100 million monthly active users in any calendar month."* **§10.1** defines the trigger as
+  *"giving third parties remote access to model inference or fine-tuning (e.g., via API), allowing them to
+  submit inputs or specify parameters or training data"*, excluding end-user products whose model
+  capabilities are confined to specific features or workflows and mere relaying to an independently
+  operated third-party service. **§10.3** — *"Section 10.2 does not apply to Your use of the Work or any
+  Derivative Works solely for internal purposes, provided that neither the Work, any Derivative Works, nor
+  their outputs are made available to third parties."* **§6** withholds the marks — *"This License does not
+  grant permission to use the trade names, trademarks, service marks, or product names of the Licensor,
+  except as required for reasonable and customary use in describing the origin of the Work and reproducing
+  the content of the NOTICE file."* **§4(c)** keeps attribution on anything redistributed — *"You must
+  retain, in the Source form of any Derivative Works that You distribute, all copyright, patent, trademark,
+  and attribution notices from the Source form of the Work"* — and the Definitions put quantised bodies
+  inside that term: *"For the avoidance of doubt, Derivative Works include any fine-tuned, quantized,
+  distilled, merged, pruned, or otherwise modified versions of the model weights."* **Exposure today is
+  nil:** no arm in this lane is sold, no serve is exposed, and the Hy4 arm
+  (`recipes/explore/zz-hy4-flash-220b-bf16-thinking-tools-vllm.yaml`) is authored-not-booted, so §10.3
+  covers the whole current state on its face. **The open part is narrow and it is the reason this is asked:**
+  whether a serve reachable from the lab network only stays *"solely for internal purposes"* under §10.3, or
+  becomes §10.1 MaaS because colleagues submit inputs through it — i.e. whether the test is who can reach the
+  port or whether anyone pays. Answer it against the `#84` precedent (owner 2026-11-11: a production arm
+  **permitted** for the ERNIE-5.5-Flash-Base licence, whose trigger was a revenue ceiling plus attribution
+  and a one-time written notice, with those obligations carried rather than waived); this class adds the MAU
+  prong and a trademark carve-out, so a ruling here may land the same way or differently without
+  contradicting `#84`. provenance: `tencent/Hy4-flash` `LICENSE` (13,942 B; card `license: other`,
+  `license_name: tencent-hy-license`, revision `b2498eba6a1a3f9bbcab4190bc1313a3c7010c2f`), clauses quoted
+  verbatim from it; the arm's fit, engine and gate evidence in
+  `recipes/explore/zz-hy4-flash-220b-bf16-thinking-tools-vllm.yaml` and the pending
+  `recipes/explore/README.md` §"zz-hy4-flash-220b-bf16-thinking-tools-vllm"; `#84` settled in `TODO.md`
+  §"Settled questions" under `## Owner answer 2026-11-11 — ERNIE licence class`; asked 2026-11-20.
+
+`#84` (the ERNIE licence class) was answered 2026-11-11 and is settled in `TODO.md` §"Settled questions"
+under `## Owner answer 2026-11-11 — ERNIE licence class`; the earlier batch (`#69`–`#83`, 2026-11-09) and the
+2026-11-11 survey round are settled there too.
 
 ## Priority & close-out
 
