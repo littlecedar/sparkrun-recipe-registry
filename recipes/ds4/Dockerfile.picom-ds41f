@@ -8,8 +8,8 @@
 # (engine/CMakeLists.txt:10,19 upstream). A build on an x86 host produces
 # binaries the fleet cannot run — build it on a GB10 node.
 #
-# Build (on a GB10 node; the context is recipes/ds4/ because the two tracked
-# PR-integration patches are COPYed from it):
+# Build (on a GB10 node; the context is recipes/ds4/ because the tracked
+# patch series is COPYed from it):
 #   docker build -f recipes/ds4/Dockerfile.picom-ds41f \
 #     -t ghcr.io/littlecedar/dgx-picom-ds41f:ds41f-7c123ad4 recipes/ds4
 # The two base images are digest-pinned for linux/arm64; both are archival
@@ -66,11 +66,25 @@ RUN git init /src \
 #                                     decode (protocol.rs keeps this tree's
 #                                     validated image-part layout)
 #   picom-pr7-stream-tool-args.patch  PR #7  @ 5063f5c3 — `--stream-tool-args`
+# and one local patch of this registry's own, on top of both:
+#   picom-weightless-steering.patch   GLP steering (docs/glp.md in the engine
+#                                     tree): a vector reader that refuses any
+#                                     file it cannot apply exactly, the
+#                                     per-row steer flag on the step path, the
+#                                     second served name in dsfront and the
+#                                     protocol's v2 (kVersion, HelloEngine.caps).
+#                                     Not upstream; the arm it serves is
+#                                     zz-deepseek-v4.1-flash-1017-weightless-
+#                                     dsgb10-tp4.yaml. A tree that does not carry
+#                                     it answers the stock model under both
+#                                     names, which is why the engine refuses a
+#                                     steered submit when no vector is loaded.
 # The patch files are the build context (build from recipes/ds4/, not the
 # repo root) and apply in this order.
-COPY picom-pr15-service-vision.patch picom-pr7-stream-tool-args.patch /tmp/
+COPY picom-pr15-service-vision.patch picom-pr7-stream-tool-args.patch picom-weightless-steering.patch /tmp/
 RUN git -C /src apply /tmp/picom-pr15-service-vision.patch \
- && git -C /src apply /tmp/picom-pr7-stream-tool-args.patch
+ && git -C /src apply /tmp/picom-pr7-stream-tool-args.patch \
+ && git -C /src apply /tmp/picom-weightless-steering.patch
 
 WORKDIR /src/ds41f-4xgx10-switchless
 RUN cmake -S engine -B engine/build \

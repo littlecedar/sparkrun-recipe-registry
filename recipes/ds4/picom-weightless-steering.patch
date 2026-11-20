@@ -1,0 +1,1787 @@
+diff --git a/ds41f-4xgx10-switchless/engine/common/frontend_protocol.h b/ds41f-4xgx10-switchless/engine/common/frontend_protocol.h
+index 276ed9f..49054dd 100644
+--- a/ds41f-4xgx10-switchless/engine/common/frontend_protocol.h
++++ b/ds41f-4xgx10-switchless/engine/common/frontend_protocol.h
+@@ -7,7 +7,7 @@
+ 
+ namespace fe {
+ 
+-constexpr uint32_t kVersion = 1;
++constexpr uint32_t kVersion = 2;
+ constexpr const char* kDefaultSocket = "/tmp/dsgb10-engine.sock";
+ 
+ enum MsgType : uint16_t {
+@@ -69,7 +69,9 @@ struct SubmitHeader {
+   uint32_t prefix_hint;      // prompt tokens the front-end expects to match the session (advisory)
+   uint32_t n_stop_ids;       // ids that end generation (EOS is in here)
+   uint32_t n_prompt;         // >= 1
+-  uint32_t reserved;
++  // GLP steering (docs/glp.md): 1 asks for the steered served name's projection, 0 for the stock path.
++  // v2 of the protocol, so an engine that cannot steer refuses the frame rather than serving it stock.
++  uint32_t steer;
+ };
+ 
+ struct Cancel {
+@@ -87,6 +89,13 @@ struct HelloEngine {
+   uint32_t eos_id;
+   uint32_t max_sessions;  // resident sessions rank 0 can hold (advisory)
+   uint32_t name_len;      // bytes of model/engine name that follow
++  uint32_t caps;          // EngineCaps: what this engine can do for the front-end
++};
++
++// HelloEngine::caps bits. A front-end configured for a capability the engine lacks refuses to start
++// rather than serving the request unsteered.
++enum EngineCaps : uint32_t {
++  kCapSteer = 1,  // a GLP vector is loaded: SubmitHeader::steer may be 1
+ };
+ 
+ enum TokensFlags : uint32_t {
+@@ -131,11 +140,13 @@ static_assert(sizeof(HelloFe) == 8);
+ static_assert(sizeof(SubmitHeader) == 72);
+ static_assert(offsetof(SubmitHeader, temperature) == 32);
+ static_assert(offsetof(SubmitHeader, n_prompt) == 64);
+-static_assert(sizeof(HelloEngine) == 24);
++static_assert(sizeof(HelloEngine) == 28);
+ static_assert(sizeof(TokensHeader) == 16);
+ static_assert(sizeof(TopLogprob) == 8);
+ static_assert(sizeof(ImageSpan) == 16);
+ static_assert(sizeof(DoneHeader) == 56);
+ static_assert(offsetof(DoneHeader, queue_us) == 24);
++static_assert(offsetof(HelloEngine, name_len) == 20);
++static_assert(offsetof(HelloEngine, caps) == 24);
+ 
+ }  // namespace fe
+diff --git a/ds41f-4xgx10-switchless/engine/model/CMakeLists.txt b/ds41f-4xgx10-switchless/engine/model/CMakeLists.txt
+index ff5bc0c..b6e010f 100644
+--- a/ds41f-4xgx10-switchless/engine/model/CMakeLists.txt
++++ b/ds41f-4xgx10-switchless/engine/model/CMakeLists.txt
+@@ -10,6 +10,11 @@ target_link_libraries(coll_tests dsmodel)
+ add_executable(spec_batch_test tests/spec_batch_test.cu)
+ target_include_directories(spec_batch_test PRIVATE ${CMAKE_SOURCE_DIR})
+ 
++# GLP steering (docs/glp.md): the vector reader (glp.h) against a synthetic GGUF and the real file's shape,
++# and its arithmetic against a reference; host only, no GPU. Pass the vector's path to run the real-file check.
++add_executable(glp_test tests/glp_test.cu)
++target_include_directories(glp_test PRIVATE ${CMAKE_SOURCE_DIR})
++
+ # Profiling builds (-DDSGB10_NVTX=ON): NVTX ranges per turn, chunk, layer and part for nsys (model/nvtx.h),
+ # and DSGB10_ROUTE_DUMP (model/prefill.cu). The ranges cost nothing without a profiler attached.
+ option(DSGB10_NVTX "NVTX ranges in the model and the server, for nsys" OFF)
+diff --git a/ds41f-4xgx10-switchless/engine/model/glp.h b/ds41f-4xgx10-switchless/engine/model/glp.h
+new file mode 100644
+index 0000000..4ba2c3a
+--- /dev/null
++++ b/ds41f-4xgx10-switchless/engine/model/glp.h
+@@ -0,0 +1,340 @@
++// GLP steering vectors (github.com/msuiche/weightless, spec docs/spec/GLP.md): one unit direction per
++// model layer, projected out of the residual stream — h <- h - alpha * (h . d) d — for requests that ask
++// for the steered served name. No weights are modified.
++//
++// Host-only and CUDA-free on purpose: the same reader runs in the engine's start-up and in the host-only
++// test (engine/model/tests/glp_test.cu), so a file this runtime cannot apply exactly is refused before a
++// boot rather than served unsteered or steered at another site. It mirrors the reference reader,
++// vllm/models/deepseek_v4_1/glp.py in christopherowen/spark-ds41f.
++//
++// The vector applies at residual_stream_post_layer: layer N's write folded into the hyper-connection
++// streams, before layer N+1 reads Engram. direction.N is applied after layer N (no offset), for
++// 1 <= N < num_layers; direction.0 cannot be expressed. Every hc copy is projected with the same
++// direction, so their mean — the quantity the direction was derived on — is projected too.
++#pragma once
++#include <algorithm>
++#include <cmath>
++#include <cstdint>
++#include <cstdio>
++#include <cstring>
++#include <map>
++#include <stdexcept>
++#include <string>
++#include <vector>
++
++namespace model::glp {
++
++// The spec version and hook this reader implements; another value is a file for a different runtime.
++constexpr int kSpecVersion = 1;
++constexpr const char* kHookPoint = "residual_stream_post_layer";
++// A direction's norm may differ from 1 by float32 export rounding, no more.
++constexpr double kUnitNormTolerance = 1e-3;
++
++struct Glp {
++  int layers = 0;          // the model's layer count the file was checked against
++  int dim = 0;             // hidden size
++  float alpha = 0.f;       // the projection's strength
++  uint64_t mask = 0;       // bit L set: layer L is steered (64 bits: kLayers is 40)
++  std::vector<float> dir;  // [layers][dim]; an unsteered layer's row is zero
++
++  bool any() const { return mask != 0; }
++  bool steered(int L) const { return L >= 0 && L < layers && (mask >> L & 1ull) != 0; }
++  const float* at(int L) const { return dir.data() + (size_t)L * dim; }
++};
++
++namespace detail {
++
++// One cursor over the file's bytes; every read is bounds-checked and a short read is a refusal.
++struct Cursor {
++  const uint8_t* p;
++  size_t n, i = 0;
++  Cursor(const uint8_t* b, size_t len) : p(b), n(len) {}
++  const uint8_t* bytes(size_t k) {
++    if (i + k > n) throw std::runtime_error("truncated GGUF");
++    const uint8_t* r = p + i;
++    i += k;
++    return r;
++  }
++  template <class T>
++  T get() {
++    const uint8_t* b = bytes(sizeof(T));
++    T v;
++    std::memcpy(&v, b, sizeof(T));
++    return v;
++  }
++  std::string str() {
++    const uint64_t len = get<uint64_t>();
++    if (len > n - i) throw std::runtime_error("truncated GGUF string");
++    const uint8_t* b = bytes((size_t)len);
++    return std::string(reinterpret_cast<const char*>(b), (size_t)len);
++  }
++};
++
++// A GGUF metadata value. Only the kinds this reader accepts are represented; anything else is refused.
++struct Value {
++  uint32_t kind = 0;
++  uint64_t u = 0;
++  int64_t s = 0;
++  double f = 0;
++  bool b = false;
++  std::string str;
++  std::vector<Value> arr;
++};
++
++Value read_kind(Cursor& c, uint32_t kind, int depth);
++
++inline Value read_value(Cursor& c, int depth) { return read_kind(c, c.get<uint32_t>(), depth); }
++
++Value read_kind(Cursor& c, uint32_t kind, int depth) {
++  Value v;
++  v.kind = kind;
++  switch (kind) {
++    case 0: v.u = c.get<uint8_t>(); break;
++    case 1: v.s = c.get<int8_t>(); break;
++    case 2: v.u = c.get<uint16_t>(); break;
++    case 3: v.s = c.get<int16_t>(); break;
++    case 4: v.u = c.get<uint32_t>(); break;
++    case 5: v.s = c.get<int32_t>(); break;
++    case 6: v.f = c.get<float>(); break;
++    case 7: v.b = c.get<uint8_t>() != 0; break;
++    case 8: v.str = c.str(); break;
++    case 9: {
++      if (depth > 0) throw std::runtime_error("nested GGUF arrays are not supported");
++      const uint32_t item = c.get<uint32_t>();
++      if (item == 9) throw std::runtime_error("nested GGUF arrays are not supported");
++      const uint64_t count = c.get<uint64_t>();
++      if (count > (uint64_t)1 << 20) throw std::runtime_error("GGUF array is too long");
++      v.arr.reserve((size_t)count);
++      for (uint64_t k = 0; k < count; ++k) v.arr.push_back(read_kind(c, item, depth + 1));
++      break;
++    }
++    case 10: v.u = c.get<uint64_t>(); break;
++    case 11: v.s = c.get<int64_t>(); break;
++    case 12: v.f = c.get<double>(); break;
++    default: throw std::runtime_error("unknown GGUF value type " + std::to_string(kind));
++  }
++  return v;
++}
++
++struct TensorInfo {
++  std::string name;
++  std::vector<uint64_t> dims;
++  uint32_t kind = 0;
++  uint64_t offset = 0;
++};
++
++struct Gguf {
++  std::map<std::string, Value> meta;
++  std::vector<TensorInfo> tensors;
++  std::vector<uint8_t> data;  // the whole file, kept: the tensors point into it
++  size_t base = 0;            // where the tensor data starts
++
++  const Value* find(const char* key) const {
++    const auto it = meta.find(key);
++    return it == meta.end() ? nullptr : &it->second;
++  }
++};
++
++// GGUF v3, little-endian, flat metadata, 1-D F32 tensors only; anything else, and any byte past the last
++// tensor's alignment, is refused.
++inline Gguf read_gguf(const std::string& path) {
++  FILE* f = std::fopen(path.c_str(), "rb");
++  if (!f) throw std::runtime_error("cannot open " + path);
++  Gguf g;
++  if (std::fseek(f, 0, SEEK_END) != 0) {
++    std::fclose(f);
++    throw std::runtime_error("cannot seek " + path);
++  }
++  const long size = std::ftell(f);
++  std::rewind(f);
++  if (size <= 0) {
++    std::fclose(f);
++    throw std::runtime_error("empty file " + path);
++  }
++  g.data.resize((size_t)size);
++  const size_t got = std::fread(g.data.data(), 1, g.data.size(), f);
++  std::fclose(f);
++  if (got != g.data.size()) throw std::runtime_error("short read " + path);
++
++  Cursor c(g.data.data(), g.data.size());
++  const uint8_t* magic = c.bytes(4);
++  if (std::memcmp(magic, "GGUF", 4) != 0) throw std::runtime_error(path + ": not a GGUF file");
++  const uint32_t version = c.get<uint32_t>();
++  if (version != 3) throw std::runtime_error(path + ": GGUF version " + std::to_string(version) + ", expected 3");
++  const uint64_t n_tensors = c.get<uint64_t>();
++  const uint64_t n_keys = c.get<uint64_t>();
++  if (n_tensors > 4096 || n_keys > 4096) throw std::runtime_error(path + ": implausible GGUF header");
++  for (uint64_t k = 0; k < n_keys; ++k) {
++    const std::string key = c.str();
++    if (g.meta.count(key)) throw std::runtime_error(path + ": duplicate GGUF key " + key);
++    g.meta.emplace(key, read_value(c, 0));
++  }
++  for (uint64_t k = 0; k < n_tensors; ++k) {
++    TensorInfo t;
++    t.name = c.str();
++    const uint32_t n_dims = c.get<uint32_t>();
++    if (n_dims < 1 || n_dims > 4) throw std::runtime_error(path + ": tensor " + t.name + " has a bad rank");
++    for (uint32_t d = 0; d < n_dims; ++d) t.dims.push_back(c.get<uint64_t>());
++    t.kind = c.get<uint32_t>();
++    t.offset = c.get<uint64_t>();
++    if (t.kind != 0) throw std::runtime_error(path + ": tensor " + t.name + " is GGML type " + std::to_string(t.kind) + ", not F32");
++    if (t.dims.size() != 1) throw std::runtime_error(path + ": tensor " + t.name + " is not 1-D");
++    g.tensors.push_back(std::move(t));
++  }
++  uint64_t alignment = 32;
++  if (const Value* a = g.find("general.alignment")) {
++    if (a->kind != 4 || a->u == 0) throw std::runtime_error(path + ": general.alignment is not a positive integer");
++    alignment = a->u;
++  }
++  g.base = (size_t)((c.i + alignment - 1) / alignment * alignment);
++  size_t end = g.base;
++  for (const TensorInfo& t : g.tensors) {
++    const size_t start = g.base + (size_t)t.offset;
++    const size_t bytes = (size_t)t.dims[0] * 4;
++    if (start % alignment || start + bytes > g.data.size())
++      throw std::runtime_error(path + ": tensor " + t.name + " lies outside the file");
++    end = std::max(end, start + bytes);
++  }
++  if (g.data.size() - end >= alignment) throw std::runtime_error(path + ": " + std::to_string(g.data.size() - end) + " unexpected bytes after the last tensor");
++  return g;
++}
++
++inline std::vector<int> parse_layer_list(const std::string& text) {
++  std::vector<int> out;
++  size_t i = 0;
++  while (i < text.size()) {
++    while (i < text.size() && (text[i] == ' ' || text[i] == ',')) ++i;
++    if (i >= text.size()) break;
++    int v = 0;
++    bool any = false;
++    while (i < text.size() && text[i] >= '0' && text[i] <= '9') {
++      v = v * 10 + (text[i] - '0');
++      any = true;
++      ++i;
++    }
++    if (!any) throw std::runtime_error("not a comma list of layer ids");
++    if (i + 1 < text.size() && text[i] == '-' && text[i + 1] >= '0' && text[i + 1] <= '9') {
++      ++i;
++      int e = 0;
++      while (i < text.size() && text[i] >= '0' && text[i] <= '9') e = e * 10 + (text[i++] - '0');
++      if (e < v || e - v > 4096) throw std::runtime_error("bad layer range");
++      for (int x = v; x <= e; ++x) out.push_back(x);
++      continue;
++    }
++    out.push_back(v);
++  }
++  std::sort(out.begin(), out.end());
++  return out;
++}
++
++}  // namespace detail
++
++// The file's directions, checked against the model it will steer. Throws std::runtime_error naming the
++// refusal; the caller stops the boot.
++inline Glp read(const std::string& path, int num_layers, int hidden_size) {
++  detail::Gguf g = detail::read_gguf(path);
++  const auto need_str = [&](const char* key) -> std::string {
++    const detail::Value* v = g.find(key);
++    if (!v || v->kind != 8) throw std::runtime_error(path + ": " + key + " is missing or not a string");
++    return v->str;
++  };
++  const auto need_int = [&](const char* key) -> int64_t {
++    const detail::Value* v = g.find(key);
++    if (!v || (v->kind != 4 && v->kind != 5 && v->kind != 10 && v->kind != 11))
++      throw std::runtime_error(path + ": " + key + " is missing or not an integer");
++    return v->kind == 4 || v->kind == 10 ? (int64_t)v->u : v->s;
++  };
++  if (const detail::Value* mode = g.find("glp.mode")) {
++    if (mode->kind != 8 || mode->str != "project")
++      throw std::runtime_error(path + ": glp.mode is not 'project'; this runtime projects and never adds a control vector");
++  } else {
++    throw std::runtime_error(path + ": no glp.mode (an absent mode means 'add')");
++  }
++  if (need_int("glp.spec_version") != kSpecVersion)
++    throw std::runtime_error(path + ": glp.spec_version is not " + std::to_string(kSpecVersion) + " (rank 1, no alpha scaling keys)");
++  if (g.find("glp.rank") && need_int("glp.rank") != 1) throw std::runtime_error(path + ": glp.rank is not 1");
++  if (need_str("glp.hook_point") != kHookPoint)
++    throw std::runtime_error(path + ": glp.hook_point is not " + std::string(kHookPoint) + "; this runtime applies at that site only");
++
++  Glp out;
++  out.layers = num_layers;
++  out.dim = hidden_size;
++  out.dir.assign((size_t)num_layers * (size_t)hidden_size, 0.f);
++  std::vector<int> layers;
++  for (const detail::TensorInfo& t : g.tensors) {
++    const std::string prefix = "direction.";
++    if (t.name.compare(0, prefix.size(), prefix) != 0)
++      throw std::runtime_error(path + ": tensor " + t.name + " is not a direction.<layer>");
++    const std::string digits = t.name.substr(prefix.size());
++    if (digits.empty()) throw std::runtime_error(path + ": tensor " + t.name + " is not a direction.<layer>");
++    int layer = 0;
++    for (const char ch : digits) {
++      if (ch < '0' || ch > '9') throw std::runtime_error(path + ": tensor " + t.name + " is not a direction.<layer>");
++      layer = layer * 10 + (ch - '0');
++    }
++    if (layer < 1 || layer >= num_layers)
++      throw std::runtime_error(path + ": " + t.name + " is outside layers 1.." + std::to_string(num_layers - 1) + " (direction.0 cannot be expressed)");
++    if ((int)t.dims[0] != hidden_size)
++      throw std::runtime_error(path + ": " + t.name + " has width " + std::to_string(t.dims[0]) + ", not " + std::to_string(hidden_size));
++    const float* src = reinterpret_cast<const float*>(g.data.data() + g.base + (size_t)t.offset);
++    double sum = 0.0;
++    for (int c = 0; c < hidden_size; ++c) {
++      if (!std::isfinite(src[c])) throw std::runtime_error(path + ": " + t.name + " is not finite");
++      sum += (double)src[c] * (double)src[c];
++    }
++    const double norm = std::sqrt(sum);
++    if (std::fabs(norm - 1.0) > kUnitNormTolerance)
++      throw std::runtime_error(path + ": " + t.name + " has norm " + std::to_string(norm) + ", not 1");
++    const float scale = (float)(1.0 / norm);
++    for (int c = 0; c < hidden_size; ++c) out.dir[(size_t)layer * hidden_size + c] = src[c] * scale;
++    out.mask |= 1ull << layer;
++    layers.push_back(layer);
++  }
++  if (layers.empty()) throw std::runtime_error(path + ": no direction tensors");
++  if (const detail::Value* declared = g.find("glp.layer_ids_zero_based")) {
++    if (declared->kind != 8) throw std::runtime_error(path + ": glp.layer_ids_zero_based is not a string");
++    if (detail::parse_layer_list(declared->str) != layers)
++      throw std::runtime_error(path + ": glp.layer_ids_zero_based disagrees with the direction tensors; re-export the file");
++  }
++  out.alpha = 0.75f;
++  if (const detail::Value* a = g.find("glp.alpha_default")) {
++    if (a->kind != 6 || !std::isfinite((double)a->f)) throw std::runtime_error(path + ": glp.alpha_default is not a finite float");
++    out.alpha = (float)a->f;
++  }
++  return out;
++}
++
++// WEIGHTLESS_STEER_LAYERS: restrict the vector to the layers named ("1,2,3" or "1-39"). A layer the file
++// has no direction for is a refusal, not a silent skip.
++inline void restrict_layers(Glp& g, const std::string& text) {
++  const std::vector<int> keep = detail::parse_layer_list(text);
++  if (keep.empty()) throw std::runtime_error("WEIGHTLESS_STEER_LAYERS names no layer");
++  uint64_t mask = 0;
++  for (const int L : keep) {
++    if (L < 0 || L >= g.layers || !g.steered(L))
++      throw std::runtime_error("WEIGHTLESS_STEER_LAYERS names layer " + std::to_string(L) + ", which has no direction");
++    mask |= 1ull << L;
++  }
++  g.mask = mask;
++}
++
++// The kernel's arithmetic, on the host: h <- h - alpha * (h . d) d, fp32, one hc copy of `dim` floats.
++// alpha == 0 is exactly the identity (h - 0 * x == h in IEEE fp32, and bf16 -> fp32 -> bf16 is exact).
++inline void steer_row_ref(float* h, const float* d, float alpha, int dim) {
++  float s = 0.f;
++  for (int c = 0; c < dim; ++c) s = std::fma(h[c], d[c], s);
++  const float k = alpha * s;
++  for (int c = 0; c < dim; ++c) h[c] -= k * d[c];
++}
++
++// One line for the start-up log: what was loaded, or that nothing was.
++inline std::string describe(const Glp& g) {
++  if (!g.any()) return "none";
++  std::string s = std::to_string(__builtin_popcountll(g.mask)) + " directions, layers";
++  for (int L = 0; L < g.layers; ++L)
++    if (g.steered(L)) s += " " + std::to_string(L);
++  s += ", alpha " + std::to_string(g.alpha) + ", dim " + std::to_string(g.dim);
++  return s;
++}
++
++}  // namespace model::glp
+diff --git a/ds41f-4xgx10-switchless/engine/model/impl.h b/ds41f-4xgx10-switchless/engine/model/impl.h
+index 7a71dec..8068991 100644
+--- a/ds41f-4xgx10-switchless/engine/model/impl.h
++++ b/ds41f-4xgx10-switchless/engine/model/impl.h
+@@ -8,6 +8,7 @@
+ #include <map>
+ #include <memory>
+ #include <string>
++#include <tuple>
+ #include <utility>
+ #include <vector>
+ 
+@@ -18,6 +19,7 @@
+ #include "comm/collectives.h"
+ #include "common/check.h"
+ #include "kernels/dsk.h"
++#include "model/glp.h"
+ #include "model/model.h"
+ #include "model/ops.h"
+ 
+@@ -172,7 +174,7 @@ struct Model::Impl {
+ 
+   // captured steps: one graph per (rows, context bucket), captured on first use (up to kMaxRows rows: a row
+   // count never used costs nothing); a row count runs eagerly once first
+-  std::map<std::pair<int, int>, cudaGraphExec_t> graphs;
++  std::map<std::tuple<int, int, int>, cudaGraphExec_t> graphs;  // (rows, context, cur_steer)
+   bool warm[kMaxRows + 1] = {};
+   // side streams: the mHC mixes (sa); the window/compressed KV writes and the indexer's head weights (sb)
+   cudaStream_t sa = nullptr, sb = nullptr;
+@@ -234,6 +236,19 @@ struct Model::Impl {
+   std::unique_ptr<detail::Store> store_s;
+   std::unique_ptr<detail::Spec> spec;
+   bool mh_on = false;  // capturing a spec step: main_hidden at the inputs of layers 37-39
++  // GLP steering (model/glp.h, docs/glp.md): the vector as loaded, and layer L's direction on the device at
++  // glp_dev + L * kDim. cur_steer is the StepIn::steer of the command in flight (0/1; per row on the device),
++  // so it is part of a captured step's identity (graph()).
++  model::glp::Glp glp{};
++  const bf16* glp_dev = nullptr;
++  int cur_steer = 0;
++  bool steer_on(int L) const { return cur_steer != 0 && glp.steered(L); }
++  // The GLP flag of the commands after this one; returns the previous one.
++  int use_steer(int on) {
++    const int was = cur_steer;
++    cur_steer = on ? 1 : 0;
++    return was;
++  }
+   // stack4, the certified head (DSGB10_CERT=1; one-session spec steps whose rows are all greedy without top logprobs):
+   // a coarse read of every vocabulary row (the drafter's FP8 copy of the head) with a rigorous bound per row, one
+   // cross-rank threshold per step row, and the exact head kernel on the CTAs that the bound cannot exclude. The
+diff --git a/ds41f-4xgx10-switchless/engine/model/model.cu b/ds41f-4xgx10-switchless/engine/model/model.cu
+index 196ba99..ef0e50e 100644
+--- a/ds41f-4xgx10-switchless/engine/model/model.cu
++++ b/ds41f-4xgx10-switchless/engine/model/model.cu
+@@ -772,6 +772,7 @@ ops::StepIn& Model::Impl::next_in(uint64_t n, int R, int pos0, const int32_t* to
+     in.pos[r] = pos0 + R - 1 - d / pos_group * pos_stride - d % pos_group;
+     in.slot[r] = cur_unit;
+     in.sess[r] = 0;
++    in.steer[r] = cur_steer;
+   }
+   for (ops::StepSamp& s : in.samp) s = samp_of(sp);
+   in.rows = R;
+@@ -841,11 +842,15 @@ uint64_t Model::Impl::launch_batch(const Batch& b) {
+   const uint64_t n = n_steps;
+   if (n >= (uint64_t)ops::kInSlots) wait_done(n - ops::kInSlots);  // its StepIn slot has been read
+   ops::StepIn& in = in_h[n % ops::kInSlots];
++  int any_steer = 0;
+   for (int r = 0; r < kMaxRows; ++r) {  // the entries past R repeat the last row's
+     const int q = std::min(r, R - 1);
+     in.tokens[r] = r < R ? b.tokens[r] : 0;
+     in.pos[r] = b.pos[q], in.slot[r] = unit_of[b.slot[q]], in.sess[r] = b.sess[q];
++    in.steer[r] = r < R ? (b.steer[q] ? 1 : 0) : 0;
++    if (r < R && b.steer[r]) any_steer = 1;
+   }
++  cur_steer = any_steer;  // the step's launches (and its graph) depend on it
+   for (int k = 0; k < ops::kMaxSess; ++k) in.samp[k] = samp_of(b.sp[std::min(k, b.nsess - 1)]);
+   in.rows = R;
+   in.nsess = b.nsess;
+@@ -939,7 +944,8 @@ const ops::SampleOut& Model::Impl::wait(uint64_t n) {
+ }
+ 
+ cudaGraphExec_t Model::Impl::graph(int R, int ctx) {
+-  const auto key = std::make_pair(R, ctx);
++  // a steered step launches kernels a stock one does not: its graph is its own (docs/glp.md)
++  const auto key = std::make_tuple(R, ctx, cur_steer);
+   const auto it = graphs.find(key);
+   if (it != graphs.end()) return it->second;
+   cudaGraph_t g;
+@@ -1169,6 +1175,12 @@ void Model::Impl::forward_rows(int R, int ctx, uint32_t flags, Sink* sink, int p
+     if (fresh) attn::hc_pre(U(x), pm[L & 1], R, nullptr, U(yraw), nullptr, st);
+     attention(L, R, ctx, dumps, sub_in, sink, pos0);
+     ffn(L, R, dumps, sink, pos0);
++    // GLP steering (docs/glp.md): the fold is in x now. Steer the four copies, then let the next layer's
++    // collapse (and the head's) see the steered stream, with the mix the fold used.
++    if (steer_on(L)) {
++      ops::steer_rows(x, glp_dev + (size_t)L * kDim, glp.alpha, R, in_d->steer, st);
++      attn::hc_pre(U(x), pm[(L + 1) & 1], R, nullptr, U(yraw), nullptr, st);
++    }
+   }
+   if (sc) join(sc);
+   // final norm (fused into the vocab-split head; yraw is the final collapse) and the sampling
+@@ -1214,6 +1226,7 @@ void Model::bind(dsw::WeightFile& wf, comm::Ring& ring) { d_->bind(wf, ring); }
+ void Model::bind_ring2(comm::Ring& ring) { d_->ch2 = ring.dev(), d_->has_ch2 = true; }
+ size_t Model::code_head(int* raw_tiles) { return d_->code_head(raw_tiles); }
+ void Model::use_slot(int s) { d_->use_slot(s); }
++int Model::use_steer(int on) { return d_->use_steer(on); }
+ int Model::slot() const { return d_->cur_slot; }
+ int Model::slots() const { return d_->nslots; }
+ int Model::slot_ctx(int s) const { return d_->slot_ctx_[s]; }
+@@ -1221,6 +1234,26 @@ void Model::set_engram(const engram::HashMap* map, engram::Store* store) {
+   d_->emap = map;
+   d_->store = store;
+ }
++// GLP steering (model/glp.h): the table once, layer L's direction at glp_dev + L * kDim. A layer the file
++// does not steer gets a zero row, which the kernel would read only if the mask said to.
++void Model::set_glp(const glp::Glp& g) {
++  if (!d_->bound) die("model: glp before bind");
++  if (d_->glp.any()) die("model: glp set twice");
++  if (g.dim != kDim) die("model: a GLP vector of %d dimensions (this model's %d)", g.dim, kDim);
++  if (g.layers != kLayers) die("model: a GLP vector for %d layers (this model's %d)", g.layers, kLayers);
++  d_->glp = g;
++  d_->glp_dev = dalloc<bf16>((size_t)kLayers * kDim);
++  std::vector<bf16> all((size_t)kLayers * kDim, __float2bfloat16(0.f));
++  for (int L = 0; L < kLayers; ++L)
++    if (g.steered(L))
++      for (int i = 0; i < kDim; ++i) all[(size_t)L * kDim + i] = __float2bfloat16(g.at(L)[i]);
++  CUDA_CHECK(cudaMemcpy(d_->glp_dev, all.data(), all.size() * 2, cudaMemcpyHostToDevice));
++  int n = 0;
++  for (int L = 0; L < kLayers; ++L) n += g.steered(L) ? 1 : 0;
++  if (d_->rank == 0) std::printf("rank 0: glp: %d directions of %d layers, alpha %.3f, %.1f MB\n", n, kLayers, g.alpha,
++                                 all.size() * 2 / 1e6);
++}
++bool Model::glp_loaded() const { return d_->glp.any(); }
+ uint64_t Model::launch(int R, int pos0, const int32_t* tokens, const Sampling& sp, uint32_t flags, Sink* sink) {
+   return d_->launch(R, pos0, tokens, sp, flags, sink);
+ }
+diff --git a/ds41f-4xgx10-switchless/engine/model/model.h b/ds41f-4xgx10-switchless/engine/model/model.h
+index eaae501..5adaee9 100644
+--- a/ds41f-4xgx10-switchless/engine/model/model.h
++++ b/ds41f-4xgx10-switchless/engine/model/model.h
+@@ -11,6 +11,7 @@
+ 
+ #include "comm/ring.h"
+ #include "engram/engram.h"
++#include "model/glp.h"
+ #include "model/config.h"
+ #include "model/ops.h"
+ #include "weights/loader.h"
+@@ -39,6 +40,7 @@ struct Sink;
+ struct Batch {
+   int R = 0, nsess = 0;
+   int32_t tokens[kMaxRows] = {}, pos[kMaxRows] = {}, slot[kMaxRows] = {}, sess[kMaxRows] = {};
++  int32_t steer[kMaxRows] = {};  // 1: the row is steered with the GLP vector (a mixed batch is legal)
+   Sampling sp[ops::kMaxSess];
+   uint32_t flags = 0;
+   Sink* sink = nullptr;
+@@ -164,10 +166,16 @@ class Model {
+   size_t code_head(int* raw_tiles = nullptr);
+   // The Engram row store of this rank (owned by the caller).
+   void set_engram(const engram::HashMap* map, engram::Store* store);
++  // GLP steering (model/glp.h, docs/glp.md): the vector, uploaded once, layer L's direction at glp_dev +
++  // L * kDim. Never set: every request runs the stock stream.
++  void set_glp(const glp::Glp& g);
++  bool glp_loaded() const;
+   // Session slots (Options::slots). From now on the eager paths (prefill chunks, the state operations,
+   // snapshots) act on slot s, and the steps launched have their rows in slot s. Every rank must make the
+   // same calls. Slot 0 at the start.
+   void use_slot(int s);
++  // GLP (docs/glp.md): the commands after this one steer (Cmd::steer); returns the previous value.
++  int use_steer(int on);
+   int slot() const;
+   int slots() const;
+   int slot_ctx(int s) const;  // positions slot s holds (Options::big_slots)
+diff --git a/ds41f-4xgx10-switchless/engine/model/ops.cu b/ds41f-4xgx10-switchless/engine/model/ops.cu
+index 78f4693..c5f9498 100644
+--- a/ds41f-4xgx10-switchless/engine/model/ops.cu
++++ b/ds41f-4xgx10-switchless/engine/model/ops.cu
+@@ -255,6 +255,33 @@ void engram_combine(const bf16* x, const uint8_t* gath, int R, bf16* y, cudaStre
+   CUDA_CHECK(cudaGetLastError());
+ }
+ 
++// GLP steering (model/glp.h): one block per row, the four copies one after another, each a 5120 dot summed
++// by block_sum's fixed order and then h = bf16(h - alpha * (h . d) d). x_in may be x: every element is read
++// by the thread that writes it, after the dot has read it.
++__global__ void k_steer_rows(const bf16* x_in, const bf16* dir, float alpha, bf16* x, const int32_t* steer) {
++  __shared__ float red[32];
++  const int r = blockIdx.x;
++  if (steer && steer[r] == 0) return;
++  const size_t base = (size_t)r * kHcDim;
++  for (int c = 0; c < kHc; ++c) {
++    const size_t o = base + (size_t)c * kDim;
++    float dot = 0.f;
++    for (int i = threadIdx.x; i < kDim; i += blockDim.x)
++      dot = fmaf(__bfloat162float(x_in[o + i]), __bfloat162float(dir[i]), dot);
++    dot = block_sum(dot, red);
++    for (int i = threadIdx.x; i < kDim; i += blockDim.x) {
++      const float h = __bfloat162float(x_in[o + i]);
++      x[o + i] = __float2bfloat16(h - alpha * dot * __bfloat162float(dir[i]));
++    }
++  }
++}
++
++void steer_rows(bf16* x, const bf16* dir, float alpha, int R, const int32_t* steer, cudaStream_t s) {
++  if (R <= 0) return;
++  k_steer_rows<<<R, 256, 0, s>>>(x, dir, alpha, x, steer);
++  CUDA_CHECK(cudaGetLastError());
++}
++
+ void wait_seq(const uint64_t* flag, const uint64_t* seq, cudaStream_t s) {
+   k_wait_seq<<<1, 1, 0, s>>>(flag, seq);
+   CUDA_CHECK(cudaGetLastError());
+diff --git a/ds41f-4xgx10-switchless/engine/model/ops.h b/ds41f-4xgx10-switchless/engine/model/ops.h
+index 82246af..e15f12a 100644
+--- a/ds41f-4xgx10-switchless/engine/model/ops.h
++++ b/ds41f-4xgx10-switchless/engine/model/ops.h
+@@ -82,11 +82,19 @@ struct StepIn {
+   // wide64: the gate's step-cost model (ms) by the rows R a step runs: R <= kDecodeRows: wcost[0] + wcost[1] R; a
+   // wide bucket of Rb rows: wcost[2] + wcost[3] Rb (DSGB10_WIDE_COST; fit to serve's GPU ms by rows, 2026-11-05: 26, 2.1, 56, 1.6)
+   float wcost[4];
++  // GLP steering (model/glp.h, docs/glp.md): row r is steered (1) or not (0). The layer's direction is the
++  // host's, so a mixed batch is legal: the kernel returns at once for an unsteered row.
++  int32_t steer[kMaxRows];
+ };
+ static_assert(sizeof(StepIn) % 4 == 0, "StepIn is copied word by word");
+ // slot = *counter % kInSlots of ring -> dev, feedback tokens resolved from fb, ++*counter.
+ void step_in(const StepIn* ring, uint32_t* counter, const int32_t* fb, StepIn* dev, cudaStream_t s);
+ 
++// GLP steering (model/glp.h): every one of row r's four hc copies loses alpha * (h . d) d, d unit-norm and
++// the same for all four (the reference's, so the mean is projected too). steer == nullptr: every row of the
++// launch is steered (a prefill chunk, one request). fp32 dot and product, one bf16 rounding; in place.
++void steer_rows(bf16* x, const bf16* dir, float alpha, int R, const int32_t* steer, cudaStream_t s);
++
+ // ---- sampling (sample.cu) ----
+ constexpr int kTopLogprobs = 20;  // top logprobs per row, at most
+ constexpr int kCand = 64;         // candidates per rank and row for top-k / top-p / top logprobs
+diff --git a/ds41f-4xgx10-switchless/engine/model/prefill.cu b/ds41f-4xgx10-switchless/engine/model/prefill.cu
+index bbb9766..ae2fb0a 100644
+--- a/ds41f-4xgx10-switchless/engine/model/prefill.cu
++++ b/ds41f-4xgx10-switchless/engine/model/prefill.cu
+@@ -561,8 +561,17 @@ void Model::Impl::ffn_p(int L, int M) {
+   // the boundary: x and the next layer's attention input, unless Engram changes x first; after the last
+   // layer only the head's collapse
+   const int nL = L + 1 < kLayers && !(engram_layer(L + 1) && store) ? L + 1 : -1;
+-  boundary_p(n, p.sub, p.mid, p.f_post, p.f_comb, p.pm, L + 1 < kLayers ? p.x : nullptr, nL, 0, p.a_pre, p.a_post,
+-             p.a_comb);
++  // GLP steering (docs/glp.md): the fold is in p.x after the boundary. The last layer has no next stream, so
++  // it is materialised for this (its out would be null); steering it is what keeps the chunk's last token
++  // on the same stream the decode steps start from.
++  const bool steer = steer_on(L);
++  boundary_p(n, p.sub, p.mid, p.f_post, p.f_comb, p.pm, L + 1 < kLayers || steer ? p.x : nullptr, nL, 0, p.a_pre,
++             p.a_post, p.a_comb);
++  if (steer) {
++    ops::steer_rows(p.x, glp_dev + (size_t)L * kDim, glp.alpha, n, nullptr, st);
++    // the next layer's input and the head's collapse are the stream's: take them again, steered
++    boundary_p(n, nullptr, p.x, nullptr, nullptr, p.pm, nullptr, nL, 0, p.a_pre, p.a_post, p.a_comb);
++  }
+ }
+ 
+ // ---- CED -------------------------------------------------------------------------------------------
+diff --git a/ds41f-4xgx10-switchless/engine/model/spec.cu b/ds41f-4xgx10-switchless/engine/model/spec.cu
+index 4d2dbc0..44bb21e 100644
+--- a/ds41f-4xgx10-switchless/engine/model/spec.cu
++++ b/ds41f-4xgx10-switchless/engine/model/spec.cu
+@@ -1114,6 +1114,9 @@ void Model::Impl::spec_fill(ops::StepIn& in, int mode, const SpecCfg& c) {
+ }
+ 
+ uint64_t Model::Impl::launch_spec(int R, int pos0, const int32_t* tokens, const Sampling& sp, const SpecCfg& c) {
++  // GLP (docs/glp.md): the spec graphs are captured unsteered at startup, so a steered request
++  // decodes through the plain steps (serve.cpp) and never reaches here.
++  if (cur_steer) die("model: a speculative step of a steered request");
+   if (!spec) die("model: launch_spec without bind_spec");
+   const int pos_last = pos0 + R - 1;
+   if (R < 1 || R > kMaxSessRows || pos0 < 0 || pos_last >= slot_ctx_[cur_slot])  // the switch has kMaxSessRows bodies
+@@ -1144,6 +1147,9 @@ uint64_t Model::Impl::launch_spec(int R, int pos0, const int32_t* tokens, const
+ }
+ 
+ uint64_t Model::Impl::launch_verify(const Sampling& sp, const SpecCfg& c, int pos_bound) {
++  // GLP (docs/glp.md): the spec graphs are captured unsteered at startup, so a steered request
++  // decodes through the plain steps (serve.cpp) and never reaches here.
++  if (cur_steer) die("model: a speculative step of a steered request");
+   if (!spec) die("model: launch_verify without bind_spec");
+   if (pos_bound < 0) die("model: launch_verify(%d)", pos_bound);
+   const uint64_t n = n_steps;
+@@ -1219,6 +1225,9 @@ int Model::Impl::spec_batch_check(const SpecBatch& b, bool given) {
+ }
+ 
+ uint64_t Model::Impl::launch_spec_batch(const SpecBatch& b) {
++  // GLP (docs/glp.md): the spec graphs are captured unsteered at startup, so a steered request
++  // decodes through the plain steps (serve.cpp) and never reaches here.
++  if (cur_steer) die("model: a speculative step of a steered request");
+   spec_batch_check(b, true);
+   const uint64_t n = n_steps;
+   if (n >= (uint64_t)ops::kInSlots) wait_done(n - ops::kInSlots);
+@@ -1257,6 +1266,9 @@ uint64_t Model::Impl::launch_spec_batch(const SpecBatch& b) {
+ }
+ 
+ uint64_t Model::Impl::launch_verify_batch(const SpecBatch& b) {
++  // GLP (docs/glp.md): the spec graphs are captured unsteered at startup, so a steered request
++  // decodes through the plain steps (serve.cpp) and never reaches here.
++  if (cur_steer) die("model: a speculative step of a steered request");
+   spec_batch_check(b, false);
+   if (b.pos_bound < 0) die("model: launch_verify_batch(%d)", b.pos_bound);
+   const uint64_t n = n_steps;
+diff --git a/ds41f-4xgx10-switchless/engine/model/tests/glp_test.cu b/ds41f-4xgx10-switchless/engine/model/tests/glp_test.cu
+new file mode 100644
+index 0000000..efae9f6
+--- /dev/null
++++ b/ds41f-4xgx10-switchless/engine/model/tests/glp_test.cu
+@@ -0,0 +1,226 @@
++// Host-only checks for engine/model/glp.h (no CUDA, no GPU): the reader's refusals, the real file's
++// shape, and the projection's arithmetic — including that alpha = 0 is exactly the identity.
++//
++//   g++ -std=c++17 -O2 -I engine -x c++ engine/model/tests/glp_test.cu -o /tmp/glp_test
++//   /tmp/glp_test [path/to/vector.gguf]
++//
++// The CMake target glp_test builds the same file with nvcc on a GB10 host; nothing here needs a device.
++#include <cmath>
++#include <cstdint>
++#include <cstdio>
++#include <cstring>
++#include <string>
++#include <utility>
++#include <vector>
++
++#include "model/glp.h"
++
++namespace {
++
++int g_fail = 0, g_checks = 0;
++
++void check(bool ok, const std::string& what) {
++  ++g_checks;
++  if (!ok) {
++    ++g_fail;
++    std::printf("FAIL %s\n", what.c_str());
++  }
++}
++
++struct Buf {
++  std::vector<uint8_t> b;
++  template <class T>
++  void put(T v) {
++    const uint8_t* p = reinterpret_cast<const uint8_t*>(&v);
++    b.insert(b.end(), p, p + sizeof(T));
++  }
++  void str(const std::string& s) {
++    put<uint64_t>(s.size());
++    b.insert(b.end(), s.begin(), s.end());
++  }
++};
++
++void meta_str(Buf& f, const char* k, const std::string& v) {
++  f.str(k);
++  f.put<uint32_t>(8);
++  f.str(v);
++}
++void meta_int(Buf& f, const char* k, int64_t v) {
++  f.str(k);
++  f.put<uint32_t>(11);
++  f.put<int64_t>(v);
++}
++void meta_f32(Buf& f, const char* k, float v) {
++  f.str(k);
++  f.put<uint32_t>(6);
++  f.put<float>(v);
++}
++
++// A GGUF v3 file with one direction.<layer> per entry. Everything the reader checks is a parameter, so a
++// negative control is one argument away.
++std::vector<uint8_t> build(int n_dirs, int dim, const std::string& mode, int64_t spec, int64_t rank,
++                           const std::string& hook, const std::string& layer_list, float norm_scale,
++                           bool trailing, bool width_off) {
++  Buf f;
++  f.b.insert(f.b.end(), {'G', 'G', 'U', 'F'});
++  f.put<uint32_t>(3);
++  f.put<uint64_t>((uint64_t)n_dirs);
++  f.put<uint64_t>(7);
++  meta_str(f, "general.architecture", "controlvector");
++  meta_str(f, "glp.mode", mode);
++  meta_int(f, "glp.spec_version", spec);
++  meta_int(f, "glp.rank", rank);
++  meta_str(f, "glp.hook_point", hook);
++  meta_str(f, "glp.layer_ids_zero_based", layer_list);
++  meta_f32(f, "glp.alpha_default", 0.75f);
++  // A second pass would be needed for alignment, so fix the tensor offsets after the header is written:
++  // every tensor is dim floats, offsets are relative to the aligned data base.
++  std::vector<std::pair<std::string, uint64_t>> tensors;
++  for (int i = 0; i < n_dirs; ++i) {
++    const std::string name = "direction." + std::to_string(i + 1);
++    f.str(name);
++    f.put<uint32_t>(1);
++    f.put<uint64_t>((uint64_t)(width_off && i == 0 ? dim + 1 : dim));
++    f.put<uint32_t>(0);  // F32
++    f.put<uint64_t>((uint64_t)i * (uint64_t)dim * 4);
++    tensors.emplace_back(name, (uint64_t)i);
++  }
++  while (f.b.size() % 32) f.b.push_back(0);
++  for (int i = 0; i < n_dirs; ++i) {
++    std::vector<float> v((size_t)dim, 0.f);
++    // an orthonormal-ish direction: e_i on the first axis plus a small deterministic tail
++    for (int c = 0; c < dim; ++c) v[(size_t)c] = (c == i % dim ? 1.f : 0.f) + 0.001f * (float)((c * 7 + i) % 5);
++    double s = 0.0;
++    for (float x : v) s += (double)x * x;
++    const double n = std::sqrt(s);
++    for (float& x : v) x = (float)(x / n * norm_scale);
++    const uint8_t* p = reinterpret_cast<const uint8_t*>(v.data());
++    f.b.insert(f.b.end(), p, p + v.size() * 4);
++  }
++  if (trailing) f.b.insert(f.b.end(), 64, 0x5a);  // >= alignment of bytes past the last tensor
++  return f.b;
++}
++
++std::string write_tmp(const std::vector<uint8_t>& bytes, const char* tag) {
++  const std::string path = std::string("/tmp/glp_test_") + tag + ".gguf";
++  FILE* fp = std::fopen(path.c_str(), "wb");
++  if (!fp) return {};
++  std::fwrite(bytes.data(), 1, bytes.size(), fp);
++  std::fclose(fp);
++  return path;
++}
++
++bool refuses(const std::vector<uint8_t>& bytes, const char* tag, int num_layers, int dim, std::string* why = nullptr) {
++  const std::string path = write_tmp(bytes, tag);
++  if (path.empty()) return false;
++  try {
++    (void)model::glp::read(path, num_layers, dim);
++  } catch (const std::exception& e) {
++    if (why) *why = e.what();
++    std::remove(path.c_str());
++    return true;
++  }
++  std::remove(path.c_str());
++  return false;
++}
++
++// bf16 round-trip, as the kernel sees the stream (bf16 in, bf16 out).
++float bf16_round(float v) {
++  uint32_t bits;
++  std::memcpy(&bits, &v, 4);
++  const uint32_t round = 0x7fffu + ((bits >> 16) & 1u);
++  bits = (bits + round) & 0xffff0000u;
++  float out;
++  std::memcpy(&out, &bits, 4);
++  return out;
++}
++
++}  // namespace
++
++int main(int argc, char** argv) {
++  const int dim = 8, layers = 4;
++  const std::string list = "1,2,3";
++
++  // A good file reads.
++  {
++    const std::string path = write_tmp(build(3, dim, "project", 1, 1, "residual_stream_post_layer", list, 1.f, false, false), "good");
++    const model::glp::Glp g = model::glp::read(path, layers, dim);
++    check(g.layers == layers && g.dim == dim, "good: shape");
++    check(g.mask == 0b1110ull && g.steered(1) && g.steered(3) && !g.steered(0), "good: layers 1..3, not 0");
++    check(g.alpha == 0.75f, "good: alpha_default");
++    double n = 0.0;
++    for (int c = 0; c < dim; ++c) n += (double)g.at(1)[c] * (double)g.at(1)[c];
++    check(std::fabs(std::sqrt(n) - 1.0) < 1e-6, "good: direction is unit norm");
++    std::remove(path.c_str());
++  }
++
++  // The ten refusals the plan names.
++  {
++    std::vector<uint8_t> b = build(3, dim, "project", 1, 1, "residual_stream_post_layer", list, 1.f, false, false);
++    b.resize(b.size() - 12);  // truncated mid-tensor
++    check(refuses(b, "trunc", layers, dim), "refuse: truncated file");
++  }
++  check(refuses(build(3, dim, "project", 1, 1, "residual_stream_post_layer", "0,2,3", 1.f, false, false), "dir0", layers, dim),
++        "refuse: direction.0");
++  check(refuses(build(4, dim, "project", 1, 1, "residual_stream_post_layer", "1,2,3,4", 1.f, false, false), "dir40", layers, dim),
++        "refuse: layer >= num_layers");
++  check(refuses(build(3, dim, "project", 1, 1, "residual_stream_post_layer", list, 1.f, false, true), "width", layers, dim),
++        "refuse: width != hidden_size");
++  check(refuses(build(3, dim, "project", 1, 1, "residual_stream_post_layer", list, 1.01f, false, false), "norm", layers, dim),
++        "refuse: norm not 1");
++  check(refuses(build(3, dim, "add", 1, 1, "residual_stream_post_layer", list, 1.f, false, false), "mode", layers, dim),
++        "refuse: glp.mode is add");
++  check(refuses(build(3, dim, "project", 2, 1, "residual_stream_post_layer", list, 1.f, false, false), "spec", layers, dim),
++        "refuse: spec_version 2");
++  check(refuses(build(3, dim, "project", 1, 2, "residual_stream_post_layer", list, 1.f, false, false), "rank", layers, dim),
++        "refuse: rank 2");
++  check(refuses(build(3, dim, "project", 1, 1, "ffn_out_pre_residual", list, 1.f, false, false), "hook", layers, dim),
++        "refuse: another hook point");
++  check(refuses(build(3, dim, "project", 1, 1, "residual_stream_post_layer", "1,2", 1.f, false, false), "list", layers, dim),
++        "refuse: layer_ids_zero_based disagrees");
++  check(refuses(build(3, dim, "project", 1, 1, "residual_stream_post_layer", list, 1.f, true, false), "trail", layers, dim),
++        "refuse: bytes past the last tensor");
++
++  // The projection: alpha = 0 is exactly the identity on a bf16 stream; alpha > 0 removes (1 - alpha) of
++  // the component along d and leaves the rest.
++  {
++    const int n = 64;
++    std::vector<float> d((size_t)dim), h((size_t)dim), h0((size_t)dim);
++    double s = 0.0;
++    for (int c = 0; c < dim; ++c) d[(size_t)c] = 1.f + 0.1f * (float)c;
++    for (float& x : d) s += (double)x * x;
++    for (float& x : d) x = (float)(x / std::sqrt(s));
++    for (int r = 0; r < n; ++r) {
++      for (int c = 0; c < dim; ++c) h[(size_t)c] = h0[(size_t)c] = bf16_round(std::sin(0.37f * (float)(r * dim + c)) * 3.f);
++      model::glp::steer_row_ref(h.data(), d.data(), 0.f, dim);
++      check(std::memcmp(h.data(), h0.data(), sizeof(float) * (size_t)dim) == 0, "alpha 0: bit-exact identity");
++    }
++    for (int c = 0; c < dim; ++c) h[(size_t)c] = h0[(size_t)c] = bf16_round(std::cos(0.11f * (float)c) * 2.f);
++    float before = 0.f;
++    for (int c = 0; c < dim; ++c) before += h0[(size_t)c] * d[(size_t)c];
++    model::glp::steer_row_ref(h.data(), d.data(), 0.75f, dim);
++    float after = 0.f;
++    for (int c = 0; c < dim; ++c) after += h[(size_t)c] * d[(size_t)c];
++    check(std::fabs(after - 0.25f * before) < 1e-4f, "alpha 0.75: leaves 1-alpha of the projection");
++  }
++
++  // The real vector, when one is given: its published shape, and the identity gate on its own directions.
++  if (argc > 1) {
++    try {
++      const model::glp::Glp g = model::glp::read(argv[1], 40, 5120);
++      check(g.mask == 0xfffffffffeull, "real file: layers 1..39");
++      check(g.alpha == 0.75f, "real file: alpha 0.75");
++      check(g.dim == 5120 && g.layers == 40, "real file: 40 layers, hidden 5120");
++      std::vector<float> h((size_t)5120), h0((size_t)5120);
++      for (int c = 0; c < 5120; ++c) h[(size_t)c] = h0[(size_t)c] = bf16_round(std::sin(0.001f * (float)c) * 4.f);
++      model::glp::steer_row_ref(h.data(), g.at(20), 0.f, 5120);
++      check(std::memcmp(h.data(), h0.data(), sizeof(float) * 5120) == 0, "real file: alpha 0 identity on direction.20");
++      std::printf("real file: %s\n", model::glp::describe(g).c_str());
++    } catch (const std::exception& e) {
++      check(false, std::string("real file: ") + e.what());
++    }
++  }
++
++  std::printf("%d checks, %d failed\n", g_checks, g_fail);
++  return g_fail == 0 ? 0 : 1;
++}
+diff --git a/ds41f-4xgx10-switchless/engine/server/cmd.cpp b/ds41f-4xgx10-switchless/engine/server/cmd.cpp
+index 30b3e3b..f132fbb 100644
+--- a/ds41f-4xgx10-switchless/engine/server/cmd.cpp
++++ b/ds41f-4xgx10-switchless/engine/server/cmd.cpp
+@@ -74,6 +74,7 @@ void apply_state(model::Model& m, const StateOp& o) {
+ 
+ void apply_ops(model::Model& m, const Cmd& c) {
+   if (c.slot >= 0) m.use_slot(c.slot);
++  m.use_steer(c.steer);  // GLP: the commands after this one steer (docs/glp.md)
+   std::vector<int> pin;
+   for (int i = 0; i < c.n_ops; ++i) {
+     pin.push_back(c.ops[i].h);
+@@ -444,6 +445,7 @@ std::vector<BatchEnd> batch_loop(model::Model& m, const Cmd& c, const std::vecto
+       }
+       b.tokens[r] = j == 0 ? e[k].token : -1 - last_row[k];  // the step before holds its row
+       b.pos[r] = pos, b.slot[r] = e[k].slot, b.sess[r] = r, b.sp[r] = e[k].sp;
++      b.steer[r] = e[k].steer;
+       s.ent[r] = k;
+       last_row[k] = r;
+       ++launched[k];
+diff --git a/ds41f-4xgx10-switchless/engine/server/cmd.h b/ds41f-4xgx10-switchless/engine/server/cmd.h
+index a5c99c4..0c6cdab 100644
+--- a/ds41f-4xgx10-switchless/engine/server/cmd.h
++++ b/ds41f-4xgx10-switchless/engine/server/cmd.h
+@@ -77,6 +77,9 @@ struct Cmd {
+   // >= 0: the session slot (Model::use_slot) this command and the ones after it act on, from its state
+   // operations on; -1: the one before
+   int32_t slot = -1;
++  // GLP steering (docs/glp.md): 1: this command's rows are steered with the vector (a prefill chunk, a
++  // decode loop's steps); 0: the stock stream. Every rank must pass the same.
++  int32_t steer = 0;
+   // the store's handles of the sessions live in the slots (0: none): pinned like the command's own, so
+   // that no allocation evicts the stored part of a session whose working state a slot holds
+   int32_t live[model::kMaxSlots] = {};
+@@ -187,6 +190,7 @@ struct BatchEntry {
+   int32_t snap_every = 0;
+   int32_t n_stop = 0;
+   int32_t stop[kMaxStop] = {};
++  int32_t steer = 0;  // 1: the entry's rows are steered (docs/glp.md; a mixed batch is legal)
+   model::Sampling sp{};
+   double spec_tok = 1, spec_ms = 0;  // kCmdSpecBatch: the entry's drafts' rate (SpecRate) to start from
+ };
+diff --git a/ds41f-4xgx10-switchless/engine/server/main.cpp b/ds41f-4xgx10-switchless/engine/server/main.cpp
+index 53bc32a..82a25ec 100644
+--- a/ds41f-4xgx10-switchless/engine/server/main.cpp
++++ b/ds41f-4xgx10-switchless/engine/server/main.cpp
+@@ -642,6 +642,28 @@ int main(int argc, char** argv) {
+     std::printf("rank %d: the head coded in %.2f s: %.1f MB in place of %.1f (%d tiles raw)\n", a.rank, now_s() - t1,
+                 hb / 1e6, (double)model::kVocabPart * model::kDim * 2 / 1e6, raw);
+   }
++  // GLP steering (docs/glp.md): WEIGHTLESS_STEER_PATH names a GGUF vector, WEIGHTLESS_STEER_ALPHA overrides
++  // its alpha and WEIGHTLESS_STEER_LAYERS the steered layers ("1,2,3" or "1-39"). Every rank loads the same
++  // file; a file this runtime cannot apply exactly stops the boot, before any request can be served stock
++  // under a steered name. WEIGHTLESS_STEER_NAME is the name the front-end serves it under (the log's).
++  bool steer_ok = false;
++  std::string steer_name;
++  if (const char* gp = getenv("WEIGHTLESS_STEER_PATH"); gp && *gp) {
++    const double tg = now_s();
++    try {
++      model::glp::Glp g = model::glp::read(gp, model::kLayers, model::kDim);
++      if (const char* av = getenv("WEIGHTLESS_STEER_ALPHA"); av && *av) g.alpha = (float)std::atof(av);
++      if (!(g.alpha >= 0.f && g.alpha <= 1.f)) die("main: WEIGHTLESS_STEER_ALPHA %g, not 0..1", (double)g.alpha);
++      if (const char* lv = getenv("WEIGHTLESS_STEER_LAYERS"); lv && *lv) model::glp::restrict_layers(g, lv);
++      m.set_glp(g);
++      steer_ok = true;
++      if (const char* nv = getenv("WEIGHTLESS_STEER_NAME"); nv && *nv) steer_name = nv;
++      if (a.rank == 0) std::printf("rank 0: GLP steering: %s in %.1f ms\n", gp, 1e3 * (now_s() - tg));
++    } catch (const std::exception& e) {
++      std::fprintf(stderr, "main: GLP steering refused: %s\n", e.what());
++      std::exit(2);
++    }
++  }
+   // 4. Engram
+   std::unique_ptr<engram::HashMap> emap;
+   std::unique_ptr<engram::Store> store;
+@@ -773,6 +795,8 @@ int main(int argc, char** argv) {
+     std::copy(a.spec_cost, a.spec_cost + 3, so.spec_cost);
+     so.spec_gate = a.spec_gate;
+     so.profile_from_req = a.profile_from_req;
++    so.steer_ok = steer_ok, so.steer_name = steer_name;
++    if (const char* sv = getenv("WEIGHTLESS_STATS_INTERVAL"); sv && *sv) so.stats_every = std::atof(sv);
+     std::copy(a.spec_row_ms, a.spec_row_ms + model::ops::kDrafts + 1, so.spec_row_ms);
+     const int rc = serve(m, ring, wd, so);
+     mem_report(a.rank, "stopped");
+diff --git a/ds41f-4xgx10-switchless/engine/server/serve.cpp b/ds41f-4xgx10-switchless/engine/server/serve.cpp
+index 9dee628..e4bb180 100644
+--- a/ds41f-4xgx10-switchless/engine/server/serve.cpp
++++ b/ds41f-4xgx10-switchless/engine/server/serve.cpp
+@@ -373,6 +373,7 @@ struct Session {
+   int dec_lo = 0, end_dec_lo = 0;
+   std::vector<int> enc_snaps;
+   double t_used = 0;  // unix time of its last request (kept sessions age out by it)
++  bool steer = false;  // GLP: its KV was computed from the steered stream (docs/glp.md)
+ };
+ 
+ // The server's index of a planned stop's kept sessions (keep(); keepfile.h: 0600 in a 0700 directory,
+@@ -891,6 +892,7 @@ class Server {
+     else if (h.max_new_tokens < 1) err = "max_new_tokens 0";
+     else if (f.rq.stop.size() > (size_t)kMaxStop) err = "more than " + std::to_string(kMaxStop) + " stop ids";
+     else if (!(h.temperature >= 0.f) || !(h.top_p > 0.f && h.top_p <= 1.f)) err = "bad sampling parameters";
++    else if (h.steer && !o_.steer_ok) err = "this engine has no GLP vector (WEIGHTLESS_STEER_PATH): a steered request cannot be served";
+     for (const int32_t t : f.rq.prompt)
+       if (err.empty() && (t < 0 || t >= model::kVocab)) err = "token id out of range";
+     for (size_t i = 0, end = 0; err.empty() && i < f.rq.spans.size(); ++i) {  // vision: spans in order, all image ids
+@@ -951,6 +953,13 @@ class Server {
+     Session* src = S;
+     uint64_t src_id = h.session_id;
+     if (!S && h.base_session_id) src = find(h.base_session_id), src_id = h.base_session_id;
++    // GLP: a session's KV came from one stream or the other, so the other stream's session is no base
++    if (src && src->steer != (h.steer != 0)) {
++      std::printf("serve: req %llu: session %016llx is %s and the request asks for %s: a cold start\n",
++                  (unsigned long long)h.req_id, (unsigned long long)src_id, src->steer ? "steered" : "stock",
++                  h.steer ? "the steered stream" : "the stock one");
++      src = nullptr;
++    }
+     // the session's own slot. A fork takes its base's when no request of the base is in flight: the base's
+     // state goes to the store, and the fork goes on from it in place. A base in flight keeps its slot; its
+     // state goes to the store, and the fork starts from there in a slot of its own.
+@@ -1007,6 +1016,7 @@ class Server {
+       ns.h = next_h_++;
+       S = &sess_.emplace(h.session_id, std::move(ns)).first->second;
+     }
++    S->steer = h.steer != 0;
+     if (src) {
+       if (!src_live && q > 0) v.push_back({kStLoad, src->h, q, 0});
+       if (pl.how == kSnap) v.push_back({kStRestore, src->h, pl.snap, 0});
+@@ -1087,6 +1097,7 @@ class Server {
+       wd_.started = now_s();
+       bool img = false;  // vision: rows of an image span take the chunk path (the step path has no injection)
+       for (const fe::ImageSpan& sp : f.rq.spans) img = img || (int)(sp.start + sp.rows) > pos;
++      c.steer = h.steer ? 1 : 0;
+       if (R <= o_.small_rows && !ced && !img) {
+         c.op = kCmdRows;
+         std::copy(prompt.begin() + pos, prompt.begin() + pos + R, c.tokens);
+@@ -1230,7 +1241,44 @@ class Server {
+   // to its end, or until a new request that can have a slot pauses them all (prefill first), or, while
+   // requests wait for a slot, for a turn of o_.slice tokens. Then they wait again: the paused ones first, in
+   // their order, those whose turn is over last.
++  // ---- the stats line (WEIGHTLESS_STATS_INTERVAL, docs/glp.md) ---------------------------------
++  // Best-effort telemetry, one line per interval: what this rank served in it, by served name, and the
++  // slot occupancy now. A poisoned counter or a missing accessor never takes a request down.
++  double st_since_ = 0;
++  uint64_t st_reqs_[2] = {0, 0};  // [stock, steered]
++  uint64_t st_in_ = 0, st_out_ = 0, st_verified_ = 0, st_accepted_ = 0;
++  void stats_note(const Flight& f) {
++    if (!(o_.stats_every > 0)) return;
++    ++st_reqs_[f.rq.h.steer ? 1 : 0];
++    st_in_ += f.rq.h.n_prompt;
++    st_out_ += f.out.size();
++    st_verified_ += f.de.verified, st_accepted_ += f.de.accepted;
++  }
++  void stats_tick() {
++    if (!(o_.stats_every > 0)) return;
++    const double t = now_s();
++    if (st_since_ == 0) {
++      st_since_ = t;
++      return;
++    }
++    if (t - st_since_ < o_.stats_every) return;
++    size_t kv = 0;
++    for (const auto& it : sess_)
++      if (it.second.slot >= 0) kv += it.second.hist.size();
++    const double util = slot_.empty() ? 0.0 : double(kv) / (double(slot_.size()) * double(o_.max_ctx));
++    // kv_hit and engram_hit are the Engram store's (main.cpp's), which the server has no handle on: not here
++    std::printf("stats: t=%.0f rank=0 tok_out=%llu tok_in=%llu kv_util=%.3f draft_accept=%.3f queue=%zu "
++                "reqs_stock=%llu reqs_steered=%llu\n",
++                t - st_since_, (unsigned long long)st_out_, (unsigned long long)st_in_, util,
++                st_verified_ ? double(st_accepted_) / double(st_verified_) : 0.0, wait_.size(),
++                (unsigned long long)st_reqs_[0], (unsigned long long)st_reqs_[1]);
++    std::fflush(stdout);
++    st_since_ = t;
++    st_reqs_[0] = st_reqs_[1] = st_in_ = st_out_ = st_verified_ = st_accepted_ = 0;
++  }
++
+   void run() {
++    stats_tick();
+     std::vector<Flight> fl;
+     std::set<uint64_t> keep;
+     std::deque<Flight> later;  // big_slots: flights that need a big slot while every one is in this run
+@@ -1295,7 +1343,9 @@ class Server {
+     c.ahead = 1;
+     c.handle = S->h;
+     c.snap_every = o_.snap_every;
+-    c.spec = o_.spec;
++    // DSpark's graphs are captured unsteered (spec.cu, at startup), so a steered request decodes without drafts
++    c.spec = o_.spec && !h.steer;
++    c.steer = h.steer ? 1 : 0;
+     c.spec_drafts = o_.spec_drafts;
+     c.spec_thresh = o_.spec_thresh;
+     std::copy(o_.spec_cost, o_.spec_cost + 3, c.spec_cost);
+@@ -1347,7 +1397,10 @@ class Server {
+   // drafts the last one left pauses, to go on alone. Each one's end (fe::k*), or kPaused / kTurn, in why.
+   void decode_batch(std::vector<Flight>& fl, bool turns, std::vector<uint32_t>& why) {
+     const int n = (int)fl.size();
+-    const bool drafts = o_.spec && m_.spec() && n <= m_.spec_batch_rows() / 2 && n <= m_.spec_batch_entries();
++    // DSpark's graphs are captured unsteered (spec.cu, at startup): a batch with a steered request runs plain steps
++    const bool any_steer = std::any_of(fl.begin(), fl.end(), [](const Flight& f) { return f.rq.h.steer != 0; });
++    const bool drafts = o_.spec && m_.spec() && !any_steer && n <= m_.spec_batch_rows() / 2 &&
++                        n <= m_.spec_batch_entries();
+     std::vector<BatchEntry> e(n);
+     std::vector<Session*> S(n);
+     for (int k = 0; k < n; ++k) {
+@@ -1363,6 +1416,7 @@ class Server {
+       x.n_stop = (int)f.rq.stop.size();
+       std::copy(f.rq.stop.begin(), f.rq.stop.end(), x.stop);
+       x.sp = f.sp;
++      x.steer = f.rq.h.steer ? 1 : 0;
+       x.spec_tok = f.spec_tok, x.spec_ms = f.spec_ms;  // the drafts' rate goes on from the last run
+     }
+     Cmd c{};
+@@ -1531,6 +1585,7 @@ class Server {
+                 f.decoded / std::max(1e-9, t_dec),
+                 why == fe::kStop ? "stop" : why == fe::kLength ? "length" : why == fe::kCancelled ? "cancelled" : "context",
+                 m_.state_bytes() / 1048576.0, S ? (int)S->hist.size() : 0, si.bytes / 1048576.0, si.snaps.size(), sl);
++    stats_note(f);
+     const Turn& u = f.tu;
+     std::printf("serve: req %llu turn: state ops %.1f ms (GPU %.1f), %d chunks: layers 0-19 %.1f ms, replay %.1f ms, "
+                 "head %.1f ms, draft windows %.1f ms, rows %.1f ms; first token to decode %.1f ms, first decode step "
+@@ -1584,9 +1639,12 @@ int serve(model::Model& m, comm::Ring& ring, Watchdog& wd, const ServeOptions& o
+   const size_t budget = cap > room ? cap - room : 0;
+   hi.max_sessions = (uint32_t)std::max<size_t>(1, budget / (64ull << 20));
+   hi.name_len = (uint32_t)o.name.size();
++  hi.caps = o.steer_ok ? fe::kCapSteer : 0;  // GLP: the front-end serves the steered name only if this is set
+   Io io(o.socket, Frame(fe::kHelloEngine).add(&hi).add(o.name.data(), o.name.size()).take());
+-  std::printf("serve: listening on %s (context %d, session store %.2f GiB, kept between requests %.2f GiB)\n",
+-              o.socket.c_str(), o.max_ctx, m.state_capacity() / 1073741824.0, budget / 1073741824.0);
++  const std::string gs =
++      o.steer_ok ? ", GLP steering" + (o.steer_name.empty() ? std::string() : ": " + o.steer_name) : std::string();
++  std::printf("serve: listening on %s (context %d, session store %.2f GiB, kept between requests %.2f GiB%s)\n",
++              o.socket.c_str(), o.max_ctx, m.state_capacity() / 1073741824.0, budget / 1073741824.0, gs.c_str());
+   Server s(m, ring, wd, o, io, budget);
+   s.load_kept();
+   s.loop();
+diff --git a/ds41f-4xgx10-switchless/engine/server/serve.h b/ds41f-4xgx10-switchless/engine/server/serve.h
+index 3210f5a..269d238 100644
+--- a/ds41f-4xgx10-switchless/engine/server/serve.h
++++ b/ds41f-4xgx10-switchless/engine/server/serve.h
+@@ -44,6 +44,12 @@ struct ServeOptions {
+   // --profile-from-req N: request N's first command opens nsys's capture range on every rank
+   // (model::kFlagProfile; nsys --capture-range=cudaProfilerApi), until the server stops. 0: never.
+   uint64_t profile_from_req = 0;
++  // GLP steering (docs/glp.md): the vector is loaded (main.cpp WEIGHTLESS_STEER_PATH), so a submit with
++  // SubmitHeader::steer may be served; and the second served name, echoed in HelloEngine (the front-end's).
++  bool steer_ok = false;
++  std::string steer_name;
++  // The `stats:` line's period in seconds (WEIGHTLESS_STATS_INTERVAL); 0: none.
++  double stats_every = 60;
+ };
+ 
+ // Serves until SIGINT / SIGTERM, then stops the other ranks (kCmdStop). Rank 0 only.
+diff --git a/ds41f-4xgx10-switchless/frontend/src/gate.rs b/ds41f-4xgx10-switchless/frontend/src/gate.rs
+index f72972a..edde4ea 100644
+--- a/ds41f-4xgx10-switchless/frontend/src/gate.rs
++++ b/ds41f-4xgx10-switchless/frontend/src/gate.rs
+@@ -85,6 +85,11 @@ impl Gate {
+         })
+     }
+ 
++    /// Requests waiting at the gate now (the queue depth of a `stats:` line).
++    pub fn waiting(&self) -> u32 {
++        self.st.lock().map(|s| s.waiting).unwrap_or(0)
++    }
++
+     pub fn hold_limit(&self) -> Duration {
+         self.hold
+     }
+diff --git a/ds41f-4xgx10-switchless/frontend/src/main.rs b/ds41f-4xgx10-switchless/frontend/src/main.rs
+index 02d331c..f6b982e 100644
+--- a/ds41f-4xgx10-switchless/frontend/src/main.rs
++++ b/ds41f-4xgx10-switchless/frontend/src/main.rs
+@@ -125,6 +125,8 @@ fn serve(args: &[String]) {
+     }
+     let cfg = ServerConfig {
+         model_name: opt(args, "--model-name").unwrap_or_else(|| "deepseek-v4.1-flash-uncensored".into()),
++        steer_model_name: opt(args, "--steer-model-name"),
++        stats_interval: std::time::Duration::from_secs(parse_opt(args, "--stats-interval-s", 60u64)),
+         api_key,
+         max_tokens_cap: parse_opt(args, "--max-tokens", 32768u32),
+         default_effort: parse_opt(args, "--effort", 75i64).clamp(1, 100),
+@@ -251,6 +253,7 @@ fn mock_engine(args: &[String]) {
+         delay: std::time::Duration::from_millis(parse_opt(args, "--delay-ms", 5u64)),
+         prefill_tok_per_s: parse_opt(args, "--prefill-tps", 20000f64),
+         max_context: parse_opt(args, "--max-context", 1048576u32),
++        steer: args.iter().any(|a| a == "--steer"),
+     };
+     if let Err(e) = runtime().block_on(dsfront::mock::run(cfg)) {
+         eprintln!("mock engine: {e}");
+diff --git a/ds41f-4xgx10-switchless/frontend/src/mock.rs b/ds41f-4xgx10-switchless/frontend/src/mock.rs
+index a140e3d..9c9bd2c 100644
+--- a/ds41f-4xgx10-switchless/frontend/src/mock.rs
++++ b/ds41f-4xgx10-switchless/frontend/src/mock.rs
+@@ -28,6 +28,8 @@ pub struct MockConfig {
+     /// simulated prefill speed for uncached prompt tokens
+     pub prefill_tok_per_s: f64,
+     pub max_context: u32,
++    /// advertise HelloEngine::caps bit 0 (a GLP vector is loaded) for the front-end's steered path
++    pub steer: bool,
+ }
+ 
+ type Sessions = Arc<Mutex<HashMap<u64, Vec<u32>>>>;
+@@ -65,6 +67,7 @@ async fn connection(stream: UnixStream, cfg: MockConfig, sessions: Sessions) {
+         eos_id: 1,
+         max_sessions: 64,
+         name: "mock".into(),
++        caps: if cfg.steer { crate::protocol::CAP_STEER } else { 0 },
+     };
+     let _ = tx.send(Frame::HelloEngine(hello).encode());
+     let cancels: Arc<Mutex<HashMap<u64, Arc<AtomicBool>>>> = Arc::new(Mutex::new(HashMap::new()));
+diff --git a/ds41f-4xgx10-switchless/frontend/src/protocol.rs b/ds41f-4xgx10-switchless/frontend/src/protocol.rs
+index 83971af..70c32e7 100644
+--- a/ds41f-4xgx10-switchless/frontend/src/protocol.rs
++++ b/ds41f-4xgx10-switchless/frontend/src/protocol.rs
+@@ -4,7 +4,7 @@
+ 
+ use tokio::io::{AsyncRead, AsyncReadExt};
+ 
+-pub const VERSION: u32 = 1;
++pub const VERSION: u32 = 2;
+ pub const DEFAULT_SOCKET: &str = "/tmp/dsgb10-engine.sock";
+ /// Up to 100 image spans, plus room for a 1M-token prompt and framing.
+ pub const MAX_FRAME: usize = crate::vision::MAX_IMAGES * crate::vision::MAX_IMAGE_ROWS * crate::vision::IMAGE_DIM * 2 + (8 << 20);
+@@ -61,6 +61,8 @@ pub struct Submit {
+     pub top_k: u32,
+     pub max_new_tokens: u32,
+     pub flags: u32,
++    /// GLP steering: 1 asks for the steered served name's projection, 0 for the stock path
++    pub steer: u32,
+     pub n_top_logprobs: u32,
+     pub prefix_hint: u32,
+     pub stop_ids: Vec<u32>,
+@@ -101,8 +103,13 @@ pub struct HelloEngine {
+     pub eos_id: u32,
+     pub max_sessions: u32,
+     pub name: String,
++    /// EngineCaps: bit 0 (`CAP_STEER`) = a GLP vector is loaded and `Submit::steer` may be 1
++    pub caps: u32,
+ }
+ 
++/// `HelloEngine::caps` bit 0: the engine can steer a request.
++pub const CAP_STEER: u32 = 1;
++
+ #[derive(Clone, Debug, PartialEq)]
+ pub struct Tokens {
+     pub req_id: u64,
+@@ -190,7 +197,7 @@ impl Frame {
+                 w.u64(s.req_id).u64(s.session_id).u64(s.base_session_id).u64(s.seed);
+                 w.f32(s.temperature).f32(s.top_p).u32(s.top_k).u32(s.max_new_tokens);
+                 w.u32(s.flags).u32(s.n_top_logprobs).u32(s.prefix_hint);
+-                w.u32(s.stop_ids.len() as u32).u32(s.prompt.len() as u32).u32(0);
++                w.u32(s.stop_ids.len() as u32).u32(s.prompt.len() as u32).u32(s.steer);
+                 w.u32s(&s.stop_ids).u32s(&s.prompt);
+                 if let Some(img) = &s.images {
+                     w.0.extend_from_slice(img);
+@@ -210,7 +217,7 @@ impl Frame {
+             Frame::HelloEngine(h) => {
+                 let mut w = W::new(T_HELLO_ENGINE);
+                 w.u32(h.version).u32(h.max_context).u32(h.vocab_size).u32(h.eos_id).u32(h.max_sessions);
+-                w.u32(h.name.len() as u32);
++                w.u32(h.name.len() as u32).u32(h.caps);
+                 w.0.extend_from_slice(h.name.as_bytes());
+                 w.finish()
+             }
+@@ -264,7 +271,7 @@ impl Frame {
+                 let prefix_hint = r.u32()?;
+                 let n_stop = r.u32()? as usize;
+                 let n_prompt = r.u32()? as usize;
+-                r.u32()?;
++                let steer = r.u32()?;
+                 let stop_ids = r.u32s(n_stop)?;
+                 let prompt = r.u32s(n_prompt)?;
+                 // vision: the image part, taken only when it is laid out as rank 0 requires it
+@@ -300,6 +307,7 @@ impl Frame {
+                     top_k,
+                     max_new_tokens,
+                     flags,
++                    steer,
+                     n_top_logprobs,
+                     prefix_hint,
+                     stop_ids,
+@@ -316,8 +324,9 @@ impl Frame {
+                 let eos_id = r.u32()?;
+                 let max_sessions = r.u32()?;
+                 let n = r.u32()? as usize;
++                let caps = r.u32()?;
+                 let name = String::from_utf8_lossy(r.bytes(n)?).into_owned();
+-                Frame::HelloEngine(HelloEngine { version, max_context, vocab_size, eos_id, max_sessions, name })
++                Frame::HelloEngine(HelloEngine { version, max_context, vocab_size, eos_id, max_sessions, name, caps })
+             }
+             T_TOKENS => {
+                 let req_id = r.u64()?;
+@@ -419,6 +428,7 @@ mod tests {
+             top_p: 1.0,
+             top_k: 0,
+             max_new_tokens: 8,
++            steer: 0,
+             flags: FLAG_IMAGES,
+             n_top_logprobs: 0,
+             prefix_hint: 0,
+@@ -454,6 +464,7 @@ mod tests {
+             top_p: 1.0,
+             top_k: 0,
+             max_new_tokens: 8,
++            steer: 0,
+             flags: FLAG_IMAGES,
+             n_top_logprobs: 0,
+             prefix_hint: 0,
+@@ -484,6 +495,12 @@ mod tests {
+         assert!(off.image_spans().is_err());
+     }
+ 
++    #[test]
++    fn hello_engine_carries_caps() {
++        let h = HelloEngine { version: VERSION, max_context: 1 << 20, vocab_size: 100, eos_id: 1, max_sessions: 64, name: "engine".into(), caps: CAP_STEER };
++        assert_eq!(Frame::decode(T_HELLO_ENGINE, &Frame::HelloEngine(h.clone()).encode()[8..], |_| 0).unwrap(), Frame::HelloEngine(h));
++    }
++
+     #[test]
+     fn roundtrip_and_layout() {
+         let s = Submit {
+@@ -491,6 +508,7 @@ mod tests {
+             session_id: 9,
+             base_session_id: 3,
+             seed: 42,
++            steer: 1,
+             temperature: 0.5,
+             top_p: 0.95,
+             top_k: 20,
+@@ -505,6 +523,10 @@ mod tests {
+         let b = Frame::Submit(s.clone()).encode();
+         assert_eq!(b.len(), 8 + 72 + 4 + 12); // header, SubmitHeader, stop id, prompt
+         assert_eq!(u32::from_le_bytes(b[8 + 64..8 + 68].try_into().unwrap()), 3); // n_prompt at offset 64
++        // steer rides the old reserved word: offset 60, the last word of the SubmitHeader
++        assert_eq!(u32::from_le_bytes(b[8 + 60..8 + 64].try_into().unwrap()), 1);
++        let stock = Submit { steer: 0, ..s.clone() };
++        assert_eq!(Frame::decode(T_SUBMIT, &Frame::Submit(stock.clone()).encode()[8..], |_| 0).unwrap(), Frame::Submit(stock));
+         // vision: the image part follows the prompt, and a reader (the mock engine) takes it back whole
+         let mut part = Vec::new();
+         part.extend_from_slice(&1u32.to_le_bytes()); // n images
+diff --git a/ds41f-4xgx10-switchless/frontend/src/server.rs b/ds41f-4xgx10-switchless/frontend/src/server.rs
+index da9fe68..fa99f95 100644
+--- a/ds41f-4xgx10-switchless/frontend/src/server.rs
++++ b/ds41f-4xgx10-switchless/frontend/src/server.rs
+@@ -30,6 +30,9 @@ use tokio::sync::mpsc;
+ #[derive(Clone, Debug)]
+ pub struct ServerConfig {
+     pub model_name: String,
++    /// The GLP-steered served name (--steer-model-name): requests naming it are projected with the
++    /// engine's vector, and its sessions never share KV with the stock name's. None: one name only.
++    pub steer_model_name: Option<String>,
+     pub api_key: Option<String>,
+     /// Default and cap for max_tokens (the kit's DSV41_MAX_NEW_TOKENS).
+     pub max_tokens_cap: u32,
+@@ -62,6 +65,8 @@ pub struct ServerConfig {
+     /// when its name has parsed, then its arguments as they arrive. Off: each call in one chunk, once
+     /// it is complete (a call that fails to parse is then never seen as one; StreamParser).
+     pub stream_tool_args: bool,
++    /// The `stats:` line's period in seconds (WEIGHTLESS_STATS_INTERVAL, --stats-interval-s); 0: none.
++    pub stats_interval: Duration,
+ }
+ 
+ /// The default body limit: 64 MiB, which holds a 1M-token prompt several times over. Image and video
+@@ -78,6 +83,41 @@ pub struct App {
+     sessions: Mutex<SessionTable>,
+     think_end_id: Option<u32>,
+     counter: AtomicU64,
++    stats: Mutex<Stats>,
++}
++
++/// The `stats:` line's counters, one interval at a time. Everything here is best-effort telemetry:
++/// a lock poisoned by a panic elsewhere must never take a request down, so every use is fail-open.
++struct Stats {
++    every: Duration,
++    since: Instant,
++    reqs: [u64; 2], // [stock, steered]
++    queue: u64,     // sum of the gate's waiting counts sampled per request, and how many
++    samples: u64,
++}
++
++impl Stats {
++    fn note(&mut self, steer: bool, waiting: u32) {
++        if self.every.is_zero() {
++            return;
++        }
++        self.reqs[usize::from(steer)] += 1;
++        self.queue += u64::from(waiting);
++        self.samples += 1;
++    }
++
++    fn maybe_emit(&mut self) {
++        if self.every.is_zero() || self.since.elapsed() < self.every {
++            return;
++        }
++        let window = self.since.elapsed().as_secs_f64();
++        let queue = if self.samples == 0 { 0.0 } else { self.queue as f64 / self.samples as f64 };
++        eprintln!("stats: t={window:.0} front queue={queue:.1} reqs_stock={} reqs_steered={}", self.reqs[0], self.reqs[1]);
++        self.since = Instant::now();
++        self.reqs = [0, 0];
++        self.queue = 0;
++        self.samples = 0;
++    }
+ }
+ 
+ impl App {
+@@ -85,7 +125,8 @@ impl App {
+         let think_end_id = tok.token_id("</think>");
+         let gate = Gate::new(cfg.hold);
+         let image_rows = crate::vision::RowsInFlight::new(cfg.max_image_rows_in_flight);
+-        Arc::new(App { cfg, tok, engine, gate, image_rows, sessions: Mutex::new(SessionTable::new(256, 16 << 20)), think_end_id, counter: AtomicU64::new(0) })
++        let stats = Mutex::new(Stats { every: cfg.stats_interval, since: Instant::now(), reqs: [0; 2], queue: 0, samples: 0 });
++        Arc::new(App { cfg, tok, engine, gate, image_rows, sessions: Mutex::new(SessionTable::new(256, 16 << 20)), think_end_id, counter: AtomicU64::new(0), stats })
+     }
+ 
+     /// The session table an earlier run saved (session.rs `load`), for the next turns of its
+@@ -249,9 +290,13 @@ async fn models(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
+         return r;
+     }
+     let max_len = app.engine.info().map(|i| i.max_context);
+-    let body = json!({"object": "list", "data": [{
+-        "id": app.cfg.model_name, "object": "model", "created": 0, "owned_by": "dsgb10",
+-        "root": app.cfg.model_name, "max_model_len": max_len}]});
++    let mut data = vec![json!({"id": app.cfg.model_name, "object": "model", "created": 0,
++                               "owned_by": "dsgb10", "root": app.cfg.model_name, "max_model_len": max_len})];
++    if let Some(steered) = &app.cfg.steer_model_name {
++        data.push(json!({"id": steered, "object": "model", "created": 0, "owned_by": "dsgb10",
++                         "root": app.cfg.model_name, "max_model_len": max_len}));
++    }
++    let body = json!({"object": "list", "data": data});
+     (StatusCode::OK, [("content-type", "application/json")], body.to_string()).into_response()
+ }
+ 
+@@ -260,6 +305,8 @@ async fn models(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
+ /// What the request asks for, with the prompt rendered.
+ pub struct Prepared {
+     pub prompt: String,
++    /// 1: the request named the steered served name (SubmitHeader::steer); 0: the stock path
++    pub steer: u32,
+     pub mode: ThinkingMode,
+     pub tools: bool,
+     pub stream: bool,
+@@ -454,6 +501,18 @@ fn convert_messages(msgs: &[Value], vision: bool) -> Result<Vec<Value>, String>
+ 
+ pub fn prepare(cfg: &ServerConfig, req: &Value) -> Result<Prepared, String> {
+     let r = req.as_object().ok_or("the request body must be a JSON object")?;
++    // The served name selects the residual stream. One name means the field is ignored, as it always
++    // was; two names means it is read, and anything that is neither is refused rather than answered
++    // stock under a name the caller did not ask for.
++    let steer = match &cfg.steer_model_name {
++        None => 0,
++        Some(steered) => match r.get("model").and_then(Value::as_str) {
++            Some(m) if m == cfg.model_name => 0,
++            Some(m) if m == steered => 1,
++            Some(m) => return Err(format!("unknown model {m:?}: this server serves {:?} and {steered:?}", cfg.model_name)),
++            None => 0,
++        },
++    };
+     let msgs = r.get("messages").and_then(Value::as_array).ok_or("messages must be a list")?;
+     if msgs.is_empty() {
+         return Err("messages must not be empty".into());
+@@ -558,6 +617,7 @@ pub fn prepare(cfg: &ServerConfig, req: &Value) -> Result<Prepared, String> {
+     let include_usage = truthy(r.get("stream_options").and_then(|s| s.get("include_usage")));
+     Ok(Prepared {
+         prompt,
++        steer,
+         mode,
+         tools: !tools.is_empty(),
+         stream,
+@@ -789,9 +849,10 @@ async fn start(app: &Arc<App>, p: &Prepared, pass: Pass) -> Result<Gen, ApiError
+     let (plan, released) = {
+         let app2 = app.clone();
+         let text = p.prompt.clone();
++        let steer = p.steer != 0;
+         tokio::task::spawn_blocking(move || {
+             let mut t = app2.sessions.lock().unwrap();
+-            t.plan(&text, &app2.tok, app2.cfg.tokenize_threads)
++            t.plan(&text, steer, &app2.tok, app2.cfg.tokenize_threads)
+         })
+         .await
+         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, "server_error".into(), e.to_string()))?
+@@ -823,6 +884,7 @@ async fn start(app: &Arc<App>, p: &Prepared, pass: Pass) -> Result<Gen, ApiError
+         top_k: p.top_k,
+         max_new_tokens: max_new,
+         flags: FLAG_KEEP | if p.seed.is_some() { FLAG_SEED } else { 0 },
++        steer: p.steer,
+         n_top_logprobs: 0,
+         prefix_hint: plan.reused as u32,
+         stop_ids: stop_ids.clone(),
+@@ -906,6 +968,7 @@ async fn start_images(app: &Arc<App>, p: &Prepared, pass: Pass, info: crate::pro
+         top_k: p.top_k,
+         max_new_tokens: max_new,
+         flags: crate::protocol::FLAG_IMAGES | if p.seed.is_some() { FLAG_SEED } else { 0 },
++        steer: p.steer,
+         n_top_logprobs: 0,
+         prefix_hint: 0,
+         stop_ids: stop_ids.clone(),
+@@ -961,6 +1024,19 @@ async fn chat(State(app): State<Arc<App>>, headers: HeaderMap, body: Bytes) -> R
+     if let Err(refusal) = hold_image_rows(&app.cfg, &app.image_rows, &mut p) {
+         return refusal;
+     }
++    // The steered name is only served when the engine has a vector loaded (HelloEngine::caps): the
++    // alternative is answering it stock, which is the same prompt answered by a different model.
++    if p.steer != 0 {
++        if let Some(info) = app.engine.info() {
++            if info.caps & crate::protocol::CAP_STEER == 0 {
++                return error(StatusCode::SERVICE_UNAVAILABLE, "server_error", "the engine cannot steer: no GLP vector is loaded");
++            }
++        }
++    }
++    if let Ok(mut s) = app.stats.lock() {
++        s.note(p.steer != 0, app.gate.waiting());
++        s.maybe_emit();
++    }
+     // The parsed request is only read again by --dump-dir's record.
+     let req = if app.cfg.dump_dir.is_some() { req } else { Value::Null };
+     // While the engine is down (the ring lent to a job, or a restart) a request waits at the gate. A
+@@ -1126,6 +1202,8 @@ pub(crate) mod tests {
+     pub(crate) fn cfg() -> ServerConfig {
+         ServerConfig {
+             model_name: "m".into(),
++            steer_model_name: None,
++            stats_interval: Duration::ZERO,
+             api_key: None,
+             max_tokens_cap: 32768,
+             default_effort: 75,
+@@ -1145,6 +1223,22 @@ pub(crate) mod tests {
+         }
+     }
+ 
++    /// The served name picks the residual stream: the steered name asks for the projection, the stock
++    /// name does not, and a name this server does not serve is refused rather than answered stock.
++    #[test]
++    fn the_served_name_selects_the_stream() {
++        let mut two = cfg();
++        two.steer_model_name = Some("s".into());
++        let with = |model: Value| prepare(&two, &json!({"model": model, "messages": [{"role": "user", "content": "hi"}]}));
++        assert_eq!(with(json!("m")).unwrap().steer, 0);
++        assert_eq!(with(json!("s")).unwrap().steer, 1);
++        assert_eq!(with(Value::Null).unwrap().steer, 0, "no model field: the stock name, as before");
++        let e = with(json!("nope")).err().unwrap();
++        assert!(e.contains("unknown model \"nope\""), "{e}");
++        // one name only (the default): the field is ignored, as it always was
++        assert_eq!(prepare(&cfg(), &json!({"model": "anything", "messages": [{"role": "user", "content": "hi"}]})).unwrap().steer, 0);
++    }
++
+     #[test]
+     fn efforts() {
+         for &(name, budget) in EFFORT_LEVELS {
+diff --git a/ds41f-4xgx10-switchless/frontend/src/session.rs b/ds41f-4xgx10-switchless/frontend/src/session.rs
+index 7544caa..7e52820 100644
+--- a/ds41f-4xgx10-switchless/frontend/src/session.rs
++++ b/ds41f-4xgx10-switchless/frontend/src/session.rs
+@@ -24,6 +24,9 @@ const PROMPT_SLACK: usize = 16;
+ 
+ struct Session {
+     text: String,
++    /// the GLP-steered served name's requests never continue a stock session's KV, or the other way
++    /// round: the state was computed from a different residual stream
++    steer: bool,
+     ids: Vec<u32>,
+     /// ends[i] = byte length of the text of ids[..=i]
+     ends: Vec<usize>,
+@@ -89,7 +92,7 @@ fn unix_now() -> u64 {
+     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+ }
+ 
+-const TABLE_MAGIC: &[u8; 8] = b"DSFT0001";
++const TABLE_MAGIC: &[u8; 8] = b"DSFT0002";
+ 
+ fn fnv(b: &[u8]) -> u64 {
+     b.iter().fold(1469598103934665603u64, |h, &x| (h ^ x as u64).wrapping_mul(1099511628211))
+@@ -158,6 +161,7 @@ impl SessionTable {
+             for &x in &s.ids {
+                 body.extend(x.to_le_bytes());
+             }
++            body.push(u8::from(s.steer));
+         }
+         let mut f = TABLE_MAGIC.to_vec();
+         for v in [now, self.next_id, self.clock, n, body.len() as u64, fnv(&body)] {
+@@ -229,6 +233,7 @@ impl SessionTable {
+             let n_ids = r.u64()? as usize;
+             let raw = r.take(n_ids.checked_mul(4).ok_or("a bad count")?)?;
+             let ids: Vec<u32> = raw.chunks_exact(4).map(|c| u32::from_le_bytes(c.try_into().unwrap())).collect();
++            let steer = r.take(1)?[0] != 0;
+             let Ok(text) = std::str::from_utf8(text) else { continue };
+             let vocab = tok.vocab_size() as u32;
+             if id == 0 || now.saturating_sub(t_used) > max_age_s || prompt_len > text.len() || ids.iter().any(|&x| x >= vocab) {
+@@ -243,7 +248,7 @@ impl SessionTable {
+             if at != text.len() || tok.decode_bytes(&ids) != text.as_bytes() {
+                 continue; // another tokenizer's ids
+             }
+-            got.insert(id, Session { text: text.to_string(), ids, ends, prompt_len, busy: false, last_used, t_used });
++            got.insert(id, Session { text: text.to_string(), steer, ids, ends, prompt_len, busy: false, last_used, t_used });
+         }
+         if r.at != body.len() {
+             return Err("a bad body".into());
+@@ -264,10 +269,13 @@ impl SessionTable {
+ 
+     /// Choose the session and the token ids for a prompt. The chosen session is busy until
+     /// `finish` or `abandon`. Returns the plan and the sessions to RELEASE on the engine.
+-    pub fn plan(&mut self, text: &str, tok: &Tokenizer, threads: usize) -> (Plan, Vec<u64>) {
++    pub fn plan(&mut self, text: &str, steer: bool, tok: &Tokenizer, threads: usize) -> (Plan, Vec<u64>) {
+         self.clock += 1;
+         let mut top: Option<(u64, usize)> = None;
+         for (&id, s) in &self.sessions {
++            if s.steer != steer {
++                continue;  // another residual stream: its KV cannot serve this request
++            }
+             let n = common_prefix(text.as_bytes(), s.text.as_bytes());
+             if n > 0 && top.map_or(true, |(_, bn)| n > bn) {
+                 top = Some((id, n));
+@@ -316,6 +324,7 @@ impl SessionTable {
+         let clock = self.clock;
+         let s = self.sessions.entry(plan.session_id).or_insert_with(|| Session {
+             text: String::new(),
++            steer,
+             ids: Vec::new(),
+             ends: Vec::new(),
+             prompt_len: 0,
+@@ -397,14 +406,14 @@ mod tests {
+         let mut t = SessionTable::new(8, 1 << 20);
+         let sys = "<｜begin▁of▁sentence｜><｜System｜>You are a careful assistant who answers briefly and well.";
+         let p1 = format!("{sys}<｜User｜>hello<｜Assistant｜></think>");
+-        let (plan, _) = t.plan(&p1, &tok, 1);
++        let (plan, _) = t.plan(&p1, false, &tok, 1);
+         assert_eq!(plan.ids, tok.encode(&p1));
+         // the model spelled "Hi there" in single letters, which BPE would never produce
+         let mut gen: Vec<u32> = "Hi there".chars().map(|c| tok.encode(&c.to_string())[0]).collect();
+         gen.push(tok.token_id("<｜end▁of▁sentence｜>").unwrap());
+         t.finish(plan.session_id, &p1, &plan.ids, &gen, &tok);
+         let p2 = format!("{p1}Hi there<｜end▁of▁sentence｜><｜User｜>next<｜Assistant｜></think>");
+-        let (plan2, _) = t.plan(&p2, &tok, 1);
++        let (plan2, _) = t.plan(&p2, false, &tok, 1);
+         assert_eq!(plan2.session_id, plan.session_id);
+         let mut want = plan.ids.clone();
+         want.extend(&gen);
+@@ -414,7 +423,7 @@ mod tests {
+         assert_eq!(tok.decode(&plan2.ids), p2);
+         // the same system prompt in another conversation forks instead of taking over the session
+         let p3 = format!("{sys}<｜User｜>something else entirely<｜Assistant｜></think>");
+-        let (plan3, _) = t.plan(&p3, &tok, 1);
++        let (plan3, _) = t.plan(&p3, false, &tok, 1);
+         assert_ne!(plan3.session_id, plan.session_id);
+         assert_eq!(plan3.base_session_id, plan.session_id);
+         assert_eq!(tok.decode(&plan3.ids), p3);
+@@ -430,12 +439,12 @@ mod tests {
+             format!("<｜begin▁of▁sentence｜><｜System｜>{body}Current date and time: Monday, October 12, 2026 at {time}\n\n## Tools\n\nnone<｜User｜>{msg}<｜Assistant｜></think>")
+         };
+         let a = conv("09:14:08 AM", "fix the build");
+-        let (pa, _) = t.plan(&a, &tok, 1);
++        let (pa, _) = t.plan(&a, false, &tok, 1);
+         assert_eq!(pa.describe(a.len()), format!("session {}, new: no session shares a byte", pa.session_id));
+         t.finish(pa.session_id, &a, &pa.ids, &tok.encode("Done."), &tok);
+         // another conversation, a minute later: a fork of the first, which has every id before the time
+         let b = conv("09:15:31 AM", "write the tests");
+-        let (pb, _) = t.plan(&b, &tok, 1);
++        let (pb, _) = t.plan(&b, false, &tok, 1);
+         assert_eq!(pb.base_session_id, pa.session_id);
+         assert_eq!(pb.ids, tok.encode(&b), "the ids are a cold run's");
+         let head = tok.encode(&b[..b.find("09:15").unwrap()]).len();
+@@ -445,13 +454,13 @@ mod tests {
+         assert!(d.ends_with(&format!("of {} bytes, {} ids in common", b.len(), pb.common)), "{d}");
+         // the next turn of the first: in place
+         let a2 = format!("{a}Done.<｜end▁of▁sentence｜><｜User｜>thanks<｜Assistant｜></think>");
+-        let (pa2, _) = t.plan(&a2, &tok, 1);
++        let (pa2, _) = t.plan(&a2, false, &tok, 1);
+         assert_eq!(pa2.session_id, pa.session_id);
+         assert!(pa2.describe(a2.len()).starts_with(&format!("session {} in place: it shares ", pa.session_id)));
+         t.finish(pa2.session_id, &a2, &pa2.ids, &tok.encode("Sure."), &tok);
+         // a prompt that shares only the BOS and a few bytes: a new session, which names no base
+         let c = "<｜begin▁of▁sentence｜><｜User｜>hi<｜Assistant｜></think>";
+-        let (pc, _) = t.plan(c, &tok, 1);
++        let (pc, _) = t.plan(c, false, &tok, 1);
+         assert_eq!(pc.base_session_id, 0);
+         let n = common_prefix(c.as_bytes(), a.as_bytes());
+         assert!(n > 0 && n < MIN_SHARED);
+@@ -460,6 +469,41 @@ mod tests {
+         assert!(d.ends_with(&format!(", shares {n} bytes (under 64)")), "{d}");
+     }
+ 
++    /// A steered request and a stock one never share a session: their KV came from different residual
++    /// streams, so the steered prompt that extends the stock text must start afresh, not reuse its ids.
++    #[test]
++    fn steered_and_stock_sessions_never_share() {
++        let Ok(tok) = Tokenizer::from_file(TOKENIZER) else { return };
++        let mut t = SessionTable::new(8, 1 << 20);
++        let p1 = "<｜System｜>You are a careful assistant who answers briefly and well.<｜User｜>hello<｜Assistant｜></think>";
++        let (stock, _) = t.plan(p1, false, &tok, 1);
++        t.finish(stock.session_id, p1, &stock.ids, &tok.encode("Hi there."), &tok);
++        let p2 = format!("{p1}Hi there.<｜User｜>next<｜Assistant｜></think>");
++        let (steered, _) = t.plan(&p2, true, &tok, 1);
++        assert_ne!(steered.session_id, stock.session_id, "a steered request must not continue the stock session");
++        assert_eq!((steered.reused, steered.common), (0, 0), "nothing of another stream's KV is taken");
++        // the same prompt on the stock name still finds its own session, in place
++        let (again, _) = t.plan(&p2, false, &tok, 1);
++        assert_eq!(again.session_id, stock.session_id);
++        assert!(again.reused > 0);
++        // and the flag is written and read back: a reloaded steered session is steered
++        let dir = std::env::temp_dir().join(format!("dsfront-steer-{}", std::process::id()));
++        let _ = std::fs::remove_dir_all(&dir);
++        std::fs::create_dir(&dir).unwrap();
++        let path = dir.join("front.table");
++        t.finish(steered.session_id, &p2, &steered.ids, &tok.encode("Sure."), &tok);
++        assert_eq!(t.save(&path, 3600), Ok(2));
++        let mut u = SessionTable::new(8, 1 << 20);
++        assert_eq!(u.load(&path, &tok, 3600), Ok(2));
++        let p3 = format!("{p2}Sure.</think>thanks</think>");
++        let (stock3, _) = u.plan(&p3, false, &tok, 1);
++        assert_eq!(stock3.session_id, stock.session_id);
++        let (steered3, _) = u.plan(&p3, true, &tok, 1);
++        assert_eq!(steered3.session_id, steered.session_id, "the loaded table kept the flag");
++        assert!(steered3.reused > 0);
++        let _ = std::fs::remove_dir_all(&dir);
++    }
++
+     #[test]
+     fn a_saved_table_finds_its_sessions_again() {
+         let Ok(tok) = Tokenizer::from_file(TOKENIZER) else { return };
+@@ -469,10 +513,10 @@ mod tests {
+         let path = dir.join("front.table");
+         let mut t = SessionTable::new(8, 1 << 20);
+         let p1 = "<｜begin▁of▁sentence｜><｜System｜>You are a careful assistant who answers briefly and well.<｜User｜>hello<｜Assistant｜></think>";
+-        let (plan, _) = t.plan(p1, &tok, 1);
++        let (plan, _) = t.plan(p1, false, &tok, 1);
+         let gen = tok.encode("Hi there.");
+         t.finish(plan.session_id, p1, &plan.ids, &gen, &tok);
+-        let (busy, _) = t.plan("<｜begin▁of▁sentence｜><｜System｜>Another conversation, still in its request, which is not saved.", &tok, 1);
++        let (busy, _) = t.plan("<｜begin▁of▁sentence｜><｜System｜>Another conversation, still in its request, which is not saved.", false, &tok, 1);
+         let repo = dir.join("repo");
+         std::fs::create_dir_all(repo.join(".git")).unwrap();
+         std::fs::create_dir(repo.join("run")).unwrap();
+@@ -489,7 +533,7 @@ mod tests {
+         assert!(!path.exists(), "the file goes once read");
+         assert!(u.next_id > busy.session_id, "ids go on after the saved table's");
+         let p2 = format!("{p1}Hi there.<｜User｜>next<｜Assistant｜></think>");
+-        let (plan2, _) = u.plan(&p2, &tok, 1);
++        let (plan2, _) = u.plan(&p2, false, &tok, 1);
+         assert_eq!(plan2.session_id, plan.session_id);
+         assert_eq!(plan2.reused, plan.ids.len() + gen.len());
+         assert_eq!(tok.decode(&plan2.ids), p2);

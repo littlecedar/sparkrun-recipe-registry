@@ -3458,3 +3458,164 @@ class PicomOeaArmNegativeControls(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# --------------------------------------------------------------------------
+# The weightless (GLP-steered) dsgb10 arm
+# --------------------------------------------------------------------------
+# A steering vector is checkpoint-bound and per-request: the arm must serve two
+# names from one deployment, the second one steered, and must fail closed when
+# the vector or the patched engine is missing. Each of those is invisible in a
+# plain boot that answers 200, so each is checked here without a GPU.
+WEIGHTLESS_DSGB10_RECIPE = RECIPE_DIR / "zz-deepseek-v4.1-flash-1017-weightless-dsgb10-tp4.yaml"
+WEIGHTLESS_RUNTIME_PLUGIN = REPO_ROOT / "plugins" / "weightless_dsgb10_runtime.py"
+WEIGHTLESS_PATCH = "picom-weightless-steering.patch"
+WEIGHTLESS_VECTOR = "/cache/runtime/glp/vector.gguf"
+
+
+def _assert_weightless_arm_contract(tc, r: "Recipe", text: str) -> None:
+    """The invariants that keep the steered name from being an alias of stock."""
+    # The dedicated runtime: the borrowed vLLM contract cannot declare a GB10
+    # requirement, a no-gate native launch, or this image.
+    tc.assertEqual(r.runtime, "weightless-dsgb10")
+    tc.assertEqual(r.min_nodes, 4)
+    tc.assertNotIn("tensor_parallel", r.defaults)
+    # Both names, the stock one first: dsfront's steered name follows it. The
+    # second name is spelled in the two env vars (sparkrun substitutes `{...}`
+    # in `command:` only), so the guard holds the two to one string.
+    stock = "deepseek-v4.1-flash"
+    steered = "deepseek-v4.1-flash-weightless"
+    tc.assertEqual(r.default("served_model_name"), stock)
+    tc.assertNotEqual(stock, steered)
+    tc.assertIn("--steer-model-name %s" % steered, r.env["PICOM_FRONT_ARGS"])
+    tc.assertEqual(r.env["WEIGHTLESS_STEER_MODEL"], steered)
+    tc.assertEqual(r.env["WEIGHTLESS_STEER_PATH"], WEIGHTLESS_VECTOR)
+    tc.assertEqual(r.env["WEIGHTLESS_STEER_ALPHA"], "0.75")
+    tc.assertIn("WEIGHTLESS_STEER_LAYERS", r.env)
+    # The vector is on every node before the serve starts, and its bytes are checked.
+    tc.assertIn("mods/glp-vector-stage", text)
+    tc.assertIn("mods/picom-launcher", text)
+    # The checkpoint is the vector's own base_model, not the lane's pin.
+    tc.assertEqual(r.model_revision, "1bae0e1088993b9b82de08f59de5be5a34e42170")
+    # The image is a local tag until the steering build is published: a digest
+    # here would name an image that does not contain the patch.
+    tc.assertNotIn("@sha256:", r.container)
+    tc.assertIn("NOT PUBLISHED", text)
+    # The engine's argv is the launcher's own four flags.
+    tc.assertIn("--served-model-name {served_model_name}", r.command_template)
+    tc.assertIn("--revision {model_revision}", r.command_template)
+
+
+def _assert_weightless_dockerfile(tc, dockerfile: str) -> None:
+    """The steering patch ships beside the Dockerfile and applies after the two PRs."""
+    tc.assertIn(WEIGHTLESS_PATCH, dockerfile)
+    tc.assertIn("COPY picom-pr15-service-vision.patch picom-pr7-stream-tool-args.patch " + WEIGHTLESS_PATCH,
+                dockerfile)
+    order = [
+        dockerfile.index("git -C /src apply /tmp/picom-pr15-service-vision.patch"),
+        dockerfile.index("git -C /src apply /tmp/picom-pr7-stream-tool-args.patch"),
+        dockerfile.index("git -C /src apply /tmp/" + WEIGHTLESS_PATCH),
+    ]
+    tc.assertEqual(order, sorted(order), "the patch series applies out of order")
+    # The series' acceptance: the merged front-end suite runs in the build.
+    tc.assertIn("cargo test --release --locked", dockerfile)
+
+
+def _assert_weightless_runtime(tc, source: str) -> None:
+    """The runtime's declarations, each of which a boot depends on."""
+    tc.assertIn('runtime_name = "weightless-dsgb10"', source)
+    tc.assertIn('requires_capability = frozenset({"gb10"})', source)
+    tc.assertIn('return "native"', source)
+    # A native rendezvous gate would wait on a port nothing binds.
+    tc.assertIn("return None", source)
+    # No flag is appended: `--rank`/`--fleet`/`--socket` are the recipe's.
+    tc.assertIn("def managed_rendezvous_flags", source)
+
+
+class WeightlessDsgb10Contract(unittest.TestCase):
+    """The weightless arm's contract, as far as it can be checked without GPUs."""
+
+    def setUp(self):
+        self.text = WEIGHTLESS_DSGB10_RECIPE.read_text()
+        self.r = Recipe(self.text, WEIGHTLESS_DSGB10_RECIPE.name)
+        self.dockerfile = PICOM_DOCKERFILE.read_text()
+        self.runtime = WEIGHTLESS_RUNTIME_PLUGIN.read_text()
+
+    def test_recipe_contract(self):
+        _assert_weightless_arm_contract(self, self.r, self.text)
+
+    def test_patch_is_in_the_image_build(self):
+        self.assertTrue((RECIPE_DIR / WEIGHTLESS_PATCH).is_file(), WEIGHTLESS_PATCH)
+        _assert_weightless_dockerfile(self, self.dockerfile)
+
+    def test_runtime_declarations(self):
+        _assert_weightless_runtime(self, self.runtime)
+
+    def test_steered_name_is_not_a_second_alias(self):
+        # A recipe that names the steered name but never tells the engine the
+        # vector would serve two aliases of the stock model.
+        self.assertIn("WEIGHTLESS_STEER_PATH", self.r.env)
+        self.assertIn("PICOM_FRONT_ARGS", self.r.env)
+
+    def test_defaults_are_consumed(self):
+        for key in self.r.defaults:
+            self.assertIn("{%s}" % key, self.text, key)
+
+
+class WeightlessDsgb10NegativeControls(unittest.TestCase):
+    """Mutation controls for WeightlessDsgb10Contract: each must break its guard."""
+
+    @staticmethod
+    def _mutated(old: str, new: str) -> tuple["Recipe", str]:
+        text = WEIGHTLESS_DSGB10_RECIPE.read_text()
+        assert old in text, f"control anchor {old!r} vanished"
+        mutated = text.replace(old, new, 1)
+        return Recipe(mutated, WEIGHTLESS_DSGB10_RECIPE.name), mutated
+
+    def test_control_borrowed_vllm_runtime(self):
+        r, text = self._mutated("runtime: weightless-dsgb10", "runtime: vllm")
+        with self.assertRaises(AssertionError):
+            _assert_weightless_arm_contract(self, r, text)
+
+    def test_control_no_steered_name(self):
+        r, text = self._mutated(
+            'PICOM_FRONT_ARGS: "--steer-model-name deepseek-v4.1-flash-weightless"',
+            'PICOM_FRONT_ARGS: ""')
+        with self.assertRaises(AssertionError):
+            _assert_weightless_arm_contract(self, r, text)
+
+    def test_control_vector_not_staged(self):
+        r, text = self._mutated("  - \"mods/glp-vector-stage\"\n", "")
+        with self.assertRaises(AssertionError):
+            _assert_weightless_arm_contract(self, r, text)
+
+    def test_control_lane_pin(self):
+        r, text = self._mutated(
+            "model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170",
+            "model_revision: 08c8657f02291e11b6f6b63e0e16014f8e748518")
+        with self.assertRaises(AssertionError):
+            _assert_weightless_arm_contract(self, r, text)
+
+    def test_control_unpublished_digest(self):
+        r, text = self._mutated(
+            "container: dgx-picom-ds41f:weightless",
+            "container: ghcr.io/littlecedar/dgx-picom-ds41f@sha256:" + "0" * 64)
+        with self.assertRaises(AssertionError):
+            _assert_weightless_arm_contract(self, r, text)
+
+    def test_control_patch_after_the_prs_out_of_order(self):
+        dockerfile = PICOM_DOCKERFILE.read_text()
+        line = " && git -C /src apply /tmp/" + WEIGHTLESS_PATCH
+        assert line in dockerfile, "control anchor for the apply line vanished"
+        moved = dockerfile.replace(line, "", 1).replace(
+            "RUN git -C /src apply /tmp/picom-pr15-service-vision.patch",
+            "RUN git -C /src apply /tmp/" + WEIGHTLESS_PATCH
+            + " \\\n && git -C /src apply /tmp/picom-pr15-service-vision.patch", 1)
+        with self.assertRaises(AssertionError):
+            _assert_weightless_dockerfile(self, moved)
+
+    def test_control_runtime_without_gb10(self):
+        source = WEIGHTLESS_RUNTIME_PLUGIN.read_text().replace(
+            'requires_capability = frozenset({"gb10"})', "requires_capability = frozenset()")
+        with self.assertRaises(AssertionError):
+            _assert_weightless_runtime(self, source)

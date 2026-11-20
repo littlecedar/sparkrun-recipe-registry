@@ -15,13 +15,13 @@ executed) and fails naming the stale line, so the number cannot rot — `tools/d
 and rewrites both statements from that same discovery; only its skip count needs a run,
 which is why that half carries a date. What only a run can know stays a *dated snapshot*: **2026-11-20
 — every tracked recipe passes plain `validate`, and `--strict` prints exactly the roster below over
-the whole tracked tree (re-measured 2026-11-20, the date on this line: 117 tracked recipes scanned,
+the whole tracked tree (re-measured 2026-11-20, the date on this line: 118 tracked recipes scanned,
 60 of them printing a finding, 24 with a warning and the rest suggestions only; the LiquidAI arms
 still add no row, because an accuracy declaration belongs inside `metadata:` where
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1800 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
+suite 1812 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -70,7 +70,7 @@ The guards that hold these are [Testing & QA](#testing--qa).
 
 ## Project Overview
 
-- **Recipes** (`recipes/`, 117 tracked recipe files in 14 family dirs) — v2 recipe definitions consumed by
+- **Recipes** (`recipes/`, 118 tracked recipe files in 14 family dirs) — v2 recipe definitions consumed by
   `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
 - **Mods** (`mods/`, 5 shared + `mod-template`; single-lane mods live in `recipes/<lane>/mods/`) —
   pre-launch container hooks that patch or stage files inside the serving image before the engine
@@ -105,7 +105,7 @@ Load-bearing contracts:
   (`sparkrun/core/recipe.py:1264-1270`), where only a by-name consumer reads it, and draws
   `misplaced-config-key` or `unknown-top-level-key` (`sparkrun/core/validation.py:1176-1272`). The full
   41-key rule set is in [`recipes/MECHANICS.md`](recipes/MECHANICS.md).
-- **`command:` is YAML folded `>`** (all 117 tracked recipe files). JSON-shaped defaults must keep their shell
+- **`command:` is YAML folded `>`** (all 118 tracked recipe files). JSON-shaped defaults must keep their shell
   quotes inside the fold — `limit_mm_per_prompt: >-` with `'{"image": 4, "video": 1}'` — or
   word-splitting hands the engine four arguments.
 - **`mods:` is an ordered dependency chain, not a set.** Recipe comments
@@ -1004,7 +1004,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1800 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1812 tests,
   3 skipped on 2026-11-08** in a clean checkout of the tracked tree, 4 in CI and 2 in this clone (it
   carries the untracked `.local/fleet.yaml`). The first three, by name and cause: `test_ifm_recipes`'
   research-doc case (the git-ignored K2-09B docs are absent on any fresh checkout);
