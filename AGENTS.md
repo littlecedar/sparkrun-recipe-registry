@@ -608,6 +608,18 @@ reference an object that never arrived, and then every `git status` dies. Rebuil
 `git read-tree HEAD`: it rewrites the index only, so the worktree and every uncommitted edit survive. Do not
 `reset --hard`, and do not restore from a backup.
 
+**On GB10's unified memory, `--gpu-memory-utilization` at or above 0.9 leaves less host headroom than
+earlyoom requires, so any benchmark load kills the engine by design.** earlyoom on the fleet runs
+`-m 4,1 -s 100,95 --prefer (vllm|VLLM|sglang|llama-server|…|python3|python)`: at 4% MemAvailable it sends
+SIGTERM to the engine, which logs `trigger received signal=SIGTERM` and exits while the container stays
+Up and the keep-alive keeps it "running". At util 0.90 the engine reserves ~109 GiB of the 121.69 GiB
+pool, so the 4% line is crossed by ordinary traffic — measured 2026-11-20 on `.30`, four kills
+(`2026-11-20T14:04:39`, `14:15:23`, `16:39:51`, `16:57:28` local in `/var/log/syslog`, tasks
+`ed290cbd6792ca7c_fcf1d68fc7df`, `…_6cf4ae334127`, `…_b6b6871fabd8`). **earlyoom writes to
+`/var/log/syslog`, not journald** — `journalctl -u earlyoom` and `journalctl -t earlyoom` both read
+empty, which is how an earlyoom kill sat recorded as an "unattributed SIGTERM" for a day. Keep at least
+0.1 of the pool free (util ≤0.75 on a 121.69 GiB node) or record in the recipe why the arm needs more.
+
 ## Code Conventions & Common Patterns
 
 **Prose is American English — always `license`, `licenses`.** Never the British `-ce` noun form. It applies to

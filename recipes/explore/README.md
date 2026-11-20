@@ -1820,11 +1820,21 @@ each); the NVFP4 arm at its shipped **524,288** returned **0/3** — empty conte
 (the needle tool's 64-token default budget on a thinking model, a confound, not a verdict) and an
 HTTP 500 at depth 100, where the EngineCore logged `trigger received signal=SIGTERM` at 19:04:39 and
 the endpoint died while the container stayed Up. A retest boot with **no traffic at all** got SIGTERM
-1 s after `init engine ... took 81.05 s` and never reached readiness. There is no OOM evidence
-(`OOMKilled=false`, earlyoom silent since 19:00, systemd-oomd inactive, no kernel oom line): the
-SIGTERM source is **unattributed**. The same checkpoint and image serve and retrieve at 131,072, so
-the 524,288 window — not the image — is what failed; treat that window as unverified until the kill is
-attributed.
+1 s after `init engine ... took 81.05 s` and never reached readiness. The SIGTERM source is now
+**attributed: earlyoom**, not the launcher, the watchdog or the window. `/var/log/syslog` on `.30`
+names it for every kill that day — `2026-11-20T14:04:39` (pid 3492306, the needle-leg death),
+`14:15:23` (pid 3704163, the retest boot), `16:39:51` (pid 556007, task `…_6cf4ae334127`) and
+`16:57:28` (pid 637844, task `…_b6b6871fabd8`) — each reading `low memory! at or below SIGTERM
+limits: mem 4.00%` followed by `sending SIGTERM to process … "VLLM::EngineCor"`. earlyoom runs
+`-m 4,1 -s 100,95 --prefer (vllm|…|python3|python)`, and at `gpu_memory_utilization: 0.90` the engine
+reserves ~109 of the node's 121.69 GiB, so the 4% MemAvailable line is crossed by ordinary benchmark
+traffic and the engine is killed **by host policy**. `OOMKilled=false`, no kernel OOM line and an
+empty `journalctl -t earlyoom` are all consistent with that — earlyoom writes to syslog, not journald,
+which is why the first pass read it as "silent". **The 524,288-versus-131,072 window was a red
+herring**: the DFlash2 arm survived only because its cells ran before the pool tightened, and it died
+the same way once the quality suite ran (2026-11-20, task `…_b6b6871fabd8`). Both arms now default to
+`gpu_memory_utilization: 0.75` (~30 GiB of host headroom); the depth cells below were taken at that
+setting.
 
 The nine `rc=9` attempts each NVFP4 arm made at 02:51–02:52 ET are the recorded evidence for a dead
 `.35` sparkrun daemon — `daemon-preflight.txt` reads `false`, the executor's inactive-daemon refusal

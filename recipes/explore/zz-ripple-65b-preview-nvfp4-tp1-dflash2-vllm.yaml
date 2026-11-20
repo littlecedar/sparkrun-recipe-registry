@@ -53,7 +53,10 @@ defaults:
   # cells never approach it. (The no-drafter twin carries 524288.)
   max_model_len: 131072
   max_num_seqs: 16
-  gpu_memory_utilization: 0.90
+  # Not 0.90: earlyoom runs `-m 4,1` and kills the engine at 4% MemAvailable, and
+  # 0.90 reserves ~109 of 121 GiB, leaving no host headroom for any benchmark load
+  # (2026-11-20, two task ids killed mid-suite).
+  gpu_memory_utilization: 0.75
   # vLLM's CacheConfig accepts `bfloat16` only; `bf16` is rejected at startup.
   kv_cache_dtype: bfloat16
   # The draft MUST live here: sparkrun's vLLM draft binding distributes

@@ -3157,6 +3157,38 @@
       "evidence": "head:~/benchmarks/picom-prod-20261118/paired-20261118/fabric-probe/",
       "claimed_by": "",
       "claimed_at": ""
+    },
+    {
+      "id": "ripple-nvfp4-tp1-unattributed-sigterm",
+      "title": "Attribute the Ripple NVFP4 TP=1 SIGTERM, and fix the needle client thinking budget",
+      "estimate_h": 2.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "done",
+      "model": "ricursiveAI/Ripple-65B-Preview-NVFP4",
+      "node_cost": "single",
+      "notes": "On the 2026-11-20 completion boot (task ed290cbd6792ca7c_fcf1d68fc7df) the EngineCore logged \"trigger received signal=SIGTERM\" at 19:04:39 while the container stayed Up; the needle leg at 524,288 returned empty content at depths 10/50 (the tool 64-token default budget against a thinking model) and HTTP 500 at depth 100. A retest boot with no traffic got SIGTERM one second after engine init and never reached readiness. Both containers stopped by literal id. Attribution was the deliverable.\n\nCLOSED 2026-11-20 — the SIGTERM is earlyoom, and the window hypothesis is FALSIFIED. /var/log/syslog on .30 names earlyoom[1381] for every kill that day: 14:04:39 (pid 3492306, this item's needle-leg death), 14:15:23 (pid 3704163, the no-traffic retest), 16:39:51 (pid 556007, depth task ed290cbd6792ca7c_6cf4ae334127) and 16:57:28 (pid 637844, depth task ed290cbd6792ca7c_b6b6871fabd8) — each `low memory! at or below SIGTERM limits: mem 4.00%` then `sending SIGTERM to process ... VLLM::EngineCor`. earlyoom runs `-m 4,1 -s 100,95 --prefer (vllm|...|python3|python)`, so at gpu_memory_utilization 0.90 (~109 of 121.69 GiB reserved) the 4% line is crossed by ordinary traffic and the engine is killed by host policy; OOMKilled=false and an empty `journalctl -t earlyoom` are consistent because earlyoom writes to syslog, not journald. The 524,288-vs-131,072 discriminator was a red herring: the 131k DFlash2 twin died the same way once the quality suite ran. Fix landed: both Ripple NVFP4 TP=1 recipes default to gpu_memory_utilization 0.75 with the reason in-line, AGENTS.md section Node hygiene carries the house rule, and recipes/explore/README.md carries the corrected prose.",
+      "provenance": "2026-11-20 tp2-completion arm 4; operator report; closed by the depth pass",
+      "evidence": "head:~/benchmarks/tp2-completion-20261120/ripple-nvfp4-tp1/ (serve.log, watchdog.log, watchdog-retest.log); .30 /var/log/syslog earlyoom lines 14:04:39/14:15:23/16:39:51/16:57:28; head:~/benchmarks/tp2-depth-20261120/ripple-nvfp4-tp1/earlyoom.txt",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/explore/zz-ripple-65b-preview-nvfp4-tp1-vllm.yaml",
+      "tp": 1
+    },
+    {
+      "id": "tp2-measurement-depth",
+      "title": "Close the remaining TP<=2 depth: Ripple quality cells and the Hy4 needle",
+      "estimate_h": 8.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "The boots are complete; two evidence gaps remain. (a) The quality battery (ARC, GSM8K, BFCL, TEB - the lane quality cells) is unmeasured on both Ripple NVFP4 arms; their house, needle and KV cells landed in the completion pass. (b) Hy4 needle at its window is unmeasured; its ladder, house 37/37, quality and tool call are done. Task: run the four quality cells on recipes/explore/zz-ripple-65b-preview-nvfp4-tp1-vllm.yaml and zz-ripple-65b-preview-nvfp4-tp1-dflash2-vllm.yaml (two single-node boots), and the needle cell on recipes/explore/zz-hy4-flash-220b-nvfp4-tp2-vllm.yaml at its served window (one pair boot), then update each lane section evidence row. Estimate is dominated by the two Ripple BFCL legs at 4-10 t/s decode. Instrument names come from the lane doc, not from guessing: ARC/GSM8K through tools/eval-suite.py --checks hard --hard-bench gsm8k,arc --hard-limit 200, BFCL through the same suite's tools check (tools/bfcl-eval.py, --bfcl-data-dir ~/bfcl, --bfcl-max-tokens 4096), TEB through sparkrun benchmark --profile benchmarking/standard-suite.yaml (tool-eval-bench v2.6.0, 15 scenarios).",
+      "provenance": "2026-11-20 tp2-completion pass; operator report",
+      "evidence": "head:~/benchmarks/tp2-depth-20261120/{ripple-nvfp4-tp1,ripple-dflash2-tp1,hy4-nvfp4-tp2}/",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []
