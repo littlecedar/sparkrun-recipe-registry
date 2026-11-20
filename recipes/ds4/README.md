@@ -2507,6 +2507,36 @@ root `head:~/benchmarks/picom-prod-20261118/`; each boot's lane cells are its ow
   cells; that is not a guarantee beyond them. Roll back by serving the exact arm:
   same image digest, `PICOM_OEA: ""`, no rebuild.
 
+**Both arms launch from `-H` alone, and neither may set `tensor_parallel`.** Two
+declarations carry that and are guarded by `tests/test_ds4_recipes.py`
+(`PicomLaneContract.test_bare_host_launch_declarations`, with a mutation control per
+declaration in `PicomLaneNegativeControls`):
+
+- `metadata.model_vram: 64.3` — the engine's **per-rank** share (257.0 GiB / 4). The
+  estimator shards only by `tp*pp` (`models/vram.py:864`), so at `tp` 1 the picker
+  otherwise reads 257.0 GiB against a 108.9 GiB budget and disables every row with
+  "no headroom" (`cli/_monitor_recipes.py:756-758`). Caveat: the field is documented as
+  the model's **total** VRAM (`models/vram.py:791`), so the recipe's reported model size
+  reads 64.3 GiB, low, until that doc/code mismatch is fixed.
+- `cluster_config.remote_cache_dir: /mnt/beegfs/huggingface` — the HF cache's realpath.
+  sparkrun realpaths the prepared binding (`models/host_io.py:133-139`) but mounts the
+  configured string (`orchestration/primitives.py:70-91`), so a bare `-H` launch (an
+  anonymous cluster keeps model distribution on) refuses the symlinked cache with
+  "prepared model is not visible through the workload mounts". A named profile that
+  disables distribution never reaches that check, which is why `WOPR` boots hid it.
+
+**Do not set `defaults.tensor_parallel` on either arm — it is fatal here, not a
+sizing hint.** sparkrun reads it as a torch-distributed contract:
+`runtimes/vllm_distributed.py:54-62` and `:315-334` append
+`--nnodes/--node-rank/--master-addr/--master-port [--headless]` to the launcher's
+argv, and `:84-91` `native_rendezvous_port` then returns 25000, which
+`runtimes/_cluster_ops.py:1102-1139` waits on for 60 × 2 s and then tears down with
+`cleanup_after_failure(…, "head node did not become ready")`. This engine binds 8000
+(dsfront) and 18620 (rail bootstrap), never 25000. The argv additions alone would be
+tolerated (`mods/picom-launcher/launch.sh:31-33` drops unknown tokens); the gate is
+what kills the boot. That is also why the recipe picker rejected the row before
+`metadata.model_vram` existed.
+
 The three `zz-ds4-1017-picom-*` arms below are the experiment record that selected
 this configuration; the production pair supersedes them for serving.
 

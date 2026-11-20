@@ -172,6 +172,8 @@ class Recipe:
         self.min_nodes = int(mn) if mn and mn.isdigit() else None
         self.env = _block(_section(clean, "env"))
         self.defaults = _block(_section(clean, "defaults"))
+        self.metadata = _block(_section(clean, "metadata"))
+        self.cluster_config = _block(_section(clean, "cluster_config"))
         self.command_template = _folded(clean, "command")
 
     # -- rendering ---------------------------------------------------------
@@ -2617,6 +2619,22 @@ def _assert_markers_name_the_snapshot(tc, launch: str) -> None:
                     f"an artifact marker lost its snapshot identity: {needle}")
 
 
+def _assert_bare_host_declarations(tc, r: Recipe, label: str) -> None:
+    """The two facts a bare `-H` launch needs, and the one it must not carry.
+
+    Both are recipe text because two sparkrun behaviours meet here: the
+    estimator shards weights only by tp*pp, and the mount check compares a
+    realpath'd binding against the configured cache string.
+    """
+    tc.assertEqual(r.metadata.get("model_vram"), "64.3",
+                   f"{label}: metadata.model_vram must carry the per-rank share")
+    tc.assertEqual(r.cluster_config.get("remote_cache_dir"),
+                   "/mnt/beegfs/huggingface",
+                   f"{label}: cluster_config.remote_cache_dir must name the cache realpath")
+    tc.assertNotIn("tensor_parallel", r.defaults,
+                   f"{label}: tensor_parallel appends torch flags and gates on :25000")
+
+
 def _assert_rank0_clears_stale_sockets(tc, launch: str) -> None:
     """Rank 0 must unlink the previous boot's sockets before it waits for one.
 
@@ -2802,6 +2820,22 @@ class PicomLaneContract(unittest.TestCase):
     def test_rank0_clears_the_previous_boots_socket_before_waiting(self):
         _assert_rank0_clears_stale_sockets(self, self.launch)
 
+    def test_bare_host_launch_declarations(self):
+        """`-H` alone must fit and mount, so both shipped arms declare both facts.
+
+        `metadata.model_vram` is the engine's per-rank share, not the model's
+        total: the estimator shards only by tp*pp and tp must stay unset here,
+        so without it the picker reads 257.0 GiB per 108.9 GiB budget and
+        disables every row. `cluster_config.remote_cache_dir` is the HF cache's
+        realpath: sparkrun realpaths the prepared binding but mounts the
+        configured string, so an anonymous-cluster launch refuses the symlinked
+        cache. Both are recipe text, so this reads text, like the rest of the file.
+        """
+        for path in (PICOM_EXACT_RECIPE, PICOM_OEA_RECIPE):
+            with self.subTest(recipe=path.name):
+                _assert_bare_host_declarations(
+                    self, Recipe(path.read_text(), path.name), path.name)
+
     def test_artifact_markers_carry_the_snapshot_identity(self):
         _assert_markers_name_the_snapshot(self, self.launch)
 
@@ -2971,6 +3005,26 @@ class PicomLaneNegativeControls(unittest.TestCase):
         stripped = launch.replace(block, "", 1)
         with self.assertRaises(AssertionError):
             _assert_rank0_clears_stale_sockets(self, stripped)
+
+    def test_control_dropped_per_rank_vram(self):
+        """Drop the per-rank declaration: the fit guard must redden."""
+        r = self._mutated("  model_vram: 64.3\n", "")
+        with self.assertRaises(AssertionError):
+            _assert_bare_host_declarations(self, r, "control")
+
+    def test_control_dropped_cache_realpath(self):
+        """Drop the cache realpath: the mount guard must redden."""
+        r = self._mutated(
+            "cluster_config:\n  remote_cache_dir: /mnt/beegfs/huggingface\n", "")
+        with self.assertRaises(AssertionError):
+            _assert_bare_host_declarations(self, r, "control")
+
+    def test_control_tensor_parallel_reintroduced(self):
+        """Re-introduce tp: the guard must redden on the fatal contract."""
+        r = self._mutated("defaults:\n  port: 8000\n",
+                          "defaults:\n  port: 8000\n  tensor_parallel: 4\n")
+        with self.assertRaises(AssertionError):
+            _assert_bare_host_declarations(self, r, "control")
 
     def test_control_dropped_marker_identity(self):
         launch = (PICOM_MOD_DIR / "launch.sh").read_text()

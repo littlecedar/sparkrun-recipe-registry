@@ -8,6 +8,14 @@ runtime: vllm
 # Same pin as the lane's shipped arms: 08c8657f differs from the upstream-validated
 # 1bae0e10 only in chat_template.jinja, which this engine never reads.
 model_revision: 08c8657f02291e11b6f6b63e0e16014f8e748518
+# sparkrun realpaths the prepared model's cache root (models/host_io.py:133-139)
+# but mounts the configured string (orchestration/primitives.py:70-91), so a
+# bare-`-H` launch — anonymous cluster, model distribution still on — refuses this
+# symlinked HF cache with "prepared model is not visible through the workload
+# mounts". This is that cache's realpath; the launcher resolves the pinned
+# snapshot under /cache/huggingface from it, so it is the contract, not a hint.
+cluster_config:
+  remote_cache_dir: /mnt/beegfs/huggingface
 # Built from Picom-code/pico-dgx-ds4@7c123ad4 plus two tracked PR patches
 # (recipes/ds4/Dockerfile.picom-ds41f): dsgb10_rank, dsfront, the weight/Engram
 # converters, the vision encoder and the draft-gate weights. Weights stay in the HF cache.
@@ -35,6 +43,14 @@ metadata:
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
   model_params: "552B"
   model_dtype: mxfp4
+# 257.0 GiB / 4 = 64.3 GiB of weights per GPU: the engine shards the checkpoint
+# itself, one rank per node. sparkrun's estimator only shards by tp*pp
+# (models/vram.py:864), and this arm must not set tp (see `defaults`), so the
+# per-rank share is declared here. Honest about what this field is: it is
+# documented as the model's TOTAL VRAM and the estimator divides it by tp*pp, so
+# the reported model size will read low (64.3 GiB) until that doc/code mismatch
+# in models/vram.py:791 vs :864 is fixed.
+  model_vram: 64.3
   kv_dtype: fp8
   tags: ds4, reasoning, agent, fast, large_context, vision
 mods:
@@ -88,8 +104,15 @@ env:
   PICOM_MAX_TOKENS: "262144"
 defaults:
   port: 8000
-# One GPU per node: the engine's TP=4 is four processes, not a torch world, so
-# sparkrun's default tensor_parallel of 1 is exactly right.
+# One GPU per node: the engine's TP=4 is four processes, not a torch world.
+# Do NOT set defaults.tensor_parallel here, even for the fit report: sparkrun
+# reads it as a torch-distributed contract. runtimes/vllm_distributed.py:54-62
+# and :315-334 append `--nnodes/--node-rank/--master-addr/--master-port
+# [--headless]` to the command, and :84-91 `native_rendezvous_port` then returns
+# 25000, which runtimes/_cluster_ops.py:1102-1139 waits on (60 x 2 s) and then
+# tears down with cleanup_after_failure("head node did not become ready"). This
+# engine binds 8000 (dsfront) and 18620 (rail bootstrap), never 25000. Per-rank
+# memory is declared as metadata.model_vram instead.
   served_model_name: deepseek-ai/DeepSeek-V4.1-Flash-1017
 command: >
   bash /workspace/mods/picom-launcher/launch.sh
