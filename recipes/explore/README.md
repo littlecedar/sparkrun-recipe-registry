@@ -14,7 +14,9 @@ authored, eval-only and never-booted arm (`twil-8b-bf16-reasoning-sglang`, 2026-
 `zz-hy4-flash-220b-bf16-thinking-tools-vllm`, `zz-sensenova-loop-9b-bf16-thinking-ref-vllm`) — plus the
 other **ten** measured arms from the 2026-10-14…18 expansions are
 archived with their receipts in [`attic/explore/`](../../attic/explore/) (manifest:
-[`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md)). The 17-row decision table with one
+[`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md)). The three Ripple-65B Preview cells were
+measured 2026-11-20 (one boot each, `rc=0`, §[Ripple-65B Preview](#ripple-65b-preview-2026-11-08-trial)).
+The 17-row decision table with one
 receipt path per arm is [§Selection](#selection-2026-10-19); per-arm measured histories, serving traps
 and the full candidate research live in [`attic/explore/AGENTS.md`](../../attic/explore/AGENTS.md) and
 [`EXPLORE-MODELS-RESEARCH.md`](../../attic/explore/EXPLORE-MODELS-RESEARCH.md).
@@ -1656,9 +1658,8 @@ d_model 5120 / FFN 40960, 80 Q / 8 KV heads at head_dim 128, gated attention, va
 global NoPE, **16 full-attention layers** among four 1024-token sliding ones, 2,097,152 positions,
 vocab 100,352, Apache-2.0 and `gated: false`. The card claims 80.52 on TerminalBench 2.1 and that
 it "can fit on consumer hardware such as the NVIDIA DGX Spark". Three `zz-` probes are authored;
-**only the BF16 TP=2 cell has booted** (2026-11-08, campaign attempt 3 on two nodes) and it produced
-no measurement, so no index row exists for any of them — "no row is given to an arm with no receipt"
-holds here too.
+**all three were measured on 2026-11-20** (§Measured 2026-11-20 below), superseding the 2026-11-08
+BF16 attempt that booted and produced no measurement.
 
 **Engine decision, on evidence.** vLLM, and only its **nightly**: `ricursive` support is
 [vllm-project/vllm#65745](https://github.com/vllm-project/vllm/pull/65745), which the official
@@ -1707,8 +1708,10 @@ would be a fork plus a mod, so vLLM wins on evidence, not on the card.
 
 **Staged bytes, verified 2026-11-08:** snapshot `da94cc01` holds **27 files, 129,572,840,679 B =
 129.57 GB = 120.67 GiB** — the BF16 cell is fully pool-ready. The NVFP4 repos
-(`ricursiveAI/Ripple-65B-Preview-NVFP4`, and its DFlash2 draft) are **absent** from the pool, which
-is why the two TP=1 cells sit held rather than queued.
+(`ricursiveAI/Ripple-65B-Preview-NVFP4`, and its DFlash2 draft) were **absent** from the pool on
+2026-11-08, which is why the two TP=1 cells sat held then; both are present now — NVFP4 at snapshot
+`99eea447` (all six shards and the index), the drafter at `35609b3b` — and both cells booted on
+2026-11-20.
 
 **Fit arithmetic** (not measurement). 129.57 GB of BF16 does not fit one GB10's ~109 GiB budget at
 util 0.90, so **TP=2 is the floor for BF16**; NVFP4 fits TP=1, which is also the user's lower-TP
@@ -1746,17 +1749,64 @@ drafter cell — `dflash` accepted, the draft's acceptance stats in the log, and
 check passing at `max_model_len 131072` (the draft's configured cap).
 
 **Unverified, named.** GB10/sm_121 is in none of the recipe index's hardware rows
-(`b200`/`gb200`/`b300`/`gb300`), so the NVFP4 GEMM path on this arch is the single biggest unknown;
-the TP=2 1M-token cell is now measured (1,281,286 tokens above), the NVFP4 cells' capacity is still
-arithmetic; vLLM caps nothing on the draft's own position limit but the
-drafter probe stays at 131072 rather than rely on an override the way the vendor's SGLang launcher
-does (`SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`); and the engine itself is a nightly pinned by
-digest — a moving target we froze, not a release.
+(`b200`/`gb200`/`b300`/`gb300`), so the NVFP4 GEMM path on this arch was the single biggest unknown
+until the 2026-11-20 boots ran it (both TP=1 cells served and laddered); the TP=2 1M-token cell is
+now measured (1,281,286 tokens above), while the NVFP4 cells' capacity is measured at boot
+(524288 configured) but not laddered at depth; vLLM caps nothing on the draft's own position limit
+but the drafter probe stays at 131072 rather than rely on an override the way the vendor's SGLang
+launcher does (`SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN=1`); and the engine itself is a nightly
+pinned by digest — a moving target we froze, not a release.
 
 **Recommended pair.** Boot the NVFP4 TP=1 no-drafter cell first (one node, smallest bytes, the
 card's own claim), then its DFlash2 twin on the same node to price the drafter; the BF16 TP=2 arm is
 the quality control and the only long-context cell. That is three boots, two node-shapes, one
 engine digest.
+
+### Measured 2026-11-20 — all three cells
+
+Three boots, one engine digest, each `rc=0 -> measured` with a four-cell ladder (5 runs/cell) and
+the house battery **15/15**. The pp/tg columns are **aggregate tok/s across streams** (llama-benchy
+at `depth 0`), not per-stream; ttfr is the first-token time at that concurrency.
+
+**NVFP4 TP=1, no drafter** — task `ed290cbd6792ca7c_3cda3b6e7f37`, TTR **375 s**, image
+`sha256:e84c490d39a5…`, receipt
+`head:~/benchmarks/h2h-20261107/zz-ripple-65b-preview-nvfp4-tp1-vllm/`:
+
+| conc | pp t/s | tg t/s | ttfr ms |
+|---|---|---|---|
+| 1 | 1036.4 | 4.0 | 1978.7 |
+| 2 | 831.4 | 7.7 | 3221.8 |
+| 5 | 931.5 | 17.2 | 7364.2 |
+| 10 | 964.0 | 25.3 | 12830.8 |
+
+**NVFP4 TP=1 + DFlash2** — task `ed290cbd6792ca7c_ccd64b934025`, TTR **520 s** (536.7 s launch),
+receipt `head:~/benchmarks/h2h-20261107/zz-ripple-65b-preview-nvfp4-tp1-dflash2-vllm/`:
+
+| conc | pp t/s | tg t/s | ttfr ms |
+|---|---|---|---|
+| 1 | 973.0 | 9.9 | 2114.4 |
+| 2 | 860.9 | 16.5 | 3519.9 |
+| 5 | 953.7 | 24.2 | 7484.9 |
+| 10 | 968.4 | 34.5 | 13006.3 |
+
+**BF16 TP=2** — task `ffc58fd9542b6171_dfdce5ad1600`, TTR **354 s**, receipt
+`head:~/benchmarks/h2h-20261107/zz-ripple-65b-preview-bf16-tp2-vllm/`:
+
+| conc | pp t/s | tg t/s | ttfr ms |
+|---|---|---|---|
+| 1 | 935.6 | 3.6 | 2195.5 |
+| 2 | 725.9 | 6.9 | 3470.6 |
+| 5 | 859.1 | 15.0 | 7826.9 |
+| 10 | 345.2 | 14.0 | 20691.1 |
+
+The drafter pays for itself in decode: against the plain NVFP4 arm it roughly **doubles** tg at c1
+(4.0 → 9.9 t/s) and adds **~36 %** at c10 (25.3 → 34.5 t/s), with prefill flat (1036 → 973 at c1,
+964 → 968 at c10). The BF16 pair is the quality control and the slowest c10 cell (345.2 pp / 14.0
+tg).
+
+The nine `rc=9` attempts each NVFP4 arm made at 02:51–02:52 ET are the recorded evidence for a dead
+`.35` sparkrun daemon — `daemon-preflight.txt` reads `false`, the executor's inactive-daemon refusal
+— and are superseded by these runs; they are not measurements.
 
 ## [zz-edge0-145b-nvfp4-latentmoe-strata](zz-edge0-145b-nvfp4-latentmoe-strata.yaml)
 
