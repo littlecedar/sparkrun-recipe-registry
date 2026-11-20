@@ -49,6 +49,8 @@ distinction explicit and acts on it:
     Group-scoped: any rank's progress resets the clock (a TP=4 rendezvous leaves rank 0
     quiet while peers stream shards), memory counts only past a 128 MiB floor (allocator
     jitter is sub-MB), and an unprobeable rank blocks the verdict rather than faking it.
+    `/proc/<pid>/io` excludes mmap page faults, so a flat io counter during safetensors
+    load is normal; only log growth is evidence.
   dead/stalled: the container's `/tmp/sparkrun_serve.log` is captured to
     `serve-reaped-<container>.log` beside --log FIRST (the stop destroys it, and a
     fast-reaped arm's crash text is the whole diagnosis), then `sparkrun stop <task-id>`
