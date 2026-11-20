@@ -570,17 +570,19 @@ idol SDK (`python -m idol.sample`; no serving engine) + [`recipes/media/mods/ido
   files it names, and names the fix on failure:
   `hf download facebook/dinov3-vith16plus-pretrain-lvd1689m`,
   `hf download black-forest-labs/FLUX.2-dev --include "vae/*"`.
-- **Why it is not booted (re-probed 2026-11-12):** the encoders are the gate and only one is open.
-  `facebook/dinov3-vith16plus-pretrain-lvd1689m` (`gated: manual`) answers **403** "not in the
-  authorized list" on `resolve/main/config.json` to the fleet account `twichert`, and
-  `hf download … --dry-run` says `Access denied. Model … requires approval`;
-  `black-forest-labs/FLUX.2-dev` (`gated: auto`) is accepted (200, dry-run lists its two `vae/` files,
-  336.2 MB), so the token does read gated content — the refusal is this repo's list, not the
-  credential. The owner's 2026-11-12 "accept" ruling authorizes the arm but cannot click the gate:
-  acceptance is an account action on the repo page, and no programmatic route exists
-  (`POST /api/models/<repo>/ask-access` → 404). Both pool repos stay `refs/`-only. The older
-  "no node was free" half is closed (`.35` is empty), so the mod's `pre_exec` gate is the single live
-  blocker. The arm needs one node: 7.2 GB peak VRAM is TP=1 by construction. Receipt:
+- **Why it is not booted (corrected 2026-11-20):** the DINOv3 encoder is refused on its own gate's
+  terms, not on availability. `facebook/dinov3-vith16plus-pretrain-lvd1689m` is `gated: manual` and
+  its form demands `extra_gated_fields` — First Name, Last Name, Date of birth, Country, Affiliation,
+  Job title, an `ip_location` geo field, and a consent checkbox for the Meta Privacy Policy — so the
+  owner's 2026-11-20 rule, *no gates that demand personal information*, refuses it and supersedes the
+  2026-11-12 "accept" for this arm (`mad-science/TODO.md` §"Owner ruling 2026-11-20 — no gates that
+  demand personal information"). It answers **403** "not in the authorized list" on
+  `resolve/main/config.json` to the fleet account `twichert`, and `hf download … --dry-run` says
+  `Access denied. Model … requires approval`; `black-forest-labs/FLUX.2-dev` (`gated: auto`, no
+  `extra_gated_fields`) is accepted (200, dry-run lists its two `vae/` files, 336.2 MB), so the token
+  does read gated content — the refusal is this repo's gate, not the credential, and that acceptance
+  stands. Both pool repos stay `refs/`-only, the arm stays parked, and no queue work stands behind it.
+  It needs one node: 7.2 GB peak VRAM is TP=1 by construction. Receipt:
   `head:~/benchmarks/tp1-20261112/idol-dinov3-gate-probe.log`.
 - **Not measured:** everything. No wall time, no peak memory, no Gaussian count, no image quality on
   this hardware — the card's benchmark table is 1 × H100 per model (6.8 s at 50 steps) and its

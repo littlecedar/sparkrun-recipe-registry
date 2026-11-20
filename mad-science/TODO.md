@@ -987,6 +987,37 @@ row recorded its class as one the register had to rule on first); owner 2026-11-
 §Recipes "Non-commercial weights ship eval-only arms" and §"Documentation zones";
 `recipes/media/idol-1.8b-bf16-3dgs-script.yaml` header (the two gated encoders and the eval-only banner).
 
+## Owner ruling 2026-11-20 — no gates that demand personal information
+The owner does not accept a model gate that requires personal information. This is a rule about the
+gate, not about the publisher: no vendor is banned, and an auto gate that asks for nothing is not
+affected.
+- **The DINOv3 instance.** `facebook/dinov3-vith16plus-pretrain-lvd1689m` is `gated: manual`, and its
+ form demands `extra_gated_fields`: First Name, Last Name, Date of birth, Country, Affiliation, Job
+ title (Student / Research Graduate / AI researcher / AI developer/engineer / Reporter / Other), an
+ `ip_location` geo field, and a consent checkbox reading *"By clicking Submit below I accept the terms
+ of the license and acknowledge that the information I provide will be collected stored processed and
+ shared in accordance with the Meta Privacy Policy"* — with the card's own
+ `extra_gated_description` pointing at that policy. Read authenticated as `twichert` on **2026-11-20**;
+ the page payload carries the field list while the repo still answers **403** "not in the authorized
+ list" to every artifact request.
+- **What it supersedes.** The 2026-11-12 ruling above ("accept") no longer governs this arm: the
+ DINOv3 gate is refused on its own terms, so `media-idol-3dgs-boot` stays parked and
+ `recipes/media/idol-1.8b-bf16-3dgs-script.yaml` stays authored-not-booted. The 2026-11-12 text is
+ kept verbatim as history and reads as that date's state; this entry is what supersedes it.
+- **What it does not touch.** `black-forest-labs/FLUX.2-dev` is `gated: auto` with **no**
+ `extra_gated_fields` at all — it shares only the account's existing profile username and email — and
+ it is already accepted, so its 2026-11-09 acceptance stands. The idol arm's eval-only framing also
+ stands: the FLUX.2 [dev] VAE is non-commercial, so the arm would be eval-only even if it could stage
+ the DINOv3 encoder.
+- **The two eval-only arms the 2026-11-12 ruling authorized** — `webAI-Official/TwIL-8B` and
+ `Viggle/Viggle-Remake` — are untouched; neither reads a DINO encoder.
+— provenance: owner 2026-11-20 (oversight thread); the live card payload of
+`facebook/dinov3-vith16plus-pretrain-lvd1689m` read 2026-11-20 as `twichert` (`gated: manual`,
+`extra_gated_fields` and `extra_gated_description` as quoted above); `mad-science/TODO.md` §"Owner ruling
+2026-11-12 — DINOv3 accepted, two eval-only arms authorized" (superseded for this arm);
+`mad-science/queue.json` row `media-idol-3dgs-boot`; `recipes/media/README.md`
+§idol-1.8b-bf16-3dgs-script; `AGENTS.md` §Recipes.
+
 # TODO list
 
 **Standing rules (owner decisions 2026-10-15/18/19, condensed 2026-10-24 — the full original
