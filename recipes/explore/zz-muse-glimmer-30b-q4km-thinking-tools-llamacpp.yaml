@@ -1,0 +1,141 @@
+recipe_version: "2"
+# The quant selector is the full filename stem minus the quant tail: `Q4_K_M` alone
+# matches `dflash-Muse-Glimmer-30B-Q4_K_M.gguf` as well, and sparkrun's GGUF manifest
+# then refuses the selection as ambiguous (`models/manifest.py` — "ambiguous GGUF
+# selection"). `KQuant-17GB-Q4_K_M` matches the text body and nothing else.
+model: meta-models/Muse-Glimmer-30B-GGUF:KQuant-17GB-Q4_K_M
+# Pinned to the GGUF repo's only revision (2026-10-20), the same day the base repo's
+# 7af58019 was published; the two carry the same 9,992-char ATEM template.
+model_revision: b44f1072cf75e918a1b82a3a17b45c4389b076e7
+runtime: llama-cpp
+# `littlecedar/dgx-spark-llama-cpp:upstream-a37cc46-cu130` — the same digest the
+# zz-mellum MTP legs run. Commit a37cc46 satisfies both things this checkpoint needs:
+# `LLM_ARCH_MUSE_GLIMMER` in `src/llama-arch.cpp` plus `src/models/muse-glimmer.cpp`,
+# and the specialized chat parser `common_chat_params_init_muse_glimmer` in
+# `common/chat.cpp` (the vendor's floor is release b10353).
+container: littlecedar/dgx-spark-llama-cpp:upstream-a37cc46-cu130@sha256:ef2d4bc8983f1cfa5d097ec0c3d57e1a0214450ec7c2e2dd7bc454b5d6ca2d93
+min_nodes: 1
+max_nodes: 1
+
+# entrypoint: "" — this image keeps llama-server as ENTRYPOINT, which would eat the
+# launcher command (the zz-mellum arms and the decision-lane precedent carry the same).
+executor_config:
+  entrypoint: ""
+# Text-only by choice: the perception encoder is a separate 1.4 GB `mmproj-…` file and
+# needs `--mmproj` plus llama-mtmd-cli semantics; staging it would be a second knob.
+mmproj: none
+
+# LICENSE — Apache-2.0 grant plus a SEPARATE acceptable-use policy (new class, raised as
+# `mad-science/QUESTIONS.md` `#88`, 2026-11-20). `LICENSE` is the verbatim Apache License
+# 2.0 text; `USAGE_POLICY.md` (5,230 B) layers prohibited uses on top of it: "You should
+# not use, or allow others to use, Muse Glimmer to: … Engage in, promote, incite,
+# facilitate, or assist in the planning or development of activities that present a risk
+# of death or bodily harm to individuals, including use of Muse Glimmer related to the
+# following: Military, warfare, nuclear industries or applications, espionage, use for
+# materials or activities that are subject to the International Traffic Arms Regulations
+# (ITAR) … or to the U.S. Biological Weapons Anti-Terrorism Act of 1989 or the Chemical
+# Weapons Convention Implementation Act of 1997", plus "Muse Glimmer is not intended for
+# individuals under the age of 18". None of it bites on an authored-not-booted probe arm
+# that is neither sold nor exposed, which is the same footing #86/#87 were ruled on; the
+# class itself is the owner's call, not this lane's.
+
+description: >-
+  PROBE ARM (`zz-`), authored-not-booted: `meta-models/Muse-Glimmer-30B` (29.78B BF16,
+  59,553,435,272 B in two shards) in the fleet's 4-bit class, served from the AUTHOR ORG's
+  own GGUF — `meta-models/Muse-Glimmer-30B-GGUF` @ b44f1072,
+  `Muse-Glimmer-30B-KQuant-17GB-Q4_K_M.gguf` (16,756,683,904 B). Header read from the file,
+  not the card: `general.architecture = muse-glimmer`, `general.file_type` 15 = Q4_K_M
+  (365 Q4_K, 52 Q6_K, 1 Q5_K, 313 F32 = 731 tensors), 52 blocks, 131,072 ctx, hidden 6,656,
+  ffn 19,968, 32 q / 2 kv heads, key and value length 128, rope 500,000, final-logit
+  softcap 20, logit_scale 0.19612, sliding window 2,048 over a 52-entry per-layer pattern
+  (3 sliding to 1 full) — every value equal to the BF16 `config.json`'s
+  `text_config`. No vision tensors: the perception encoder is the sibling
+  `mmproj-…Q4_K_M.gguf`, and this arm is text-only. THE 4-BIT SEARCH, 2026-11-20: the Hub
+  carries ~100 Muse-Glimmer-30B derivatives, so the house rule against BF16 bodies applies
+  in full and the variant is real, not a card claim. Chosen over the alternatives for three
+  reasons — it is the author org's own artifact, it is a genuine GGUF whose arch the pinned
+  engine registers, and llama.cpp carries the ATEM chat parser (below). Named alternatives,
+  each a separate arm rather than this one: `RedHatAI/Muse-Glimmer-30B-NVFP4` @403f780a
+  (23,380,741,568 B, compressed-tensors `nvfp4-pack-quantized`, group 16, static activation
+  scales — the GB10-native 4-bit, needs the vLLM route), `RedHatAI/…-FP8-block` @
+  2026-11-19, `turboderp/…-exl3` (our EXL3 route is the patched ds4 fork), and
+  `RadixArk/Muse-Glimmer-NVFP4` — the pack this lane already booted and rejected on
+  2026-10-21. ENGINE DISCRIMINATORS, each named: (1) llama.cpp — `LLM_ARCH_MUSE_GLIMMER` is
+  registered at every pinned llama.cpp commit here (6023692, 9df0b73, a37cc46) with
+  `src/models/muse-glimmer.cpp` behind it, and a37cc46 detects this checkpoint's own
+  template (`<atem:function_calls>` + `<|eom|>`) into
+  `common_chat_params_init_muse_glimmer`, which routes the `to=self` channel to
+  `reasoning_content` and converts `to=<tool>` channels into `tool_calls`; this arm.
+  (2) vLLM — NOT blocked, contrary to `mad-science/TODO.md:2550`: PR #51655 merged
+  2026-08-14 and the lane's own `vllm/vllm-openai:v0.32.0` pin registers
+  `MuseGlimmerForCausalLM` and `MuseGlimmerForConditionalGeneration`
+  (`model_executor/models/registry.py:182,537`) with a full multimodal implementation
+  (`models/muse_glimmer.py`, 1,666 lines: vision encoder, image/video inputs,
+  `SupportsMultiModal`), plus `DFlashMuseGlimmerAssistantModel` (:643); not chosen because
+  its 4-bit body is the compressed-tensors NVFP4, not this GGUF. (3) SGLang — the pinned
+  `v0.5.22` tree carries `configs/models/muse_glimmer`, the `muse` tool and reasoning
+  parsers and the GGUF name map, and v0.5.21 booted this checkpoint on 2026-10-21; not
+  chosen for the same reason. PRIOR VERDICT, CARRIED FORWARD: this checkpoint is the one
+  already measured and rejected — the two shard LFS oids (`f42d14a0…`, `76809112…`),
+  `config.json`, `generation_config.json` and the tokenizer are byte-identical from
+  7af58019 through 1297fd7 (only `chat_template.jinja` moved, 9,992 → 10,621 B), and the
+  2026-10-21 control measured house 36/37 (`hard-rev` → `nurkrpas`, four of four at
+  temperature 0) at C1 12.1 t/s bf16, against 20.2 t/s for the NVFP4 pack. So quality is
+  not the open question here and this arm does not claim to answer it; what is untested is
+  the 4-bit llama.cpp route on the same weights — decode rate, the ATEM tool round trip
+  through a second parser, and whether the vendor's per-slot context arithmetic survives
+  our ladder. No BF16 control arm: the 4-bit variant is verified (real bytes, registered
+  arch, native parser), so the house rule's "BF16 only as a control for an unverified
+  quant" does not apply. FIT, TP=1: 16.76 GB of weights; KV per token is 13,312 B on the
+  13 full-attention layers (2 kv heads x 128 dim x 2 tensors x 2 B) and the 39 sliding
+  layers are capped at the 2,048 window (82 MB total), so one 131,072-token slot costs
+  1.74 GB; `-c 1310720 -np 10` is 131,072 per slot and 17.4 GB of KV, ~34 GB plus buffers
+  against ~119 GiB usable on GB10 — the vendor's own trap is the reason for the scale
+  (`-c` is split across `-np`, and a truncated generation reads as a wrong answer, not a
+  failure). Sampling is the vendor's (1.0 / 0.95 / 64). Thinking cannot be switched off:
+  the template opens the channel unconditionally and `reasoning_strength`
+  (low/medium/high/xhigh, default high) is the knob, left at its default here because
+  `--chat-template-kwargs` needs shell quoting this recipe does not otherwise use. Stop
+  tokens are 200001 and 200008; `<|eom|>` is end-of-message and must not be a stop string.
+  Card claims (DeepSearch QA, MCP-Atlas, tau3-Bench, SWE-Bench) are author claims, unmeasured
+  here.
+metadata:
+  model_url: https://huggingface.co/meta-models/Muse-Glimmer-30B-GGUF
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "29.78B"
+  model_dtype: q4_k_m
+  kv_dtype: fp16
+  tags: trial, probe, reasoning, tools
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  # Never {model}: on a real launch sparkrun rebinds it to the staged GGUF file.
+  served_model_name: meta-models/Muse-Glimmer-30B-GGUF
+  # 10 x 131,072 — llama-server divides -c across -np, and the house battery's needle
+  # gate needs a full 131,072-token slot.
+  ctx_size: 1310720
+  parallel: 10
+  n_gpu_layers: 999
+  flash_attn: auto
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 64
+
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --flash-attn {flash_attn}
+  --jinja
+  --no-webui
+  --load-mode none
+  --cont-batching
+  --metrics
