@@ -148,9 +148,12 @@ def http_call(
             return resp.status, resp.read(1 << 16)
     except urllib.error.HTTPError as exc:
         try:
-            return exc.code, exc.read(1 << 16)
+            body = exc.read(1 << 16)
         except (OSError, http.client.HTTPException):
-            return exc.code, b""
+            body = b""
+        finally:
+            exc.close()
+        return exc.code, body
     except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException):
         return None
 
