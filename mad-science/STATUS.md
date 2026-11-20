@@ -1,4 +1,4 @@
-# Board — generated 2026-11-20 02:14 ET
+# Board — generated 2026-11-20 02:15 ET
 ## In flight
 | where | owner | what |
 |---|---|---|
@@ -245,3 +245,6 @@ flowchart LR
 | 01:55 | `8ae85d7` | Drop the stale suite total the previous commit left beside the new one |
 | 02:01 | `4c8704f` | Keep the served-inference probe **opt-in** after all: `--require-inference` again gates the strong check (surface fallback chat→completions→embeddings→rerank) and `tools/run-arm.sh` passes it for the ds4 picom arms, so a manual launch must pass it too |
 | 02:09 | `1268830` | Correct the `tools/README.md` watchdog row: the shipped picom arms write no key and serve `PICOM_AUTH=0`, so the key path and bearer resolution matter only with `PICOM_AUTH=1` |
+| 02:16 | board correction | the `02:12 ET` composition labelled each node ring's "oldest" event with a `Z` suffix, but `docker events` prints **node-local** time (`-05:00` on these hosts), so its `.31` figure `01:27:32Z` is really **`06:27:32Z`** (`.30` `2026-11-19T20:38:20` → `2026-11-20T01:38:20Z`, `.32` `00:10:30` → `05:10:30Z`, `.33` `00:11:13` → `05:11:13Z`, `.34` `00:10:31` → `05:10:31Z`) — the same class as the `uptime -s` local-clock trap; the `02:14 ET` board's own `.31` cell (`06:34:45Z`) is the corrected read, and a re-probe at `07:13Z` returned `256` events with oldest `01:39:14` local = `06:39:14Z`, moving forward as a bounded ring must |
+| 02:16 | board correction | that withdraws the same row's inference: with `.31`'s ring beginning at `06:27:32Z`, the **first** boot's `create`/`start` at `06:27:18Z` are **evicted on `.31`**, not retained — `.32`–`.34` are the ranks that hold them (`create` `06:27:18Z`), while `.31` carries only that boot's `kill`/`die` at `06:47:14Z`/`06:47:16Z`; boots two to four fall inside `.31`'s retained window in full, so their `create`/`start` times stand |
+| 02:16 | board correction | and it retires two pairings the `02:12 ET` pool row printed: the `beegfs-meta` restart delta **+738** is measured base cell (`06:03:07Z`) → read C (`07:07:18Z`) = **3,851 s = 64 min 11 s** (**5.22 s** per restart), not the **43 min 45 s** that row attached to it (that span is the base's read C → this tick's read A, `06:20:33Z`→`07:04:21Z`); and the pool's **+187,170,816 B** is against the base's in-cycle `06:04:39Z` read (`14,056,938,274,816 B`), while against the base cell (`14,056,937,226,240 B`) it is **+188,219,392 B** over the same 64 min 11 s |
