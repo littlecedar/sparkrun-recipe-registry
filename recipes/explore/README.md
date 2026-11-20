@@ -1167,8 +1167,14 @@ the `mad-science/TODO.md` item **Probe `InternScience/Sage-A1.5`**.
 
 ## [zz-sage-a1.5-35b-a3b-q4km-llamacpp](zz-sage-a1.5-35b-a3b-q4km-llamacpp.yaml)
 
-llama.cpp · **1 node (TP=1)** · **PROBE — measured once through the campaign driver, not in the
-selection record**.
+llama.cpp · **1 node (TP=1)** · **Boot-verified 2026-11-20 at ten slots; receipt
+`head:~/benchmarks/tp2-completion-20261120/sage-a1.5-35b/`**.
+
+The recipe ships `parallel: 4`, which is how the earlier c10 cell ran ten streams over four slots, so
+this boot carried `-o parallel=10` (`--ctx-size 262144 --kv-unified`). Ladder (5 runs/cell, depth 0,
+pp 2048 / tg 128): c1 **1971.2 / 72.1**, c2 **1861.0 / 99.9**, c5 **1748.1 / 100.2**, c10
+**1674.6 / 85.2** t/s, ttfr 939 / 1984 / 4714 / 8238 ms. House battery **36/37** (EASY 19/19,
+HARD 17/18) in 4 m 53 s; the single miss is `trick-1`, an empty reply.
 
 The vendor's own Q4_K_M GGUF of Sage-A1.5 — trunk plus the bundled vision projector, architecture
 `qwen35moe` — on the resident scitrera pin. What to watch: `entrypoint: ""` is load-bearing (the image
@@ -1802,6 +1808,24 @@ The drafter pays for itself in decode: against the plain NVFP4 arm it roughly **
 964 → 968 at c10). The BF16 pair is the quality control and the slowest c10 cell (345.2 pp / 14.0
 tg).
 
+**Second pass, 2026-11-20 — the 37-case battery, the KV grant, and a needle at the shipped window.**
+Receipts `head:~/benchmarks/tp2-completion-20261120/ripple-nvfp4-tp1/` and `.../ripple-dflash2-tp1/`.
+The grants the 2026-11-08 boots did not capture: the NVFP4 arm reads **52.46 GiB** of KV,
+`GPU KV cache size: 796,898 tokens` = **1.52×** at 524,288 (init 171.30 s); the DFlash2 arm reads
+**45.0 GiB** → **496,197 tokens** = **3.79×** at 131,072 (init 154.40 s). House battery at
+`--max-tokens 4096`: both **36/37** (EASY 19/19, HARD 17/18) and both miss the same case,
+`hard-arith-1`; the drafter is faster on the same battery (1 m 11 s against 3 m 05 s). Needle: the
+DFlash2 arm at its shipped **131,072** retrieves **3/3** (depths 10/50/100, 128k-token prompts, ~197 s
+each); the NVFP4 arm at its shipped **524,288** returned **0/3** — empty content at depths 10 and 50
+(the needle tool's 64-token default budget on a thinking model, a confound, not a verdict) and an
+HTTP 500 at depth 100, where the EngineCore logged `trigger received signal=SIGTERM` at 19:04:39 and
+the endpoint died while the container stayed Up. A retest boot with **no traffic at all** got SIGTERM
+1 s after `init engine ... took 81.05 s` and never reached readiness. There is no OOM evidence
+(`OOMKilled=false`, earlyoom silent since 19:00, systemd-oomd inactive, no kernel oom line): the
+SIGTERM source is **unattributed**. The same checkpoint and image serve and retrieve at 131,072, so
+the 524,288 window — not the image — is what failed; treat that window as unverified until the kill is
+attributed.
+
 The nine `rc=9` attempts each NVFP4 arm made at 02:51–02:52 ET are the recorded evidence for a dead
 `.35` sparkrun daemon — `daemon-preflight.txt` reads `false`, the executor's inactive-daemon refusal
 — and are superseded by these runs; they are not measurements.
@@ -1913,7 +1937,18 @@ licence reasons.
 
 ## [zz-sensenova-loop-9b-bf16-thinking-ref-vllm](zz-sensenova-loop-9b-bf16-thinking-ref-vllm.yaml)
 
-**Authored 2026-11-20, never booted.** `sensenova/SenseNova-Loop-9B` is a 9.66B-parameter BF16 looped
+**Boot-verified 2026-11-20 (reference route, TP=1 on `.30`); receipt
+`head:~/benchmarks/tp2-completion-20261120/sensenova-loop-9b/`.** Staged 19.3 GB in 2 m 39 s; the
+mod's fail-closed gate passed in-container (`transformers 5.19.0` carrying `create_causal_mask`,
+`create_recurrent_attention_mask` and `Qwen3_5ForConditionalGeneration`); ready **3 m 12 s** after
+container start; one `/v1/chat/completions` answered 200 with 331 completion tokens in 85.9 s and both
+`content` and `reasoning_content` populated. One launch defect surfaced first: a SHA-only download
+writes no `refs/` entry and the container runs `HF_HUB_OFFLINE=1`, so the first attempt died
+`LocalEntryNotFoundError`; `hf download sensenova/SenseNova-Loop-9B` wrote `refs/main = 3cc220e9`
+(metadata only) and the relaunch was clean — the validator's `unpinned-model-revision` warning,
+confirmed.
+
+**Authored 2026-11-20.** `sensenova/SenseNova-Loop-9B` is a 9.66B-parameter BF16 looped
 multimodal checkpoint: 19,318,812,640 B in 11 shards plus a 15-tensor `mtp.safetensors` MTP head. Every
 shard header was re-read from the Hub and matched against `model.safetensors.index.json` — 872
 tensors, no missing and no extra keys, each shard's largest tensor end offset equal to its file size.
@@ -2037,6 +2072,17 @@ builds an anonymous cluster with the node-local default and refuses the same way
 end-to-end = 27.1 t/s** (streamed: TTFT 0.26 s, 128 tokens in 5.41 s); it spent the whole budget in
 reasoning (`finish=length`), so that is the thinking-mode decode rate, not a content-only one.
 
+**Second pass, 2026-11-20 (task `261430353ba2889a_ca3e8230d061`): the ladder, the 37-case battery and
+the recipe fix proven.** Launched with `--cluster WOPR -H .30,.35` and **no** `-o entrypoint` — the
+recipe's own `executor_config` carried the fix and the launch was accepted first time. Ready ~9.5 min
+after start (the flashinfer autotune cache from the first boot was warm, against 17 m 36 s cold).
+Ladder (5 runs/cell, depth 0, pp 2048 / tg 128): c1 **1232.7 / 22.6**, c2 **1292.1 / 35.4**, c5
+**691.8 / 32.7**, c10 **704.5 / 38.6** t/s, ttfr 1680 / 3006 / 6831 / 14353 ms. House battery
+**37/37** (EASY 19/19, HARD 18/18) in 1 m 45 s — the only perfect battery of the seven — and a tool
+round trip returned `get_weather {"city":"Berlin"}` with 57 completion tokens (41 reasoning) in 2.14 s.
+Lease `session:t34-hy4-pair:zz-hy4-flash-220b-nvfp4-tp2-vllm:1795203993` was taken for the pair and
+released after teardown; 0 containers on both nodes after.
+
 ## [zz-inkling-2-small-nvfp4-thinking-tools-tp4-vllm](zz-inkling-2-small-nvfp4-thinking-tools-tp4-vllm.yaml)
 
 **Authored 2026-11-20, never booted.** Thinking Machines Inkling-2-Small: a 594.05B text+vision body
@@ -2071,7 +2117,15 @@ fallback today.
 
 ## [zz-muse-glimmer-30b-q4km-thinking-tools-llamacpp](zz-muse-glimmer-30b-q4km-thinking-tools-llamacpp.yaml)
 
-**Probe arm, authored 2026-11-20, never booted.** `meta-models/Muse-Glimmer-30B` (29.78B BF16) in the
+**Boot-verified 2026-11-20 (TP=1 on `.30`); receipt
+`head:~/benchmarks/tp2-completion-20261120/muse-glimmer-30b/`.** Ten slots (`n_slots = 10`,
+`n_ctx_slot = 131072`, `kv_unified false`), ready at once from the pool; ladder (5 runs/cell, depth 0,
+pp 2048 / tg 128): c1 **882.4 / 12.5**, c2 **813.4 / 24.6**, c5 **812.7 / 29.4**, c10 **839.1 / 61.3**
+t/s with ttfr 2136 / 4195 / 9680 / 15976 ms; one tool round trip returned
+`get_weather {"city":"Berlin"}`. Quality was **not** re-scored — the lane already rejected this
+checkpoint on quality, and this boot measures speed and the tool surface only.
+
+**Probe arm, authored 2026-11-20.** `meta-models/Muse-Glimmer-30B` (29.78B BF16) in the
 house 4-bit class, served from the **author org's own GGUF**: `meta-models/Muse-Glimmer-30B-GGUF` @
 `b44f1072`, `Muse-Glimmer-30B-KQuant-17GB-Q4_K_M.gguf`, **16,756,683,904 B**. Header read from the
 file: `general.architecture = muse-glimmer`, Q4_K_M (365 Q4_K, 52 Q6_K, 1 Q5_K, 313 F32 = 731
@@ -2102,7 +2156,17 @@ weights; 13,312 B/token on the 13 full layers with the 39 sliding layers capped 
 
 ## [zz-haru-4b-bf16-duplex-s2s-vllm-omni](zz-haru-4b-bf16-duplex-s2s-vllm-omni.yaml)
 
-**Probe arm, authored 2026-11-20, never booted.** `higurashi-ai/Haru-4B` @ `8d6e83bc` is a
+**Boot-verified 2026-11-20 (TP=1 on `.30`); receipt
+`head:~/benchmarks/tp2-completion-20261120/haru-4b/`.** Ready 2 m 34 s after container start
+(`/v1/models` 200, `max_model_len` 32768); the author's realtime client (mod `probe.py`, byte-identical
+on the head before launch) returned **rc 0**: `probe ok: the duplex session delivered output` — frames
+**in 9 / out 9**, 28,800 samples at 24 kHz with **9 of 9 non-silent** (peak 1.000), 19 characters of
+text, opening frame 16.75 s, steps median **69 ms** (68–78). One launch defect came first: the
+SHA-only download wrote no `refs/` and the container runs offline, so the first attempt died
+`LocalEntryNotFoundError`; `hf download higurashi-ai/Haru-4B` wrote `refs/main = 8d6e83bc` and the
+relaunch was clean.
+
+**Probe arm, authored 2026-11-20.** `higurashi-ai/Haru-4B` @ `8d6e83bc` is a
 5.27B-parameter BF16 **full-duplex speech-to-speech** model: every 133 ms it takes one frame of user
 audio and emits one frame of its own audio plus text, both summed into a single language-model
 position. One `model.safetensors`, **10,540,113,510 B**, 1,022 BF16 tensors, header-verified complete.

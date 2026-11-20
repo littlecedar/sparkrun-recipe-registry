@@ -40,7 +40,7 @@ mmproj: none
 # class itself is the owner's call, not this lane's.
 
 description: >-
-  PROBE ARM (`zz-`), authored-not-booted: `meta-models/Muse-Glimmer-30B` (29.78B BF16,
+  PROBE ARM (`zz-`), boot-verified 2026-11-20 (TP=1, ladder + tool call, quality not re-scored): `meta-models/Muse-Glimmer-30B` (29.78B BF16,
   59,553,435,272 B in two shards) in the fleet's 4-bit class, served from the AUTHOR ORG's
   own GGUF — `meta-models/Muse-Glimmer-30B-GGUF` @ b44f1072,
   `Muse-Glimmer-30B-KQuant-17GB-Q4_K_M.gguf` (16,756,683,904 B). Header read from the file,

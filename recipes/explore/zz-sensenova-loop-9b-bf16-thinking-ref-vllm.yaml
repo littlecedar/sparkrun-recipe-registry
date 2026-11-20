@@ -19,7 +19,7 @@ min_nodes: 1
 max_nodes: 1
 
 description: >-
-  PROBE ARM (`zz-`), authored-not-booted: `sensenova/SenseNova-Loop-9B` is a 9.66B-parameter
+  PROBE ARM (`zz-`), boot-verified 2026-11-20 (TP=1, one completion): `sensenova/SenseNova-Loop-9B` is a 9.66B-parameter
   BF16 looped-transformer multimodal checkpoint (19,318,812,640 B: 11 shards plus a 15-tensor
   `mtp.safetensors` MTP head; every shard header re-read from the Hub and matched against
   `model.safetensors.index.json` — 872 tensors, no missing and no extra keys, each shard's max

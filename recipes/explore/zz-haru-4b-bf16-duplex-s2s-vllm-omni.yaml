@@ -16,7 +16,7 @@ min_nodes: 1
 max_nodes: 1
 
 description: >-
-  PROBE ARM (`zz-`), authored-not-booted: `higurashi-ai/Haru-4B` is a 5.27B-parameter
+  PROBE ARM (`zz-`), boot-verified 2026-11-20 (TP=1, duplex probe rc 0): `higurashi-ai/Haru-4B` is a 5.27B-parameter
   BF16 full-duplex speech-to-speech model — every 133 ms (7.5 Hz) it takes one frame of
   the user's audio and emits one frame of its own audio plus text, both streams summed
   into a single language-model position, so it listens and speaks at the same time. It
@@ -109,8 +109,9 @@ description: >-
   3200-sample append per frame). This arm now ships one: `probe.py` beside the launcher
   mod's `run.sh`, a driver over the wheel's own `haru.backends.VllmBackend` (the demo
   server's browser protocol is not it), invoked after readiness as
-  `python3 /workspace/mods/haru-4b-realtime-launcher/probe.py`. Nothing above was
-  measured by it yet — the arm is still unbooted.
+  `python3 /workspace/mods/haru-4b-realtime-launcher/probe.py`. Measured 2026-11-20: rc 0,
+  frames in 9 / out 9, 28,800 samples at 24 kHz with 9 of 9 non-silent, opening frame
+  16.75 s, steps median 69 ms.
 metadata:
   model_url: https://huggingface.co/higurashi-ai/Haru-4B
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
