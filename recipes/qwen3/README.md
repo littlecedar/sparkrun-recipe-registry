@@ -20,6 +20,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
   - [qwen3-coder-next-int4-autoround-vllm](#qwen3-coder-next-int4-autoround-vllm)
   - [qwen3.8-27b-mlx4bit-tensorfold-sglang](#qwen38-27b-mlx4bit-tensorfold-sglang)
   - [zz-daisyrose-27b-bf16-thinking-sglang](#zz-daisyrose-27b-bf16-thinking-sglang)
+  - [zz-qwen3.8-27b-pi-adapted-lora-sglang](#zz-qwen38-27b-pi-adapted-lora-sglang)
   - [Flags](#flags)
 - [Attic index](#attic-index)
 
@@ -205,6 +206,30 @@ the v0.5.22 digest the explore lane pins); a KV pool under ~100k tokens at `0.85
 buffer was not released; acceptance below ~30 % on the DFlash2 draft would kill the speculation
 follow-up, not the arm.
 
+### zz-qwen3.8-27b-pi-adapted-lora-sglang
+
+**PROBE, non-shippable, authored-not-booted** — no receipt exists.
+
+| | |
+|---|---|
+| recipe | `zz-qwen3.8-27b-pi-adapted-lora-sglang.yaml` |
+| runtime / container | SGLang (`lmsysorg/sglang:dev-cu13@sha256:0a1ba33a…`, the sibling NVFP4 arm's digest) |
+| model | [Qwen/Qwen3.8-27B] BF16, 18 shards, 55.56 GB (51.75 GiB), revision `37561816…`, apache-2.0 |
+| adapter | [harness-hub/Qwen3.8-27B-pi-adapted] — PEFT LoRA, r=32 alpha=64, 637.6 MB, revision `80d05c90…`, apache-2.0, ungated. GRPO/async-GRPO for agent harnesses (pi/harbor/openenv) |
+| adapter coverage | MLP gate/up/down in all 64 layers + q/k/v/o in the 16 full-attention layers. The 48 GDN layers carry no adapter weights (`linear_attn.*` is absent from the file) |
+| size / mem / TP | 51.75 GiB weights + ~16 GiB KV at 262,144 + ~2.5 GiB GDN state at 32 slots + ~1.3 GiB LoRA pool ≈ 72 GiB of a 0.85 × 128 GiB budget; TP=1; plain decode, no speculative draft |
+| served ids | base `Qwen/Qwen3.8-27B`; adapter `qwen38-pi-adapted` — a request naming the base id is served unadapted |
+| flags | none yet (probe) |
+| license | Apache-2.0 (base and adapter) |
+
+**Why LoRA and not a merge:** the adapter only touches modules SGLang already wraps for LoRA
+(`qkv_proj`, `o_proj`, `gate_up_proj`, `down_proj`), and the GDN projections it never touched are
+untouched by a merge either — so request-time LoRA is the same arithmetic for 638 MB instead of a
+56 GB staged checkpoint and a merge step. Route evidence: SGLang's qwen3.5 LoRA support landed
+2026-04-29 (`c8c1c9261d`), before this image pin; the adapter's B/A shapes match the engine's own
+`get_hidden_dim`; `--lora-paths name=path` sets the served name (`srt/arg_groups/lora_hook.py`).
+**Prerequisite before a boot:** stage the adapter into the shared pool at `snapshots/80d05c90…`.
+
 ### Flags
 
 🚀 fast (> 50 t/s) · 🌲 lcg_favorite · 👀 vision.
@@ -240,6 +265,8 @@ the moved VL recipes are covered by
 <!-- Links -->
 [RadixArk/Qwen3.8-27B-NVFP4]: https://huggingface.co/RadixArk/Qwen3.8-27B-NVFP4
 [RadixArk/DaisyRose-27B]: https://huggingface.co/RadixArk/DaisyRose-27B
+[Qwen/Qwen3.8-27B]: https://huggingface.co/Qwen/Qwen3.8-27B
+[harness-hub/Qwen3.8-27B-pi-adapted]: https://huggingface.co/harness-hub/Qwen3.8-27B-pi-adapted
 [Intel/Qwen3-Coder-Next-int4-AutoRound]: https://huggingface.co/Intel/Qwen3-Coder-Next-int4-AutoRound
 [TensorFold/Qwen3.8-27B-MLX-4bit]: https://huggingface.co/TensorFold/Qwen3.8-27B-MLX-4bit
 [z-lab/Qwen3.8-27B-DFlash2]: https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2
