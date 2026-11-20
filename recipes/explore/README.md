@@ -9,7 +9,9 @@ The lane now ships **seven measured arms** — the accuracy leader, the smallest
 measured headroom, the best 262k aggregate at c10, the fastest/smallest GGUF arm, the
 Nemotron-3.5-Lightning 30B-A3B NVFP4 arm booted 2026-10-21 (highest C1 of any single-node chat arm
 here), and the Spark-X2.6 pair (FP8 fast tier + bf16 accuracy control, booted 2026-10-22) — plus one
-authored, eval-only and never-booted arm (`twil-8b-bf16-reasoning-sglang`, 2026-11-16) — plus the
+authored, eval-only and never-booted arm (`twil-8b-bf16-reasoning-sglang`, 2026-11-16) and the **three
+2026-11-20 authored-not-booted probes** (`zz-edge0-145b-nvfp4-latentmoe-strata`,
+`zz-hy4-flash-220b-bf16-thinking-tools-vllm`, `zz-sensenova-loop-9b-bf16-thinking-ref-vllm`) — plus the
 other **ten** measured arms from the 2026-10-14…18 expansions are
 archived with their receipts in [`attic/explore/`](../../attic/explore/) (manifest:
 [`ARMS-MANIFEST.md`](../../attic/explore/ARMS-MANIFEST.md)). The 17-row decision table with one
@@ -50,6 +52,9 @@ the pyannote diarizer. Explore keeps the language and agentic/RAG arms.
 - [kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4](#kimi-k31-pro-pruned75-mxfp4-dspark-vllm-tp4)
 - [Kimi-K3.1-Pro spinoffs: REAPs, drafters and the EXL3 2-bit](#kimi-k31-pro-spinoffs-reaps-drafters-and-the-exl3-2-bit)
 - [Ripple-65B Preview (2026-11-08 trial)](#ripple-65b-preview-2026-11-08-trial)
+- [zz-edge0-145b-nvfp4-latentmoe-strata](#zz-edge0-145b-nvfp4-latentmoe-strata)
+- [zz-hy4-flash-220b-bf16-thinking-tools-vllm](#zz-hy4-flash-220b-bf16-thinking-tools-vllm)
+- [zz-sensenova-loop-9b-bf16-thinking-ref-vllm](#zz-sensenova-loop-9b-bf16-thinking-ref-vllm)
 - [twil-8b-bf16-reasoning-sglang](#twil-8b-bf16-reasoning-sglang)
 - [Attic index](#attic-index)
 
@@ -1752,6 +1757,146 @@ digest — a moving target we froze, not a release.
 card's own claim), then its DFlash2 twin on the same node to price the drafter; the BF16 TP=2 arm is
 the quality control and the only long-context cell. That is three boots, two node-shapes, one
 engine digest.
+
+## [zz-edge0-145b-nvfp4-latentmoe-strata](zz-edge0-145b-nvfp4-latentmoe-strata.yaml)
+
+**Authored 2026-11-20, never booted** (`.31`–`.34` carry the production serve, `.30`/`.35` draining).
+The lane's first arm whose engine is neither llama.cpp nor a vLLM/SGLang family: the pack is Edge0's
+`strata`, built from source inside the container by `mods/edge0-strata-build`.
+
+**The artifact is a rebuild, not a packing.** `Edge0/Edge0-145B-NVFP4` at `17bb271c…`, ungated,
+`license: other` (`edge0-community-model-1.0` over the Qwen Community License 1.0): 30 files,
+**113,778,575,828 B = 106.0 GiB**. 145B total / 10.12B active, 48 layers, 512 experts (10 routed + 1
+shared, SwiGLU width 640), latent width ℓ = 1792, 256K context. The card's own framing — "rebuilt, not
+converted" — is what the bytes say: the routed MoE experts were replaced by a latent MoE and the model
+re-post-trained afterwards, so this is not a re-quantization of the base and cannot be read as one.
+
+| file | bytes | what it is |
+|---|---:|---|
+| `experts.bin` | 47,563,800,576 | 512 × 48 latent expert records, 1,630,720 B each, `strata pack index v3` |
+| `ple-fp8.gguf` | 51,200,246,112 | 51.2 B n-gram table, fp8, read through the pack |
+| `model-skeleton.gguf` | 5,991,569,248 | arch `qwen4exp`, 1,079 tensors, **no routed-expert tensor** |
+| `latent_dense_q8.bin` | 3,743,416,320 | per-layer D/U projections (`STRATA_LATENT_DENSE`) |
+| `latent_dense_q4.bin` | 1,981,808,640 | the Q4 alternative, unreferenced by `model.json` |
+| `dense.bin` | 1,538,625,024 | |
+| `mmproj-BF16.gguf` | 907,543,008 | vision encoder — needs `strata-vision`, not built here |
+| `mtp/{experts,dense}.bin` | 823,887,872 | 1.26 B draft head, same latent format |
+| `profile.bin` | 196,632 | static expert profile |
+| `model.json`, `index.txt`, `labels.bin`, `release-scope.json`, `start.sh` | 240,891 | run contract, pack index, router labels, licence scope record, launcher |
+| `tokenizer/` | 9,495,724 | |
+| `assets/` | 16,782,406 | card art and the demo video |
+
+`model.json` is the run contract, not a model config: `"exe": "strata"`,
+`"pack_format": "strata pack index v3"`, 20 native args (`--max-context 131072`, `--kv int8`,
+`--kv-resident 32768`, `--spec 4`, `--pcie-mode dma`) and eight `STRATA_LATENT_*` env settings.
+
+**Why neither fleet engine family can serve it.** *llama.cpp: rejected.* The skeleton's arch
+`qwen4exp` **is** mapped by the lane's pinned image (`upstream-6023692`), so the arch string proves
+nothing — the 1,079 tensors are attention, GDN/SSM, hyper-connections (`hc_*`), sparse indexer, shared
+expert (`ffn_*_shexp`) and routers (`ffn_gate_inp*`), and the 512 latent experts exist solely in
+`experts.bin`. There is no external-pack reader and no expert tensors to find. *vLLM/SGLang: rejected,
+and not convertible.* No `config.json`, no safetensors, no `auto_map`, no modeling code (only
+`tokenizer/` is HF-shaped). The base lane's SGLang arm serves Qwen's full-width 2560 experts; here
+every expert is rank-1792 with per-layer D/U projections, so the full-width weights are unrecoverable
+by construction — a dead end, not a packing question.
+
+**The engine this arm builds.** Edge0's GitHub releases carry no Linux asset (Windows x64/arm64,
+macOS arm64, Android), and the `linux-aarch64` engine on Niko1221/Strata's signed feed is upstream
+Strata **without** latent-MoE — so `mods/edge0-strata-build` compiles `strata` at the pinned commit
+with the documented Linux CUDA build (`-DCMAKE_CUDA_ARCHITECTURES=native -DSTRATA_ENABLE_CUDA=ON`,
+ggml from llama.cpp `3cf03257…`), keyed by a hash of both pins, gated on `src/core/latent_dense.cpp`,
+sm_121 device code and the `STRATA_LATENT_DENSE` literal, then serves through their `serve/server.py`
+(pure Python: numpy/jinja2/regex/yaml, no torch). `launch.sh` rewrites the run config to absolute
+`exe`/`cwd`/`tokenizer`/`log` under `/cache/runtime` — their `start.sh` would log into the snapshot —
+and adds exactly one arg, `--mmap-experts`, because a GB10 would otherwise pin a second 44.3 GiB copy
+of the expert pool in host RAM.
+
+**Known risks, named.** `EDGE0.md` records that their DGX Spark build script (`spark/`) and
+`packaging/` are *not* in the published snapshot, so the generic Linux build is a hypothesis for this
+part rather than their measured path; the all-resident verify path is opt-in because it hung on an RTX
+Spark N1X with every expert resident; and the pack's own `--max-context 131072` exceeds the 128K the
+vendor documents as untested. The vendor's own Spark row for the base Qwen NVFP4 pack (42.8/40.5/40.1
+decode at 4K/16K/32K) is the only performance evidence on this hardware, and it is another pack.
+
+**Licence — an open register question (`#87`), not a lane decision.** Edge0 Community Model License
+1.0 over the Qwen Community License 1.0, both binding (`§2` "Permission from Edge0 is not permission
+from Qwen, and permission from Qwen is not permission from Edge0"). §3(b) puts benchmarking and
+publication of findings inside the grant with no prior approval, §4(b)/(c) reserve commercial inference
+services and independent coding/office assistants to a separate written Edge0 licence. Nothing is sold
+and the arm is authored-not-booted, so exposure today is nil; the `zz-` prefix stands until the row is
+answered.
+
+## [zz-hy4-flash-220b-bf16-thinking-tools-vllm](zz-hy4-flash-220b-bf16-thinking-tools-vllm.yaml)
+
+**Authored 2026-11-20, never booted.** Tencent Hunyuan Hy4 Flash, the 2026-11-20 open-weight release:
+220B total / 12B active multimodal MoE — 42 layers (1 dense + 41 LatentMoE, 512 routed experts of which
+16 fire, 1 shared), hybrid attention (12 sparse IndexPool + 30 sliding-window-512 layers, MLA with
+`kv_lora_rank` 512), 63.4B parameters of Engram n-gram tables in layers 1/11/21/31, SigLIP2-So400m
+vision tower (0.43B), a 5-layer DFly draft head (0.85B), 120,832 vocab, 1,048,576 positions,
+`hy_v4_flash` / `HYV4FlashForConditionalGeneration`, bf16, `gated: false`, revision `b2498eba…`.
+
+**Fit — four nodes, and only just.** 148 shards measure **440,521,065,214 B = 410.29 GiB**. At TP=4
+that is 102.57 GiB of weights per rank against a 109.52 GiB budget (0.90 × 121.69 GiB measured
+device); after ~3.05 GiB activation/CUDA-graph overhead and ~1.58 GiB of draft head, **~2.32 GiB
+remains for KV ≈ 51k tokens**. TP=2/TP=1 do not fit; TP=8 is past the six-node fleet and TP must divide
+32 heads, so 4 is the only shape. The card's 1M context (45.09 GiB of KV) is unreachable here. Engram
+host-offload is a null lever on GB10's unified pool. The FP8 sibling (`tencent/Hy4-flash-FP8`,
+267.36 GiB) is the cell that would breathe — not authored.
+
+**Engine — model-specific image.** Upstream vLLM main carries `vllm/models/hy_v4_flash/` and
+`recipes/models/tencent/Hy4-flash.yaml`; SGLang and transformers have no support. The fleet's pinned
+vLLM build is three months too old, so the arm pins `vllm/vllm-openai:hy4-flash@sha256:6b645bfb…`
+(arm64 child `sha256:5e2c1bad…`) with the vendor's shape: `--attention-backend FLASHMLA_SPARSE`,
+`--speculative-config {"num_speculative_tokens":5,"method":"dfly"}`, `--tool-call-parser hy_v4
+--reasoning-parser hy_v4`, 8192 context / 4 sequences / one image per prompt. Engine support is
+inferred from upstream main plus the vendor recipe, not read out of the image filesystem — the first
+boot is also the engine test. `instrumented: false`.
+
+**Boot gate.** A quartet means `.31`–`.34`, which carry the production ds4 serve; this arm waits for
+an owner-declared TP4 window with the ring free. Then stage 410.29 GiB in the pool, carry the image to
+all four ranks with the same arm64 child id, and boot. `readiness.inference: false`.
+
+**Licence — register question (row `#86`), not a lane decision.** Tencent Hy License 1.0: Apache-2.0
+plus §10 MaaS terms (§10.2 revenue > US$50M or > 100M MAU → separate written licence; §10.3
+internal-use exemption; §6 trademarks; §4(c) attribution; derivatives include quantized/pruned/merged
+weights). The `zz-` prefix stands until answered.
+
+## [zz-sensenova-loop-9b-bf16-thinking-ref-vllm](zz-sensenova-loop-9b-bf16-thinking-ref-vllm.yaml)
+
+**Authored 2026-11-20, never booted.** `sensenova/SenseNova-Loop-9B` is a 9.66B-parameter BF16 looped
+multimodal checkpoint: 19,318,812,640 B in 11 shards plus a 15-tensor `mtp.safetensors` MTP head. Every
+shard header was re-read from the Hub and matched against `model.safetensors.index.json` — 872
+tensors, no missing and no extra keys, each shard's largest tensor end offset equal to its file size.
+
+**The architecture is the reason.** `architectures: [SenseNovaLoopForConditionalGeneration]`,
+`model_type sensenova_loop`, `auto_map` for all four auto classes, code in
+`modeling_sensenova_loop.py`. `loop_settings {start 4, end 28, eval_count 2}` replays physical layers
+4..28 a second time — 56 layer executions over 32 weight sets, each visit with its own DynamicCache
+slot — and `mhc {start 4, end 28, streams 2, iterations 20}` expands the residual into two
+Sinkhorn-routed streams backed by 96 trained `mhc_attn`/`mhc_ffn` tensors. Text tower `qwen3_5_text`
+(24 linear-attention + 8 full-attention of 32 layers, head_dim 256, 16 q / 4 kv, vocab 248,320, YaRN
+2.0 over 262,144 to 524,288); vision tower `qwen3_5_vision`, 27 blocks at hidden 1,152.
+
+**Engine choice is a set of rejections.** llama.cpp: upstream `src/llama-arch.cpp` registers no
+`sensenova_loop` (only `sensenova_u1`), and the official GGUF is published for the OpenSenseNova fork
+at `24ea7bb7`, so every pinned llama.cpp image rejects the file at load. vLLM: the pinned image's
+registry has `Qwen3_5ForConditionalGeneration` and no SenseNova entry; the card points at unmerged PR
+#64832. SGLang: unmerged PR #47281, absent from `v0.5.22`. transformers: loads it, which is this arm —
+`vllm/vllm-openai:v0.32.0` is a carrier only, and its transformers pin (`>=5.16.1, <5.20.0`) contains
+the card's checked 5.18.0.
+
+**Reference route and its limits.** `mods/sensenova-loop-ref-launcher` fails closed unless the image
+carries the `qwen3_5` symbols the remote code subclasses, then serves `/health`, `/v1/models` and a
+non-streaming `/v1/chat/completions` over `apply_chat_template`, splitting the thinking block into
+`reasoning_content`. One request at a time, no batching, no paged KV, greedy, 32,768-token prompt cap
+(~1 GiB of KV at the cap). Every number it produces is a correctness probe, never a serving benchmark.
+
+**Licence: apache-2.0.** The base repo ships no `LICENSE` file; the Apache-2.0 text is in the GGUF
+sibling. Gating is `auto` with no personal fields.
+
+**Unmeasured, all of it.** No C1–C10, no Mem%, no accuracy, no tool-call or thinking-budget figure.
+The card's 2.9x loop scaling, MTP/DSpark spec decode and 15 GiB multimodal at 256K are vendor claims.
+First boot gate: the mod gate plus one chat completion, on a node clear of the protected serve.
 
 ## twil-8b-bf16-reasoning-sglang
 
