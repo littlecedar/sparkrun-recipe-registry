@@ -1,0 +1,100 @@
+# NON-SHIPPABLE PROBE ARM (`zz-` convention). Authored, never booted: no receipt exists.
+# The adapter is a PEFT LoRA (r=32, alpha=64) over the 7 standard projections of the
+# full-attention layers (16 of 64) and the MLP of all 64 layers; it carries NO weights for
+# the 48 GDN layers' linear_attn projections. SGLang's qwen3_5 model wraps exactly
+# qkv_proj/o_proj/gate_up_proj/down_proj for LoRA, so request-time LoRA here is the same
+# arithmetic as a merge_and_unload, for 638 MB instead of a 56 GB staged checkpoint.
+# Shapes line up with SGLang's own stacking: q_proj B [12288, 32] (48 heads incl. the output
+# gate), o_proj A [32, 6144], k/v B [1024, 32], gate/up B [17408, 32], down B [5120, 32].
+# Route evidence: SGLang "LoRA support for qwen3.5" (c8c1c9261d, 2026-04-29) predates this
+# image pin; served-name contract is `--lora-paths <name>=<path>` and the adapter answers to
+# that name in the request `model` field (srt/arg_groups/lora_hook.py).
+recipe_version: "2"
+model: Qwen/Qwen3.8-27B
+model_revision: 37561816e66b5b9153b1b64c10968c18c1e6f4a0
+runtime: sglang
+container: lmsysorg/sglang:dev-cu13@sha256:0a1ba33aa4e032b8c5bcebdc69c45664074c032074add4f7db01629ec1fcc381
+  # Same build the sibling NVFP4 arm serves on, so the qwen3_5 model code is the one this
+  # lane has receipts for. The tag is rebuilt upstream; the digest is the pin.
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  [PROBE, non-shippable] Qwen3.8-27B (BF16) serving the harness-hub pi-adapted GRPO LoRA
+  adapter at request time via SGLang `--lora-paths`; TP=1 on one DGX Spark, plain decode
+  (no speculative draft: DFLASH is LoRA-compatible but runs unadapted).
+metadata:
+  model_url: https://huggingface.co/Qwen/Qwen3.8-27B
+  adapter_url: https://huggingface.co/harness-hub/Qwen3.8-27B-pi-adapted
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "27B"
+  model_dtype: bf16
+  model_adapter_dtype: bf16
+  kv_dtype: bf16
+  tags: agent, lora, trial
+
+# The adapter is tiny but it is NOT fetched by sparkrun (only {model} is), so the launch fails
+# closed here instead of inside the LoRA load. A bare snapshot path needs no refs/ seed: the
+# adapter config and weights are read from the directory directly.
+pre_exec:
+  - >-
+    set -e; A=/cache/huggingface/hub/models--harness-hub--Qwen3.8-27B-pi-adapted/snapshots/{lora_revision};
+    test -f "$A/adapter_config.json" || { echo "adapter config missing: $A" >&2; exit 1; };
+    test -f "$A/adapter_model.safetensors" || { echo "adapter weights missing: $A" >&2; exit 1; }
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Never {model}: sparkrun rebinds it to the prepared snapshot path, and the base id is what
+  # clients get when they name the base model.
+  served_model_name: Qwen/Qwen3.8-27B
+  # The id the adapter answers to. Every request that wants the adapter must name this; a
+  # request naming the base id is served unadapted.
+  lora_name: qwen38-pi-adapted
+  # Adapter revision, distribution-only except for the pre_exec gate above.
+  lora_revision: 80d05c9051dfd2ae464e1daf4329cb15524caf60
+  gpu_memory_utilization: 0.85
+  max_model_len: 262144
+  # Weight math (TP=1, 51.75 GiB of BF16 weights): KV is 64 KiB/token over the 16 full-attention
+  # layers (16 GiB at 262,144), GDN state ~79 MB/slot (~2.5 GiB at 32), LoRA pool for 2 slots
+  # ~1.3 GiB -- ~72 GiB against a 0.85 x 128 GiB budget. Unfalsified without a boot.
+  max_num_seqs: 32
+  # Pool capacity counts the base-model slot, so 2 = base + this one adapter.
+  max_loras_per_batch: 2
+  # Inherited from the NVFP4 sibling at this context length and NOT retuned for a BF16 pool:
+  # the optimum is interior and moves with context length. Ask before changing.
+  mamba_full_memory_ratio: 3.51
+  # bfloat16 deliberately overrides the checkpoint's float32 (halves per-slot state, ~2x the
+  # slots); bit-identical on the state-read path.
+  mamba_ssm_dtype: bfloat16
+  mamba_radix_cache_strategy: extra_buffer_lazy
+  kv_cache_dtype: auto
+  chunked_prefill_size: 4096
+  attention_backend: flashinfer
+  extra_args: ""
+
+command: >
+  sglang serve
+  --model-path {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --reasoning-parser qwen3
+  --tool-call-parser qwen3_coder
+  --lora-paths {lora_name}=/cache/huggingface/hub/models--harness-hub--Qwen3.8-27B-pi-adapted/snapshots/{lora_revision}
+  --max-loras-per-batch {max_loras_per_batch}
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
+  --attention-backend {attention_backend}
+  --mamba-full-memory-ratio {mamba_full_memory_ratio}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --mamba-ssm-dtype {mamba_ssm_dtype}
+  --kv-cache-dtype {kv_cache_dtype}
+  --enable-metrics
+  --enable-cache-report
+  {extra_args}
