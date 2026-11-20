@@ -9,10 +9,14 @@ gone + endpoint dead on >=2 consecutive checks -> dead. The io-delta evidence
 lines are also pinned, since they are what proves a load progressing.
 """
 
+import contextlib
+import http.server
 import importlib.util
+import json
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 import unittest.mock as mock
 from pathlib import Path
@@ -223,7 +227,7 @@ class StallIsNotLoading(unittest.TestCase):
 _GONE = (False, None, 0, None, None)
 
 
-def _drive(per_rank, stall="25", ranks=(), dead_grace="0", endpoint=False):
+def _drive(per_rank, stall="25", ranks=(), dead_grace="0", endpoint=False, extra=()):
     """main() over per-rank serve_state returns on a fake clock that steps 10 s a call.
 
     `per_rank` is `{node: [samples]}` (or a bare list for the single-rank shape); each node's
@@ -231,6 +235,9 @@ def _drive(per_rank, stall="25", ranks=(), dead_grace="0", endpoint=False):
     difference visible without a 600 s wait: the fixed predicate resets the idle clock every
     check (idle 10 s < 25 s), the io+log-only one lets it accumulate (10 s, 20 s, 30 s …)
     and fires inside four samples.
+
+    `endpoint` is a bool for the mocked probe, or a URL string to leave `endpoint_reachable`
+    real against a stub server (the inference-probe tests). `extra` appends argv.
     """
     calls: list[list[str]] = []
 
@@ -266,14 +273,19 @@ def _drive(per_rank, stall="25", ranks=(), dead_grace="0", endpoint=False):
 
     tmp = Path(tempfile.mkdtemp())
     fake = mock.Mock(run=fake_run, SubprocessError=subprocess.SubprocessError)
-    with (
+    url = endpoint if isinstance(endpoint, str) else "http://127.0.0.1:1"
+    patchers = [
         mock.patch.object(bw, "time", Clock()),
         mock.patch.object(bw, "subprocess", fake),
-        mock.patch.object(bw, "endpoint_reachable", return_value=endpoint),
         mock.patch.object(bw, "serve_state", side_effect=sampler),
-    ):
+    ]
+    if not isinstance(endpoint, str):
+        patchers.append(mock.patch.object(bw, "endpoint_reachable", return_value=endpoint))
+    with contextlib.ExitStack() as stack:
+        for patcher in patchers:
+            stack.enter_context(patcher)
         rc = bw.main([
-            "--endpoint", "http://127.0.0.1:1",
+            "--endpoint", url,
             "--task-id", "abc123",
             "--node", "n1",
             "--container", "sparkrun_abc123_solo",
@@ -282,6 +294,7 @@ def _drive(per_rank, stall="25", ranks=(), dead_grace="0", endpoint=False):
             "--stall", stall,
             *(f"--rank={rank}" for rank in ranks),
             "--log", str(tmp / "watchdog.log"),
+            *extra,
         ])
     return rc, calls, (tmp / "watchdog.log").read_text()
 
@@ -739,6 +752,98 @@ class FingerprintMissIsNotDeath(unittest.TestCase):
         old = "tensorfold|llama-server|sglang|vllm|python3|python"
         for name in ("dsgb10_rank", "dsfront"):
             self.assertNotIn(name, old, "the control pattern no longer reproduces the defect")
+
+
+class InferenceProbe(unittest.TestCase):
+    """`21e5ec6` class again, in a new shape: readiness read from the wrong surface.
+
+    picom receipt `head:~/benchmarks/picom-bareh-20261120-head/watchdog.log`: `dsfront` binds
+    `/health` ~90 s before the engine exists, so the keyless rule reported `verdict=healthy`
+    at t=1 s and exited 0 on a boot that could not answer. `--require-inference` must read
+    that boot as loading and never exit 0 until a completion is served.
+    """
+
+    GONE = (False, None, None, None, None)  # container not running; nothing to serve
+
+    def _stub(self, completion: int) -> str:
+        """Stub front-end: `/health` 200 always, `/v1/models` needs the key, completion as given."""
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def _send(self, code: int, body: bytes = b"") -> None:
+                self.send_response(code)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_GET(self) -> None:
+                if self.path == "/health":
+                    self._send(200, b'{"status":"ok"}')
+                elif self.path == "/v1/models":
+                    if self.headers.get("Authorization") != "Bearer test-key":
+                        self._send(401, b'{"error":"missing key"}')
+                    else:
+                        self._send(200, json.dumps({"data": [{"id": "stub-model"}]}).encode())
+                else:
+                    self._send(404)
+
+            def do_POST(self) -> None:
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                self._send(completion, b'{"choices":[]}')
+
+            def log_message(self, *_args) -> None:
+                pass
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        return f"http://127.0.0.1:{server.server_address[1]}"
+
+    def _key_file(self, key: str = "test-key") -> str:
+        path = Path(tempfile.mkdtemp()) / "api-key"
+        path.write_text(key + "\n", encoding="utf-8")
+        return str(path)
+
+    def _argv(self, key_file: str) -> list[str]:
+        return ["--require-inference", "--api-key-file", key_file]
+
+    def test_a_health_200_with_a_refused_completion_is_not_healthy(self):
+        # front-end up (serve pattern matched) while the engine refuses: loading, then the
+        # keep-alive rule takes over on its own verdict path -- never healthy.
+        up = (True, (100, 200), 4096, 8 << 30, None)
+        rc, calls, log = _drive(
+            [up, up, self.GONE], endpoint=self._stub(503), extra=self._argv(self._key_file())
+        )
+        self.assertNotIn("verdict=healthy", log, log)
+        self.assertIn("verdict=loading", log, log)
+        self.assertIn("no inference yet", log, "the missing surface must be named")
+        self.assertIn("inference=down", log)
+        self.assertNotEqual(rc, 0, "a boot that cannot answer must never exit 0")
+        self.assertIn(["sparkrun", "stop", "abc123"], calls)
+
+    def test_the_same_stub_is_healthy_once_the_completion_answers(self):
+        rc, _calls, log = _drive(
+            [self.GONE], endpoint=self._stub(200), extra=self._argv(self._key_file())
+        )
+        self.assertIn("verdict=healthy", log, log)
+        self.assertIn("inference=ok", log)
+        self.assertEqual(rc, 0)
+
+    def test_the_bearer_key_is_what_makes_models_an_inference_surface(self):
+        """Mutation: dropping the Authorization header leaves `/v1/models` at 401, never healthy."""
+        rc, _calls, log = _drive(
+            [self.GONE], endpoint=self._stub(200), extra=self._argv(self._key_file("wrong-key"))
+        )
+        self.assertNotIn("verdict=healthy", log, log)
+        self.assertNotEqual(rc, 0)
+
+    def test_without_the_flag_a_health_only_boot_still_reads_healthy(self):
+        """The default must not change any existing arm's verdict."""
+        rc, _calls, log = _drive([self.GONE], endpoint=self._stub(503))
+        self.assertIn("verdict=healthy", log, log)
+        self.assertEqual(rc, 0)
+        self.assertNotIn("inference=", log)
 
 
 if __name__ == "__main__":

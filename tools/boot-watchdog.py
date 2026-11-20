@@ -12,6 +12,12 @@ distinction explicit and acts on it:
 
   * endpoint answers (keyless `/health` 2xx, or any <500 on `/v1/models`, so a
     401 from a keyed front-end counts)                        -> healthy
+    ...unless `--require-inference` is passed: then healthy also needs an
+    authenticated `/v1/models` AND one tiny completion 2xx. A `/health` 200 with the
+    completion refused is `loading`, never healthy, never exit 0. Pass it on arms whose
+    `/health` answers before the engine: on picom `dsfront` binds `/health` ~90 s early
+    and the receipt `head:~/benchmarks/picom-bareh-20261120-head/watchdog.log` shows the
+    keyless rule reporting `verdict=healthy` at t=1 s on a boot that could not answer.
   * serve pattern matched nothing while the container is up and the endpoint
     answers                                                    -> loading (a fingerprint
     miss is not death; one log line names the miss)
@@ -67,6 +73,7 @@ Exit codes: 0 endpoint healthy; 3 dead and stopped; 4 watchdog's own error or a 
 
 import argparse
 import http.client
+import json
 import shlex
 import subprocess
 import sys
@@ -115,6 +122,75 @@ def endpoint_reachable(endpoint: str, timeout: float = 5.0) -> bool:
         if path == "/v1/models" and 200 <= status < 500:
             return True
     return False
+
+
+def read_api_key(path: str) -> str:
+    """Bearer key from the file the arm writes; empty when unreadable (fail closed)."""
+    try:
+        return Path(path).expanduser().read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def http_call(
+    url: str,
+    payload: dict | None = None,
+    headers: dict[str, str] | None = None,
+    timeout: float = 10.0,
+) -> tuple[int, bytes] | None:
+    """(status, body) of a request, or None when nothing answered. Never prints the key."""
+    data = json.dumps(payload).encode() if payload is not None else None
+    req = urllib.request.Request(
+        url, data=data, headers={"Content-Type": "application/json", **(headers or {})}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status, resp.read(1 << 16)
+    except urllib.error.HTTPError as exc:
+        try:
+            return exc.code, exc.read(1 << 16)
+        except (OSError, http.client.HTTPException):
+            return exc.code, b""
+    except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException):
+        return None
+
+
+def inference_ok(endpoint: str, api_key: str, timeout: float = 10.0) -> bool:
+    """The engine really serves: authenticated `/v1/models` AND one tiny completion 2xx.
+
+    `/health` is not readiness. On the picom arm `dsfront` binds `/health` ~90 s before
+    the engine exists (`head:~/benchmarks/picom-bareh-20261120-head/watchdog.log`: verdict
+    healthy at t=1 s on a boot that could not answer), and a keyless 200 proves only that
+    the front-end process is listening. Fail closed: anything short of a served completion
+    is `loading`, never `healthy`.
+    """
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    models = http_call(endpoint + "/v1/models", headers=headers, timeout=timeout)
+    if models is None or not 200 <= models[0] < 300:
+        return False
+    try:
+        model = json.loads(models[1])["data"][0]["id"]
+    except (ValueError, KeyError, IndexError, TypeError):
+        return False
+    chat = http_call(
+        endpoint + "/v1/chat/completions",
+        {"model": model, "max_tokens": 1, "messages": [{"role": "user", "content": "ping"}]},
+        headers,
+        timeout,
+    )
+    if chat is None:
+        return False
+    if 200 <= chat[0] < 300:
+        return True
+    if chat[0] not in (404, 405):
+        return False
+    done = http_call(
+        endpoint + "/v1/completions",
+        {"model": model, "prompt": "ping", "max_tokens": 1},
+        headers,
+        timeout,
+    )
+    return done is not None and 200 <= done[0] < 300
 
 
 def parse_io(text: str) -> tuple[int, int] | None:
@@ -598,6 +674,19 @@ def main(argv: list[str] | None = None) -> int:
         "rendezvous is judged on the whole group rather than a quiet rank 0",
     )
     ap.add_argument("--serve-pattern", default=SERVE_PATTERN)
+    ap.add_argument(
+        "--require-inference",
+        action="store_true",
+        help="healthy needs an authenticated /v1/models AND one tiny completion 2xx, not just "
+        "a `/health` 200. Pass it on any arm whose `/health` answers before the engine "
+        "(picom: dsfront binds it ~90 s early)",
+    )
+    ap.add_argument(
+        "--api-key-file",
+        default="/cache/runtime/picom/run/api-key",
+        help="bearer key for the inference probe, read where the arm writes it; empty means "
+        "a keyless probe (which a keyed front-end answers 401, so the probe stays not-ready)",
+    )
     ap.add_argument("--log", default="")
     args = ap.parse_args(argv)
 
@@ -631,8 +720,34 @@ def main(argv: list[str] | None = None) -> int:
     # (the fingerprint miss) needs a confirmation window.
     seen_alive = False
     pattern_miss_logged = False
+    api_key = ""
+    if args.require_inference:
+        api_key = read_api_key(args.api_key_file)
+        if not api_key:
+            print(
+                f"WATCHDOG: --require-inference: no key readable at {args.api_key_file}; "
+                "the probe sends no bearer and a keyed front-end will answer 401, so this "
+                "boot can only read healthy if the endpoint is truly keyless",
+                file=log,
+                flush=True,
+            )
+    health_only_logged = False
     while True:
-        ok = endpoint_reachable(args.endpoint)
+        health_ok = endpoint_reachable(args.endpoint)
+        infer = not args.require_inference or not health_ok or inference_ok(
+            args.endpoint, api_key
+        )
+        ok = health_ok and infer
+        # `/health` 200 is not readiness: name the gap once so the receipt says which surface
+        # was missing, and keep the verdict at loading until a completion is served.
+        if health_ok and not infer and not health_only_logged:
+            print(
+                f"WATCHDOG: /health answers but no inference yet (authenticated /v1/models + "
+                "one completion); holding at loading",
+                file=log,
+                flush=True,
+            )
+            health_only_logged = True
         samples = [serve_state(node, ctn, args.serve_pattern) for node, ctn in ranks]
         alive, _io, _logsize, _mem, fatal = samples[0]
         cup = container_up(alive, _logsize)
@@ -704,7 +819,8 @@ def main(argv: list[str] | None = None) -> int:
             f"log_delta={log_delta} "
             f"mem_delta={mem_delta} idle={int(idle)}s ranks={len(ranks)} "
             f"peer_moved={peer_moved} unprobeable={unprobeable}"
-            + (f" cause={fatal!r}" if fatal else ""),
+            + (f" cause={fatal!r}" if fatal else "")
+            + (f" inference={'ok' if infer else 'down'}" if args.require_inference else ""),
             file=log,
             flush=True,
         )
