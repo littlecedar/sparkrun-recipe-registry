@@ -10,19 +10,23 @@ while the endpoint never returns — a keep-alive that MASKS a dead serve. A
 session then sits on a boot that will never be ready. This watchdog makes the
 distinction explicit and acts on it:
 
-  * endpoint answers (keyless `/health` 2xx, or any <500 on `/v1/models`, so a
-    401 from a keyed front-end counts)                        -> healthy
-    ...unless `--require-inference` is passed: then healthy also needs an
-    authenticated `/v1/models` AND one tiny completion 2xx. A `/health` 200 with the
-    completion refused is `loading`, never healthy, never exit 0. The bearer is read
-    from `--api-key-file` on this host, else through `--node`'s container by
-    `docker exec cat` (the picom arm writes it inside the container); when neither
-    reads, the check is `no_probe` -- never `healthy`, never a silent keyless probe.
-    Pass the flag on arms whose `/health` answers before the engine: on picom `dsfront`
-    binds `/health` ~90 s early and the receipt
-    `head:~/benchmarks/picom-bareh-20261120-head/watchdog.log` shows the keyless rule
-    reporting `verdict=healthy` at t=1 s on a boot that could not answer.
-  * serve pattern matched nothing while the container is up and the endpoint
+  * endpoint answers each check and an inference surface returns 2xx
+                                                              -> healthy
+    Healthy means *served*, not *listening*: an authenticated `/v1/models` plus one tiny
+    request answered 2xx on the engine's own surface — `/v1/chat/completions`, else
+    `/v1/completions`, else `/v1/embeddings`, else `/v1/rerank` (the embedding and reranking
+    lanes have no chat endpoint), and the check line names the one that answered
+    (`inference=ok surface=embeddings`). A `/health` 200 with no surface answering is
+    `loading`, never healthy, never exit 0: on picom `dsfront` binds `/health` ~90 s early and
+    the receipt `head:~/benchmarks/picom-bareh-20261120-head/watchdog.log` shows the old
+    keyless rule reporting `verdict=healthy` at t=1 s on a boot that could not answer.
+    The bearer is read from `--api-key-file` on this host, else through `--node`'s container
+    by `docker exec cat` (the picom arm writes it inside the container); a keyless engine
+    (vLLM/SGLang with no bearer) answers `/v1/models` 200 and probes the same way. When no key
+    reads *and* `/v1/models` refuses a keyless probe, the check is `no_probe` -- never
+    `healthy`, never a silent `/health` fallback. `--no-require-inference` opts back into the
+    plain endpoint rule for an arm whose only readiness signal really is `/health`.
+  * serve pattern matched nothing while the container is up and inference
     answers                                                    -> loading (a fingerprint
     miss is not death; one log line names the miss)
   * the probe itself failed (ssh/exec error, no `LOGSIZE`)     -> no_probe: no evidence
@@ -194,42 +198,58 @@ def http_call(
         return None
 
 
-def inference_ok(endpoint: str, api_key: str, timeout: float = 10.0) -> bool:
-    """The engine really serves: authenticated `/v1/models` AND one tiny completion 2xx.
+# `input` shapes that are one input for a chat surface, a completion, an embedding and a
+# rerank: the embedding and reranking lanes have no chat endpoint at all (`recipes/embed/`,
+# `recipes/rerank/`), so the surface is what decides health, never `/health`.
+INFERENCE_SURFACES = (
+    ("chat", "/v1/chat/completions",
+     {"max_tokens": 1, "messages": [{"role": "user", "content": "ping"}]}),
+    ("completions", "/v1/completions",
+     {"prompt": "ping", "max_tokens": 1}),
+    ("embeddings", "/v1/embeddings", {"input": "ping"}),
+    ("rerank", "/v1/rerank", {"query": "ping", "documents": ["ping"]}),
+)
+
+
+def probe_inference(endpoint: str, api_key: str, timeout: float = 10.0) -> tuple[str, str | None]:
+    """(verdict, surface): does the engine really serve inference?
+
+    `ok`       : `/v1/models` answered and one of `INFERENCE_SURFACES` returned 2xx; the
+                 surface is named (`chat`, `completions`, `embeddings`, `rerank`).
+    `down`     : no surface answers yet (a boot in progress), or a key we hold is refused.
+    `unprobed` : `/v1/models` refuses us without a bearer and no key was readable, so this
+                 instrument cannot tell a served boot from a dead one -- never `ok`, and the
+                 caller never strengthens it into a `/health` fallback.
 
     `/health` is not readiness. On the picom arm `dsfront` binds `/health` ~90 s before
     the engine exists (`head:~/benchmarks/picom-bareh-20261120-head/watchdog.log`: verdict
     healthy at t=1 s on a boot that could not answer), and a keyless 200 proves only that
-    the front-end process is listening. Fail closed: anything short of a served completion
+    the front-end process is listening. Fail closed: anything short of a served surface
     is `loading`, never `healthy`.
     """
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     models = http_call(endpoint + "/v1/models", headers=headers, timeout=timeout)
+    if models is not None and models[0] in (401, 403) and not api_key:
+        return "unprobed", None
     if models is None or not 200 <= models[0] < 300:
-        return False
+        return "down", None
     try:
         model = json.loads(models[1])["data"][0]["id"]
     except (ValueError, KeyError, IndexError, TypeError):
-        return False
-    chat = http_call(
-        endpoint + "/v1/chat/completions",
-        {"model": model, "max_tokens": 1, "messages": [{"role": "user", "content": "ping"}]},
-        headers,
-        timeout,
-    )
-    if chat is None:
-        return False
-    if 200 <= chat[0] < 300:
-        return True
-    if chat[0] not in (404, 405):
-        return False
-    done = http_call(
-        endpoint + "/v1/completions",
-        {"model": model, "prompt": "ping", "max_tokens": 1},
-        headers,
-        timeout,
-    )
-    return done is not None and 200 <= done[0] < 300
+        return "down", None
+    # Any non-2xx that is not an auth refusal means this engine has no such surface (a
+    # pooling engine answers 404 or 400 to chat completions), so the next one is tried.
+    # Only a 2xx on a real inference surface counts, so trying them all can never make a
+    # boot healthier than it is; a 401/403 is the engine refusing us, not a routing miss.
+    for name, path, body in INFERENCE_SURFACES:
+        answer = http_call(endpoint + path, {"model": model, **body}, headers, timeout)
+        if answer is None:
+            return "down", None
+        if 200 <= answer[0] < 300:
+            return "ok", name
+        if answer[0] in (401, 403):
+            return "down", None
+    return "down", None
 
 
 def parse_io(text: str) -> tuple[int, int] | None:
@@ -715,10 +735,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--serve-pattern", default=SERVE_PATTERN)
     ap.add_argument(
         "--require-inference",
-        action="store_true",
-        help="healthy needs an authenticated /v1/models AND one tiny completion 2xx, not just "
-        "a `/health` 200. Pass it on any arm whose `/health` answers before the engine "
-        "(picom: dsfront binds it ~90 s early)",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="default: healthy needs a served inference surface (an authenticated "
+        "`/v1/models` plus one 2xx completion, or `/v1/embeddings` / `/v1/rerank` where the "
+        "engine has no chat surface), never just a `/health` 200. `--no-require-inference` "
+        "opts out for an arm whose only readiness signal really is `/health`",
     )
     ap.add_argument(
         "--api-key-file",
@@ -766,20 +788,26 @@ def main(argv: list[str] | None = None) -> int:
         api_key, key_tried = resolve_api_key(args.api_key_file, args.node, container)
         if not api_key:
             print(
-                "WATCHDOG: --require-inference: no key readable at "
-                f"{' or '.join(key_tried)}; the probe cannot authenticate, so every check "
-                "is no_probe (never healthy, never a keyless fallback)",
+                "WATCHDOG: no key readable at "
+                f"{' or '.join(key_tried)}; probing keyless, and a front-end that refuses a "
+                "keyless /v1/models is no_probe (never healthy, never a /health fallback)",
                 file=log,
                 flush=True,
             )
-    unprobed = args.require_inference and not api_key
+    unprobed = False
+    surface: str | None = None
     health_only_logged = False
     while True:
-        health_ok = endpoint_reachable(args.endpoint) if not unprobed else False
-        infer = not args.require_inference or not health_ok or inference_ok(
-            args.endpoint, api_key
-        )
-        ok = health_ok and infer
+        if args.require_inference:
+            inferred, surface = probe_inference(args.endpoint, api_key)
+            unprobed = inferred == "unprobed"
+            infer = inferred == "ok"
+            ok = infer
+        else:
+            ok = infer = endpoint_reachable(args.endpoint)
+        health_ok = ok
+        if args.require_inference and not ok and not unprobed:
+            health_ok = endpoint_reachable(args.endpoint)
         # `/health` 200 is not readiness: name the gap once so the receipt says which surface
         # was missing, and keep the verdict at loading until a completion is served.
         if health_ok and not infer and not health_only_logged:
@@ -795,7 +823,7 @@ def main(argv: list[str] | None = None) -> int:
         cup = container_up(alive, _logsize)
         # A fingerprint miss is not a death signal when the container is up and the
         # server answers; say it once so the next diagnosis starts from the pattern.
-        if alive is False and cup and ok and not seen_alive and not pattern_miss_logged:
+        if alive is False and cup and health_ok and not seen_alive and not pattern_miss_logged:
             print(
                 f"WATCHDOG: serve pattern {args.serve_pattern!r} matched nothing in "
                 f"{container}; container is up and the endpoint answers -- holding at loading",
@@ -848,6 +876,11 @@ def main(argv: list[str] | None = None) -> int:
             consecutive_dead = 0
         verdict = decide(ok, alive, consecutive_dead, seen_alive=seen_alive, fatal=fatal,
                          container_up=cup)
+        # A pattern miss with the container up and the endpoint answering is not death: the
+        # server is there even though the pattern cannot name it. `/health` alone still never
+        # proves health -- the verdict holds at loading until an inference surface answers.
+        if verdict == "dead_candidate" and alive is False and cup and health_ok and not seen_alive:
+            verdict = "loading"
         elapsed = int(time.time() - started)
         if moved:
             last_progress = time.monotonic()
@@ -869,6 +902,7 @@ def main(argv: list[str] | None = None) -> int:
             + (f" cause={fatal!r}" if fatal else "")
             + (
                 f" inference={'unprobed' if unprobed else 'ok' if infer else 'down'}"
+                + (f" surface={surface}" if infer and surface else "")
                 if args.require_inference
                 else ""
             ),

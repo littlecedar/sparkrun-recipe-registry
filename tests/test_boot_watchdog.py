@@ -228,7 +228,7 @@ _GONE = (False, None, 0, None, None)
 
 
 def _drive(per_rank, stall="25", ranks=(), dead_grace="0", endpoint=False, extra=(),
-           log_dir=None, docker_exec_out="", checks=None):
+           log_dir=None, docker_exec_out="", checks=None, require_inference=False):
     """main() over per-rank serve_state returns on a fake clock that steps 10 s a call.
 
     `per_rank` is `{node: [samples]}` (or a bare list for the single-rank shape); each node's
@@ -239,6 +239,9 @@ def _drive(per_rank, stall="25", ranks=(), dead_grace="0", endpoint=False, extra
 
     `endpoint` is a bool for the mocked probe, or a URL string to leave `endpoint_reachable`
     real against a stub server (the inference-probe tests). `extra` appends argv.
+    `require_inference` is the watchdog's readiness rule: it is on by default, and this helper
+    opts *out* (`--no-require-inference`) so the death/stall tests keep their plain
+    reachability fixture; the inference tests opt in.
     """
     calls: list[list[str]] = []
 
@@ -303,6 +306,7 @@ def _drive(per_rank, stall="25", ranks=(), dead_grace="0", endpoint=False, extra
             "--stall", stall,
             *(f"--rank={rank}" for rank in ranks),
             "--log", str(tmp / "watchdog.log"),
+            "--require-inference" if require_inference else "--no-require-inference",
             *extra,
         ])
     return rc, calls, (tmp / "watchdog.log").read_text()
@@ -693,6 +697,30 @@ class FingerprintMissIsNotDeath(unittest.TestCase):
         self.assertIn("matched nothing", log, "the miss is not named in the log")
         self.assertEqual(log.count("matched nothing"), 1, "the miss line must not repeat every check")
 
+    def test_a_pattern_miss_holds_at_loading_under_the_inference_default(self):
+        """The readiness default must not turn a fingerprint miss into a stop: container up and
+        only `/health` answering holds at loading -- never healthy, never reaped on the timer."""
+        tmp = Path(tempfile.mkdtemp())
+        with self.assertRaises(RuntimeError):
+            _drive([self.MISS] * 3, endpoint=True, log_dir=str(tmp), checks=2,
+                   require_inference=True)
+        log = (tmp / "watchdog.log").read_text()
+        self.assertEqual(log.count("verdict=loading"), 2, log)
+        self.assertNotIn("verdict=healthy", log, log)
+        self.assertNotIn("sparkrun stop", log)
+
+    def test_a_pattern_miss_with_an_answering_surface_holds_then_ends_healthy(self):
+        key = Path(tempfile.mkdtemp()) / "api-key"
+        key.write_text("test-key\n", encoding="utf-8")
+        rc, _calls, log = _drive(
+            [self.MISS, self.MISS, self.GONE_CONTAINER],
+            endpoint=_stub_endpoint(self, 200), extra=["--api-key-file", str(key)],
+            require_inference=True,
+        )
+        self.assertEqual(log.count("verdict=loading"), 2, log)
+        self.assertIn("verdict=healthy", log, log)
+        self.assertEqual(rc, 0)
+
     def test_401_from_the_model_path_is_an_answering_server(self):
         import urllib.error
 
@@ -763,51 +791,67 @@ class FingerprintMissIsNotDeath(unittest.TestCase):
             self.assertNotIn(name, old, "the control pattern no longer reproduces the defect")
 
 
+def _stub_endpoint(
+    case: unittest.TestCase,
+    completion: int,
+    embeddings: int = 404,
+    rerank: int = 404,
+    key: str = "test-key",
+) -> str:
+    """Stub front-end on a port: `/health` 200 always; `/v1/models` needs `key` (empty =
+    keyless); chat/completions share `completion`, and each extra surface answers its own code."""
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def _send(self, code: int, body: bytes = b"") -> None:
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self) -> None:
+            if self.path == "/health":
+                self._send(200, b'{"status":"ok"}')
+            elif self.path == "/v1/models":
+                if key and self.headers.get("Authorization") != f"Bearer {key}":
+                    self._send(401, b'{"error":"missing key"}')
+                else:
+                    self._send(200, json.dumps({"data": [{"id": "stub-model"}]}).encode())
+            else:
+                self._send(404)
+
+        def do_POST(self) -> None:
+            self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            codes = {"/v1/embeddings": embeddings, "/v1/rerank": rerank}
+            self._send(codes.get(self.path, completion), b'{"choices":[]}')
+
+        def log_message(self, *_args) -> None:
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    case.addCleanup(server.server_close)
+    case.addCleanup(server.shutdown)
+    return f"http://127.0.0.1:{server.server_address[1]}"
+
+
 class InferenceProbe(unittest.TestCase):
     """`21e5ec6` class again, in a new shape: readiness read from the wrong surface.
 
     picom receipt `head:~/benchmarks/picom-bareh-20261120-head/watchdog.log`: `dsfront` binds
     `/health` ~90 s before the engine exists, so the keyless rule reported `verdict=healthy`
-    at t=1 s and exited 0 on a boot that could not answer. `--require-inference` must read
-    that boot as loading and never exit 0 until a completion is served.
+    at t=1 s and exited 0 on a boot that could not answer. A default boot must read that as
+    loading and never exit 0 until an inference surface answers -- and the embedding and
+    reranking lanes must stay healthy on `/v1/embeddings` / `/v1/rerank`, which is all they
+    serve.
     """
 
     GONE = (False, None, None, None, None)  # container not running; nothing to serve
 
-    def _stub(self, completion: int) -> str:
-        """Stub front-end: `/health` 200 always, `/v1/models` needs the key, completion as given."""
-
-        class Handler(http.server.BaseHTTPRequestHandler):
-            def _send(self, code: int, body: bytes = b"") -> None:
-                self.send_response(code)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-
-            def do_GET(self) -> None:
-                if self.path == "/health":
-                    self._send(200, b'{"status":"ok"}')
-                elif self.path == "/v1/models":
-                    if self.headers.get("Authorization") != "Bearer test-key":
-                        self._send(401, b'{"error":"missing key"}')
-                    else:
-                        self._send(200, json.dumps({"data": [{"id": "stub-model"}]}).encode())
-                else:
-                    self._send(404)
-
-            def do_POST(self) -> None:
-                self.rfile.read(int(self.headers.get("Content-Length") or 0))
-                self._send(completion, b'{"choices":[]}')
-
-            def log_message(self, *_args) -> None:
-                pass
-
-        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-        self.addCleanup(server.server_close)
-        self.addCleanup(server.shutdown)
-        return f"http://127.0.0.1:{server.server_address[1]}"
+    def _stub(
+        self, completion: int, embeddings: int = 404, rerank: int = 404, key: str = "test-key"
+    ) -> str:
+        return _stub_endpoint(self, completion, embeddings, rerank, key)
 
     def _key_file(self, key: str = "test-key") -> str:
         path = Path(tempfile.mkdtemp()) / "api-key"
@@ -815,14 +859,15 @@ class InferenceProbe(unittest.TestCase):
         return str(path)
 
     def _argv(self, key_file: str) -> list[str]:
-        return ["--require-inference", "--api-key-file", key_file]
+        return ["--api-key-file", key_file]
 
     def test_a_health_200_with_a_refused_completion_is_not_healthy(self):
         # front-end up (serve pattern matched) while the engine refuses: loading, then the
         # keep-alive rule takes over on its own verdict path -- never healthy.
         up = (True, (100, 200), 4096, 8 << 30, None)
         rc, calls, log = _drive(
-            [up, up, self.GONE], endpoint=self._stub(503), extra=self._argv(self._key_file())
+            [up, up, self.GONE], endpoint=self._stub(503), extra=self._argv(self._key_file()),
+            require_inference=True,
         )
         self.assertNotIn("verdict=healthy", log, log)
         self.assertIn("verdict=loading", log, log)
@@ -833,37 +878,85 @@ class InferenceProbe(unittest.TestCase):
 
     def test_the_same_stub_is_healthy_once_the_completion_answers(self):
         rc, _calls, log = _drive(
-            [self.GONE], endpoint=self._stub(200), extra=self._argv(self._key_file())
+            [self.GONE], endpoint=self._stub(200), extra=self._argv(self._key_file()),
+            require_inference=True,
         )
         self.assertIn("verdict=healthy", log, log)
-        self.assertIn("inference=ok", log)
+        self.assertIn("inference=ok surface=chat", log)
+        self.assertEqual(rc, 0)
+
+    def test_a_keyless_chat_engine_is_healthy_without_any_key(self):
+        """A vLLM/SGLang arm with no bearer answers `/v1/models` 200 keyless: no regression."""
+        rc, _calls, log = _drive(
+            [self.GONE], endpoint=self._stub(200, key=""), require_inference=True
+        )
+        self.assertIn("verdict=healthy", log, log)
+        self.assertIn("inference=ok surface=chat", log)
+        self.assertNotIn("inference=unprobed", log)
+        self.assertEqual(rc, 0)
+
+    def test_an_embeddings_only_engine_is_healthy_on_its_own_surface(self):
+        """`recipes/embed/` lanes serve `/v1/embeddings` and no chat surface at all; vLLM
+        answers a pooling engine's chat/completions with an error (here 400), not a 2xx."""
+        rc, _calls, log = _drive(
+            [self.GONE], endpoint=self._stub(400, embeddings=200),
+            extra=self._argv(self._key_file()), require_inference=True,
+        )
+        self.assertIn("verdict=healthy", log, log)
+        self.assertIn("inference=ok surface=embeddings", log)
+        self.assertEqual(rc, 0)
+
+    def test_a_rerank_only_engine_is_healthy_on_its_own_surface(self):
+        """`recipes/rerank/` lanes: no chat, no embeddings, `/v1/rerank` answers."""
+        rc, _calls, log = _drive(
+            [self.GONE], endpoint=self._stub(404, rerank=200),
+            extra=self._argv(self._key_file()), require_inference=True,
+        )
+        self.assertIn("verdict=healthy", log, log)
+        self.assertIn("inference=ok surface=rerank", log)
         self.assertEqual(rc, 0)
 
     def test_the_bearer_key_is_what_makes_models_an_inference_surface(self):
         """Mutation: dropping the Authorization header leaves `/v1/models` at 401, never healthy."""
         rc, _calls, log = _drive(
-            [self.GONE], endpoint=self._stub(200), extra=self._argv(self._key_file("wrong-key"))
+            [self.GONE], endpoint=self._stub(200), extra=self._argv(self._key_file("wrong-key")),
+            require_inference=True,
         )
         self.assertNotIn("verdict=healthy", log, log)
         self.assertNotEqual(rc, 0)
 
-    def test_without_the_flag_a_health_only_boot_still_reads_healthy(self):
-        """The default must not change any existing arm's verdict."""
-        rc, _calls, log = _drive([self.GONE], endpoint=self._stub(503))
+    def test_a_health_only_front_end_never_reads_healthy_by_default(self):
+        """The picom class, with no flags: `/health` 200, no surface, so never healthy."""
+        up = (True, (100, 200), 4096, 8 << 30, None)
+        rc, calls, log = _drive(
+            [up, up, self.GONE], endpoint=self._stub(404), extra=self._argv(self._key_file()),
+            require_inference=True,
+        )
+        self.assertNotIn("verdict=healthy", log, log)
+        self.assertIn("verdict=loading", log, log)
+        self.assertIn("no inference yet", log, "the missing surface must be named")
+        self.assertIn("inference=down", log)
+        self.assertNotEqual(rc, 0, "a boot that cannot answer must never exit 0")
+        self.assertIn(["sparkrun", "stop", "abc123"], calls)
+
+    def test_no_require_inference_is_the_escape_hatch(self):
+        """`--no-require-inference` restores the plain `/health` rule for an arm that needs it."""
+        rc, _calls, log = _drive([self.GONE], endpoint=self._stub(404))
         self.assertIn("verdict=healthy", log, log)
         self.assertEqual(rc, 0)
         self.assertNotIn("inference=", log)
 
-    def test_an_unreadable_key_is_no_probe_never_healthy(self):
+    def test_an_unreadable_key_on_a_keyed_front_end_is_no_probe_never_healthy(self):
         """Field report 2026-11-20: the default key path is a container path, absent on the
-        control machine. A key that cannot be read is a broken instrument: no verdict of
-        health, no stop, and the message names both attempted locations."""
+        control machine. A key that cannot be read *and* a front-end that refuses a keyless
+        `/v1/models` is a broken instrument: no verdict of health, no stop, and the message
+        names both attempted locations."""
         missing = str(Path(tempfile.mkdtemp()) / "api-key")
         tmp = Path(tempfile.mkdtemp())
         with self.assertRaises(RuntimeError):
             _drive(
                 [self.GONE], endpoint=self._stub(200), log_dir=str(tmp), checks=1,
-                extra=["--require-inference", "--api-key-file", missing],
+                extra=["--api-key-file", missing], require_inference=True,
             )
         log = (tmp / "watchdog.log").read_text()
         self.assertNotIn("verdict=healthy", log, log)
@@ -891,8 +984,8 @@ class InferenceProbe(unittest.TestCase):
         missing = str(Path(tempfile.mkdtemp()) / "api-key")
         rc, _calls, log = _drive(
             [self.GONE], endpoint=self._stub(200),
-            extra=["--require-inference", "--api-key-file", missing],
-            docker_exec_out="test-key\n",
+            extra=["--api-key-file", missing],
+            docker_exec_out="test-key\n", require_inference=True,
         )
         self.assertIn("verdict=healthy", log, log)
         self.assertIn("inference=ok", log)
