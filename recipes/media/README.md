@@ -4,11 +4,12 @@ Generation and tooling models on one DGX Spark: speech synthesis, speaker diariz
 video generation, and a text rewriter. This lane was split out of Explore on **2026-10-22** (owner
 directive): Explore keeps the language and agentic arms, and every arm whose product is not text —
 or whose job is to transform text rather than answer — lives here. Everything in this lane is
-1 node, and the two CPU serves cost no GPU.
+1 node, and the CPU serves cost no GPU.
 
-The lane ships **fourteen recipes**: eight measured arms (drama TTS, Kokoro TTS, phonon TTS,
-Qwen-Image on both routes, LTX-2.5, humanizer Q6_K, Kromoss image), four probe/draft arms
-(`zz-minimax-h3` in its TP=1 and TP=4 shapes, `zz-qwen-image-…-4step`, `zz-pyannote-…`), and two
+The lane ships **fifteen recipes**: eight measured arms (drama TTS, Kokoro TTS, phonon TTS,
+Qwen-Image on both routes, LTX-2.5, humanizer Q6_K, Kromoss image), five probe/draft arms
+(`zz-minimax-h3` in its TP=1 and TP=4 shapes, `zz-qwen-image-…-4step`, `zz-pyannote-…`,
+`zz-inworld-voice-isolator-gpu-script`), and two
 eval-only, authored-not-booted arms (`idol-1.8b-bf16-3dgs-script`, image to 3D Gaussian splats,
 2026-11-08 — see its prerequisites; and `viggle-remake-h3-lora-v2v-comfyui-script`, MiniMax-H3 video
 remake through ComfyUI, 2026-11-16).
@@ -49,6 +50,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
 - [zz-minimax-h3-fl2va-t2va-sglang](#zz-minimax-h3-fl2va-t2va-sglang)
 - [humanizer-12b-q6k-llamacpp](#humanizer-12b-q6k-llamacpp)
 - [zz-pyannote-community-1-diarization-cpu](#zz-pyannote-community-1-diarization-cpu)
+- [zz-inworld-voice-isolator-gpu-script](#zz-inworld-voice-isolator-gpu-script)
 - [phonon-31m-tts-cpu](#phonon-31m-tts-cpu)
 - [Mods](#mods)
 - [Lane notes](#lane-notes)
@@ -863,6 +865,55 @@ pyannote.audio on CPU + [`recipes/media/mods/pyannote-diarize-server`](mods/pyan
 - **License:** CC-BY-4.0, gated (auto-approve form), so preparing the snapshot needs an HF token
   with the conditions accepted on the launching host.
 
+## [zz-inworld-voice-isolator-gpu-script](zz-inworld-voice-isolator-gpu-script.yaml)
+
+`inworld-voice-isolation` (PyPI SDK) on the lane's CUDA base +
+[`recipes/media/mods/voice-isolator-server`](mods/voice-isolator-server) ·
+**1 node, GPU** · **authored 2026-11-20, never booted** — the kokoro/phonon/pyannote shape
+(`runtime: vllm` as the launcher contract, `readiness.inference: false`, `entrypoint: ""` because
+the base declares `ENTRYPOINT ["vllm","serve"]`).
+
+- **Model:** `inworld/voice-isolator` (pinned `9b0285b3…`, 489 MB) — Apache-2.0 48 kHz voice
+  isolation as two checkpoints of one band-split dual-path net: 64.0M offline (`denoiser.safetensors`,
+  8 s chunks overlapping by 2 s) and 58.2M causal realtime (`denoiser_realtime.safetensors`,
+  look-ahead 0/2/4 frames, 63 ms algorithmic latency at 2). The safetensors carry their config as
+  header metadata (`format: inworld-voice-isolation`, `num_params`, `sample_rate`, block plan); there
+  is **no `config.json`** and no engine here registers the architecture.
+- **Route:** the vendor SDK `inworld-voice-isolation==1.0.0` (pure-python wheel, `import
+  inworld.voice_isolation`) behind a stdlib HTTP server written by the lane mod. Its `fast` extra
+  (mamba-ssm, causal-conv1d) is a CUDA-only compile and is **not** used: the checkpoint's Mamba blocks
+  are implemented in plain torch inside the wheel. `POST /v1/audio/isolate` takes a WAV (any rate,
+  mono or multi-channel) and answers 48 kHz mono float32 WAV of the isolated voice; `?background=1`
+  answers what was removed (input − voice); `GET /health` carries the model id, revision, device, mode
+  and the last RTF; `GET /v1/models` names the served id.
+- **Why GPU, and what the CPU route costs (measured 2026-11-20 on an x86 workstation, CPU, 5
+  threads — a probe, not a GB10 cell):** the scan is launch-bound, not flop-bound.
+  `scan.selective_scan` steps one frame at a time in Python (800 frames per scan), so a forward is
+  3133 per-frame `mul`s + 1490 `sum`s + 42 `exp`s around the matmuls. A 2 s clip through the network
+  took **20.3 s** (RTF ~10) and a 10 s clip through `isolate` **247.13 s** (RTF 24.7, the 8 s chunking
+  plus the checkpoint's own second pass); the scan alone is only 0.06 s of that 800-frame shape, so
+  the rest is the same per-frame overhead across the band/attention path. The startup fixture needed
+  15.8 s for 1 s of audio on an idle host and 64.2 s on the same host under load, and a streaming-mode
+  fixture had not finished after 60 s. That
+  is why the arm is GPU-served and why the lane's CPU co-tenants are TTS and diarization, not this:
+  a CPU serve here would be tens of seconds per clip. **No GPU number exists yet** — the boot gate
+  below is what produces it.
+- **Fixture:** [`mods/voice-isolator-server/fixture-noisy.wav`](mods/voice-isolator-server/fixture-noisy.wav)
+  (96 KB, 1.0 s, 48 kHz mono PCM_16): a synthetic harmonic voice stack (F0 132 Hz with a slow glide,
+  12 harmonics falling as 1/k, two syllable envelopes) under broadband noise + a 440 Hz tone + 50 Hz
+  hum at 5 dB SNR, seeded so it is byte-stable. It is a *gate*, not a quality benchmark: the server
+  isolates it once before the port binds and refuses to serve if the output length or finiteness is
+  wrong. On the CPU probe it also dropped the fixture's noise-only gap by −43.3 dB (and the 10 s
+  synthetic bench clip by −68.3 dB), which is a sanity signal, not a metric. `voice + background`
+  reconstructs the input exactly (max error 0.0).
+- **Boot gate (next window, `.30`/`.35` once the drain clears — `.31`–`.34` are a protected production
+  serve):** one node, `docker image` present for the pinned base, then `POST /v1/audio/isolate` with
+  the tracked fixture and with a 10 s copy of it. The receipt must carry HTTP-ready seconds, the
+  `/health` RTF fields, and `X-RTF` per request. **Falsifiers:** `X-RTF` ≳ 0.5 on the 10 s clip, or a
+  startup fixture that misses `health_timeout_s` → the GPU route is also too slow and the arm retires;
+  `torch.version.cuda` empty or the fixture run failing at import → the venv inherited the wrong
+  torch and the mod's gate is the thing to fix, not the recipe.
+
 ## [phonon-31m-tts-cpu](phonon-31m-tts-cpu.yaml)
 
 `ptts` (PyPI, the vendor runtime) on `python:3.12-slim` +
@@ -951,6 +1002,7 @@ to the recipe (`core/mods.py` rule 2):
 | [`qwen-image-2.1-turbo-launcher`](mods/qwen-image-2.1-turbo-launcher) | the shipped Qwen-Image recipe and its 4-step probe |
 | [`qwen-image-sigmas`](mods/qwen-image-sigmas) | no recipe reference — the prior 4-step server, kept with the arm it was written for |
 | [`pyannote-diarize-server`](mods/pyannote-diarize-server) | the pyannote diarization recipe |
+| [`voice-isolator-server`](mods/voice-isolator-server) | the `zz-inworld-voice-isolator-gpu-script` arm (SDK venv + the tracked fixture) |
 | [`vllm-omni-metrics-bridge`](mods/vllm-omni-metrics-bridge) | the Qwen-Image vLLM-OMNI recipe (the wrapper its `command:` runs through) |
 
 ## Lane notes

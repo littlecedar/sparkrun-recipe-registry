@@ -15,8 +15,8 @@ executed) and fails naming the stale line, so the number cannot rot — `tools/d
 and rewrites both statements from that same discovery; only its skip count needs a run,
 which is why that half carries a date. What only a run can know stays a *dated snapshot*: **2026-11-20
 — every tracked recipe passes plain `validate`, and `--strict` prints exactly the roster below over
-the whole tracked tree (re-measured 2026-11-20, the date on this line: 115 tracked recipes scanned,
-54 of them printing a finding, 21 with a warning and the rest suggestions only; the LiquidAI arms
+the whole tracked tree (re-measured 2026-11-20, the date on this line: 116 tracked recipes scanned,
+58 of them printing a finding, 23 with a warning and the rest suggestions only; the LiquidAI arms
 still add no row, because an accuracy declaration belongs inside `metadata:` where
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
@@ -70,7 +70,7 @@ The guards that hold these are [Testing & QA](#testing--qa).
 
 ## Project Overview
 
-- **Recipes** (`recipes/`, 115 tracked recipe files in 12 family dirs) — v2 recipe definitions consumed by
+- **Recipes** (`recipes/`, 116 tracked recipe files in 12 family dirs) — v2 recipe definitions consumed by
   `sparkrun run @littlecedar/<filename-minus-.yaml>` on the cluster.
 - **Mods** (`mods/`, 5 shared + `mod-template`; single-lane mods live in `recipes/<lane>/mods/`) —
   pre-launch container hooks that patch or stage files inside the serving image before the engine
@@ -105,7 +105,7 @@ Load-bearing contracts:
   (`sparkrun/core/recipe.py:1264-1270`), where only a by-name consumer reads it, and draws
   `misplaced-config-key` or `unknown-top-level-key` (`sparkrun/core/validation.py:1176-1272`). The full
   41-key rule set is in [`recipes/MECHANICS.md`](recipes/MECHANICS.md).
-- **`command:` is YAML folded `>`** (all 115 tracked recipe files). JSON-shaped defaults must keep their shell
+- **`command:` is YAML folded `>`** (all 116 tracked recipe files). JSON-shaped defaults must keep their shell
   quotes inside the fold — `limit_mm_per_prompt: >-` with `'{"image": 4, "video": 1}'` — or
   word-splitting hands the engine four arguments.
 - **`mods:` is an ordered dependency chain, not a set.** Recipe comments
@@ -256,9 +256,9 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
 
 - **Plain `validate` is the gate, not `--strict`**: every tracked recipe passes plain `validate`, and
   `--strict` prints exactly the findings in the roster below — it adds none of its own and only exits
-  non-zero on the rows whose findings include a `warning`. Re-measured 2026-11-20 over the current 115
+  non-zero on the rows whose findings include a `warning`. Re-measured 2026-11-20 over the current 116
   tracked recipes, so the snapshot was re-taken rather than
-  adjusted: twenty rows carry `unpinned-model-revision` — the pin never reaches the engine as
+  adjusted: twenty-two rows carry `unpinned-model-revision` — the pin never reaches the engine as
   `--revision` — one carries `deprecated-topology` instead, and every other row carries suggestions
   only, which never gate. No denominator is written here for the reason the snapshot
   paragraph gives: a fraction that scales with the tree goes stale silently. Findings are listed in
@@ -285,8 +285,10 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
   | `embed/qwen3-vl-embedding-8b-awq-4bit-vllm-b12x.yaml` | `unpinned-model-revision` |
   | `explore/poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml` | `restated-managed-path` |
   | `explore/ternary-bonsai-2-9b-q2_0-llamacpp.yaml` | `recipe-metadata`, `restated-managed-path` |
+  | `explore/zz-edge0-145b-nvfp4-latentmoe-strata.yaml` | `unpinned-model-revision` |
   | `explore/zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm.yaml` | `unpinned-model-revision` |
   | `explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp.yaml` | `restated-managed-path` |
+  | `explore/zz-sensenova-loop-9b-bf16-thinking-ref-vllm.yaml` | `unpinned-model-revision` |
   | `glm/glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` |
   | `glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml` | `unpinned-model-revision`, `recipe-metadata` |
   | `glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2.yaml` | `unpinned-model-revision`, `recipe-metadata` |
@@ -299,6 +301,7 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
   | `media/phonon-31m-tts-cpu.yaml` | `recipe-metadata`, `restated-managed-path` |
   | `media/qwen-image-2.1-turbo-7b-bf16-diffusers-script.yaml` | `restated-managed-path` |
   | `media/viggle-remake-h3-lora-v2v-comfyui-script.yaml` | `restated-managed-path` |
+  | `media/zz-inworld-voice-isolator-gpu-script.yaml` | `restated-managed-path` |
   | `media/zz-minimax-h3-fl2va-t2va-sglang.yaml` | 3× `restated-managed-path` |
   | `media/zz-pyannote-community-1-diarization-cpu.yaml` | `unpinned-model-revision`, `inline-script`, `restated-managed-path` |
   | `media/zz-qwen-image-2.1-turbo-4step-diffusers-script.yaml` | `restated-managed-path` |
@@ -313,6 +316,7 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
   | `qwen3/qwen3-coder-next-int4-autoround-vllm.yaml` | `restated-model-arg` |
   | `qwen3/qwen3.8-27b-mlx4bit-tensorfold-sglang.yaml` | `unpinned-model-revision` |
   | `qwen3/qwen3.8-27b-nvfp4-dflash2-sglang.yaml` | `deprecated-topology`, `restated-managed-path` |
+  | `qwen3/zz-qwen3.8-27b-pi-adapted-lora-sglang.yaml` | 2× `restated-managed-path` |
   | `qwen4/qwen3.8-flash-next-nvfp4-labquant-highcon-sglang.yaml` | `restated-managed-path` |
   | `qwen4/qwen3.8-flash-next-nvfp4-labquant-sglang.yaml` | `restated-managed-path` |
   | `qwen4/qwen3.8-flash-next-nvfp4-solo-vllm-b12x.yaml` | `unpinned-model-revision` |

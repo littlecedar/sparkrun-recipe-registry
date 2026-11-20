@@ -1,0 +1,86 @@
+recipe_version: "2"
+model: inworld/voice-isolator
+model_revision: 9b0285b3fe8403aa8e2f1dbb2165a80a4294c970
+# The lane's CUDA base for script arms (kromoss/qwen-image precedent): its arm64
+# torch 2.13.0 + torchaudio 2.11.0 (v0.32.0 requirements/cuda.txt) already satisfy the
+# SDK's `torch>=2.1` / `torchaudio>=2.1`, so the mod's venv adds only the SDK.
+container: vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34
+# No serving engine loads this checkpoint (no config.json, no registered architecture):
+# `runtime: vllm` is the launcher/distribution contract the command satisfies (the
+# kokoro/phonon/pyannote/kromoss precedent).
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  inworld/voice-isolator — Apache-2.0 48 kHz full-band voice isolation (speech
+  denoising) as two checkpoints of one band-split dual-path net: 64.0M offline
+  (`denoiser.safetensors`, 8 s chunks overlapping by 2 s) and 58.2M causal
+  realtime (`denoiser_realtime.safetensors`, look-ahead 0/2/4 frames, 63 ms
+  algorithmic latency at 2), 489 MB on disk. No serving engine here can load it
+  (the safetensors carry their config as header metadata; `library_name:
+  inworld-voice-isolation`), so the route is the vendor SDK
+  (`inworld-voice-isolation==1.0.0`, pure-python wheel) behind a stdlib HTTP
+  server staged by the lane mod: POST /v1/audio/isolate takes a WAV and answers
+  48 kHz mono float32 WAV of the isolated voice, `?background=1` answers what was
+  removed (input - voice), and GET /health carries the model id, revision,
+  device, mode and the last RTF. The startup fixture
+  (`mods/voice-isolator-server/fixture-noisy.wav`, 1 s of a synthetic harmonic
+  voice under noise + a music tone at 5 dB SNR) must isolate before the port
+  binds. `mode: streaming` serves the realtime checkpoint instead (same endpoint:
+  `isolate` runs the causal stream over the clip). WHY GPU: the SDK's Mamba
+  blocks are pure torch — `scan.selective_scan` steps one frame at a time in
+  Python — so the cost is kernel-launch-bound, not flop-bound. Measured on an x86
+  workstation at 5 threads, offline: 20.3 s of compute per 2 s of audio (RTF
+  ~10) for a direct forward, 247 s wall for a 10 s clip through `isolate`
+  (RTF 24.7, chunking + the checkpoint's own extra pass), and the scan alone is
+  3133 per-frame `mul`s + 1490 `sum`s + 42 `exp`s per forward; the aarch64 CPU
+  route is therefore the recorded negative, not a co-tenant option. The card's
+  VIBE board is its own distribution-scored benchmark: no registry instrument can
+  score isolation quality, so the arm's gate is the fixture round-trip plus RTF,
+  not an accuracy pass.
+metadata:
+  model_url: https://huggingface.co/inworld/voice-isolator
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "64.0M"
+  model_dtype: fp32
+  tags: media, audio, voice-isolation, denoising, streaming, draft
+
+mods:
+  - mods/voice-isolator-server
+
+# No chat surface: readiness is the port plus the server's own /health, after the
+# fixture run. The first boot also stages the SDK venv.
+readiness:
+  inference: false
+  port_timeout_s: 2400
+  health_timeout_s: 1200
+
+defaults:
+  port: 8891
+  host: 0.0.0.0
+  served_model_name: inworld/voice-isolator
+  # offline = `denoiser.safetensors` (best quality); streaming =
+  # `denoiser_realtime.safetensors`. The mode picks the file inside the snapshot.
+  mode: offline
+  # Trained positions are 0, 2 and 4 frames (20 ms each); only read in streaming mode.
+  lookahead_frames: 2
+
+# vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the recipe's own
+# server line runs instead of being parsed as vLLM flags.
+executor_config:
+  entrypoint: ""
+
+# --model '{model}' is the launch contract (the prepared snapshot path in the command);
+# the server appends the checkpoint filename the mode selects.
+command: >
+  /cache/runtime/voice-isolator/venv/bin/python
+  /workspace/mods/voice-isolator-server/server.py
+  --model '{model}'
+  --served-model-name {served_model_name}
+  --host {host}
+  --port {port}
+  --device cuda
+  --mode {mode}
+  --lookahead-frames {lookahead_frames}
+  --revision {model_revision}
