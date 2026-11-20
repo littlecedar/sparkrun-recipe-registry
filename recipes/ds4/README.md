@@ -2833,6 +2833,27 @@ alone cannot host a quartet. So a published, digest-pinned image is necessary bu
 sufficient — even with the image the boot waits for the production serve to end and its fence
 to come down, in a declared 4-rank window. Two gates, not one.
 
+**Runtime assessment — `dsgb10` + `dsfront` (from the dual-model plan, 2026-11-20).** The
+picom stack is not two runtimes. `dsgb10` is the engine — one process per box, TP=4, its own
+per-rank checkpoint packing (72.38 GiB `.dsw` plus 50.7 GB Engram shards built on first boot
+under `/cache/runtime/picom/`) — and `dsfront` is its Rust front-end on rank 0, with the
+engine↔front-end link over an AF_UNIX socket and the ring's TCP bootstrap on 18620; the engine
+binds 8000 (dsfront) and 18620, never 25000 (`recipes/ds4/README.md` lines 2123, 2128–2130,
+2391, 2554–2555). One engine, one front-end, one readiness surface. A `dsgb10` `RuntimePlugin` is
+**LIKELY** constructible in ~200 lines: subclass `RuntimePlugin` with
+`cluster_strategy = "native"`, `native_rendezvous_port → None` (the engine owns 18620, and the
+native 120 s gate would otherwise tear healthy boots down), port-only readiness, a GB10
+capability, `/dev/infiniband` + `IPC_LOCK` docker opts, and runtime-cache declarations so the
+converted weights survive the container; its body would reuse `mods/picom-launcher`, whose
+fabric resolution already reads sparkrun's injected `NCCL_IB_HCA` and `NCCL_IB_GID_INDEX`
+(`run.sh:113-179`). A `dsfront` runtime is unnecessary: the front-end is part of the same
+launch, binds 8000 after the engine, and one readiness surface is all sparkrun needs. The
+dual-name steering is **not** reachable on `dsgb10`: `dsfront` serves one name and ignores a
+request's `model` (`PICOM-VS-KNAPCIO.md:161`, citing `server.rs:981`; the plan's upstream
+`README.md:235` is the same statement), and the picom record carries no steering of any kind —
+two-name per-request steering is a vLLM capability, which is why this arm is a vLLM probe.
+Verdict: build neither runtime now; the arm stays blocked on the unpublished engine image.
+
 ## External stack: spark-ds41f (survey, 2026-11-08)
 
 The stack inspected above is a fully engineered **vLLM** stack for the identical checkpoint and
