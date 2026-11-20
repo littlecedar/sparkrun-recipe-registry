@@ -105,9 +105,12 @@ description: >-
   transcript quality, no concurrency. The card's "native full-duplex", "about 12 GB of
   memory" and multilingual claims are author claims until this arm runs; the model is a
   pretrained base model for research, not an assistant. The measurement needs an
-  OpenAI-Realtime WebSocket client (session.update with the character card and a
-  base64 reference clip, then one 3200-sample append per frame), which this arm does
-  not ship: the demo server's own protocol is not it.
+  OpenAI-Realtime WebSocket client (session.update with the character card, then one
+  3200-sample append per frame). This arm now ships one: `probe.py` beside the launcher
+  mod's `run.sh`, a driver over the wheel's own `haru.backends.VllmBackend` (the demo
+  server's browser protocol is not it), invoked after readiness as
+  `python3 /workspace/mods/haru-4b-realtime-launcher/probe.py`. Nothing above was
+  measured by it yet — the arm is still unbooted.
 metadata:
   model_url: https://huggingface.co/higurashi-ai/Haru-4B
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>

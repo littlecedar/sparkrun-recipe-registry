@@ -144,13 +144,18 @@ fi
 # vLLM-Omni's omni registry, `Qwen3_5ForCausalLMConfig` and the pipeline
 # registry, and `HaruDuplexPlugin` pulls `vllm_omni.engine.duplex.*` and the
 # cumulative data plane. Any hook the image moved shows up here, before boot.
+# `haru.backends` is the wheel's realtime client, which `probe.py` drives: a
+# wheel without it could be served but never acceptance-tested, so it is gated
+# here too.
 #####################################################################
 log "gating on plugin registration"
 python3 - <<'PY' 2>&1 | log || die "haru-speech-vllm does not register on this image: the engine hooks it needs are absent"
 import haru, haru_vllm
+from haru.backends import VllmBackend, VllmConversation
 from haru_vllm.duplex.plugin import HaruDuplexPlugin
 haru_vllm.register()
 print("haru", haru.__version__, "| haru_vllm", haru_vllm.__version__, "| registered HaruForConditionalGeneration")
+print("client ok:", VllmBackend.__module__, VllmConversation.__module__)
 PY
 
 reown "${LOGDIR}"
