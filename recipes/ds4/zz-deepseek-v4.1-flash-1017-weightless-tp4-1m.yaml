@@ -21,12 +21,15 @@ distribution_config:
     enabled: false
   models:
     entries:
-      - model: deepseek-ai/DeepSeek-V4.1-Flash-1017
+      # The entry field is `name` — the loader reads `name`, and a `model:` key parses to an
+      # empty name and stages nothing. A hand-written list is honoured literally, so the served
+      # checkpoint is restated here with its own pin.
+      - name: "{model}"
         revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
       # The steering vector rides the checkpoint's distribution path so every
       # rank has it before the serve starts; the mod resolves it out of the hub
       # cache and verifies its sha256 (no download at boot).
-      - model: msuiche/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75
+      - name: msuiche/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75
         revision: 2715ffd51f59899115853e1118db080536966c44
 min_nodes: 4
 max_nodes: 4
