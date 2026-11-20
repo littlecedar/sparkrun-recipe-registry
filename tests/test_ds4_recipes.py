@@ -2740,6 +2740,43 @@ def _run_picom_disk_gate(tc, launch: str, avail_gib: int, artifact: bool,
                               capture_output=True, text=True)
 
 
+def _run_picom_auth(tc, launch: str, auth: str | None, key: bool):
+    """Run launch.sh's own auth block; return (finished process, key path).
+
+    `dsfront` serves keyless when no `--api-key-file` is given
+    (`frontend/src/main.rs:120-121`, `server.rs:215-216`), so the launcher's
+    default must not pass one. `auth` is the PICOM_AUTH value or None for unset;
+    `key` decides whether the mod's key file exists. The extracted block is run
+    as shipped, so a re-enabled requirement fails the test, not a boot.
+    """
+    import os
+    import subprocess
+    import tempfile
+
+    m = re.search(r'^AUTH=.*\n(?:.*\n)*?^fi\n', launch, re.M)
+    tc.assertIsNotNone(m, "the launcher's PICOM_AUTH gate is gone")
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d) / "picom"
+        (root / "run").mkdir(parents=True)
+        key_path = root / "run" / "api-key"
+        if key:
+            key_path.write_text("k" * 48)
+        script = Path(d) / "auth.sh"
+        script.write_text(
+            "set -u\n"
+            f"ROOT={root}\n"
+            'KEY="${ROOT}/run/api-key"\n'
+            'die() { echo "FATAL: $*" >&2; exit 2; }\n'
+            + m.group(0)
+            + 'printf \'ARGV=%s\\n\' "${KEY_ARGS[*]-}"\n')
+        env = {k: v for k, v in os.environ.items() if not k.startswith("PICOM_")}
+        if auth is not None:
+            env["PICOM_AUTH"] = auth
+        proc = subprocess.run(["bash", str(script)], env=env,
+                              capture_output=True, text=True)
+        return proc, key_path
+
+
 def _picom_cache_root(tc, preferred: Path) -> Path:
     """*preferred* when it is not on `/`, else a fresh directory on another fs.
 
@@ -2905,6 +2942,46 @@ class PicomLaneContract(unittest.TestCase):
         self.assertIn("/opt/picom/vision/vision_encoder.py", self.launch)
         # The encoder's restarts must not be serve failures.
         self.assertIn("vision encoder exited", self.launch)
+
+    def test_auth_is_off_by_default_and_opt_in(self):
+        """The proxy this fleet fronts the serve with sends no bearer.
+
+        `dsfront` starts keyless and only warns (`frontend/src/main.rs:120-121`),
+        and `check_auth` returns Ok when no key is configured
+        (`server.rs:215-216`). The old launcher required a key file regardless,
+        which made every picom serve unusable behind a proxy that sends no
+        `Authorization`. The shipped default is keyless; `PICOM_AUTH=1` restores
+        the bearer.
+        """
+        for path in (PICOM_EXACT_RECIPE, PICOM_OEA_RECIPE):
+            with self.subTest(recipe=path.name):
+                self.assertEqual(
+                    Recipe(path.read_text(), path.name).env.get("PICOM_AUTH"), "0",
+                    "a shipped picom arm stopped serving keyless: the proxy sends no bearer")
+        # Unset and explicit 0 both pass no key to dsfront.
+        for auth in (None, "0"):
+            proc, _ = _run_picom_auth(self, self.launch, auth, key=False)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertEqual(proc.stdout.strip(), "ARGV=",
+                             f"PICOM_AUTH={auth} still passed a key to dsfront")
+        # Opt-in fails closed without the mod's key, and passes it when present.
+        proc, _ = _run_picom_auth(self, self.launch, "1", key=False)
+        self.assertEqual(proc.returncode, 2,
+                         "PICOM_AUTH=1 must refuse rather than start keyless")
+        self.assertIn("PICOM_AUTH=1", proc.stderr)
+        proc, key_path = _run_picom_auth(self, self.launch, "1", key=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.stdout.strip(),
+                         f"ARGV=--api-key-file {key_path}")
+        # The invocation takes the built argv, not a hardcoded key.
+        serve = self.launch.split("dsfront serve", 1)[1]
+        self.assertIn('"${KEY_ARGS[@]}"', serve,
+                      "dsfront must take the mode's argv")
+        self.assertNotIn('--api-key-file "${KEY}"', serve,
+                         "dsfront still gets a hardcoded key")
+        # The mod creates the key only when asked; a keyless arm keeps no file.
+        self.assertIn('if [[ "${PICOM_AUTH:-0}" = 1 ]]; then', self.run_sh)
+        self.assertIn("no key file is created", self.run_sh)
 
     def test_rank0_clears_the_previous_boots_socket_before_waiting(self):
         _assert_rank0_clears_stale_sockets(self, self.launch)

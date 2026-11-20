@@ -2373,10 +2373,11 @@ sparkrun run recipes/ds4/deepseek-v4.1-flash-1017-picom-tp4-1m.yaml \
 
 - First boot writes this rank's weight file and Engram shards (one-time, `port_timeout_s`
   10800 covers it); later boots start in minutes. `PICOM_VERIFY=1` adds a full byte compare.
-- `/health` is keyless and is what sparkrun probes; `/v1/*` needs the bearer key the mod
-  generates at `/cache/runtime/picom/run/api-key` on rank 0.
-- Measurement commands (`sparkrun benchmark performance` and `benchmark run`) need
-  `--api-key-env PICOM_API_KEY`, so the key's content must be in the **head's** environment while the
+- `/health` is keyless and is what sparkrun probes; `/v1/*` is keyless too: `PICOM_AUTH` is
+  `0` by default because the network's fronting proxy owns authentication. `PICOM_AUTH=1`
+  regenerates the key at `/cache/runtime/picom/run/api-key` on rank 0 and requires it.
+- Measurement commands (`sparkrun benchmark performance` and `benchmark run`) against a
+  `PICOM_AUTH=1` serve need `--api-key-env PICOM_API_KEY`, so the key's content must be in the **head's** environment while the
   file itself is on **rank 0** — the head has no such leaf. For this recipe's pin `08c8657f…` it is
   `~/.cache/sparkrun/runtime-cache/vllm/deepseek-ai__DeepSeek-V4.1-Flash-1017-b03807ac/picom/run/api-key`
   (48 hex chars, mode 600); sparkrun names that leaf after the model and revision, so a re-pin moves
@@ -2473,8 +2474,8 @@ picom QP `hop_limit` still has no readable surface.
 
 The pair that serves. Both are this image digest (`1e529c67…`), 1M context, 16 slots
 (4 big), `PICOM_MAX_TOKENS=262144`, and the shipped engine argv plus
-`--prefill-rows 16384 --snap-every 2048`; the endpoint needs the bearer key rank 0
-writes under `/cache/runtime/picom/run/api-key`, while `/health` is keyless. Receipt
+`--prefill-rows 16384 --snap-every 2048`; the endpoint is keyless (`PICOM_AUTH=0`), as is
+`/health`. Receipt
 root `head:~/benchmarks/picom-prod-20261118/`; each boot's lane cells are its own
 `phase5/` or `phase6/` directory of that root.
 

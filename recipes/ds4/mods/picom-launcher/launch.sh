@@ -110,8 +110,16 @@ log() { echo "[picom-launcher] $*" | tee -a "${LOG}"; }
 die() { log "FATAL: $*"; exit 2; }
 
 mkdir -p "${ROOT}"/{run,logs,weights,engram,spill}
-[[ -s "${KEY}" ]] || die "${KEY} missing: the picom-launcher mod must run before the command"
-chmod 600 "${KEY}"
+# Auth off by default: this fleet serves behind an API proxy that sends no bearer,
+# and dsfront runs keyless (frontend/src/main.rs:120-121 warns, server.rs:215-216
+# skips the check). PICOM_AUTH=1 restores the mod's key and `--api-key-file`.
+AUTH="${PICOM_AUTH:-0}"
+KEY_ARGS=()
+if [[ "${AUTH}" = 1 ]]; then
+  [[ -s "${KEY}" ]] || die "PICOM_AUTH=1 but ${KEY} is missing: the picom-launcher mod must run before the command"
+  chmod 600 "${KEY}"
+  KEY_ARGS=(--api-key-file "${KEY}")
+fi
 
 #####################################################################
 # Fleet file: this rank's tail list, assembled on the management network
@@ -346,12 +354,13 @@ read -r -a FARGS <<< "${PICOM_FRONT_ARGS:-}"
 # dsfront's single value for both the default and the hard cap on one reply's
 # generated tokens (frontend/src/server.rs:522-528 clamps, never refuses).
 MAX_TOKENS="${PICOM_MAX_TOKENS:-32768}"
-log "rank 0: starting dsfront on ${LISTEN_IP}:${PORT} (served name ${SERVED}, max_tokens ${MAX_TOKENS})"
+if [[ "${AUTH}" = 1 ]]; then AUTH_MODE="bearer required"; else AUTH_MODE="keyless"; fi
+log "rank 0: starting dsfront on ${LISTEN_IP}:${PORT} (served name ${SERVED}, max_tokens ${MAX_TOKENS}, auth ${AUTH_MODE})"
 dsfront serve \
   --listen "127.0.0.1:${PORT}" \
   --listen "${LISTEN_IP}:${PORT}" \
   --engine-socket "${SOCK}" \
-  --api-key-file "${KEY}" \
+  "${KEY_ARGS[@]}" \
   --admin-socket "${ROOT}/run/front.admin" \
   --table-file "${ROOT}/run/front.table" \
   --hold-s 600 \

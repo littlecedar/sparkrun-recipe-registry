@@ -31,8 +31,8 @@ description: >-
   tokens; a request's need is `prompt + max_new`, so only one of the four big slots
   admits it — twelve of sixteen become unusable for such a request and a fifth
   concurrent one queues silently rather than erroring — so always send `max_tokens`.
-  The endpoint needs the bearer key rank 0 writes under
-  `/cache/runtime/picom/run/api-key`; `/health` is keyless. See README.md, section
+  The endpoint is keyless by default (`PICOM_AUTH=0`): a client sends no bearer and
+  the front-end accepts it, which is what the fleet's API proxy needs. See README.md, section
   "Production arms", for the boot contract and `PICOM-VS-KNAPCIO.md` for the comparison.
 metadata:
   model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
@@ -82,6 +82,9 @@ env:
     --prefill-rows 16384 --snap-every 2048
 # Empty = OEA off. `4,12,9` is the lossy batch-aware MoE re-route (see the -oea arm).
   PICOM_OEA: ""
+# Auth off: the fleet's API proxy sends no bearer, and dsfront serves keyless.
+# PICOM_AUTH=1 restores the mod's generated key and dsfront's `--api-key-file`.
+  PICOM_AUTH: "0"
 # The vision encoder as part of the serve: the checkpoint's own ViT on rank 0,
 # ~1 GiB of its GPU; 0 = off and image requests then answer 400.
   PICOM_VISION: "1"

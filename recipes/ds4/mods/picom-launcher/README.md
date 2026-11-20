@@ -21,8 +21,9 @@ node, and all four processes take the same argv except `--rank`.
   contract (`engine/comm/fleet.cpp` upstream): the four device names must exist by exact
   `ibv` name, one IPv4 per netdev (each device's GID at `GID_INDEX` must equal it), and
   all four ranks' `NEXT`/`PREV` addresses;
-- creates the runtime directories and a mode-600 API key (`dsfront` refuses to start
-  without one);
+- creates the runtime directories, with no key: auth is off by default because the
+  network's fronting proxy owns authentication, and `dsfront` serves keyless
+  (`PICOM_AUTH=1` restores the mode-600 key and `--api-key-file`);
 - before it creates anything, refuses a `/cache/runtime` that is not sparkrun's
   runtime-cache bind mount (same filesystem as `/` = the container overlay): with the
   cache disabled (`SPARKRUN_NO_RUNTIME_CACHE`, `runtime_cache.enabled: false`) the
@@ -107,6 +108,7 @@ All are env (recipe `env:` or `-o env.KEY=value`):
 
 | key | default | meaning |
 |---|---|---|
+| `PICOM_AUTH` | `0` | `0` = `dsfront` runs keyless (`/v1/models` and `/v1/chat/completions` accept no bearer); `1` requires the generated key via `--api-key-file` |
 | `PICOM_RANK_TAILS` | empty (assembled) | override only. Empty = the launcher exchanges the four tails at serve time (see above) and renders `<PICOM_FABRIC_A>.<tail>` / `<PICOM_FABRIC_B>.<tail>`; an explicit list pins it and every node's own entry is checked against its rail GID, failing closed on a mismatch |
 | `PICOM_DEV_A` / `PICOM_DEV_B` | sparkrun's `NCCL_IB_HCA` | the two RDMA devices, lower /24 first; derived from the active HCAs sparkrun detects, each device's netdev IPv4 taken from its own RoCE v2 GID |
 | `PICOM_FABRIC_A` / `PICOM_FABRIC_B` | derived | the two f0 /24s, from the same GIDs; never stored in the tree |
