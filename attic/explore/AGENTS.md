@@ -1224,3 +1224,25 @@ further about the main tree belongs in a probe pinned to a pushed digest.
 
 Moving this file out of `recipes/explore/` leaves the shipped pair (`spark-x2.6-4b-bf16-sglang`,
 `spark-x2.6-4b-fp8-sglang`) untouched: the bf16 control is the arm, and this was its echo.
+
+## Three measured-rejected probes retired 2026-11-20
+
+The house rule that a measured-rejected arm leaves `recipes/` for `attic/<lane>/` (`AGENTS.md`
+§Recipes) applied to three probes whose verdicts were already in the lane README. Nothing was
+re-measured; the cells below are the ones the lane record carried, quoted with the receipt each came
+from.
+
+| arm | verdict | cells | receipt |
+|---|---|---|---|
+| `zz-spark-x2.6-4b-int8-sglang` | **kernel refusal** (2026-10-22) — GB10 is sm_121 and the pinned `v0.5.22-cu130` ships no `int8_scaled_mm`; the serve dies 57 s in, before one request, and again at t=98 s on the 2026-11-03 re-boot | none — never served (weights load in 28.08 s / 5.47 GB, 107.82 GB free) | `head:~/benchmarks/spark-x26-20261022/` (`boot-int8.log`, `serve-int8.log`) |
+| `zz-spark-x2.6-4b-fp8-ngram-sglang` | **measured-rejected** (2026-10-25) — NGRAM spec decode is slower than plain decoding at every rung | NGRAM **38.0 / 69.6 / 134.7 / 189.0** vs plain **40.3 / 75.7 / 143.8 / 214.8** t/s at c1/2/5/10, same node `.30`, same window, n=5 (−5.7 % C1 to −12.0 % C10) | `head:~/benchmarks/tplt4-20261024/sparkx26/` (`ladder-ngram.yaml`, `ladder-plain-ctl30.yaml`) |
+| `zz-mellum…-mmap` (maintained copy) | **measured-rejected** (2026-10-19) — mmap ON loses at every rung; the platform's forced default wins | mmap ON vs shipped OFF: **108.80 vs 110.64** C1, **151.78 vs 151.87** C2, **196.48 vs 208.28** C5, **143.45 vs 144.82** C10 t/s | `~/benchmarks/mellum-mmap-20261019/` |
+
+Two things the pass deliberately did **not** move. `zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp`
+is measured-rejected as a mechanism but the owner retained it on 2026-11-03 as the retest harness
+(`-o spec_draft_n_max=<n>` plus a ladder at the next engine move), so it stays a live probe; its
+`…-a37cc46` sibling is that pair's plain-decode control and stays with it. The mmap probe's frozen
+bytes needed a distinct name: the original 2026-10-19 archive keeps
+`zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap.yaml` (revision `20b4394`), and the maintained
+revision (`4159d684`, the `--load-mode none` spelling plus `--metrics`) moved in beside it as
+`…-mmap-loadmode.yaml`. Both hashes were checked before and after the `mv`.

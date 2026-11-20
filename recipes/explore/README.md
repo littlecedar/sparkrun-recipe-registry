@@ -35,14 +35,11 @@ the pyannote diarizer. Explore keeps the language and agentic/RAG arms.
 - [poolside-laguna-m1-nvfp4-vllm-tp2](#poolside-laguna-m1-nvfp4-vllm-tp2)
 - [flint-40b-a2.5b-ud-q3k-xl-llamacpp](#flint-40b-a25b-ud-q3k-xl-llamacpp)
 - [mellum2.1-12b-a2.5b-q4km-thinking-llamacpp](#mellum21-12b-a25b-q4km-thinking-llamacpp)
-- [zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap](#zz-mellum21-12b-a25b-q4km-thinking-llamacpp-mmap)
 - [zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp](#zz-mellum21-12b-a25b-q4km-thinking-llamacpp-mtp)
 - [nemotron-3.5-lightning-30b-a3b-nvfp4-vllm](#nemotron-35-lightning-30b-a3b-nvfp4-vllm)
 - [Kolibri-1 1M constant-state (eval-only, not a recipe)](#kolibri-1-1m-constant-state-eval-only-not-a-recipe)
 - [spark-x2.6-4b-bf16-sglang](#spark-x26-4b-bf16-sglang)
 - [spark-x2.6-4b-fp8-sglang](#spark-x26-4b-fp8-sglang)
-- [zz-spark-x2.6-4b-fp8-ngram-sglang](#zz-spark-x26-4b-fp8-ngram-sglang)
-- [zz-spark-x2.6-4b-int8-sglang](#zz-spark-x26-4b-int8-sglang)
 - [ternary-bonsai-2-9b-q2_0-llamacpp](#ternary-bonsai-2-9b-q2_0-llamacpp)
 - [zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm](#zz-beam-10-501b-a23b-nvfp4-tp4-vllm)
 - [zz-ernie-5.5-flash-base-tp4-sglang](#zz-ernie-55-flash-base-tp4-sglang)
@@ -141,7 +138,7 @@ one is set.
 | `mellum2.1-12b-a2.5b-q4km-thinking-llamacpp` | **111.9 ± 0.3** | 111.9 / 151.1 / **208.0** / 146.4 (8 slots, peak c5); **ten slots 2026-10-22: 110.5 / 154.3 / 208.3 / 186.0** (peak still c5) | 131,072 × `parallel: 8` shipped; `parallel: 10` probe logs `n_slots = 10, n_ctx_slot = 131,072`, `kv_unified` | 37/37 · **36/37 battery @4096** (`needle-1` empty reply in 1 of 3) · 3/3 @131k (32k 3/3 by union) · 77.0% · 93.5% · **88.3%** · **97** | **8.07 GB** · no util (llama.cpp sizes its own pool) | `~/benchmarks/mellum-gguf-20261017/perf-ladder.json`, `summary.md`; ten-slot `~/benchmarks/mellum-c10-20261022/REPORT.md`; `~/benchmarks/mellum-gguf-tools4096-20261017/bfcl.json` | **KEEP — fastest decode + best aggregate peak + smallest**; **[§Easy-traffic selection](#easy-traffic-selection-2026-10-22): the SELECTED single-node easy-traffic arm (2026-10-22)** |
 | `spark-x2.6-4b-bf16-sglang` | **20.38 ± 0.09** | 20.38 / 46.38 / 99.27 / **156.20** (still rising at c10) | KV 723,730 tok = **5.52×** at 131,072 (hybrid: 9 full + 27 sliding layers → 24.84 GB + 59.64 GB pools); `max_num_seqs: 32` | **37/37** thinking-on @4096 · **30/37** thinking-off · — · — · tool-call PASS · — | 8.22 GB bf16 loaded as 9.27 GB · util 0.85 (84.48 GB KV, 14.80 GB spare) · TTR 167.4 s port / 252.5 s HTTP | `~/benchmarks/spark-x26-20261022/` (`boot.log`, `serve.log`, `ladder.json`, `battery-thinking-{on,off}.json`) | **accuracy control — 37/37 at C1 20.38; the FP8 tier doubles C1 and ties it** |
 | `spark-x2.6-4b-fp8-sglang` | **40.80 ± 0.09** | 40.80 / 77.06 / 146.63 / **217.58** (still rising at c10) | KV 779,390 tok = **5.95×** at 131,072 (hybrid: 26.76 GB + 64.22 GB pools); `max_num_seqs: 32` | **37/37** thinking-on @4096 on the rerun (111/111, no flaky) · — · — · tool-call not probed on this tier · — | 5.52 GB resident (4.47 GB checkpoint) · util 0.85 (90.98 GB KV, 11.38 GB spare) · TTR 129.5 s port / 136.4 s HTTP | `~/benchmarks/spark-x26-20261022/` (`boot-fp8*.log`, `serve-fp8*.log`, `ladder-fp8.json`, `battery-fp8-thinking-on.json`, `battery-fp8-rerun-4096.json`) | **KEEP — the fast tier: 2× the control's C1 at every rung, quality tied on the rerun** |
-| `zz-spark-x2.6-4b-int8-sglang` | — (never served) | — (never served) | — | — | 5.47 GB resident (4.47 GB checkpoint) · loaded in 28.08 s, died 57 s in | `~/benchmarks/spark-x26-20261022/` (`boot-int8.log`, `serve-int8.log`) | **measured-rejected at the kernel level — `int8_scaled_mm` unimplemented for sm_121** |
+| `zz-spark-x2.6-4b-int8-sglang` | — (never served) | — (never served) | — | — | 5.47 GB resident (4.47 GB checkpoint) · loaded in 28.08 s, died 57 s in | `~/benchmarks/spark-x26-20261022/` (`boot-int8.log`, `serve-int8.log`) | **measured-rejected at the kernel level — `int8_scaled_mm` unimplemented for sm_121**; [retired to `attic/explore/`](../../attic/explore/zz-spark-x2.6-4b-int8-sglang.yaml) 2026-11-20 |
 | `zz-ripple-65b-preview-nvfp4-tp1-vllm` | **4.0** | 4.0 / 7.7 / 17.2 / 25.3 (still rising at c10) | — (KV grant not captured on the 2026-11-20 boot; `max_model_len` 524288 configured) | **15/15** house4096 · — · — · — · — · — | TP=1 · 1 node · 57.2 GB weights (~53.3 GiB) · util 0.90 · TTR 375 s | `~/benchmarks/h2h-20261107/zz-ripple-65b-preview-nvfp4-tp1-vllm/` (`ladder.json`, `house.json`, `quality.json`, `watchdog.log`) | **KEEP — the TP=1 reference: 4.0 t/s decode at c1, 25.3 at c10** |
 | `zz-ripple-65b-preview-nvfp4-tp1-dflash2-vllm` | **9.9** | 9.9 / 16.5 / 24.2 / 34.5 (still rising at c10) | — (KV grant not captured; same 524288 window, draft capped 131072) | **15/15** house4096 · — · — · — · — · — | TP=1 · 1 node · 57.2 GB + 8.07 GB draft · util 0.90 · TTR 520 s | `~/benchmarks/h2h-20261107/zz-ripple-65b-preview-nvfp4-tp1-dflash2-vllm/` (`ladder.json`, `house.json`, `quality.json`, `watchdog.log`) | **KEEP — the drafter roughly doubles c1 decode and adds ~36 % at c10 against the plain TP=1 cell** |
 | `zz-ripple-65b-preview-bf16-tp2-vllm` | **3.6** | 3.6 / 6.9 / 15.0 / 14.0 (dips at c10) | — (KV grant not captured; `max_model_len` 1048576; the 2026-11-08 boot measured 1,281,286 tok at 1,048,576) | **15/15** house4096 · — · — · — · — · — | TP=2 · 2 nodes · 129.57 GB (120.67 GiB) · util 0.85 · TTR 354 s | `~/benchmarks/h2h-20261107/zz-ripple-65b-preview-bf16-tp2-vllm/` (`ladder.json`, `house.json`, `quality.json`, `watchdog.log`) | **quality control — unquantized, 2 nodes, slowest c10; not a selection candidate** |
@@ -184,6 +181,14 @@ TensorFold-drafter trial, the Q4_K APEX tier and all three 4-bit vLLM packs; Lag
 `humanizer`; the Mellum BF16 parent; and Mistral-Small-4. The unrun Kolibri GGUF tiers
 (`Hob-forge` / `webmp3` / `aparusel`) were never authored as recipes, so there is no file to move;
 they are recorded as **unmeasured / not built** in the manifest.
+
+**Retired 2026-11-20** (3 measured probes, each with a negative verdict already in this record; the
+manifest carries the cells and the receipt per arm): `zz-spark-x2.6-4b-int8-sglang` (kernel refusal —
+no sm_121 `int8_scaled_mm`), `zz-spark-x2.6-4b-fp8-ngram-sglang` (NGRAM slower than plain decode at
+every rung), and the maintained `zz-mellum…-mmap` copy (mmap ON lost on every measured axis). The
+lane's control and probe set that stays is unchanged: `spark-x2.6-4b-bf16-sglang` (accuracy control
+beside the live FP8 tier), `zz-mellum…-mtp` (owner-retained retest harness, 2026-11-03) and its
+`…-a37cc46` plain-decode control.
 
 ## [ling-3.0-flash-int4-dspark-sglang](ling-3.0-flash-int4-dspark-sglang.yaml)
 
@@ -500,9 +505,10 @@ weights**.
   (`attic/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap.yaml`); receipt
   `~/benchmarks/mellum-mmap-20261019/`.
   `n_ctx` 131,072 is honored end to end (contract check reads it after the fix below).
-  SUPERSEDED 2026-10-29: a maintained copy also stands in this lane
-  (`recipes/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap.yaml`, updated 2026-10-27 for
-  the `--load-mode none` spelling) and has its own section below.
+  SUPERSEDED 2026-10-29, retired 2026-11-20: a maintained copy stood in this lane from 2026-10-29
+  (updated 2026-10-27 for the `--load-mode none` spelling) and now sits beside the original as
+  [`attic/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap-loadmode.yaml`](../../attic/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap-loadmode.yaml);
+  see its section below.
 - **MTP is measured-rejected across draft lengths (2026-10-22).** The checkpoint's own BF16 MTP head needs
   the stock-upstream `a37cc4610` build (the shipped `b2e5e9b` pin has no `graph_mtp` for `mellum`), so it
   was swept there: `--spec-type draft-mtp --spec-draft-n-max 1…8` gives **103.4 ± 2.8 t/s at `n-max 1`**
@@ -594,14 +600,15 @@ weights**.
 - **Details:** [`mad-science/LLAMACPP-GGUF.md`](../../mad-science/LLAMACPP-GGUF.md) §5 (bring-up +
   suite) and §4 (standing policy: a GGUF sibling must beat the lane battery, not the uploader's table).
 
-## [zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap](zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap.yaml)
+## [zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap](../../attic/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap-loadmode.yaml)
 
-llama.cpp · **1 node (TP=1)** · **probe, not shippable — the A side of the GB10 mmap A/B**.
-
-The shipped Q4_K_M Mellum arm with the shipped `--load-mode none` left off, so the GGUF stays mapped
-at llama.cpp's default. What to watch: it exists only to price mmap against the shipped arm, so read
-it as a same-window pair (the verdict and the receipt are in the parent section above) and never as a
-solo number.
+**Retired 2026-11-20** to
+[`attic/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap-loadmode.yaml`](../../attic/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap-loadmode.yaml)
+— the A side of the GB10 mmap A/B lost on every measured axis, so `recipes/` keeps no copy. The frozen
+bytes are the maintained revision (`4159d684`, the `--load-mode none` successor spelling plus
+`--metrics`); the original 2026-10-19 archive stays beside it under the plain `-mmap.yaml` name. The
+verdict and its same-window pair live in the parent section above; the receipt is
+`~/benchmarks/mellum-mmap-20261019/`.
 
 ## [zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp](zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp.yaml)
 
@@ -874,53 +881,35 @@ same container, same knobs, **no `--quantization` flag** — the engine auto-det
   `sparkrun_9c8e0fffc3be638_64af2f7668b6` on `.35` (8192 re-ask, rerun, and the n=10 flakiness boot),
   0 containers after each.
 
-## [zz-spark-x2.6-4b-fp8-ngram-sglang](zz-spark-x2.6-4b-fp8-ngram-sglang.yaml)
+## [zz-spark-x2.6-4b-fp8-ngram-sglang](../../attic/explore/zz-spark-x2.6-4b-fp8-ngram-sglang.yaml)
 
-SGLang · **1 node (TP=1)** · **measured-rejected, 2026-10-25 — NGRAM spec decode is slower than
-plain decoding at every rung**.
+**Retired 2026-11-20** to
+[`attic/explore/zz-spark-x2.6-4b-fp8-ngram-sglang.yaml`](../../attic/explore/zz-spark-x2.6-4b-fp8-ngram-sglang.yaml)
+— **measured-rejected, 2026-10-25**: NGRAM spec decode is slower than plain decoding at every rung.
+Paired, same node `.30`, same window, n=5: NGRAM **38.0 / 69.6 / 134.7 / 189.0** against plain
+**40.3 / 75.7 / 143.8 / 214.8** t/s at c1/2/5/10 — **−5.7 % C1 to −12.0 % C10** — so the
+pre-registered falsifier (spec C1 ≤ plain C1) fired and there was no breadth sweep: verify cost grew
+faster than acceptance on a 4B dense whose plain decode is already at 5.3× its C1 by c10. The route
+existed because the checkpoint carries no mtp/nextn/draft keys (config read 2026-10-25) and the
+16-repo family census has no drafter. Receipt `head:~/benchmarks/tplt4-20261024/sparkx26/`
+(`ladder-ngram.yaml`, `ladder-plain-ctl30.yaml`); serve stopped by literal task id, 0 containers after.
 
-- **Why it existed:** the "Spark-X2.6 MTP" parked line has no MTP to test — the checkpoint carries
-  no mtp/nextn/draft keys (config verified 2026-10-25) and the 16-repo family census has no
-  drafter, so the Mellum MTP mechanism is unavailable and **NGRAM** (engine built-in, no draft
-  weights, flag shape from the retired IFM K2-Horizon NGRAM arm: breadth 4, draft tokens 8,
-  page_size 1) is the only spec route.
-- **Measured (paired, same node `.30`, same window, n=5):** NGRAM **38.0 / 69.6 / 134.7 / 189.0**
-  vs plain-in-window **40.3 / 75.7 / 143.8 / 214.8** at c1/2/5/10 — **−5.7 % C1 to −12.0 % C10**.
-  The pre-registered falsifier fired (spec C1 ≤ plain C1): **NGRAM is measured-rejected for this
-  arm, no breadth sweep** — verify cost grew faster than acceptance on a 4B dense whose plain
-  decode is already at 5.3× its C1 by c10.
-- **Receipt:** `head:~/benchmarks/tplt4-20261024/sparkx26/` (`ladder-ngram.yaml`,
-  `ladder-plain-ctl30.yaml`), serve stopped by literal task id, 0 containers after.
+## [zz-spark-x2.6-4b-int8-sglang](../../attic/explore/zz-spark-x2.6-4b-int8-sglang.yaml)
 
-
-
-
-## [zz-spark-x2.6-4b-int8-sglang](zz-spark-x2.6-4b-int8-sglang.yaml)
-
-SGLang · **1 node (TP=1)** · **measured-rejected, 2026-10-22 — the engine has no INT8 GEMM kernel for GB10**.
-
-The last untried Spark-X2.6 sibling: `XHToken/Spark-X2.6-4B-INT8` (4.47 GB, int-quantized W8A8 — weights
-per-channel symmetric, activations dynamic per-token), same container and knobs as the shipped FP8 tier,
-**no `--quantization` flag**. Its repo ships no `chat_template.jinja`, but the 4,766-char template
-(`enable_thinking` + `reasoning_effort`) sits in `tokenizer_config.json`, so the chat route was never the
-risk.
-
-- **It loads:** quant **compressed-tensors auto-detected**, weights **5.47 GB in 28.08 s**, 107.82 GB free
-  after — the same friendly boot the FP8 tier has.
-- **Then it dies 57 s in, before serving one request:** during prefill CUDA-graph capture,
-  `compressed_tensors_w8a8_int8.apply_weights` → `sgl_kernel/gemm.py::int8_scaled_mm` →
-  **`NotImplementedError: No implemented int8_scaled_mm for current compute capability`**. GB10 is
-  **sm_121** and the pinned SGLang build ships no INT8 GEMM kernel for it.
-- **A hardware/build gate, not a quant-quality question:** no recipe knob reaches it, no quality or ladder
-  cell was measurable, and the only unlock is a newer `sgl_kernel` carrying an sm_121 `int8_scaled_mm`.
-  Do not re-boot INT8 on `v0.5.22-cu130`; the FP8 tier already gives the same 4.47 GB footprint with a
-  working kernel at 2× the bf16 control's C1.
-- **Re-booted anyway on 2026-11-03 (21:46:01, one free node) and failed identically** — serve died
-  t=98 s on the same `NotImplementedError: No implemented int8_scaled_mm current compute capability`,
-  so the verdict above still stands; the recipe now carries
-  `metadata.measured_rejected` and the campaign planner prints this citation and plans nothing for it.
-- **Receipt:** `head:~/benchmarks/spark-x26-20261022/` (`boot-int8.log`, `serve-int8.log`). Task
-  `sparkrun_f30a2cdba68653a9_64af2f7668b6` on `.35`, container removed, 0 containers after.
+**Retired 2026-11-20** to
+[`attic/explore/zz-spark-x2.6-4b-int8-sglang.yaml`](../../attic/explore/zz-spark-x2.6-4b-int8-sglang.yaml)
+— **measured-rejected, 2026-10-22 at the kernel level**: the engine has no INT8 GEMM for GB10.
+`XHToken/Spark-X2.6-4B-INT8` (4.47 GB W8A8, quant auto-detected, no `--quantization` flag) loads in
+**28.08 s / 5.47 GB** with 107.82 GB free, then dies **57 s in, before serving one request**, during
+prefill CUDA-graph capture: `compressed_tensors_w8a8_int8.apply_weights` → `sgl_kernel/gemm.py::
+int8_scaled_mm` → **`NotImplementedError: No implemented int8_scaled_mm for current compute
+capability`**. GB10 is **sm_121** and the pinned `v0.5.22-cu130` build ships no INT8 GEMM kernel for
+it, so no ladder or quality cell exists and no recipe knob reaches it — the only unlock is a newer
+`sgl_kernel`. Do not re-boot INT8 on that image; the FP8 tier gives the same 4.47 GB footprint with a
+working kernel at 2× the bf16 control's C1. Re-booted 2026-11-03 (21:46:01, one free node) and failed
+identically at t=98 s, so the verdict stands. Receipt `head:~/benchmarks/spark-x26-20261022/`
+(`boot-int8.log`, `serve-int8.log`); task `sparkrun_f30a2cdba68653a9_64af2f7668b6` on `.35`,
+container removed, 0 containers after.
 
 ## [ternary-bonsai-2-9b-q2_0-llamacpp](ternary-bonsai-2-9b-q2_0-llamacpp.yaml)
 
@@ -2148,8 +2137,9 @@ frame latency, no real-time factor, no transcript quality.
 ## Attic index
 
 Everything that is not a shipped recipe lives in [`attic/explore/`](../../attic/explore/) — lane working
-state, measured histories, selection receipts, serving traps, the candidate research, and the 17
-archived recipes (3 Nemotron, 10 from the 2026-10-19 sweep, and 4 retired probes 2026-11-19).
+state, measured histories, selection receipts, serving traps, the candidate research, and the 22
+archived recipes (3 Nemotron, 10 from the 2026-10-19 sweep, the main-image probe, 4 retired probes
+2026-11-19 and 4 retired 2026-11-20).
 
 
 
@@ -2182,3 +2172,6 @@ archived recipes (3 Nemotron, 10 from the 2026-10-19 sweep, and 4 retired probes
 | [`zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2.yaml`](../../attic/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2.yaml) | Retired 2026-11-19, TP=4 — second-boot twin (comment-only copy, so one recipe name cannot hold two queue rows): ladder **33.09±2.50 / 44.91±3.50 / 59.71±10.50 / 69.86±7.41 t/s** (C1 +26.3 %, C5 −6.7 % vs boot 1). Receipts `…/zz-beam-…-boot2/ladder.json`, `…/receipts/zz-beam-…-boot2.json`. |
 | [`zz-ernie-5.5-flash-base-tp4-sglang.yaml`](../../attic/explore/zz-ernie-5.5-flash-base-tp4-sglang.yaml) | Retired 2026-11-19, TP=4 — **refused boot**, task `sparkrun_e59088ba4d0f3858_3780b01ec8c1`: all 128 shards loaded from the pinned snapshot, then `Capture cuda graph failed: … Unsupported architecture for sparse decode fwd` (FlashMLA builds `sm_100a`/`sm_103a` only; the GB10 dynamic-smem probe reads 101,376 B against the kernel's 227 KiB `static_assert`). Per-rank `MemAvailable` minima 14.79–15.04 GiB. |
 | [`zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4.yaml`](../../attic/explore/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4.yaml) | Retired 2026-11-19, TP=4 — measured parameter-floor isolator: `--load-format dummy` dive **112.05/109.84/108.20/109.46 GiB** (inside the 110.7 ± 10 % gate), floors **5.012/7.565/9.170/7.856 GiB**; the ≥6 GiB falsifier is not met, so the parameter set alone sits at five to nine GiB per rank. Receipt `head:~/benchmarks/tp4-20261111/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4/mem-floor.json`. |
+| [`zz-spark-x2.6-4b-int8-sglang.yaml`](../../attic/explore/zz-spark-x2.6-4b-int8-sglang.yaml) | Retired 2026-11-20 — **kernel refusal**: loads (5.47 GB in 28.08 s), dies 57 s in during prefill CUDA-graph capture, `NotImplementedError: No implemented int8_scaled_mm for current compute capability` (GB10 is sm_121, the pinned `v0.5.22-cu130` has no INT8 GEMM). No ladder or quality cell. Receipt `head:~/benchmarks/spark-x26-20261022/` (`boot-int8.log`, `serve-int8.log`). |
+| [`zz-spark-x2.6-4b-fp8-ngram-sglang.yaml`](../../attic/explore/zz-spark-x2.6-4b-fp8-ngram-sglang.yaml) | Retired 2026-11-20 — **measured-rejected 2026-10-25**: NGRAM **38.0 / 69.6 / 134.7 / 189.0** vs plain **40.3 / 75.7 / 143.8 / 214.8** t/s at c1/2/5/10, same node and window, n=5 (−5.7 % C1 to −12.0 % C10). Receipt `head:~/benchmarks/tplt4-20261024/sparkx26/` (`ladder-ngram.yaml`, `ladder-plain-ctl30.yaml`). |
+| [`zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap-loadmode.yaml`](../../attic/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap-loadmode.yaml) | Retired 2026-11-20 — the maintained copy of the mmap A side (revision `4159d684`, `--load-mode none` spelling); mmap ON vs the shipped OFF: **108.80 vs 110.64 / 151.78 vs 151.87 / 196.48 vs 208.28 / 143.45 vs 144.82** t/s, worst cell C5 −5.7 %. Receipt `~/benchmarks/mellum-mmap-20261019/`. |
