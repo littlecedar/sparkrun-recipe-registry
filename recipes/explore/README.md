@@ -2034,7 +2034,7 @@ outside the mounted cache and the launch refused with "prepared model is not vis
 workload mounts"; the WOPR profile now carries `cache_dir: /mnt/beegfs/huggingface`
 (`sparkrun cluster update WOPR --cache-dir /mnt/beegfs/huggingface`, previous file kept as
 `WOPR.yaml.bak-hy4-poolcache-20261120`), and that field only reaches a launch that names the
-cluster. Launch as `sparkrun run <recipe> --cluster WOPR -H 10.0.4.30,10.0.4.35`: a bare `-H`
+cluster. Launch as `sparkrun run <recipe> --cluster WOPR -H .30,.35`: a bare `-H`
 builds an anonymous cluster with the node-local default and refuses the same way. Measured boot
 (2026-11-20, task `261430353ba2889a_9e41b9e252af`): ready **17 m 36 s** after container start
 (engine init 491.66 s — fp4_gemm autotune plus flashinfer JIT on a cold tuning cache),
