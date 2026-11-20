@@ -49,6 +49,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
   - [Probe arms: prefill chunk budget, Engram read batch, output ceiling (authored 2026-11-17; all three booted in the 2026-11-18 production window)](#probe-arms-prefill-chunk-budget-engram-read-batch-output-ceiling-authored-2026-11-17-all-three-booted-in-the-2026-11-18-production-window)
   - [License](#license-2)
 - [zz-deepseek-v4.1-flash-1017-weightless-tp4-1m (authored 2026-11-20, never booted)](#zz-deepseek-v41-flash-1017-weightless-tp4-1m-authored-2026-11-20-never-booted)
+- [zz-deepseek-v4.1-flash-1017-weightless-dsgb10-tp4 (authored 2026-11-20, never booted)](#zz-deepseek-v41-flash-1017-weightless-dsgb10-tp4-authored-2026-11-20-never-booted)
 - [picom vs knapcio: one model, two engines on four GB10s](#picom-vs-knapcio-one-model-two-engines-on-four-gb10s)
 - [External stack: spark-ds41f (survey, 2026-11-08)](#external-stack-spark-ds41f-survey-2026-11-08)
 - [Upgrade candidates (measured elsewhere, not queued)](#upgrade-candidates-measured-elsewhere-not-queued)
@@ -2852,7 +2853,145 @@ dual-name steering is **not** reachable on `dsgb10`: `dsfront` serves one name a
 request's `model` (`PICOM-VS-KNAPCIO.md:161`, citing `server.rs:981`; the plan's upstream
 `README.md:235` is the same statement), and the picom record carries no steering of any kind —
 two-name per-request steering is a vLLM capability, which is why this arm is a vLLM probe.
-Verdict: build neither runtime now; the arm stays blocked on the unpublished engine image.
+Verdict at the time: build neither runtime now, and keep the arm blocked on the unpublished
+engine image. **Superseded 2026-11-20** by
+`zz-deepseek-v4.1-flash-1017-weightless-dsgb10-tp4` (above): the runtime is
+`plugins/weightless_dsgb10_runtime.py` and the steering is this registry's own patch series
+over the picom pin, so the dual-name capability upstream `dsgb10` lacks now exists in the
+image this lane builds. The paragraph above still describes upstream at the pin, which is
+exactly why that arm needs an image of its own.
+
+## zz-deepseek-v4.1-flash-1017-weightless-dsgb10-tp4 (authored 2026-11-20, never booted)
+
+| | |
+|:--|:--|
+| Recipe | `recipes/ds4/zz-deepseek-v4.1-flash-1017-weightless-dsgb10-tp4.yaml` |
+| Engine | the picom (`dsgb10`) TP=4 engine + its Rust front-end `dsfront`, **with this registry's GLP steering patch series** (`recipes/ds4/picom-weightless-steering.patch`, third in the series after PR #15 and PR #7) |
+| Runtime | `weightless-dsgb10` — `plugins/weightless_dsgb10_runtime.py`: native distribution, no rendezvous gate, GB10 only |
+| Model | [`deepseek-ai/DeepSeek-V4.1-Flash-1017`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017) at `1bae0e10` — the revision the steering vector was derived against |
+| Second name | `deepseek-v4.1-flash-weightless`, the same weights with the GLP vector projected out of the residual stream **per request** |
+| Artifact | `msuiche/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75` at `2715ffd5`, one 803,392-byte GGUF, sha256 `9c66d477…f5cf`, 39 layers, α 0.75, MIT, access-gated; staged by `mods/glp-vector-stage` |
+| Topology | TP=4, four GB10 nodes, one process per node, switched RoCE ring |
+| Context | 1,048,576 tokens served (`--max-ctx 1048576`, 16 slots, 4 big) |
+| Image | `dgx-picom-ds41f:weightless` — **a local tag, never published, and no digest is pinned** |
+| Status | **Probe.** Nothing here has been booted; the engine half has not even been compiled on this workstation (see "Not compiled here") |
+
+**Probe framing.** The shipped picom arm borrows vLLM's distribution contract because the engine
+is not a vLLM server. This arm does not borrow it: a steered arm must refuse a host that is not a
+GB10 (the vector is sm_121-bound), must not wait out a native rendezvous gate nothing binds (the
+launcher meets its peers on 19110 itself), and carries its own image — declarations, not recipe
+text, which is why the runtime exists. The image is built on an idle GB10 node from
+`Dockerfile.picom-ds41f` with the three-patch series (`git apply` in that order, `git apply
+--check` proven, resulting tree `637fc87a`) and copied to the other ranks: `sparkrun` cannot pull
+it, `distribution_config.containers.enabled: false`, and `container:` carries the local tag. A
+digest-pinned `container:` cannot exist until someone publishes it, so **a third party cannot run
+this arm yet** — the same shape as the vLLM weightless probe above, with the extra dependency that
+the image is this registry's own build rather than another project's.
+
+**The two-name contract.** One deployment, one checkpoint, two served names; the client picks per
+request by the body's `model`. `deepseek-v4.1-flash` is the stock stream. A request naming
+`deepseek-v4.1-flash-weightless` carries `SubmitHeader::steer = 1` to the engine and has the
+vector projected out of its residual stream, while a stock request in the same batch, through the
+same prefix cache, keeps its own text. The stock name is listed first on purpose: `dsfront`'s
+second name follows it. Two consequences a client cannot see:
+
+- **Sessions never share KV across names.** The front-end's session table is matched on prompt
+  text alone, so identical text under both names would have reused the other stream's state. Each
+  session now carries its flag, a request whose base or session is the other stream's starts cold
+  (logged as such), and the on-disk table is `DSFT0002` so a pre-patch table is not read.
+- **A name this server does not serve is refused** (HTTP 400 naming both), once
+  `--steer-model-name` is set. Fail-open would let a typo'd steered name answer stock and be
+  logged as steered.
+
+**The steering math.** At each configured layer's post-layer fold, before Engram reads the stream,
+**every one of the four hc copies** loses its own projection on the layer's unit direction:
+`h_j ← h_j − α·(h_j·d_L)·d_L`, `j = 0..3`, α 0.75 from the file, `L ∈ 1..39` (`direction.N` is
+applied after layer `N`; `direction.0` cannot be expressed). The same `d` for all four copies, so
+the mean — the quantity the direction was derived on — is projected too. **Steering the mean only
+is not the same operation** and is not what upstream measured. fp32 dot and fp32 product, one bf16
+rounding, a fixed summation order; `α = 0` is bit-exact identity (checked by `glp_test`).
+
+**What the patch changes.** Engine: `engine/model/glp.h` (a header-only GGUF reader that refuses
+any file it cannot apply exactly), the per-row `StepIn::steer` flag, `ops::steer_rows`, the hook
+after `ffn(L)` in the decode loop and after `ffn_p` in the chunk loop (a steered last layer is
+materialised and re-collapsed, or the chunk's last token and the first decode token would be on
+different streams), and the graph key `(rows, context, steer)` so a steered step cannot replay a
+stock graph. Front-end: `--steer-model-name`, the strict name selector, both names in
+`/v1/models`, and protocol v2 (`SubmitHeader::steer` in the old reserved word, still 72 B;
+`HelloEngine::caps` bit 0).
+
+**Fail-closed points, in the order they fire.**
+
+1. **Boot**: `WEIGHTLESS_STEER_PATH` set and unreadable, or a file this runtime cannot apply
+   exactly (mode/spec/rank/hook/`direction.0`/width/norm/finiteness/`layer_ids`/trailing bytes) —
+   the engine prints `main: GLP steering refused: …` and exits 2, before any request.
+2. **Protocol**: `kVersion` is 2 both ways, so an older engine and a newer front-end refuse each
+   other rather than serve a `steer` they do not understand.
+3. **Engine, per request**: a submit with `steer = 1` on an engine with no vector is answered
+   `kError` — "this engine has no GLP vector (WEIGHTLESS_STEER_PATH)" — never the stock model.
+4. **Front-end, per request**: a steered request while `HelloEngine::caps` bit 0 is clear is
+   answered **503** `server_error` "the engine cannot steer: no GLP vector is loaded". This is the
+   one place a startup check is impossible: `dsfront` learns the caps only when the engine connects,
+   which is after `dsfront` starts, so the check lives on the request path where it can be true.
+5. **Batch/spec**: a speculative step with `cur_steer` set dies in all four `spec.cu` entry points
+   (see adaptation 2).
+
+**The `stats:` line.** Both sides emit one line per interval, `WEIGHTLESS_STATS_INTERVAL` seconds
+(60 by default, `0` disables), best-effort and never fatal:
+
+```
+stats: t=60 rank=0 tok_out=… tok_in=… kv_util=… draft_accept=… queue=… reqs_stock=… reqs_steered=…
+stats: t=60 front queue=… reqs_stock=… reqs_steered=…
+```
+
+`reqs_*` is what was actually sent per name, which is the number that tells a steered arm from two
+aliases; `kv_util` is slot occupancy, `draft_accept` the verify steps' accepted drafts, `queue` the
+requests waiting for a slot. **It omits `kv_hit` and `engram_hit`**: those counters live in the
+Engram store, which `main.cpp` owns and the server has no handle on, so the engine line does not
+claim them.
+
+**Adaptations to the plan (nine, each named in the code).**
+
+1. `glp.mask` is 64-bit, not the plan's 40-bit field: `1u << 32` wraps to bit 0 in C++, and the
+   real vector steers layers 1..39. `glp_test` on the real file is what caught it.
+2. **DSpark is off for steered requests.** Its step graphs are captured unsteered at startup
+   (`spec.cu`, one per context bucket, 0.32 GiB each), so a steered request would replay a graph
+   with no steer launches — drafts from an unsteered pass verified against a steered stream. A
+   steered request decodes through the plain step path, and the four spec entry points refuse one.
+3. The missing-caps check is the request-path 503 above, not a startup `die` (adaptation to §3 of
+   the plan, which assumed the caps were known at start).
+4. `WEIGHTLESS_STEER_LAYERS` (range or comma list) is this registry's addition: it restricts the
+   mask to the layers named, and a layer the file has no direction for is a refusal.
+5. `WEIGHTLESS_STATS_INTERVAL` is the front flag's default (`--stats-interval-s` overrides it): the
+   launcher passes no such flag, so without this the knob would be inert on the front side.
+6. The second served name is spelled literally in `PICOM_FRONT_ARGS` and `WEIGHTLESS_STEER_MODEL`:
+   sparkrun substitutes `{…}` in `command:` only and an env value keeps its braces, so
+   `WeightlessDsgb10Contract` holds the two to one string instead.
+7. `test_metrics_rollout`'s runtime vocabulary is derived from `plugins/*.py` instead of the three
+   in-tree families, and asserts the scan, so an out-of-tree runtime is admissible and a renamed
+   plugin module reddens that guard.
+8. CI's validate step writes a `config.yaml` with the checkout's `plugins/` on `plugins.paths`
+   (`core.external_plugins: true`): a stock sparkrun cannot validate a recipe naming an
+   out-of-tree runtime.
+9. The vLLM weightless probe's verdict below ("the dual-name steering is not reachable on
+   `dsgb10`") is upstream at the pin, and is now superseded by this arm — the patch series is what
+   makes the second name reachable.
+
+**Not compiled here.** This workstation has no `nvcc` and no `cmake`, so the twelve engine files in
+the patch series are reviewed, not built; the front half is compiled and tested (`cargo test
+--locked`: 50 lib + 2 bin). What did run on the host: `glp_test` against the real 803,392-byte
+vector (**84 checks, 0 failed** — 39 directions, layers 1..39, α 0.750000, dim 5120, and every
+refusal path), `py_compile`, `bash -n` over every mod, and `sparkrun recipe validate --strict`
+(clean on this arm; all 118 recipes measured: 60 printing a finding, 24 with a warning).
+
+**The boot gate.** Build `Dockerfile.picom-ds41f` with the three-patch series on an idle GB10 node,
+publish to `ghcr.io/littlecedar`, prove an anonymous pull, pin the digest in `container:`, then in a
+declared 4-rank window with a watchdog: the engine log's `rank 0: glp: 39 directions of 40 layers,
+alpha 0.750`, `GET /v1/models` listing both names, one request per name in the same batch with
+different text, a `stats:` line from each side showing `reqs_steered=1 reqs_stock=1`, and a
+`/v1/chat/completions` addressed to a name the server does not serve answering 400. Placement is
+the second gate and the same one the vLLM probe names: a TP=4 arm needs four free ranks in one
+lease, and `.31`–`.34` carry the production serve inside `.local/fleet-leases.json`.
 
 ## External stack: spark-ds41f (survey, 2026-11-08)
 
