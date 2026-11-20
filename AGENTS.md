@@ -16,7 +16,7 @@ and rewrites both statements from that same discovery; only its skip count needs
 which is why that half carries a date. What only a run can know stays a *dated snapshot*: **2026-11-20
 — every tracked recipe passes plain `validate`, and `--strict` prints exactly the roster below over
 the whole tracked tree (re-measured 2026-11-20, the date on this line: 117 tracked recipes scanned,
-58 of them printing a finding, 23 with a warning and the rest suggestions only; the LiquidAI arms
+60 of them printing a finding, 24 with a warning and the rest suggestions only; the LiquidAI arms
 still add no row, because an accuracy declaration belongs inside `metadata:` where
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
@@ -258,7 +258,7 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
   `--strict` prints exactly the findings in the roster below — it adds none of its own and only exits
   non-zero on the rows whose findings include a `warning`. Re-measured 2026-11-20 over the current 117
   tracked recipes, so the snapshot was re-taken rather than
-  adjusted: twenty-two rows carry `unpinned-model-revision` — the pin never reaches the engine as
+  adjusted: twenty-three rows carry `unpinned-model-revision` — the pin never reaches the engine as
   `--revision` — one carries `deprecated-topology` instead, and every other row carries suggestions
   only, which never gate. No denominator is written here for the reason the snapshot
   paragraph gives: a fraction that scales with the tree goes stale silently. Findings are listed in
@@ -286,6 +286,8 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
   | `explore/poolside-laguna-xs-2.1-nvfp4-dflash-vllm.yaml` | `restated-managed-path` |
   | `explore/ternary-bonsai-2-9b-q2_0-llamacpp.yaml` | `recipe-metadata`, `restated-managed-path` |
   | `explore/zz-edge0-145b-nvfp4-latentmoe-strata.yaml` | `unpinned-model-revision` |
+  | `explore/zz-haru-4b-bf16-duplex-s2s-vllm-omni.yaml` | `unpinned-model-revision` |
+  | `explore/zz-hy4-flash-220b-nvfp4-tp2-vllm.yaml` | `restated-platform-env` |
   | `explore/zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm.yaml` | `unpinned-model-revision` |
   | `explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mtp.yaml` | `restated-managed-path` |
   | `explore/zz-sensenova-loop-9b-bf16-thinking-ref-vllm.yaml` | `unpinned-model-revision` |
