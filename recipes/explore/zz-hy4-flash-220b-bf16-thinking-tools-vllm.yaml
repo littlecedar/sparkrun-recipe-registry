@@ -1,0 +1,115 @@
+recipe_version: "2"
+model: tencent/Hy4-flash
+# Pinned body, never refs/main: 148 shards whose sizes are the fit math below.
+model_revision: b2498eba6a1a3f9bbcab4190bc1313a3c7010c2f
+# Model-specific image (index digest). No release of upstream vLLM registers
+# HYV4FlashForConditionalGeneration: the class landed in vllm main as
+# vllm/models/hy_v4_flash/ on 2026-11-17/18 and no wheel carries it yet, so the
+# fleet's pinned dgx-vllm-eugr-nightly-b12x (vLLM 0.1.dev20133+gb5f995e73,
+# built 2026-08-23) is three months too old and cannot load this repo. The tag
+# is multi-arch; arm64 child sha256:5e2c1badbca60595d6591c60feb4b8547f59da96e7a91710d40239250e721aba.
+container: vllm/vllm-openai:hy4-flash@sha256:6b645bfbf4b89602d38f6e93c1c418516ec0bfbf54b64cd661b8075bfec01da1
+runtime: vllm
+# AUTHORED-NOT-BOOTED. 440.52 GB (410.29 GiB) of BF16 weights want four ranks
+# (TP=2 is 205 GiB/rank, TP=1 410 GiB: both over the 109.5 GiB budget), and a
+# quartet on this fleet means .31-.34, which carry the production ds4 serve
+# (#58 forbids displacing it). The arm boots only inside an owner-declared TP4
+# window with the production ring free.
+min_nodes: 4
+max_nodes: 4
+description: >-
+  TRIAL (zz-, authored 2026-11-20, never booted): Tencent Hunyuan Hy4 Flash
+  bf16 on four DGX Sparks, TP=4 — 220B total / 12B active multimodal MoE
+  (42 layers: 1 dense + 41 LatentMoE, 512 routed of which 16 fire, 1 shared,
+  12 sparse-IndexPool + 30 sliding-window attention layers at 512, MLA with
+  kv_lora_rank 512, 63.4B-parameter Engram tables in 4 layers, SigLIP2-So400m
+  vision tower, 5-layer DFly draft head, 120,832 vocab, 1,048,576 positions).
+  Real weight bytes, not the card: 148 shards, 440,521,065,214 B = 410.29 GiB,
+  so 102.57 GiB of weights per rank at TP=4 against a 109.52 GiB budget
+  (0.90 x the fleet's measured 121.69 GiB device). That leaves 6.95 GiB,
+  minus the 3.05 GiB non-KV activation/CUDAGraph overhead measured on this
+  engine family and ~1.58 GiB of draft head: ~2.32 GiB for KV, i.e. ~51k
+  tokens at 47.25 KiB/token (42 layers x (512+64) x 2 B, upper bound — the 30
+  SWA layers could window down). 8192 x 4 seqs = 1.55 GiB fits; the card's 1M
+  context does not (45.0 GiB of KV, 11.3 GiB/rank). The fit is arithmetic on
+  a measured device and a neighbouring arm's measured overhead, not a receipt:
+  the Kimi pruned75 quartet at 110.71 GiB/rank died on host memory, and this
+  body is 8 GiB lighter with a 4-node ceiling. Licence is NOT Apache: Tencent
+  Hy License 1.0 adds MaaS terms (section 10) — register question, not a lane
+  decision, and no promotion of this arm before it is answered. Published
+  engine recipe (vllm 2026-11-18) is TP=8 with FLASHMLA_SPARSE + dfly; it
+  starts from 8192 context, 4 seqs, one image per prompt, and we inherit that.
+metadata:
+  model_url: https://huggingface.co/tencent/Hy4-flash
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "220B"
+  model_dtype: bfloat16
+  kv_dtype: bfloat16
+  tags: explore, reasoning, tools, multimodal, large_context
+  # Unknown pin: an unknown flag is an argparse boot failure, so no metrics
+  # flags ship until the image's own --help is read on a node.
+  instrumented: false
+  caveats: >-
+    Tencent Hy License 1.0 (card `license: other` / `tencent-hy-license`),
+    Apache-2.0 derived with section 10 added: a MaaS business (third parties
+    submitting inputs or picking parameters/weights via API) above US$50M
+    12-month gross revenue, or a product with over 100M monthly active users,
+    needs a separate written licence from Tencent before use; section 10.3
+    exempts internal-only use where neither the weights, derivatives nor their
+    outputs reach third parties; section 6 withholds trademarks; derivative
+    works expressly include quantized and fine-tuned weights. Engram tables
+    (63.4B params, 126.7 GB) are offloaded to host RAM by default in this
+    engine, which on a GB10 is the same 128 GB unified pool as the device — the
+    offload saves GPU-addressable space, not physical memory, so the per-node
+    total is what constrains the boot. The engine gate is NOT verified against
+    this image's filesystem (unlike the Kimi arm's): support is inferred from
+    upstream vllm main carrying vllm/models/hy_v4_flash/ and the vendor's own
+    recipe pinning this tag, so the first boot is also the engine test.
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  # Repo id, never {model}: on a launch {model} renders the prepared snapshot
+  # path and /v1/models would advertise a cache path.
+  served_model_name: tencent/Hy4-flash
+  # Envelope: 102.57 GiB/rank of weights + 3.05 GiB overhead + 1.58 GiB draft
+  # head + 1.55 GiB of KV (8192 x 4) = 108.75 GiB of 109.52 GiB. The device
+  # reports 121.69 GiB; 0.90 is the highest util that leaves the host guard
+  # anything at all on a 128 GB unified pool.
+  gpu_memory_utilization: 0.90
+  max_model_len: 8192
+  max_num_seqs: 4
+  max_num_batched_tokens: 8192
+  # JSON lives here so the command stays a plain folded scalar.
+  limit_mm_per_prompt: '{"image":1,"video":0}'
+  # The checkpoint's own config already declares the dfly drafter; passing it
+  # explicitly keeps the choice visible. Dropping this flag is the first lever
+  # if the boot OOMs (~1.58 GiB/rank back).
+  speculative_config: '{"num_speculative_tokens":5,"method":"dfly"}'
+  attention_backend: FLASHMLA_SPARSE
+  tool_call_parser: hy_v4
+  reasoning_parser: hy_v4
+command: >
+  vllm serve {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}
+  --tensor-parallel-size {tensor_parallel}
+  --dtype bfloat16
+  --attention-backend {attention_backend}
+  --max-model-len {max_model_len}
+  --max-num-seqs {max_num_seqs}
+  --max-num-batched-tokens {max_num_batched_tokens}
+  --gpu-memory-utilization {gpu_memory_utilization}
+  --limit-mm-per-prompt '{limit_mm_per_prompt}'
+  --speculative-config '{speculative_config}'
+  --tool-call-parser {tool_call_parser}
+  --reasoning-parser {reasoning_parser}
+  --enable-auto-tool-choice
+readiness:
+  # 102.57 GiB/rank is read from the BeeGFS pool at boot; four ranks of that
+  # body plus a cold mmap on a 128 GB pool is the long pole.
+  inference: false
+  port_timeout_s: 7200
+  health_timeout_s: 3600
