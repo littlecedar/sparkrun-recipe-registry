@@ -1018,6 +1018,107 @@ affected.
 `mad-science/queue.json` row `media-idol-3dgs-boot`; `recipes/media/README.md`
 §idol-1.8b-bf16-3dgs-script; `AGENTS.md` §Recipes.
 
+## Owner ruling 2026-11-20 — both licence classes ruled not applicable
+
+The owner's ruling, quoted verbatim: *"The licence terms do not apply to our use case."* It settles both
+licence classes raised the same day. Neither arm is sold and neither serve is exposed, so the licence no
+longer blocks either one; the `zz-` prefix stands until a measured boot, not for licence reasons, and the
+Hy4 arm still needs a declared four-node window before it can boot at all.
+
+- **#86 — Which licence class does `tencent/Hy4-flash` get under the Tencent Hy License 1.0: ship its quartet
+  arm as a normal explore arm, ship it probe-only, or not ship at all?** *Answered 2026-11-20:* **the licence
+  terms do not apply to our use case** (owner, verbatim) — the licence is
+  Apache-2.0 with section 10 added, and the file says so in its own preamble: *"This License is derived
+  from the Apache License, Version 2.0 … with modifications, mainly the additional commercial terms for
+  large Model-as-a-Service ("MaaS") businesses in Section 10. This License is not the Apache License,
+  Version 2.0, and is not endorsed by or affiliated with the Apache Software Foundation."* Four clauses
+  carry the exposure. **§10.2** — *"if You operate a MaaS business, You must obtain a separate written
+  license to use the Work or any Derivative Works from Licensor (including by email), in either of the
+  following cases: (a) if Your aggregate worldwide gross revenue exceeds US$50 million (or the equivalent
+  in other currencies) in any consecutive 12-month period, whether or not such revenue is derived from the
+  Work or any Derivative Works, before using (or continuing to use) the Work or any Derivative Works; or
+  (b) before using the Work or any Derivative Works in or for any product or service provided by You that
+  has more than 100 million monthly active users in any calendar month."* **§10.1** defines the trigger as
+  *"giving third parties remote access to model inference or fine-tuning (e.g., via API), allowing them to
+  submit inputs or specify parameters or training data"*, excluding end-user products whose model
+  capabilities are confined to specific features or workflows and mere relaying to an independently
+  operated third-party service. **§10.3** — *"Section 10.2 does not apply to Your use of the Work or any
+  Derivative Works solely for internal purposes, provided that neither the Work, any Derivative Works, nor
+  their outputs are made available to third parties."* **§6** withholds the marks — *"This License does not
+  grant permission to use the trade names, trademarks, service marks, or product names of the Licensor,
+  except as required for reasonable and customary use in describing the origin of the Work and reproducing
+  the content of the NOTICE file."* **§4(c)** keeps attribution on anything redistributed — *"You must
+  retain, in the Source form of any Derivative Works that You distribute, all copyright, patent, trademark,
+  and attribution notices from the Source form of the Work"* — and the Definitions put quantised bodies
+  inside that term: *"For the avoidance of doubt, Derivative Works include any fine-tuned, quantized,
+  distilled, merged, pruned, or otherwise modified versions of the model weights."* **Exposure today is
+  nil:** no arm in this lane is sold, no serve is exposed, and the Hy4 arm
+  (`recipes/explore/zz-hy4-flash-220b-bf16-thinking-tools-vllm.yaml`) is authored-not-booted, so §10.3
+  covers the whole current state on its face. **The open part is narrow and it is the reason this is asked:**
+  whether a serve reachable from the lab network only stays *"solely for internal purposes"* under §10.3, or
+  becomes §10.1 MaaS because colleagues submit inputs through it — i.e. whether the test is who can reach the
+  port or whether anyone pays. Answer it against the `#84` precedent (owner 2026-11-11: a production arm
+  **permitted** for the ERNIE-5.5-Flash-Base licence, whose trigger was a revenue ceiling plus attribution
+  and a one-time written notice, with those obligations carried rather than waived); this class adds the MAU
+  prong and a trademark carve-out, so a ruling here may land the same way or differently without
+  contradicting `#84`. provenance: `tencent/Hy4-flash` `LICENSE` (13,942 B; card `license: other`,
+  `license_name: tencent-hy-license`, revision `b2498eba6a1a3f9bbcab4190bc1313a3c7010c2f`), clauses quoted
+  verbatim from it; the arm's fit, engine and gate evidence in
+  `recipes/explore/zz-hy4-flash-220b-bf16-thinking-tools-vllm.yaml` and the pending
+  `recipes/explore/README.md` §"zz-hy4-flash-220b-bf16-thinking-tools-vllm"; `#84` settled in `TODO.md`
+  §"Settled questions" under `## Owner answer 2026-11-11 — ERNIE licence class`; asked 2026-11-20. —
+  provenance: owner 2026-11-20 (oversight thread), quoted verbatim above; moved here from
+  `mad-science/QUESTIONS.md` `#86`.
+- **#87 — Which licence class does `Edge0/Edge0-145B-NVFP4` get under the Edge0 Community Model License
+  1.0, stacked over the Qwen Community License 1.0: research-only (stay `zz-`, never promoted), a
+  promotable production arm, or not shipped at all?** *Answered 2026-11-20:* **the licence terms do not
+  apply to our use case** (owner, verbatim) — a new class, and the first on file
+  whose grant is **stacked**: the model licence covers only Edge0's own contributions and the upstream
+  Qwen licence still binds underneath. `LICENSE` §2 says it in its own words — *"Permission from Edge0
+  is not permission from Qwen, and permission from Qwen is not permission from Edge0 for separately
+  protected Edge0 Materials."* — and `NOTICE` repeats it: *"The Edge0 license does not replace them.
+  Required Qwen commercial permission must come from Qwen or a party authorized by Qwen."* **§3 grants
+  the surface this lane actually uses:** *"Subject to Sections 2, 4, and 5, Edge0 grants You a
+  worldwide, non-exclusive, no-charge, royalty-free copyright license to use, run, study, reproduce,
+  modify, fine-tune, quantize, prune, convert, merge, evaluate, publish, and redistribute Edge0
+  Materials"*, naming *"(b) research, education, teaching, benchmarking, and publication of findings"*
+  and *"(d) internal organizational use, including use by businesses, when You are not making a
+  Commercial Model Offering"*, and adding *"Edge0 does not require … prior approval for research or
+  benchmarking."* **§4 reserves the commercial surface:** *"You must obtain a separate written
+  commercial license from Edge0 before making any of the following Commercial Model Offerings: …
+  (b) Commercial model services: operating a service for third parties that offers language-model
+  inference or fine-tuning as a capability in its own right, through an API, hosted endpoint, hosted
+  general-purpose model interface, or equivalent arrangement, and that is financed by access or usage
+  fees, a subscription, advertising, or sponsorship tied to that service … (c) Commercial independent
+  coding or office assistants: offering an independent product primarily designed for AI-assisted
+  coding or office productivity that uses a Covered Model and is financed by sales, access or usage
+  fees, subscriptions, advertising, or sponsorship tied to the product."* **§5** keeps the
+  redistribution duty — *"include this License and all applicable upstream license texts and notices"*,
+  *"(c) identify Your material modifications and the responsible modifier"* — and **§10** disclaims
+  what the file does not certify: *"It does not certify that a release contains protectable new
+  rights, that Edge0 has obtained a separate Qwen commercial license, or that every contemplated
+  activity is permitted by an upstream rights holder."* **Exposure today is nil:** nothing is sold, no
+  serve is exposed, and the arm (`recipes/explore/zz-edge0-145b-nvfp4-latentmoe-strata.yaml`) is
+  authored-not-booted, so §3 covers the whole current state on its face. **Two parts of this are not
+  the revenue test this register has answered before.** (i) §4(b)/(c) are *activity* reservations, not
+  ceilings — unlike `#84`'s US$50M line or `#86`'s MaaS/MAU prongs, no revenue figure makes them stop
+  applying, so the ruling is about what the fleet may *become*, not what it earns. (ii) The upstream
+  provenance is unverified by the publisher's own record: `release-scope.json` carries
+  `actual_training_base_revision_verified: false` and `actual_training_or_conversion_base_revision:
+  null` with *"No training-source commit or independent ownership audit is asserted"*, and `NOTICE`
+  says the Qwen reference revision *"is not a representation of the training or conversion revision
+  used to create the Edge0 models"* — a question about **which** Qwen terms bind, not about Edge0's
+  grant. Answer it against `#84` (owner 2026-11-11: a production arm **permitted**, obligations carried
+  rather than waived) and beside `#86` (the Hy4 MaaS class, open); the three differ in kind — a revenue
+  ceiling, a MaaS/MAU trigger, and an activity reservation under a stacked upstream grant. provenance:
+  `Edge0/Edge0-145B-NVFP4` `LICENSE` (13,059 B), `NOTICE` (2,560 B), `release-scope.json` and
+  `third-party/Qwen-LICENSE.txt` at revision `17bb271c…`, clauses quoted verbatim from them; the arm's
+  engine and fit evidence in `recipes/explore/zz-edge0-145b-nvfp4-latentmoe-strata.yaml` and
+  `recipes/explore/README.md` §"zz-edge0-145b-nvfp4-latentmoe-strata"; `#84` settled in `TODO.md`
+  §"Settled questions" under `## Owner answer 2026-11-11 — ERNIE licence class`; asked 2026-11-20. —
+  provenance: owner 2026-11-20 (oversight thread), quoted verbatim above; moved here from
+  `mad-science/QUESTIONS.md` `#87`.
+
 # TODO list
 
 **Standing rules (owner decisions 2026-10-15/18/19, condensed 2026-10-24 — the full original
