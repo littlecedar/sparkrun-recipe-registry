@@ -12,9 +12,13 @@ min_nodes: 2
 max_nodes: 2
 mods:
   - "mods/hy4-sm121-patch"
+# The vendor image declares ENTRYPOINT ["vllm","serve"], which would consume sparkrun's launcher.
+executor_config:
+  entrypoint: ""
 
 description: >-
-  TRIAL (zz-, authored 2026-11-20, never booted): Tencent Hunyuan Hy4 Flash as a
+  TRIAL (zz-, authored 2026-11-20, boot-verified 2026-11-20 with a chat/tool smoke and
+  no ladder yet): Tencent Hunyuan Hy4 Flash as a
   ModelOpt NVFP4 build (experts NVFP4 at 0.66 % mean weight error, attention
   projections and Engram tables FP8, everything else BF16) on TWO DGX Sparks,
   TP=2 with expert parallel. The same 220B-total / 12B-active multimodal MoE as

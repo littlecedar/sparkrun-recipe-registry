@@ -1997,7 +1997,7 @@ The 2026-11-10 survey read produced the class and the file sizes; nothing has be
 
 ## [zz-hy4-flash-220b-nvfp4-tp2-vllm](zz-hy4-flash-220b-nvfp4-tp2-vllm.yaml)
 
-**Boot in flight 2026-11-20 — receipt pending.** Tencent Hunyuan Hy4 Flash in the house 4-bit class:
+**Boot-verified 2026-11-20 on `.30`+`.35`; receipt `~/benchmarks/hy4-nvfp4-tp2-20261120/`.** Tencent Hunyuan Hy4 Flash in the house 4-bit class:
 `atakans/Hy4-flash-NVFP4` @ `30f201ac` is a ModelOpt build — routed experts NVFP4 (0.66 % mean weight
 error on every quantized tensor, 1.7× less than the vendor's SPARK-4Bit GGUF), attention projections
 and Engram n-gram tables FP8, everything else BF16 — at **164,691,130,443 B = 153.36 GiB**, against
@@ -2025,6 +2025,28 @@ and the spawn worker method live in the recipe's `env:`.
 Quality cells for this arm are unmeasured. Licence is Tencent Hy License 1.0, the same class as the
 BF16 arm and covered by the `#86` ruling; the `zz-` prefix stands until a measured boot. This shape is
 why the BF16 quartet arm does not need a window for throughput.
+
+**Launch — two facts a bare `sparkrun run` does not carry.** The vendor image declares
+`ENTRYPOINT ["vllm","serve"]`, which would consume sparkrun's launcher rather than run it, so the
+recipe sets `executor_config: entrypoint: ""`. The head's `~/.cache/huggingface` is a symlink to
+`/mnt/beegfs/huggingface`, so the prepared model path resolved to the pool realpath, which sits
+outside the mounted cache and the launch refused with "prepared model is not visible through the
+workload mounts"; the WOPR profile now carries `cache_dir: /mnt/beegfs/huggingface`
+(`sparkrun cluster update WOPR --cache-dir /mnt/beegfs/huggingface`, previous file kept as
+`WOPR.yaml.bak-hy4-poolcache-20261120`), and that field only reaches a launch that names the
+cluster. Launch as `sparkrun run <recipe> --cluster WOPR -H 10.0.4.30,10.0.4.35`: a bare `-H`
+builds an anonymous cluster with the node-local default and refuses the same way. Measured boot
+(2026-11-20, task `261430353ba2889a_9e41b9e252af`): ready **17 m 36 s** after container start
+(engine init 491.66 s — fp4_gemm autotune plus flashinfer JIT on a cold tuning cache),
+`GPU KV cache size: 578,345 tokens` = 2.21× at 262,144, expert parallel 256/512 experts per rank,
+`fp8_ds_mla` KV on the SM120 sparse-MLA backend.
+
+**Smoke, thinking on (2026-11-20, raw responses beside the receipt).** `/v1/chat/completions` answered
+200 — 439 completion tokens with **387 of them reasoning** (`message.reasoning` 1,735 chars,
+`content` 243 chars, `finish=stop`) — and the tool request came back `finish_reason=tool_calls` with
+`get_weather` arguments `{"city": "Berlin", "unit": "c"}`. One 128-token generation took **4.72 s
+end-to-end = 27.1 t/s** (streamed: TTFT 0.26 s, 128 tokens in 5.41 s); it spent the whole budget in
+reasoning (`finish=length`), so that is the thinking-mode decode rate, not a content-only one.
 
 ## [zz-inkling-2-small-nvfp4-thinking-tools-tp4-vllm](zz-inkling-2-small-nvfp4-thinking-tools-tp4-vllm.yaml)
 
