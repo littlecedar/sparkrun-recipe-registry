@@ -2800,11 +2800,13 @@ the steering is per-token-schedule, not per-beam.
 `distribution_config.models.entries` entry, and the lane mod `mods/glp-vector-stage` resolves
 it in each node's hub cache, checks its sha256 and stages it at `/cache/runtime/glp/vector.gguf`
 — a missing file or a wrong digest fails the launch before the weights load, rather than
-serving the stock model under the steered name. The repository is access-gated: accept its
-agreement once per Hugging Face account, then `hf download msuiche/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75 glp.deepseek-v41-flash-1017-GLP-39-L1-39-a0.75.gguf --revision 2715ffd51f59899115853e1118db080536966c44`
-on every node. No personal-information field is collected, which is why this ships under the
-2026-11-20 gate rule and needs no eval-only banner — the vector is MIT and the base checkpoint
-is MIT.
+serving the stock model under the steered name. The repository is access-gated; the gate was
+accepted 2026-11-20 and the vector is staged in the shared pool at revision `2715ffd5…`
+(`models--msuiche--DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75/snapshots/2715ffd51f59899115853e1118db080536966c44/glp.deepseek-v41-flash-1017-GLP-39-L1-39-a0.75.gguf`),
+sha256 `9c66d477…f5cf` verified, so no per-node download is needed. The remaining blocker is
+the unpublished engine image, and a four-rank window. No personal-information field is
+collected, which is why this ships under the 2026-11-20 gate rule and needs no eval-only
+banner — the vector is MIT and the base checkpoint is MIT.
 
 **Why it is a `zz-` probe.** The only engine that can serve this pair is spark-ds41f's patched
 vLLM, and its image is built on an idle node and copied to the others — never pushed. A

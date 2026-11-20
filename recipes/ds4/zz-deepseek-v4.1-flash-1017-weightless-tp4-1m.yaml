@@ -40,8 +40,9 @@ description: >-
   the residual stream for that request only. The weights are never modified, and
   a stock request in the same batch keeps its own text. Measured upstream on
   AdvBench's 520 prompts: 13 answered stock, 266 steered; beam search is refused
-  on the steered name. The vector is a gated MIT file (803,392 B) that every node
-  must hold — see the lane README for the one-time download. Needs the 64 KiB-page
+  on the steered name. The vector is a gated MIT file (803,392 B): gate accepted
+  2026-11-20 and staged in the shared pool at revision `2715ffd5…` with its
+  sha256 verified, so no per-node download is needed. Needs the 64 KiB-page
   kernel and the memory-saver DKMS, and an image this registry cannot pull; not
   bootable until that image is published and pinned by digest.
 metadata:
@@ -52,9 +53,10 @@ metadata:
   kv_dtype: fp8
   tags: ds4, reasoning, agent, large_context, vision, tools, uncensored
   caveats: >
-    GLP-39 is MIT, but its Hugging Face repository is access-gated: accept the
-    Responsible Use Agreement once per account, then `hf download` the pinned
-    revision on every node. This is a cyber-refusal ablation, not a general
+    GLP-39 is MIT, but its Hugging Face repository is access-gated: the gate was
+    accepted 2026-11-20 and the vector is staged in the shared pool at revision
+    `2715ffd5…` with its sha256 verified, so no per-node download is needed.
+    This is a cyber-refusal ablation, not a general
     uncensored model. Steering needs the patched engine's own reader
     (vllm/models/deepseek_v4_1/glp.py); a stock vLLM image loads none of it and
     would serve two aliases of the stock model.
