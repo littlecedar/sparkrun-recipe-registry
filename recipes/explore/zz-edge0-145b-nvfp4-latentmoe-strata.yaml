@@ -1,0 +1,115 @@
+recipe_version: "2"
+model: Edge0/Edge0-145B-NVFP4
+# The `main` head probed 2026-11-20 (LICENSE + release-scope.json commit). The pack is
+# identified by files a serve reads from the folder, never by a weight index, so the pin
+# selects the snapshot sparkrun prepares and mounts; nothing resolves a hub ref at serve
+# time. `recipe validate` reports its `unpinned-model-revision` warning for exactly that
+# reason — the lane's known shape for a custom launcher, as on the kimi-superexpert arm.
+model_revision: 17bb271c83b083de3ac2bc1922911ba1462bc788
+# `vllm` here is the launcher/distribution contract only (the same shape the lane's
+# kimi-superexpert reference arm uses): nothing in this pack is loadable by vLLM. The
+# engine is Edge0's `strata`, built in the container by the mod below.
+runtime: vllm
+container: nvidia/cuda:13.0.1-devel-ubuntu24.04@sha256:7d2f6a8c2071d911524f95061a0db363e24d27aa51ec831fcccf9e76eb72bc92
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  PROBE ARM (`zz-`), AUTHORED NOT BOOTED. `Edge0/Edge0-145B-NVFP4` is not an HF checkpoint and
+  not a re-quantization: it is a rebuilt latent sparse MoE on the Qwen3.8-Flash-Next skeleton
+  (48 layers, 512 experts, 10 routed + 1 shared, 145B total / 10.12B active), shipped as a
+  `strata pack index v3` folder of proprietary blobs — `experts.bin` (47.56 GB of 1,630,720 B
+  latent expert records at l=1792), `latent_dense_q8.bin` (3.74 GB, the shared D/U projections),
+  `ple-fp8.gguf` (51.20 GB n-gram table), `model-skeleton.gguf` (5.99 GB, arch `qwen4exp`, 1,079
+  tensors, NO routed-expert tensors), `mtp/` (0.82 GB draft head), `model.json` (the run
+  contract), `profile.bin` (static expert profile). 113,778,575,828 B over 30 files = 106.0 GiB.
+  ENGINE VERDICT (probe 2026-11-20): llama.cpp and vLLM/SGLang both rejected on named
+  discriminators (see caveats); only Edge0's `strata` can load it, so this arm builds that
+  engine from source and serves through their `serve/server.py` (pure Python, no torch).
+  NOT BOOTED: authored during a fleet freeze (.31-.34 production serve, .30/.35 draining).
+  Everything below the container line is a hypothesis with a stated falsifier, not a receipt.
+metadata:
+  model_url: https://huggingface.co/Edge0/Edge0-145B-NVFP4
+  base_model: https://huggingface.co/Qwen/Qwen3.8-Flash-Next
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "145B"
+  model_dtype: nvfp4
+  kv_dtype: int8
+  tags: trial, probe
+  caveats: >-
+    LICENCE: a NEW CLASS, not a lane decision — `license: other` /
+    `edge0-community-model-1.0`, and the upstream Qwen Community License 1.0 still applies to
+    the Qwen materials underneath. Both sets must be satisfied; Edge0 permission is not Qwen
+    permission and vice versa. Section 3 permits research, education, teaching, benchmarking and
+    publication of findings and forbids no interface badge or prior approval for those, so a
+    research arm is inside the grant — but Section 4(b) reserves "operating a service for third
+    parties that offers language-model inference ... financed by access or usage fees" and
+    4(c) independent coding/office assistants to a separate written commercial licence. This
+    arm is research; a register question (`mad-science/QUESTIONS.md`) asks the owner to rule on
+    the class before any promotion.
+    ENGINE — llama.cpp REJECTED: the only GGUF here (`model-skeleton.gguf`) carries arch
+    `qwen4exp` (the string llama.cpp at the lane's pinned `6023692` does map) but its 1,079
+    tensors are dense — attention, SSM/GDN, hyper-connections (`hc_*`), sparse indexer, shared
+    expert (`ffn_*_shexp`) and routers (`ffn_gate_inp*`) — and there is no `ffn_*_exps` tensor at
+    all. The 512 routed experts and the D/U projections exist only in the `experts.bin` /
+    `latent_dense_q*.bin` pack, a format llama.cpp has no reader for and no external-expert
+    concept to receive. `general.size_label` says `512x5.2B`; the bytes are not in the file.
+    ENGINE — vLLM/SGLang REJECTED: there is no `config.json`, no safetensors, no `auto_map`
+    and no modeling code (only `tokenizer/` is HF-shaped), so no HF architecture resolves; and
+    this is NOT a convertible packing of the base. The base lane's SGLang arm
+    (recipes/qwen4/qwen3.8-flash-next-nvfp4-labquant-sglang.yaml) loads Qwen's full-width
+    (2560) experts, while here every expert is rank-1792 latent with per-layer D/U projections
+    — the full-width expert weights were replaced, not re-quantized, so no converter can
+    reconstruct them. Dead end, not a packing question.
+    ENGINE — `strata` ACCEPTED with risk. Their `docs/DGX_SPARK_LINUX.md` documents Linux
+    ARM64 (GB10, sm_121, CUDA 13) and measures the Qwen3.8-Flash-Next NVFP4 pack on exactly one
+    DGX Spark (1.4/1.7/1.7K prompt tok/s, 42.8/40.5/40.1 decode at 4K/16K/32K, 64K context).
+    Its measured Spark settings are `--mmap-experts`, `--prefill auto:32768`, `--mtp-q4 all`,
+    `--mtp-hnorm stream`; this pack's own `model.json` instead ships `--prefill auto`, no
+    `--mmap-experts`, `--max-context 131072` and `--kv-resident 32768`. The base Qwen NVFP4
+    pack that doc runs holds 68.0 GB of experts + the same 51.2 GB n-gram table, so this 44.3
+    GiB expert pool is the lighter of the two — the fit is not the risk.
+    RISK 1 — the DGX Spark build script is NOT published: `edge0-strata/EDGE0.md` records that
+    `spark/` and `packaging/` were removed from the snapshot, and that doc points at
+    `spark/build_engine.sh`. This arm therefore uses the generic documented Linux CUDA build
+    (`cmake -DCMAKE_CUDA_ARCHITECTURES=native -DSTRATA_ENABLE_CUDA=ON`, the same aarch64 CPU
+    path per that doc). The prebuilt `linux-aarch64` engine is only on Niko1221/Strata's signed
+    feed and has no latent-MoE support, so it cannot be substituted.
+    RISK 2 — the all-resident verify path is off by default because it HUNG on an RTX Spark N1X
+    (GB10) with every expert resident; on this part `--expert-cache auto` may make every expert
+    resident. Do not set `STRATA_VERIFY_ALL_RESIDENT=1`.
+    RISK 3 — `serve/server.py` resolves a relative `"exe"` against the config's `"cwd"` and
+    writes `"log": "./serve.log"` there, so the shipped `model.json` + `start.sh` pair writes
+    into the model folder. This arm generates its own run config under `/cache/runtime` with
+    absolute `exe`/`cwd`/`tokenizer`/`log` instead; nobody has yet confirmed the engine writes
+    nothing else into the shared snapshot (boot gate).
+    CLIENT TRAP: the GGUF template keeps a thinking pass by default, and their card says a tight
+    `max_tokens` then returns empty `content` with the budget spent on reasoning. Read
+    `reasoning_content`, or send `reasoning_effort: none`.
+
+mods:
+  - "mods/edge0-strata-build"
+
+executor_config:
+  # nvidia/cuda images ship no ENTRYPOINT, but the hook/env shape is the lane's and this
+  # keeps sparkrun from inheriting a CMD.
+  entrypoint: ""
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  served_model_name: Edge0/Edge0-145B-NVFP4
+
+command: >
+  bash /workspace/mods/edge0-strata-build/launch.sh
+  --model {model}
+  --port {port}
+  --host {host}
+  --served-model-name {served_model_name}
+
+readiness:
+  # The engine loads 106 GiB of pack (44.3 GiB of expert pages, the 51.2 GB n-gram table read
+  # through the pack) plus a from-source build on first boot; the lane's 1800 s is not enough.
+  port_timeout_s: 5400
+  health_timeout_s: 1800
+  inference_timeout_s: 1800
