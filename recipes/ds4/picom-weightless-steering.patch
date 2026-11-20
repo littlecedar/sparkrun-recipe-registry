@@ -990,7 +990,7 @@ index a5c99c4..0c6cdab 100644
    double spec_tok = 1, spec_ms = 0;  // kCmdSpecBatch: the entry's drafts' rate (SpecRate) to start from
  };
 diff --git a/ds41f-4xgx10-switchless/engine/server/main.cpp b/ds41f-4xgx10-switchless/engine/server/main.cpp
-index 53bc32a..82a25ec 100644
+index 53bc32a..4d5b8ef 100644
 --- a/ds41f-4xgx10-switchless/engine/server/main.cpp
 +++ b/ds41f-4xgx10-switchless/engine/server/main.cpp
 @@ -642,6 +642,28 @@ int main(int argc, char** argv) {
@@ -1000,7 +1000,7 @@ index 53bc32a..82a25ec 100644
 +  // GLP steering (docs/glp.md): WEIGHTLESS_STEER_PATH names a GGUF vector, WEIGHTLESS_STEER_ALPHA overrides
 +  // its alpha and WEIGHTLESS_STEER_LAYERS the steered layers ("1,2,3" or "1-39"). Every rank loads the same
 +  // file; a file this runtime cannot apply exactly stops the boot, before any request can be served stock
-+  // under a steered name. WEIGHTLESS_STEER_NAME is the name the front-end serves it under (the log's).
++  // under a steered name. WEIGHTLESS_STEER_MODEL is the name the front-end serves it under (the log's).
 +  bool steer_ok = false;
 +  std::string steer_name;
 +  if (const char* gp = getenv("WEIGHTLESS_STEER_PATH"); gp && *gp) {
@@ -1012,7 +1012,7 @@ index 53bc32a..82a25ec 100644
 +      if (const char* lv = getenv("WEIGHTLESS_STEER_LAYERS"); lv && *lv) model::glp::restrict_layers(g, lv);
 +      m.set_glp(g);
 +      steer_ok = true;
-+      if (const char* nv = getenv("WEIGHTLESS_STEER_NAME"); nv && *nv) steer_name = nv;
++      if (const char* nv = getenv("WEIGHTLESS_STEER_MODEL"); nv && *nv) steer_name = nv;
 +      if (a.rank == 0) std::printf("rank 0: GLP steering: %s in %.1f ms\n", gp, 1e3 * (now_s() - tg));
 +    } catch (const std::exception& e) {
 +      std::fprintf(stderr, "main: GLP steering refused: %s\n", e.what());
@@ -1214,19 +1214,25 @@ index f72972a..edde4ea 100644
          self.hold
      }
 diff --git a/ds41f-4xgx10-switchless/frontend/src/main.rs b/ds41f-4xgx10-switchless/frontend/src/main.rs
-index 02d331c..f6b982e 100644
+index 02d331c..ae2d7ff 100644
 --- a/ds41f-4xgx10-switchless/frontend/src/main.rs
 +++ b/ds41f-4xgx10-switchless/frontend/src/main.rs
-@@ -125,6 +125,8 @@ fn serve(args: &[String]) {
+@@ -125,6 +125,14 @@ fn serve(args: &[String]) {
      }
      let cfg = ServerConfig {
          model_name: opt(args, "--model-name").unwrap_or_else(|| "deepseek-v4.1-flash-uncensored".into()),
 +        steer_model_name: opt(args, "--steer-model-name"),
-+        stats_interval: std::time::Duration::from_secs(parse_opt(args, "--stats-interval-s", 60u64)),
++        // The `stats:` line's period; WEIGHTLESS_STATS_INTERVAL is the recipe's knob (the launcher
++        // passes no flag), --stats-interval-s overrides it, 0 turns the line off.
++        stats_interval: std::time::Duration::from_secs(parse_opt(
++            args,
++            "--stats-interval-s",
++            std::env::var("WEIGHTLESS_STATS_INTERVAL").ok().and_then(|v| v.parse().ok()).unwrap_or(60u64),
++        )),
          api_key,
          max_tokens_cap: parse_opt(args, "--max-tokens", 32768u32),
          default_effort: parse_opt(args, "--effort", 75i64).clamp(1, 100),
-@@ -251,6 +253,7 @@ fn mock_engine(args: &[String]) {
+@@ -251,6 +259,7 @@ fn mock_engine(args: &[String]) {
          delay: std::time::Duration::from_millis(parse_opt(args, "--delay-ms", 5u64)),
          prefill_tok_per_s: parse_opt(args, "--prefill-tps", 20000f64),
          max_context: parse_opt(args, "--max-context", 1048576u32),
