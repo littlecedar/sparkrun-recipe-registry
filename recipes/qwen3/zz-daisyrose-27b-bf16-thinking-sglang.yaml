@@ -1,0 +1,86 @@
+recipe_version: "2"
+model: RadixArk/DaisyRose-27B
+model_revision: 64a4ec665091bb0c1931babce4e97e686eef3c5c
+runtime: sglang
+# Same digest as the shipped qwen3.8-27b-nvfp4-dflash2 arm, which is the
+# measured boot that proves this build registers `Qwen3_5ForConditionalGeneration`
+# (upstream `srt/models/qwen3_5.py` EntryClass carries both the dense VLM class and
+# its MoE sibling). DaisyRose's config is the base's minus `quantization_config`,
+# so the loader path is the one already booted here, not a new one.
+container: lmsysorg/sglang:dev-cu13@sha256:0a1ba33aa4e032b8c5bcebdc69c45664074c032074add4f7db01629ec1fcc381
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  DRAFT trial — authored, not booted; no index row and no flags until a measured
+  boot renames it. RadixArk/DaisyRose-27B, an RL finetune of Qwen/Qwen3.8-27B in
+  BF16 (55.56 GB over 18 shards, index-complete, no adapter files), served on ONE
+  DGX Spark through SGLang. qwen3_5 dense hybrid VLM: 64 layers = 48 GDN +
+  16 full-attention, 4 KV heads x 256 head_dim, 262,144-token window, mRoPE
+  11/11/10 @ partial rotary 0.25, 24-layer vision tower (patch 16, merge 2), an
+  in-checkpoint 1-layer MTP head (`mtp.*` present), thinking with a
+  `reasoning_effort` template (xhigh default / medium / low), Apache-2.0, ungated.
+metadata:
+  model_url: https://huggingface.co/RadixArk/DaisyRose-27B
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "27B"
+  model_dtype: bf16
+  kv_dtype: bf16
+  tags: trial, vision, reasoning, tools, apache-2.0
+
+mods:
+  - "@eugr/mods/drop-caches"
+  - "@littlecedar/mods/pip-install-fastsafetensors"
+  - "@littlecedar/mods/fix-fastsafetensors-tp2-sglang"
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  # Never {model}: on a real launch sparkrun rebinds it to the prepared snapshot
+  # path, so the served model id would be the cache path (-n does not show this).
+  served_model_name: RadixArk/DaisyRose-27B
+  gpu_memory_utilization: 0.85
+  max_model_len: 262144
+  # Unmeasured admission cap. The GDN state pool, not this literal, sets the
+  # granted concurrency: read `max_mamba_cache_size` from the serve log.
+  max_num_seqs: 32
+  # Inherited from the base arm's measurement, UNVERIFIED for this checkpoint:
+  # bf16 halves the per-slot state (151 MB fp32 -> 75.5 MB at 48 value heads) and is
+  # bit-identical on the state-read path there. The checkpoint itself declares
+  # float32, so restore it if this arm's quality battery disagrees.
+  mamba_ssm_dtype: bfloat16
+  # HIGH-LEVERAGE and context-length dependent: the optimum is interior and moves
+  # with context length. Never copied from a different traffic shape without asking.
+  mamba_full_memory_ratio: 3.51
+  mamba_radix_cache_strategy: extra_buffer_lazy
+  # `auto` resolves to bf16 here: unlike the base, this checkpoint carries no
+  # `quantization_config`, so nothing declares an FP8 KV dtype.
+  kv_cache_dtype: auto
+  chunked_prefill_size: 4096
+  attention_backend: flashinfer
+  extra_args: ""
+
+command: >
+  taskset -c 5-9,15-19 sglang serve
+  --model-path {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --reasoning-parser qwen3
+  --tool-call-parser qwen3_coder
+  --load-format fastsafetensors
+  --host {host}
+  --port {port}
+  --tp {tensor_parallel}
+  --context-length {max_model_len}
+  --max-running-requests {max_num_seqs}
+  --chunked-prefill-size {chunked_prefill_size}
+  --mem-fraction-static {gpu_memory_utilization}
+  --attention-backend {attention_backend}
+  --mamba-full-memory-ratio {mamba_full_memory_ratio}
+  --mamba-radix-cache-strategy {mamba_radix_cache_strategy}
+  --mamba-ssm-dtype {mamba_ssm_dtype}
+  --kv-cache-dtype {kv_cache_dtype}
+  --enable-metrics
+  --enable-cache-report
+  {extra_args}

@@ -19,6 +19,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
   - [qwen3.8-27b-nvfp4-dflash2-sglang](#qwen38-27b-nvfp4-dflash2-sglang)
   - [qwen3-coder-next-int4-autoround-vllm](#qwen3-coder-next-int4-autoround-vllm)
   - [qwen3.8-27b-mlx4bit-tensorfold-sglang](#qwen38-27b-mlx4bit-tensorfold-sglang)
+  - [zz-daisyrose-27b-bf16-thinking-sglang](#zz-daisyrose-27b-bf16-thinking-sglang)
   - [Flags](#flags)
 - [Attic index](#attic-index)
 
@@ -155,6 +156,55 @@ Non-obvious knobs and caveats (details in [`attic/qwen3/AGENTS.md`](../../attic/
   reserve where TensorFold's own default is a tenth of RAM — raise it if the node is shared).
 - **`parallel: 8`** streams decoded together; upstream measures no single-request cost up to 8.
 
+### zz-daisyrose-27b-bf16-thinking-sglang
+
+**Authored, not booted** — the `zz-` prefix is the arm's status, not a typo. No index row and no flags
+until a measured boot on a free node renames it.
+
+| | |
+|---|---|
+| recipe | `zz-daisyrose-27b-bf16-thinking-sglang.yaml` |
+| runtime / container | SGLang (`lmsysorg/sglang:dev-cu13@sha256:0a1ba33aa4e0…`, digest-pinned — the tag is rebuilt upstream) |
+| model | [RadixArk/DaisyRose-27B] — BF16 RL finetune of `Qwen/Qwen3.8-27B`: 55.56 GB over 18 shards (index-complete, 18 mapped, no adapter files), qwen3_5 dense hybrid, image-text-to-text |
+| size / mem / TP | one DGX Spark, TP=1, `gpu_memory_utilization: 0.85`; 262,144-token window; bf16 KV (`auto` — this checkpoint carries no `quantization_config`, unlike the NVFP4 sibling) |
+| license | Apache-2.0, ungated (checked 2026-11-20) |
+
+- **Engine: SGLang, on the same digest as the shipped NVFP4 arm.** Upstream
+  `python/sglang/srt/models/qwen3_5.py` ends in
+  `EntryClass = [Qwen3_5MoeForConditionalGeneration, Qwen3_5ForConditionalGeneration]`, and the
+  checkpoint's `architectures` is the latter. The discriminator that matters is local: DaisyRose's
+  `config.json` is `RadixArk/Qwen3.8-27B-NVFP4`'s **minus `quantization_config`** — same
+  `qwen3_5_text` geometry (5120 hidden, 64 layers = 48 GDN + 16 full attention, 4 KV heads × 256
+  head_dim, mRoPE 11/11/10, partial rotary 0.25, 262,144 positions, 1 MTP layer), so the arch has
+  already been loaded and served on this pinned build. There is no `*.py` in the repo and no
+  `trust_remote_code`: SGLang's own `qwen3_5` implementation owns it.
+- **Weight math (why one node).** 55.56 GB of BF16 weights against 0.85 × 128 GB ≈ 108.8 GB leaves
+  ~48 GB after runtime and CUDA-graph overhead. BF16 KV is 64 KiB/token (16 full-attention layers ×
+  2 tensors × 4 KV heads × 256 head_dim × 2 B), so the whole 262,144-token window costs 16 GiB, and
+  the GDN state is 75.5 MiB/slot at `mamba_ssm_dtype: bfloat16` (48 linear layers × 48 value heads ×
+  128 × 128 × 2 B) → 2.4 GB at 32 slots. TP=2 would buy decode, not fit.
+- **The loader fix is not optional here.** `@littlecedar/mods/fix-fastsafetensors-tp2-sglang`
+  releases the device staging buffer the loader strands (measured ~21 GB on a 17.6 GB checkpoint);
+  at 55.56 GB a stranded buffer of that size leaves no KV pool at all. The mod fails closed if a
+  future build moves the code.
+- **Inherited, unverified for this checkpoint:** `mamba_ssm_dtype: bfloat16` (halves per-slot state,
+  measured bit-identical on the base's state-read path) and `mamba_full_memory_ratio: 3.51` (interior,
+  context-length-dependent optimum — ask before changing). No speculation knobs: the DFlash2 draft is
+  trained for the base and acceptance against an RL finetune is unmeasured; the checkpoint's own
+  `mtp.*` head is the cheaper experiment after the first boot.
+
+**Boot gate.** Once `.30`/`.35` clear their drain, boot on one of them with
+`sparkrun run recipes/qwen3/zz-daisyrose-27b-bf16-thinking-sglang.yaml -n <node>`, detach
+`tools/boot-watchdog.py`, and keep the receipt under
+`~/benchmarks/daisyrose-27b-<date>/` (`launch.log`, `provenance.txt`, ladder, house battery).
+Readiness is three facts, not a green log: `/v1/models` advertises `RadixArk/DaisyRose-27B`; a
+greedy reply with `enable_thinking: false` is non-empty `content`; a 131k-token needle passes. Then
+grep `max_mamba_cache_size` for the granted concurrency. **Falsifiers:** a load-time
+`Qwen3_5…`/unknown-config-key error means the pinned build predates this config's keys (fall back to
+the v0.5.22 digest the explore lane pins); a KV pool under ~100k tokens at `0.85` means the staging
+buffer was not released; acceptance below ~30 % on the DFlash2 draft would kill the speculation
+follow-up, not the arm.
+
 ### Flags
 
 🚀 fast (> 50 t/s) · 🌲 lcg_favorite · 👀 vision.
@@ -189,6 +239,7 @@ the moved VL recipes are covered by
 
 <!-- Links -->
 [RadixArk/Qwen3.8-27B-NVFP4]: https://huggingface.co/RadixArk/Qwen3.8-27B-NVFP4
+[RadixArk/DaisyRose-27B]: https://huggingface.co/RadixArk/DaisyRose-27B
 [Intel/Qwen3-Coder-Next-int4-AutoRound]: https://huggingface.co/Intel/Qwen3-Coder-Next-int4-AutoRound
 [TensorFold/Qwen3.8-27B-MLX-4bit]: https://huggingface.co/TensorFold/Qwen3.8-27B-MLX-4bit
 [z-lab/Qwen3.8-27B-DFlash2]: https://huggingface.co/z-lab/Qwen3.8-27B-DFlash2
