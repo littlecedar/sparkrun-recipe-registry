@@ -13,11 +13,14 @@ node, and all four processes take the same argv except `--rank`.
 
 `run.sh` (pre_exec, root, before the serve command) stages what is environment-shaped:
 
-- renders `/cache/runtime/picom/fleet.conf` from `PICOM_RANK_TAILS` plus the
-  fabric resolved from sparkrun (devices, /24s, GID index) — the engine's own contract
-  (`engine/comm/fleet.cpp` upstream): the four device names must exist by exact `ibv`
-  name, one IPv4 per netdev (each device's GID at `GID_INDEX` must equal it), and all
-  four ranks' `NEXT`/`PREV` addresses;
+- resolves the fabric from sparkrun's own detection (devices, /24s, GID index), derives
+  this node's rail tail from its RoCE GID, and publishes both to `fabric.env` for the
+  serve phase;
+- renders `/cache/runtime/picom/fleet.conf` only when `PICOM_RANK_TAILS` is supplied
+  (the override path); otherwise `launch.sh` assembles the list first — the engine's own
+  contract (`engine/comm/fleet.cpp` upstream): the four device names must exist by exact
+  `ibv` name, one IPv4 per netdev (each device's GID at `GID_INDEX` must equal it), and
+  all four ranks' `NEXT`/`PREV` addresses;
 - creates the runtime directories and a mode-600 API key (`dsfront` refuses to start
   without one).
 
@@ -100,7 +103,7 @@ All are env (recipe `env:` or `-o env.KEY=value`):
 
 | key | default | meaning |
 |---|---|---|
-| `PICOM_RANK_TAILS` | — (required) | fabric address tails, rank 0-3, comma-separated; rendered `<PICOM_FABRIC_A>.<tail>` / `<PICOM_FABRIC_B>.<tail>`. sparkrun passes only the node's own host, so the other three ranks are the operator's; each rank's own entry is checked against its rail GID and a mismatch fails closed |
+| `PICOM_RANK_TAILS` | empty (assembled) | override only. Empty = the launcher exchanges the four tails at serve time (see above) and renders `<PICOM_FABRIC_A>.<tail>` / `<PICOM_FABRIC_B>.<tail>`; an explicit list pins it and every node's own entry is checked against its rail GID, failing closed on a mismatch |
 | `PICOM_DEV_A` / `PICOM_DEV_B` | sparkrun's `NCCL_IB_HCA` | the two RDMA devices, lower /24 first; derived from the active HCAs sparkrun detects, each device's netdev IPv4 taken from its own RoCE v2 GID |
 | `PICOM_FABRIC_A` / `PICOM_FABRIC_B` | derived | the two f0 /24s, from the same GIDs; never stored in the tree |
 | `PICOM_GID_INDEX` | sparkrun's `NCCL_IB_GID_INDEX` under a non-`ring` topology, else derived | RoCEv2 GID index; sparkrun emits `NCCL_IB_GID_INDEX` only when cluster interconnect topology is not `ring` (the ring path emits its own overrides), so under `ring` the value is always derived from the device's first IPv4-mapped RoCE v2 GID and the mod's /24 check is the only guard; `-1`/absent falls back to that same GID, and both devices must carry the declared /24 at that index |

@@ -147,8 +147,9 @@ Out of the grid, and why:
   model construction (lossy MoE re-route, OEA `4,12,9`); it cannot appear in an
   apples-to-apples window.
 - **No `-o` overrides.** The four boots run the recipes as shipped, so nothing depends on
-  an override reaching the engine (benchmarking/README.md rule 8). The single exception is
-  `-o env.PICOM_RANK_TAILS=31,32,33,34`, which the recipe requires on P (P `:50`).
+  an override reaching the engine (benchmarking/README.md rule 8). The single exception then
+  was `-o env.PICOM_RANK_TAILS=31,32,33,34`, which that recipe version required (P `:50`);
+  the launcher now assembles the tails itself, so no override is needed.
 - **No full BFCL leg.** The scoped 100-question leg already reads 87/100 both and
   separates nothing; the full leg runs outside this window (section 8) rather than in it.
 ## 3. One instrument

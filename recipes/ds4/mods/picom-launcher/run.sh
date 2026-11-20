@@ -16,9 +16,10 @@ set -euo pipefail
 #
 # This mod owns what is environment-shaped and therefore cannot be baked
 # into the image or committed to the tree: the per-node fleet file the
-# engine reads at start, the runtime directories, and the API key. The
-# fabric addresses are cluster-internal, so they arrive as env
-# (PICOM_RANK_TAILS) and are rendered here — never stored in a tracked file
+# engine reads at start, the runtime directories, and the API key. Fabric
+# addresses are cluster-internal: each rank derives its own tail from its
+# RoCE GID, the ranks exchange the rest at serve time (PICOM_RANK_TAILS stays
+# an override), and nothing is ever stored in a tracked file
 # (tests/test_tracked_address_hygiene.py).
 #
 # The fleet file's shape is the engine's own contract

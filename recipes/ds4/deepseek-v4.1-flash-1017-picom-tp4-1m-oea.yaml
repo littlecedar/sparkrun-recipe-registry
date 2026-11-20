@@ -63,10 +63,9 @@ env:
 # rank 0 runs the engine and dsfront; ranks 1-3 run the engine only.
   PICOM_NODE_RANK: "{launch.node_rank}"
   PICOM_NODE_HOST: "{launch.node_host}"
-# REQUIRED at launch — no default is possible: cluster addresses are
-# forbidden in tracked files (tests/test_tracked_address_hygiene.py).
-# The four fabric address tails, rank 0-3, comma-separated:
-#   -o env.PICOM_RANK_TAILS=30,31,32,33
+# Empty by default: the launcher assembles the four tails at serve time (each
+# rank learns its own from its RoCE GID, then they meet on rank 0, port 19110).
+# An explicit value pins the list and is checked against every node's own rail GID.
   PICOM_RANK_TAILS: ""
 # Fabric /24s, RDMA devices and the RoCE v2 GID index are not recipe facts: the
 # mod resolves them per node from sparkrun's injected NCCL_IB_HCA/NCCL_IB_GID_INDEX

@@ -2363,9 +2363,12 @@ text unaffected) and `-o env.PICOM_STREAM_TOOL_ARGS=0`.
 ### Run it
 
 ```bash
-# the fabric tails are cluster-internal and never committed; supply ranks 0-3 in rank order.
-sparkrun run attic/ds4/zz-deepseek-v4.1-flash-1017-picom-tp4-1m.yaml \
-  --cluster WOPR -H <ip0>,<ip1>,<ip2>,<ip3> -o env.PICOM_RANK_TAILS=30,31,32,33
+# `-H` is enough: each rank derives its own rail tail from its RoCE GID and the ranks
+# exchange the rest at serve time (rank 0's address comes from sparkrun's hook env).
+sparkrun run recipes/ds4/deepseek-v4.1-flash-1017-picom-tp4-1m.yaml \
+  -H <ip0>,<ip1>,<ip2>,<ip3>
+# Pin the list instead when a node's GID is not the fleet's usual tail:
+#   -o env.PICOM_RANK_TAILS=31,32,33,34   (checked against each node's own rail GID)
 ```
 
 - First boot writes this rank's weight file and Engram shards (one-time, `port_timeout_s`
