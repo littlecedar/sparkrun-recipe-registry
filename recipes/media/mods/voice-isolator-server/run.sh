@@ -17,14 +17,13 @@
 # requirements/cuda.txt) already satisfy the SDK's `torch>=2.1` /
 # `torchaudio>=2.1`, so pip adds only the SDK and its missing pure-python deps.
 #
-# Why the base is the CUDA image and not python:*-slim: the SDK's Mamba blocks
-# are pure torch (`scan.selective_scan` loops one frame at a time in Python),
-# which is launch-bound, not flop-bound — measured on x86 with 5 threads, the
-# offline checkpoint runs 20.3 s of compute per 2 s of audio (RTF ~10) and the
-# scan alone is 3133 per-frame `mul`s + 1490 `sum`s + 42 `exp`s per forward.
-# There is no mamba-ssm fused kernel for this shape in the image (its `fast`
-# extra is a CUDA-only compile), so the arm is GPU-served where those launches
-# are cheap. The CPU route is the recorded negative, not an option.
+# Why the base is the CUDA image and not python:*-slim: on CPU the graph is far
+# slower than realtime. Measured on x86 with 5 threads, the offline checkpoint
+# runs 20.3 s of compute per 2 s of audio (RTF ~10); its profile is dominated by
+# `aten::addmm` (5.18 s / 177 calls) and `aten::mm` (4.29 s / 48) with 3133
+# `mul`, 1490 `sum` and 42 `exp` calls around them, and one 800-frame
+# `selective_scan` call is only 0.06 s — no single kernel is to blame. The CPU
+# route is the recorded negative, not an option.
 #
 # Fail-closed: a venv that cannot import the SDK stops the launch. Idempotent
 # from content: the gate is a real import + version assertion on the existing

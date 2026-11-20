@@ -887,17 +887,16 @@ the base declares `ENTRYPOINT ["vllm","serve"]`).
   answers what was removed (input − voice); `GET /health` carries the model id, revision, device, mode
   and the last RTF; `GET /v1/models` names the served id.
 - **Why GPU, and what the CPU route costs (measured 2026-11-20 on an x86 workstation, CPU, 5
-  threads — a probe, not a GB10 cell):** the scan is launch-bound, not flop-bound.
-  `scan.selective_scan` steps one frame at a time in Python (800 frames per scan), so a forward is
-  3133 per-frame `mul`s + 1490 `sum`s + 42 `exp`s around the matmuls. A 2 s clip through the network
-  took **20.3 s** (RTF ~10) and a 10 s clip through `isolate` **247.13 s** (RTF 24.7, the 8 s chunking
-  plus the checkpoint's own second pass); the scan alone is only 0.06 s of that 800-frame shape, so
-  the rest is the same per-frame overhead across the band/attention path. The startup fixture needed
-  15.8 s for 1 s of audio on an idle host and 64.2 s on the same host under load, and a streaming-mode
-  fixture had not finished after 60 s. That
-  is why the arm is GPU-served and why the lane's CPU co-tenants are TTS and diarization, not this:
-  a CPU serve here would be tens of seconds per clip. **No GPU number exists yet** — the boot gate
-  below is what produces it.
+  threads — a probe, not a GB10 cell):** on CPU the graph is far slower than realtime. A 2 s clip
+  through the network took **20.3 s** (RTF ~10) and a 10 s clip through `isolate` **247.13 s**
+  (RTF 24.7, the 8 s chunking plus the checkpoint's own second pass). One 200-frame forward profiles
+  as `aten::addmm` 5.18 s over 177 calls and `aten::mm` 4.29 s over 48, with 3133 `mul`, 1490 `sum`
+  and 42 `exp` calls around them — and one 800-frame `selective_scan` call is only 0.06 s, so no
+  single kernel is the culprit: the graph is simply too expensive for these cores. The startup
+  fixture needed 15.8 s for 1 s of audio on an idle host and 64.2 s on the same host under load, and
+  a streaming-mode fixture had not finished after 60 s. That is why the arm is GPU-served and why the
+  lane's CPU co-tenants are TTS and diarization, not this: a CPU serve here would be tens of seconds
+  per clip. **No GPU number exists yet** — the boot gate below is what produces it.
 - **Fixture:** [`mods/voice-isolator-server/fixture-noisy.wav`](mods/voice-isolator-server/fixture-noisy.wav)
   (96 KB, 1.0 s, 48 kHz mono PCM_16): a synthetic harmonic voice stack (F0 132 Hz with a slow glide,
   12 harmonics falling as 1/k, two syllable envelopes) under broadband noise + a 440 Hz tone + 50 Hz

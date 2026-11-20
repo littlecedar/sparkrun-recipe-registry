@@ -28,14 +28,16 @@ description: >-
   (`mods/voice-isolator-server/fixture-noisy.wav`, 1 s of a synthetic harmonic
   voice under noise + a music tone at 5 dB SNR) must isolate before the port
   binds. `mode: streaming` serves the realtime checkpoint instead (same endpoint:
-  `isolate` runs the causal stream over the clip). WHY GPU: the SDK's Mamba
-  blocks are pure torch — `scan.selective_scan` steps one frame at a time in
-  Python — so the cost is kernel-launch-bound, not flop-bound. Measured on an x86
-  workstation at 5 threads, offline: 20.3 s of compute per 2 s of audio (RTF
-  ~10) for a direct forward, 247 s wall for a 10 s clip through `isolate`
-  (RTF 24.7, chunking + the checkpoint's own extra pass), and the scan alone is
-  3133 per-frame `mul`s + 1490 `sum`s + 42 `exp`s per forward; the aarch64 CPU
-  route is therefore the recorded negative, not a co-tenant option. The card's
+  `isolate` runs the causal stream over the clip). WHY GPU: on CPU this graph is
+  far slower than realtime. Measured on an x86 workstation at 5 threads, offline:
+  20.3 s of compute per 2 s of audio (RTF ~10) on a direct forward, 247.13 s wall
+  for a 10 s clip through `isolate` (RTF 24.7, the 8 s chunking plus the
+  checkpoint's own second pass). The profile of one 200-frame forward is
+  `aten::addmm` 5.18 s over 177 calls and `aten::mm` 4.29 s over 48, with 3133
+  `mul`, 1490 `sum` and 42 `exp` calls around them, while one 800-frame
+  `selective_scan` call is only 0.06 s — no single kernel is the culprit, the
+  graph is simply too expensive for these cores. The aarch64 CPU route is
+  therefore the recorded negative, not a co-tenant option. The card's
   VIBE board is its own distribution-scored benchmark: no registry instrument can
   score isolation quality, so the arm's gate is the fixture round-trip plus RTF,
   not an accuracy pass.
