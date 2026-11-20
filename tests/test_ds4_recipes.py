@@ -2740,6 +2740,28 @@ def _run_picom_disk_gate(tc, launch: str, avail_gib: int, artifact: bool,
                               capture_output=True, text=True)
 
 
+def _picom_cache_root(tc, preferred: Path) -> Path:
+    """*preferred* when it is not on `/`, else a fresh directory on another fs.
+
+    `run.sh` refuses a `/cache/runtime` that shares `/`'s filesystem, because in
+    the container that is the overlay. A dev host whose `/tmp` is tmpfs satisfies
+    the guard by accident; a CI runner's `/tmp` is on the overlay, so a fixture
+    that drives the whole mod has to move off it.
+    """
+    import os
+    import shutil
+    import tempfile
+
+    if os.stat(preferred).st_dev != os.stat("/").st_dev:
+        return preferred
+    for parent in ("/dev/shm", "/run"):
+        if Path(parent).is_dir() and os.stat(parent).st_dev != os.stat("/").st_dev:
+            path = Path(tempfile.mkdtemp(dir=parent))
+            tc.addCleanup(shutil.rmtree, path, True)
+            return path
+    tc.skipTest("no writable filesystem other than / to host the mod's cache root")
+
+
 def _picom_mount_gate(tc, run: str) -> str:
     """Slice the runtime-cache mount guard out so it can be run, not grepped."""
     tc.assertIn("require_runtime_cache_mount() {", run,
@@ -3024,7 +3046,7 @@ class PicomLaneContract(unittest.TestCase):
         import tempfile
 
         with tempfile.TemporaryDirectory() as d:
-            root = Path(d)
+            root = _picom_cache_root(self, Path(d))
             # TEST-NET ranges: real addresses are cluster-internal and banned from
             # tracked files (tests/test_tracked_address_hygiene.py).
             sysfs = _picom_fake_sysfs(root / "ib", {
