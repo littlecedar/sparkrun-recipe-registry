@@ -66,7 +66,7 @@ log() {
 }
 
 log_var() {
-  log "${1}=${!1}"
+  log "${1}=${!1:-}"
 }
 
 die() {
@@ -181,42 +181,75 @@ resolve_fabric() {
 }
 
 #####################################################################
-# Main: validate the fabric inputs, then render the fleet file
+# Main: resolve the fabric, publish what the serve phase needs, render the fleet
 #####################################################################
-: "${PICOM_RANK_TAILS:?set PICOM_RANK_TAILS to the four fabric address tails, rank 0-3, comma-separated (e.g. 30,31,32,33)}"
+# The four tails are no longer an operator input. sparkrun exports no host list
+# to a recipe (core/env_templates.py:19 LAUNCH_FIELDS is closed), but the
+# pre_exec hook environment carries rank 0's management address and this node's
+# rank (orchestration/hooks.py:110-125, quoted in README.md). The serve phase
+# (launch.sh) runs concurrently on all four nodes and exchanges the tails there;
+# PICOM_RANK_TAILS stays an explicit override and is validated as before.
 PICOM_ENGRAM_READ_BATCH="${PICOM_ENGRAM_READ_BATCH:-1}"
 
-IFS=, read -r -a TAILS <<< "${PICOM_RANK_TAILS}"
-[[ ${#TAILS[@]} -eq 4 ]] || die "PICOM_RANK_TAILS needs exactly four comma-separated octet tails, got '${PICOM_RANK_TAILS}'"
-for t in "${TAILS[@]}"; do
-  [[ "${t}" =~ ^[0-9]{1,3}$ ]] || die "PICOM_RANK_TAILS entry '${t}' is not an IPv4 octet"
-done
-
 resolve_fabric
-# This node's own rail address is knowable; the other three ranks' are not, so
-# PICOM_RANK_TAILS stays the operator's. Check this rank's entry against the
-# rail rather than trusting it: a stale list fails here, not in a peer's QP.
 : "${PICOM_NODE_RANK:?PICOM_NODE_RANK missing: the recipe must render it from the launch node_rank template}"
 own_ip=$(gid_ipv4 "${PICOM_DEV_A}" "${PICOM_GID_INDEX}")
-[[ "${TAILS[${PICOM_NODE_RANK}]}" == "${own_ip##*.}" ]] ||
-  die "PICOM_RANK_TAILS[${PICOM_NODE_RANK}]='${TAILS[${PICOM_NODE_RANK}]}' but this node's ${PICOM_DEV_A} GID ${PICOM_GID_INDEX} is ${own_ip:-absent}"
+own_tail="${own_ip##*.}"
+[[ -n "${own_tail}" ]] ||
+  die "this node's ${PICOM_DEV_A} GID ${PICOM_GID_INDEX} carries no IPv4 address; cannot learn this rank's rail tail"
 log "fabric resolved: A=${PICOM_FABRIC_A}/24 via ${PICOM_DEV_A}, B=${PICOM_FABRIC_B}/24 via ${PICOM_DEV_B}, GID ${PICOM_GID_INDEX}"
 log_var PICOM_DEV_A
 log_var PICOM_DEV_B
 log_var PICOM_FABRIC_A
 log_var PICOM_FABRIC_B
 log_var PICOM_GID_INDEX
+log_var PICOM_NODE_RANK
+log_var PICOM_NODE_HOST
+# Consumed, not assumed: sparkrun's own hook environment and container env.
+log_var SPARKRUN_NODE_HOST
+log_var SPARKRUN_HEAD_HOST
+log_var SPARKRUN_CLUSTER_ID
+log_var HF_HOME
 
 for d in run logs weights engram spill fleet; do
   mkdir -p "${PICOM_ROOT}/${d}"
 done
 
 FLEET="${PICOM_ROOT}/fleet.conf"
-export PICOM_FABRIC_A PICOM_FABRIC_B PICOM_DEV_A PICOM_DEV_B PICOM_GID_INDEX
-bash "${MOD_DIR}/fleet-render.sh" "${FLEET}.new" ||
-  die "fleet rendering refused the fabric inputs (see the message above)"
-mv -f "${FLEET}.new" "${FLEET}"
-log "rendered ${FLEET} for ranks [${PICOM_RANK_TAILS}] on ${PICOM_FABRIC_A}/${PICOM_FABRIC_B} via ${PICOM_DEV_A}/${PICOM_DEV_B}, GID ${PICOM_GID_INDEX}"
+FABRIC_ENV="${PICOM_ROOT}/fabric.env"
+# launch.sh is a separate process with only the container env; the hook-only
+# SPARKRUN_* values and this node's own tail are carried over here.
+{
+  echo "PICOM_FABRIC_A=${PICOM_FABRIC_A}"
+  echo "PICOM_FABRIC_B=${PICOM_FABRIC_B}"
+  echo "PICOM_DEV_A=${PICOM_DEV_A}"
+  echo "PICOM_DEV_B=${PICOM_DEV_B}"
+  echo "PICOM_GID_INDEX=${PICOM_GID_INDEX}"
+  echo "PICOM_RANK=${PICOM_NODE_RANK}"
+  echo "PICOM_OWN_TAIL=${own_tail}"
+  echo "PICOM_HEAD=${SPARKRUN_HEAD_HOST:-}"
+  echo "PICOM_CACHE=${HF_HOME:-/cache/huggingface}"
+} > "${FABRIC_ENV}.new"
+mv -f "${FABRIC_ENV}.new" "${FABRIC_ENV}"
+
+if [[ -n "${PICOM_RANK_TAILS:-}" ]]; then
+  IFS=, read -r -a TAILS <<< "${PICOM_RANK_TAILS}"
+  [[ ${#TAILS[@]} -eq 4 ]] || die "PICOM_RANK_TAILS needs exactly four comma-separated octet tails, got '${PICOM_RANK_TAILS}'"
+  for t in "${TAILS[@]}"; do
+    [[ "${t}" =~ ^[0-9]{1,3}$ ]] || die "PICOM_RANK_TAILS entry '${t}' is not an IPv4 octet"
+  done
+  # Check this rank's entry against the rail rather than trusting it: a stale
+  # list fails here, not in a peer's QP.
+  [[ "${TAILS[${PICOM_NODE_RANK}]}" == "${own_tail}" ]] ||
+    die "PICOM_RANK_TAILS[${PICOM_NODE_RANK}]='${TAILS[${PICOM_NODE_RANK}]}' but this node's ${PICOM_DEV_A} GID ${PICOM_GID_INDEX} is ${own_ip:-absent}"
+  export PICOM_FABRIC_A PICOM_FABRIC_B PICOM_DEV_A PICOM_DEV_B PICOM_GID_INDEX
+  bash "${MOD_DIR}/fleet-render.sh" "${FLEET}.new" ||
+    die "fleet rendering refused the fabric inputs (see the message above)"
+  mv -f "${FLEET}.new" "${FLEET}"
+  log "rendered ${FLEET} from PICOM_RANK_TAILS=[${PICOM_RANK_TAILS}] on ${PICOM_FABRIC_A}/${PICOM_FABRIC_B} via ${PICOM_DEV_A}/${PICOM_DEV_B}, GID ${PICOM_GID_INDEX}"
+else
+  log "tails not supplied: rank ${PICOM_NODE_RANK} of ${SPARKRUN_HEAD_HOST:-<no head address>} will meet the others in launch.sh (port 19110)"
+fi
 
 #####################################################################
 # API key: dsfront refuses to start without one (mode 600)

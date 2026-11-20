@@ -27,6 +27,39 @@ node, and all four processes take the same argv except `--rank`.
   runs `dsfront` in the foreground and stops the engine on `SIGTERM`;
 - ranks 1-3: prepare their artifacts and `exec` the engine.
 
+## The tail list assembles itself
+
+`PICOM_RANK_TAILS` is no longer an operator input, and supplying it is only an
+override. sparkrun hands a recipe no host list (`sparkrun/core/env_templates.py:19`
+`LAUNCH_FIELDS` is a closed set), but the pre_exec hook environment carries what the
+exchange needs:
+
+```python
+# sparkrun/orchestration/hooks.py:110-125 (build_hook_env)
+        "SPARKRUN_NODE_RANK": str(rank) if rank is not None else "",
+        "SPARKRUN_NODE_HOST": "" if control else host,
+        "SPARKRUN_HEAD_HOST": head_host,
+        "SPARKRUN_CLUSTER_ID": context.cluster_id,
+        "SPARKRUN_RUNTIME_CACHE_DIR": "" if control else cache_dir,
+```
+
+`run.sh` therefore derives only its **own** rail tail (from its RoCE GID at the index
+sparkrun injects), validates an explicit `PICOM_RANK_TAILS` against it when one is
+given, and publishes `fabric.env` — fabric `/24`s, devices, GID index, this rank, its
+tail, `SPARKRUN_HEAD_HOST`, and the exported `HF_HOME`. `launch.sh` runs concurrently on
+all four nodes (sparkrun starts the head at step 6 and the workers at step 7 without a
+gate here, because `native_rendezvous_port` is `None` at `tp` 1), so the exchange happens
+there: rank 0 collects the three peers' tails over TCP on **port 19110** (8000 is
+`dsfront`, 18620 the engine's ring bootstrap, 25000 sparkrun's torch gate) and answers
+each with the assembled list. Containers run on the host network
+(`orchestration/executors/docker.py:270`, `network: "host"`), so a bind on the
+management address is reachable from the peers. A missing rank at the 300 s deadline
+aborts with its name; the engine never starts on a partial list.
+
+`--model`: sparkrun passes a prepared container path when model distribution ran, or the
+repo id when a profile disabled it; the cache root is the exported `HF_HOME`, never a
+guessed `/cache`.
+
 It replaces upstream's `service.sh`, whose only irreplaceable job is starting ranks 1-3
 over ssh — impossible when sparkrun owns one container per node. What it keeps from
 `service.sh`: the page-cache drop before the engine starts (on GB10 a CUDA allocation

@@ -2635,6 +2635,32 @@ def _assert_bare_host_declarations(tc, r: Recipe, label: str) -> None:
                    f"{label}: tensor_parallel appends torch flags and gates on :25000")
 
 
+def _assert_tails_assemble_themselves(tc, launch: str, run: str) -> None:
+    """The four rail tails must come from the ranks, not from the operator.
+
+    sparkrun exports no host list, but the pre_exec hook environment names rank
+    0 and this node's rank, so the mod publishes those and the serve phase
+    exchanges the tails. A regression here is the old default launch needing
+    `-o env.PICOM_RANK_TAILS=`.
+    """
+    tc.assertNotIn(': "${PICOM_RANK_TAILS:?', run,
+                   "the tail list is an operator requirement again")
+    tc.assertIn('echo "PICOM_HEAD=${SPARKRUN_HEAD_HOST:-}"', run,
+                "rank 0's management address is not carried to the serve phase")
+    tc.assertIn('echo "PICOM_OWN_TAIL=${own_tail}"', run,
+                "this node's own rail tail is not carried to the serve phase")
+    tc.assertIn('echo "PICOM_CACHE=${HF_HOME:-/cache/huggingface}"', run,
+                "the exported cache root is not carried to the serve phase")
+    tc.assertIn("rendezvous.py", launch,
+                "the serve phase never exchanges the tails")
+    tc.assertIn("partial fleet", launch,
+                "the exchange must fail closed rather than start on a partial list")
+    tc.assertLess(launch.index("rendezvous.py"), launch.index("engine()"),
+                  "the fleet must be assembled before the engine is defined and started")
+    tc.assertIn('PICOM_CACHE:-', launch,
+                "the launcher must read the cache root it was handed, not a fixed /cache")
+
+
 def _assert_rank0_clears_stale_sockets(tc, launch: str) -> None:
     """Rank 0 must unlink the previous boot's sockets before it waits for one.
 
@@ -2839,6 +2865,11 @@ class PicomLaneContract(unittest.TestCase):
     def test_artifact_markers_carry_the_snapshot_identity(self):
         _assert_markers_name_the_snapshot(self, self.launch)
 
+    def test_tail_list_assembles_itself(self):
+        """A default launch must not need `-o env.PICOM_RANK_TAILS=…`."""
+        _assert_tails_assemble_themselves(
+            self, self.launch, (PICOM_MOD_DIR / "run.sh").read_text())
+
     def test_disk_gate_separates_fresh_convert_from_re_convert(self):
         """A marker-mismatched re-convert must not be gated as a fresh convert.
 
@@ -3025,6 +3056,16 @@ class PicomLaneNegativeControls(unittest.TestCase):
                           "defaults:\n  port: 8000\n  tensor_parallel: 4\n")
         with self.assertRaises(AssertionError):
             _assert_bare_host_declarations(self, r, "control")
+
+    def test_control_rendezvous_removed(self):
+        """Remove the exchange: the launcher must be caught starting blind."""
+        launch = (PICOM_MOD_DIR / "launch.sh").read_text()
+        anchor = 'python3 "${SCRIPT_DIR}/rendezvous.py"'
+        self.assertIn(anchor, launch, "control anchor for the exchange vanished")
+        stripped = launch.replace(anchor, 'true "${SCRIPT_DIR}"', 1)
+        with self.assertRaises(AssertionError):
+            _assert_tails_assemble_themselves(
+                self, stripped, (PICOM_MOD_DIR / "run.sh").read_text())
 
     def test_control_dropped_marker_identity(self):
         launch = (PICOM_MOD_DIR / "launch.sh").read_text()

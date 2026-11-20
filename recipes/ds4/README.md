@@ -2525,6 +2525,12 @@ declaration in `PicomLaneNegativeControls`):
   "prepared model is not visible through the workload mounts". A named profile that
   disables distribution never reaches that check, which is why `WOPR` boots hid it.
 
+The four rail tails are no longer an input either: the launcher derives each node's own
+tail from its RoCE GID and exchanges the other three over the management network, using
+rank 0's address from sparkrun's pre_exec hook environment. `PICOM_RANK_TAILS` remains an
+override. Mechanism, port choice and the fail-closed deadline are in
+`mods/picom-launcher/README.md`.
+
 **Do not set `defaults.tensor_parallel` on either arm — it is fatal here, not a
 sizing hint.** sparkrun reads it as a torch-distributed contract:
 `runtimes/vllm_distributed.py:54-62` and `:315-334` append

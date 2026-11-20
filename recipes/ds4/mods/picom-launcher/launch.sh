@@ -57,23 +57,34 @@ done
 R="${PICOM_NODE_RANK:?PICOM_NODE_RANK missing: the recipe must render it from the launch node_rank template}"
 [[ "${R}" =~ ^[0-3]$ ]] || { echo "picom-launcher: PICOM_NODE_RANK '${R}' is not 0-3" >&2; exit 2; }
 
-# The fleet's shared-cache profile makes sparkrun hand over the repo id, not a
-# prepared path (distribution.model disabled: nothing is bound at launch), so
-# resolve the pinned snapshot from the mounted HF cache here — never the
-# cache's moving refs/main.
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# The mod runs first and publishes what the hook environment carries (rank 0's
+# management address, this node's rail tail, the resolved fabric) beside the
+# cache root sparkrun exported. Consumed, not re-derived.
+FABRIC_ENV="${ROOT}/fabric.env"
+[[ -s "${FABRIC_ENV}" ]] || {
+  echo "picom-launcher: ${FABRIC_ENV} missing: the picom-launcher mod must run before the command" >&2
+  exit 2
+}
+. "${FABRIC_ENV}"
+
+# sparkrun hands over one of two shapes: a prepared container path when model
+# distribution ran (a bare `-H` launch), or the repo id when it did not (a
+# profile with distribution.model disabled). The cache root is the exported one
+# (`HF_HOME`, carried in fabric.env as PICOM_CACHE) — never a guessed `/cache`.
 resolve_model() {
   if [[ -d "${MODEL}" ]]; then
     printf '%s\n' "${MODEL}"
     return 0
   fi
-  local hub="/cache/huggingface/hub" dir
+  local hub="${PICOM_CACHE:-${HF_HOME:-/cache/huggingface}}/hub" dir
   [[ -n "${REVISION}" ]] || {
     echo "picom-launcher: '${MODEL}' is a repo id but --revision is empty; refusing to follow refs/main" >&2
     return 2
   }
   dir="${hub}/models--${MODEL//\//--}/snapshots/${REVISION}"
   [[ -d "${dir}" ]] || {
-    echo "picom-launcher: pinned snapshot ${dir} is absent; refusing to serve another revision" >&2
+    echo "picom-launcher: pinned snapshot ${dir} is absent under the cache root ${hub}; refusing to serve another revision" >&2
     return 2
   }
   printf '%s\n' "${dir}"
@@ -99,9 +110,29 @@ log() { echo "[picom-launcher] $*" | tee -a "${LOG}"; }
 die() { log "FATAL: $*"; exit 2; }
 
 mkdir -p "${ROOT}"/{run,logs,weights,engram,spill}
-[[ -s "${FLEET}" ]] || die "${FLEET} missing: the picom-launcher mod must run before the command"
 [[ -s "${KEY}" ]] || die "${KEY} missing: the picom-launcher mod must run before the command"
 chmod 600 "${KEY}"
+
+#####################################################################
+# Fleet file: this rank's tail list, assembled on the management network
+#####################################################################
+# Every rank knows its own rail tail (the mod proved it against the RoCE GID)
+# and rank 0's management address (SPARKRUN_HEAD_HOST, hook-only, carried in
+# fabric.env). Rank 0 collects the three peers' tails and answers each with the
+# assembled list; RANK_TAILS from the recipe env still wins verbatim.
+if [[ -z "${PICOM_RANK_TAILS:-}" ]]; then
+  log "rank ${R}: no PICOM_RANK_TAILS; exchanging rail tails with rank 0 at ${PICOM_HEAD:?fabric.env carries no rank 0 address}:19110"
+  PICOM_RANK_TAILS=$(python3 "${SCRIPT_DIR}/rendezvous.py" \
+    --head "${PICOM_HEAD}" --rank "${R}" --tail "${PICOM_OWN_TAIL:?fabric.env carries no own tail}" \
+    --timeout "${PICOM_RENDEZVOUS_TIMEOUT_S:-300}") ||
+    die "rank ${R}: the tail rendezvous failed; the engine is not started on a partial fleet"
+  log "rank ${R}: tails assembled: ${PICOM_RANK_TAILS}"
+fi
+export PICOM_RANK_TAILS PICOM_FABRIC_A PICOM_FABRIC_B PICOM_DEV_A PICOM_DEV_B PICOM_GID_INDEX
+bash "${SCRIPT_DIR}/fleet-render.sh" "${FLEET}.new" ||
+  die "fleet rendering refused the fabric inputs (see the message above)"
+mv -f "${FLEET}.new" "${FLEET}"
+log "rank ${R}: rendered ${FLEET} for tails [${PICOM_RANK_TAILS}] on ${PICOM_FABRIC_A}/${PICOM_FABRIC_B} via ${PICOM_DEV_A}/${PICOM_DEV_B}, GID ${PICOM_GID_INDEX}"
 
 #####################################################################
 # One-time per-rank artifacts from the shared checkpoint
