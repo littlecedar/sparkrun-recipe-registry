@@ -1,0 +1,152 @@
+recipe_version: "2"
+model: higurashi-ai/Haru-4B
+# Pinned to the only revision in the repo (lastModified 2026-11-13T01:22:38Z). The pin
+# selects the snapshot sparkrun prepares and mounts; the command reads that path through
+# {model} and never resolves a hub ref, so there is no --revision to pass. The validator's
+# `unpinned-model-revision` warning is this lane's known shape for a custom launcher.
+model_revision: 8d6e83bcd3701a76fc27a764965665da1df7da78
+# vLLM-Omni's stable 0.32.0 release image (index sha256:f713b909…, arm64 child
+# sha256:6da195b8…, 11.25 GB), the release pair the serving plugin is tested against —
+# NOT the nightly the media lane pins, whose vllm-omni (0.32.0rc2.dev29) predates the
+# duplex engine hooks this plugin calls. `runtime: vllm` is the launcher/distribution
+# contract: the engine here is the image's `vllm-omni` console script.
+container: vllm/vllm-omni:v0.32.0@sha256:f713b909f16cf8c7901f17c3aee3f471cbee5fbde5603b7dbe2631630887d7c2
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  PROBE ARM (`zz-`), authored-not-booted: `higurashi-ai/Haru-4B` is a 5.27B-parameter
+  BF16 full-duplex speech-to-speech model — every 133 ms (7.5 Hz) it takes one frame of
+  the user's audio and emits one frame of its own audio plus text, both streams summed
+  into a single language-model position, so it listens and speaks at the same time. It
+  is NOT servable by any engine in this registry as shipped; it is servable only through
+  the author's out-of-tree vLLM-Omni plugin, which this arm installs at boot. PROBE
+  EVIDENCE (2026-11-20): one `model.safetensors`, 10,540,113,510 B, and its header was
+  re-read over an HTTP range request — 1,022 tensors, all BF16, 111,704 header bytes, and
+  8 + header + max data offset = 10,540,113,510 exactly, so the single file is complete
+  with no shard index. Tensor prefixes are `lm.*` (426), `codec.*` (552), `head.*` (32),
+  `model_audio_proj.*` (5), `user_audio_proj.*` (5) and two latent scalars — which is
+  precisely the layout the plugin's `WeightsMapper(orig_to_new_prefix={"lm.": "model."})`
+  expects. `config.json` declares `architectures: [HaruForConditionalGeneration]`,
+  `model_type: haru`, NO `auto_map`, and the repo ships no modeling code, no processor
+  config and no chat template: the architecture exists only in the author's PyTorch
+  package. Backbone is `qwen3_5_text` hybrid (32 layers, hidden 2560, 16 q / 4 kv heads,
+  head_dim 256, vocab 248,320, 262,144 positions, `layer_types` = 8 full-attention +
+  24 Gated-DeltaNet linear-attention, partial rotary 0.25 with interleaved mrope
+  [11,11,10]); audio front-end is a causal VibeVoice codec (24 kHz, 3200 samples per
+  64-dim latent, ratios [8,5,5,4,2,2]) and the output head is a 4-layer MeanFlow MLP at
+  one sampling step. ENGINE DISCRIMINATORS, each named: (1) llama.cpp — `src/llama-arch.cpp`
+  on master has no `haru` architecture, and the only GGUF that exists
+  (`sakasegawa/Haru-4B-GGUF`) is speech.cpp's private layout, which its own README says
+  "llama.cpp, LM Studio, Ollama and other GGUF readers cannot run"; (2) vLLM —
+  `vllm/model_executor/models/registry.py` at tags v0.32.0 and v0.33.0 has zero matches
+  for `Haru`, and with no `auto_map` in the config `AutoConfig` rejects `model_type:
+  haru` outright; (3) vLLM-Omni — `vllm_omni/model_executor/models/registry.py` at
+  v0.32.0 has zero matches for `Haru`, so the omni registry entry, the `haru` pipeline
+  and the duplex policy all come from the plugin's `vllm.general_plugins` entry point;
+  the native support exists but no published image carries it — PR #10301 ("Add Haru-4B
+  full-duplex spoken dialogue model") merged 2026-11-16 and
+  `vllm_omni/model_executor/models/haru/` is present at tag v0.34.0rc1 and absent at
+  v0.33.0rc1 and at the newest image's commit `670aa7ec` (2026-11-04), while the newest
+  `vllm/vllm-omni` tag of any kind is that same 2026-11-04 nightly;
+  (4) SGLang — `python/sglang/srt/models/` at v0.5.22 has no haru module;
+  (5) transformers — no auto_map and no modeling code in the checkpoint, so it cannot
+  load it either. THE ROUTE: `haru-speech-vllm==0.1.1` (PyPI, published by the author,
+  `vllm>=0.32`/`vllm-omni>=0.32`, entry point `vllm.general_plugins = haru_vllm:register`)
+  plus its runtime `haru-speech==0.1.1`, installed into the pinned image by this arm's
+  mod; `vllm-omni serve {model} --omni --deploy-config <mod>/deploy/haru.yaml` then
+  serves vLLM-Omni's realtime duplex protocol (OpenAI Realtime events) at
+  `ws://<host>:<port>/v1/realtime?duplex=1` — a WebSocket session API, not
+  `/v1/chat/completions`, hence `readiness.inference: false`. One conversation is one
+  resumable engine request whose prompt grows one position per appended frame; the
+  MeanFlow head and codec decode run in model hooks inside the same step, so a frame's
+  audio leaves in the step that produced it. The plugin's `_check_supported` rejects
+  tensor/pipeline parallelism, so this arm is TP=1 by construction. COMPRESSED
+  VARIANTS (census by `base_model:quantized:higurashi-ai/Haru-4B`, 2026-11-20): exactly
+  one 4-bit-class artefact exists, and no route this fleet can pin loads it. The author
+  org publishes only `Haru-4B` and `FastDialogueSidon`; RedHatAI, nvidia, ModelCloud,
+  QuantTrio, bartowski, unsloth, cpatonn, lliuhaoshu, mlx-community and PrunaAI publish
+  no Haru-4B entry; there is no NVFP4, MXFP4, EXL3 or AWQ anywhere.
+  `Twu31/Haru-4B-MLP-GPTQ-W4A16-G32-Lab` (apache-2.0, ungated, published 2026-11-20) is
+  GPTQ W4A16 group-32 over the 96 backbone MLP projections: 9 shards totalling
+  7,284,305,934 B = 6.78 GiB, 3.04 GiB under BF16. It is the 4-bit primary the moment a
+  route exists — its pilot ran vLLM 0.33.0 with vllm-omni main at `8f6c0073`, i.e. the
+  native Haru code at v0.34.0rc1 or later, and no such image is published (see (3)); it
+  also ships its own deploy profile (max_model_len 5120, one session, 512 MiB KV) and a
+  patch lowering the codec's Triton kernel to two pipeline stages for Ada's
+  shared-memory limit, and its own pilot reports +400 ms of end-of-speech-to-audio
+  latency against BF16 (933 vs 533 ms median). Unlock: a `vllm/vllm-omni` image at
+  v0.34.0rc1 or later (or a build of it), at which point this arm becomes its BF16
+  control. The other compressed files are not routes: `sakasegawa/Haru-4B-GGUF` (Q4_K
+  4,522,673,920 B, Q5_K 5.05 GB, Q6_K 5.61 GB, Q8_0 6.62 GB, F16 10.56 GB; apache-2.0
+  plus MIT for the VibeVoice codec parameters) is speech.cpp's private layout, which its
+  own README says llama.cpp cannot read, and speech.cpp v0.11.0 ships only
+  linux-x64-cpu / linux-x64-vulkan / macos-arm64-metal / windows-x64-vulkan artifacts on
+  a Metal/Vulkan/CPU backend set with no CUDA — on an arm64 GB10 that is a source build
+  with no GPU backend; `Jayanth-MKV/Haru-4B-GGUF` (2,741,233,792 B q4_k_m LM plus
+  separate F16 MeanFlow and codec files) and `kabcnd/Kenzan-Haru-4B-PinGrid-GGUF` (a
+  2.69 GB Q4-class LM GGUF plus a 1.12 GB PyTorch audio engine, `endpoints_compatible`
+  tag notwithstanding) are personal split-loaders with no server; `infosave/Haru-4B-cmf`
+  (6,371,235,661 B) is 8-bit-class CMF for the Cortiq runtime;
+  `Harsha001/Haru-4B-ROCmFPX` is Q6_0/Q8_0 for ROCm; `nano16/Haru-4B-mlx-8bit` is Apple
+  MLX. So BF16 through the official plugin is the only route a GB10 can serve today, and
+  9.82 GiB of weights against a 121.7 GiB device is not where this arm's cost lives. FIT
+  (TP=1, arithmetic not measurement): weights 10,540,113,510 B = 9.82 GiB; KV 32 KiB per
+  token (8 full-attention layers x 4 kv heads x 256 head_dim x 2 x 2 B) for 2 sessions x
+  32,768 positions = 2.0 GiB against the deploy config's 8 GiB grant; codec, MeanFlow
+  head and per-session activations are a few GiB. Total ~20 GiB against a 121.7 GiB
+  device at util 0.85 (103.4 GiB budget) — 19 % of budget, one node, no sharding.
+  LICENCE: apache-2.0, `gated: false`, public bytes. The checkpoint repo ships no
+  LICENSE file (a documentation gap, not a licence question) — the Apache-2.0 text
+  travels in the GGUF sibling as `LICENSE-APACHE-2.0`, and that sibling's
+  `LICENSE-MIT` covers the VibeVoice acoustic-tokenizer parameters inside `codec.*`.
+  UNMEASURED, ALL OF IT: no boot, no TTR, no frame latency, no real-time factor, no
+  transcript quality, no concurrency. The card's "native full-duplex", "about 12 GB of
+  memory" and multilingual claims are author claims until this arm runs; the model is a
+  pretrained base model for research, not an assistant. The measurement needs an
+  OpenAI-Realtime WebSocket client (session.update with the character card and a
+  base64 reference clip, then one 3200-sample append per frame), which this arm does
+  not ship: the demo server's own protocol is not it.
+metadata:
+  model_url: https://huggingface.co/higurashi-ai/Haru-4B
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "5.27B"
+  model_dtype: bf16
+  kv_dtype: bf16
+  tags: trial, probe, speech, speech-to-speech, full-duplex, audio, realtime
+
+mods:
+  - "mods/haru-4b-realtime-launcher"
+
+executor_config:
+  entrypoint: ""
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  served_model_name: higurashi-ai/Haru-4B
+  # 10.5 GB of weights plus the codec's Triton/CUDA-graph capture; vllm-omni's own
+  # default is 300 s, a deadline for the load+compile budget rather than a load time.
+  stage_init_timeout: 1800
+
+# `vllm-omni`, not `vllm`: the omni console script only takes the omni path when
+# `--omni` is in argv (vllm_omni/entrypoints/cli/main.py), and in this image family the
+# `vllm` script is plain vLLM. The deploy config is this mod's copy of the wheel's.
+command: >
+  vllm-omni serve
+  {model}
+  --omni
+  --served-model-name {served_model_name}
+  --host {host}
+  --port {port}
+  --stage-init-timeout {stage_init_timeout}
+  --deploy-config /workspace/mods/haru-4b-realtime-launcher/deploy/haru.yaml
+
+readiness:
+  # The only API is the realtime duplex WebSocket at /v1/realtime?duplex=1; there is no
+  # chat-completions route, so the house battery cannot speak to it and a port answer is
+  # not a serving answer (the API server binds before any session is admitted).
+  inference: false
+  port_timeout_s: 2400
+  health_timeout_s: 1800
