@@ -55,6 +55,18 @@ distinction explicit and acts on it:
     `serve-reaped-<container>.log` beside --log FIRST (the stop destroys it, and a
     fast-reaped arm's crash text is the whole diagnosis), then `sparkrun stop <task-id>`
     (literal id); evidence to --log, exit 3.
+  * every check samples the node's `/proc/meminfo` and logs `mem_avail=<pct>%`
+    (MemAvailable/MemTotal, one decimal); a drop below `--mem-warn` (8%) logs one warning
+    and nothing else -- memory pressure is a warning, never a stop.
+  * earlyoom evidence: the node runs `earlyoom -m 4,1` and SIGTERMs the engine at 4%
+    MemAvailable while the container keeps reading `Up (healthy)` around a dead child, so
+    an earlyoom kill looks like an unattributed SIGTERM. The node's own earlyoom lines for
+    this boot's window (`journalctl -t earlyoom --since <arm>`, else
+    `/var/log/syslog`) are read; a SIGTERM naming the serve/engine (measured 2026-11-20:
+    `sending SIGTERM to process … "VLLM::EngineCor"`) is  -> earlyoom, stopped at once
+    with that syslog line as the evidence. An unreadable log is `earlyoom=unreadable` and
+    never a boot failure; a kernel `Out of memory: Killed process` line is a different
+    actor and is not earlyoom evidence.
 
 Two floors, both cheap at `--interval 10`: the second observed check rides out one bad
 sighting (a pgrep miss across a re-exec), and `no_probe` keeps a broken instrument out of
@@ -83,6 +95,7 @@ Exit codes: 0 endpoint healthy; 3 dead and stopped; 4 watchdog's own error or a 
 import argparse
 import http.client
 import json
+import re
 import shlex
 import subprocess
 import sys
@@ -467,6 +480,116 @@ def parse_mem(text: str) -> int | None:
     return None
 
 
+EARLYOOM_SIGTERM = re.compile(r'sending SIGTERM to process \d+ "([^"]+)"')
+# What an earlyoom kill of a boot's serve can name: the engine's process title
+# (`VLLM::EngineCor`), the engines' executables, and the lane front-ends.
+EARLYOOM_VICTIMS = ("vllm", "sglang", "llama-server", "dsgb10", "dsfront", "tensorfold", "engine")
+
+
+def mem_avail_pct(text: str) -> float | None:
+    """`/proc/meminfo` body -> MemAvailable as a percentage of MemTotal, one decimal.
+
+    The node runs `earlyoom -m 4,1`: it SIGTERMs the engine at 4% MemAvailable and the
+    container keeps reading `Up (healthy)` around the dead child, so the endpoint going
+    quiet is otherwise the only symptom. Logging the number every check makes the kill
+    visible before it happens (`mem_avail=4.0%`).
+    """
+    vals: dict[str, int] = {}
+    for line in text.splitlines():
+        key, _, rest = line.partition(":")
+        parts = rest.split()
+        if not parts:
+            continue
+        try:
+            vals[key.strip()] = int(parts[0])
+        except ValueError:
+            continue
+    total = vals.get("MemTotal")
+    avail = vals.get("MemAvailable")
+    if not total or avail is None:
+        return None
+    return round(avail * 100.0 / total, 1)
+
+
+def mem_low(pct: float | None, warn: float) -> bool:
+    """Below the earlyoom headroom line (pure); an unreadable sample never warns."""
+    return pct is not None and pct < warn
+
+
+def earlyoom_kill(
+    text: str, victims: tuple[str, ...] = EARLYOOM_VICTIMS
+) -> tuple[str, str] | None:
+    """(victim, line) when earlyoom itself SIGTERM'd a serve/engine, else None.
+
+    Only earlyoom's own line counts. The kernel's `Out of memory: Killed process` and a
+    plain systemd line are different actors -- the kernel OOM killer is not earlyoom, and
+    neither names an earlyoom SIGTERM -- so an unattributed SIGTERM stays unattributed
+    rather than being blamed on the wrong instrument.
+    """
+    for line in text.splitlines():
+        if "earlyoom" not in line.lower():
+            continue
+        match = EARLYOOM_SIGTERM.search(line)
+        if match and any(v in match.group(1).lower() for v in victims):
+            return match.group(1), line.strip()
+    return None
+
+
+def read_mem_avail(node: str) -> float | None:
+    """The node's MemAvailable percentage (ssh); None when the probe fails."""
+    try:
+        proc = subprocess.run(
+            ["ssh", "-n", "-o", "BatchMode=yes", f"red@{node}", "cat /proc/meminfo"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return None
+    if proc.returncode != 0:
+        return None
+    return mem_avail_pct(proc.stdout)
+
+
+def earlyoom_probe(node: str, since: float) -> tuple[str, tuple[str, str] | None]:
+    """(status, (victim, line)): earlyoom's own SIGTERM evidence for this boot.
+
+    `found` carries the syslog line, `none` means earlyoom logged nothing since the arm,
+    `unreadable` means the node's log could not be read. Fail-open by construction: a
+    broken instrument never stops a boot. `--since @<epoch>` is the arm time in the form
+    journalctl takes without a timezone guess.
+    """
+    script = (
+        "if journalctl -t earlyoom --since "
+        + shlex.quote(f"@{int(since)}")
+        + " --no-pager 2>/dev/null; then\n"
+        "  exit 0\n"
+        "fi\n"
+        # journalctl absent or refused (no systemd journal, no group membership): the
+        # node's syslog carries the same earlyoom text. grep rc 1 means "no matches".
+        "matches=$(grep -i earlyoom /var/log/syslog 2>/dev/null)\n"
+        "rc=$?\n"
+        '[ "$rc" -le 1 ] || exit 1\n'
+        'printf \'%s\\n\' "$matches" | tail -n 50\n'
+    )
+    try:
+        proc = subprocess.run(
+            ["ssh", "-o", "BatchMode=yes", f"red@{node}", "sh -s"],
+            input=script,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return "unreadable", None
+    if proc.returncode != 0:
+        return "unreadable", None
+    hit = earlyoom_kill(proc.stdout or "")
+    return ("found", hit) if hit else ("none", None)
+
+
 def parse_rank(spec: str) -> tuple[str, str]:
     """`NODE:CONTAINER` -> (node, container). Neither a hostname nor a container name has a colon."""
     node, sep, ctn = spec.partition(":")
@@ -675,6 +798,8 @@ def should_stop(verdict: str, dead_grace: float, dead_for: float | None) -> bool
                    memory growth (4x the worst silence measured on a healthy boot).
     `dead_candidate` — never seen alive, which is also what a serve-pid fingerprint miss
                    looks like, so it alone keeps a clock (`--dead-grace`, 120 s).
+    `earlyoom`   — the node's own earlyoom line names a SIGTERM to the serve after the arm
+                   started: the cause is known, so it acts on the check that read it.
 
     There is no `--grace` any more: a 1800 s loading window was gating a verdict that only
     fires on evidence, and it cost 26 throttled minutes on 2026-11-03 (an arm whose serve
@@ -685,6 +810,8 @@ def should_stop(verdict: str, dead_grace: float, dead_for: float | None) -> bool
     if verdict == "dead_candidate":
         return dead_for is not None and dead_for >= dead_grace
     if verdict == "stalled":
+        return True
+    if verdict == "earlyoom":
         return True
     return False
 
@@ -732,6 +859,13 @@ def main(argv: list[str] | None = None) -> int:
         help="another rank in the same lease (repeatable). Rank 0 is --node/--container and owns "
         "the endpoint and the death evidence; peers widen the progress/stall test, so a TP=4 "
         "rendezvous is judged on the whole group rather than a quiet rank 0",
+    )
+    ap.add_argument(
+        "--mem-warn",
+        type=float,
+        default=8.0,
+        help="warn (never stop) when the node's MemAvailable falls below this percentage; "
+        "earlyoom on these nodes SIGTERMs the engine at 4%%",
     )
     ap.add_argument("--serve-pattern", default=SERVE_PATTERN)
     ap.add_argument(
@@ -797,6 +931,7 @@ def main(argv: list[str] | None = None) -> int:
     unprobed = False
     surface: str | None = None
     health_only_logged = False
+    mem_warn_logged = False
     while True:
         if args.require_inference:
             inferred, surface = probe_inference(args.endpoint, api_key)
@@ -821,6 +956,22 @@ def main(argv: list[str] | None = None) -> int:
         samples = [serve_state(node, ctn, args.serve_pattern) for node, ctn in ranks]
         alive, _io, _logsize, _mem, fatal = samples[0]
         cup = container_up(alive, _logsize)
+        mem = read_mem_avail(args.node)
+        if mem_low(mem, args.mem_warn):
+            if not mem_warn_logged:
+                print(
+                    f"WATCHDOG: node {args.node} mem_avail={mem}% is below "
+                    f"{args.mem_warn}% -- earlyoom SIGTERMs the serve at 4%",
+                    file=log,
+                    flush=True,
+                )
+                mem_warn_logged = True
+        else:
+            mem_warn_logged = False
+        # A dead engine leaves the endpoint down and, on this fleet, a container that still
+        # reads `Up (healthy)`; the node's own earlyoom line is what attributes that kill.
+        # Only worth a round trip once the endpoint is down.
+        earlyoom = earlyoom_probe(args.node, started) if not ok else ("", None)
         # A fingerprint miss is not a death signal when the container is up and the
         # server answers; say it once so the next diagnosis starts from the pattern.
         if alive is False and cup and health_ok and not seen_alive and not pattern_miss_logged:
@@ -892,13 +1043,25 @@ def main(argv: list[str] | None = None) -> int:
         # that can: that is a broken probe, so it never contributes health or a stop decision.
         if unprobed:
             verdict = "no_probe"
+        # The cause is known, so it outranks every inference verdict: earlyoom SIGTERM'd
+        # the engine and the boot cannot recover.
+        if earlyoom[1] is not None:
+            victim, line = earlyoom[1]
+            verdict = "earlyoom"
+            print(
+                f"WATCHDOG: earlyoom SIGTERM'd the serve (victim={victim}): {line}",
+                file=log,
+                flush=True,
+            )
+        mem_text = "unreadable" if mem is None else f"{mem}%"
         print(
             f"WATCHDOG t={elapsed}s verdict={verdict} "
             f"endpoint={('unprobed' if unprobed else 'ok' if ok else 'down')} "
             f"serve_pid={('alive' if alive else 'gone') if alive is not None else 'unprobed'} io_delta={delta} "
             f"log_delta={log_delta} "
-            f"mem_delta={mem_delta} idle={int(idle)}s ranks={len(ranks)} "
+            f"mem_delta={mem_delta} mem_avail={mem_text} idle={int(idle)}s ranks={len(ranks)} "
             f"peer_moved={peer_moved} unprobeable={unprobeable}"
+            + (f" earlyoom={earlyoom[0]}" if earlyoom[0] else "")
             + (f" cause={fatal!r}" if fatal else "")
             + (
                 f" inference={'unprobed' if unprobed else 'ok' if infer else 'down'}"

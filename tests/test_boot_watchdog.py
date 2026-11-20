@@ -994,6 +994,70 @@ class InferenceProbe(unittest.TestCase):
         self.assertEqual(rc, 0)
 
 
+class MemAvail(unittest.TestCase):
+    MEMINFO = (
+        "MemTotal:       100000 kB\n"
+        "MemFree:          1000 kB\n"
+        "MemAvailable:     7910 kB\n"
+        "Buffers:           100 kB\n"
+    )
+
+    def test_the_percentage_is_available_over_total_to_one_decimal(self):
+        """MemAvailable/MemTotal, not MemFree: earlyoom's `-m 4` reads MemAvailable."""
+        self.assertEqual(bw.mem_avail_pct(self.MEMINFO), 7.9)
+        self.assertEqual(
+            bw.mem_avail_pct("MemTotal: 10485760 kB\nMemAvailable: 10485760 kB\n"), 100.0
+        )
+
+    def test_a_body_without_the_two_keys_is_unreadable(self):
+        self.assertIsNone(bw.mem_avail_pct("MemFree: 1 kB\n"))
+        self.assertIsNone(bw.mem_avail_pct(""))
+        self.assertIsNone(bw.mem_avail_pct("MemTotal: 0 kB\nMemAvailable: 0 kB\n"))
+
+    def test_the_warn_line_is_strictly_below_the_threshold(self):
+        """7.9% warns, 8.1% does not; exactly at the threshold is still headroom."""
+        self.assertTrue(bw.mem_low(7.9, 8.0))
+        self.assertFalse(bw.mem_low(8.1, 8.0))
+        self.assertFalse(bw.mem_low(8.0, 8.0))
+        self.assertFalse(bw.mem_low(None, 8.0))
+
+
+class EarlyoomEvidence(unittest.TestCase):
+    # The field line from .30 (2026-11-20 16:39:51-05:00), the shape earlyoom writes.
+    KILL = (
+        "Nov 20 16:39:51 spark-30 earlyoom[1234]: low memory! at or below SIGTERM limits: "
+        'mem 4.00%, swap 0.00%; sending SIGTERM to process 4321 "VLLM::EngineCor": '
+        "uid 0, badness 0 (wm(0) rss(0) swap(0))"
+    )
+
+    def test_a_real_earlyoom_line_yields_the_victim(self):
+        hit = bw.earlyoom_kill(self.KILL)
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit[0], "VLLM::EngineCor")
+        self.assertIn("sending SIGTERM to process 4321", hit[1])
+
+    def test_the_kernel_oom_killer_is_not_earlyoom(self):
+        """Negative control: the kernel's own kill is a different actor."""
+        kernel = (
+            "Nov 20 16:39:51 spark-30 kernel: Out of memory: Killed process 4321 (vllm) "
+            "total-vm:100000kB, anon-rss:90000kB"
+        )
+        self.assertIsNone(bw.earlyoom_kill(kernel))
+
+    def test_a_plain_systemd_line_is_not_earlyoom(self):
+        """Negative control: a systemd line naming the serve is not a SIGTERM."""
+        self.assertIsNone(
+            bw.earlyoom_kill(
+                "Nov 20 16:39:51 spark-30 systemd[1]: Started VLLM::EngineCor worker."
+            )
+        )
+
+    def test_an_earlyoom_sigterm_to_an_unrelated_process_is_not_the_serve(self):
+        """earlyoom can kill something else on the node; only a serve victim counts."""
+        other = self.KILL.replace("VLLM::EngineCor", "syncthing")
+        self.assertIsNone(bw.earlyoom_kill(other))
+
+
 if __name__ == "__main__":
     unittest.main()
 

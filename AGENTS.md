@@ -370,7 +370,13 @@ timeout must not kill it. `--dead-grace` (120 s) covers only a child that was ne
 `--stall` covers a live-but-frozen child: 600 s of zero io AND zero log growth, which is 4x the 150 s
 worst silence measured across the 46 boots that reached healthy (2026-11-03). **There is no `--grace`
 any more** — a 1800 s loading window was gating verdicts that only fire on evidence, and it cost an
-int8 arm 28 minutes after its serve died at t=98 s. **Pass the bare `<intent>_<launch>` id, not the
+int8 arm 28 minutes after its serve died at t=98 s. Every check also logs the node's
+`mem_avail=<pct>%` and warns (never stops) below `--mem-warn` (8%), and reads the node's own earlyoom
+lines for the boot window: a `sending SIGTERM to process … "VLLM::EngineCor"` after the arm's start is
+the `earlyoom` verdict and is stopped at once with that syslog line as the evidence, because earlyoom
+(`-m 4,1`) leaves the container reading `Up (healthy)` around a dead child. An unreadable log is
+`earlyoom=unreadable` and never fails the boot; a kernel `Out of memory: Killed process` line is not
+earlyoom evidence. **Pass the bare `<intent>_<launch>` id, not the
 string `sparkrun status` prints** — that one already carries the `sparkrun_` prefix the tool prepends,
 and a doubled prefix resolves no container; better still, pass `--container` with the name `docker ps`
 shows. Since 2026-11-10 the tool prints the container it resolved (`WATCHDOG arm: task=… container=…`)
