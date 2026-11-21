@@ -865,6 +865,9 @@ stable question ids — the round raised one numbered register question, `#84`.
  chasing (a) — declare a six-machine window.** No further four-machine attempt is authorized. — provenance:
  `mad-science/SURVEY.md` Q3 (deleted fold); `.scratch/tp4-survey/evidence.md` §3 and §6; queue rows
  `kimi-pruned75-tp4-boot`, `kimi-pruned75-dspark-tp4-boot`, `kimi-tp2-pp3-six-node`; owner 2026-11-11.
+ **Superseded 2026-11-21:** those three rows are closed and the arms are archived in `attic/explore/` —
+ see `attic/explore/AGENTS.md` §"Kimi K3.1 Pro pruned-75 retirement (2026-11-21)" for the engine
+ blocker and the retry condition.
 - **S4 — Arm 5's cost: pay it, fold it into a later build, or abandon the arm?** *Answered 2026-11-11:* **pay
  it (a): rebuild, carry, boot.** The build is the expensive half and the port is one code delta from a boot. —
  provenance: `mad-science/SURVEY.md` Q4 (deleted fold); `.scratch/tp4-survey/evidence.md` §1; queue row

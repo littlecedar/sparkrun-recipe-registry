@@ -47,8 +47,7 @@ the pyannote diarizer. Explore keeps the language and agentic/RAG arms.
 - [zz-sage-a1.5-35b-a3b-fp8-sglang](#zz-sage-a15-35b-a3b-fp8-sglang)
 - [zz-sage-a1.5-35b-a3b-q4km-llamacpp](#zz-sage-a15-35b-a3b-q4km-llamacpp)
 - [zz-kimi-k3.1-pro-superexpert-24b-q4p-ref-vllm](#zz-kimi-k31-pro-superexpert-24b-q4p-ref-vllm)
-- [kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4](#kimi-k31-pro-pruned75-mxfp4-vllm-tp4)
-- [kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4](#kimi-k31-pro-pruned75-mxfp4-dspark-vllm-tp4)
+- [kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4 and siblings retired 2026-11-21](#kimi-k31-pro-pruned75-mxfp4-vllm-tp4-and-siblings-retired-2026-11-21)
 - [Kimi-K3.1-Pro spinoffs: REAPs, drafters and the EXL3 2-bit](#kimi-k31-pro-spinoffs-reaps-drafters-and-the-exl3-2-bit)
 - [Ripple-65B Preview (2026-11-08 trial)](#ripple-65b-preview-2026-11-08-trial)
 - [zz-edge0-145b-nvfp4-latentmoe-strata](#zz-edge0-145b-nvfp4-latentmoe-strata)
@@ -1284,325 +1283,35 @@ launch gate is the mod's `import transformers, fastapi, uvicorn, torch` check ag
 pinned `vllm/vllm-openai:v0.32.0` image (the engine is a carrier for that Python stack, not a
 loader for this checkpoint).
 
-## `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4`
+## kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4 and siblings retired 2026-11-21
 
-**Servable Kimi body, attempted and blocked at engine bootstrap (2026-11-08).**
-`vllm-project/Kimi-K3.1-Pro-pruned75`
-pinned `fc72e5a1`: 75 % of the routed experts removed per MoE layer (896 → 224, 92 layers, router
-rows and `e_score_correction_bias` pruned with them), everything else the base
-`moonshotai/Kimi-K3.1-Pro` ships — MLA attention with the DSA indexer on 24 layers, KDA on the rest,
-2 shared experts, dense layer, vision tower, and the original MXFP4 routed-expert quantisation.
+**Three arms retired to `attic/explore/`; the engine refused the KV cache, not the model.**
+`kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4`, `…-mxfp4-dspark-vllm-tp4` and `…-mxfp4-vllm-tp2-pp3` load
+the same 442.85 GiB pruned body (`vllm-project/Kimi-K3.1-Pro-pruned75`, `fc72e5a1`, 75 % of the
+routed experts removed per MoE layer) and every boot that reached the engine died while allocating
+the KV cache: the model's indexer declares 64-token kernel blocks while the KDA page sizes the
+manager block to 5,760, and the pinned nightly refuses to view one as the other. The mechanism with
+its `file:line` citations, the fit arithmetic, the engine-lineage finding and the retry condition
+are in
+[`attic/explore/AGENTS.md` §Kimi K3.1 Pro pruned-75 retirement](../../attic/explore/AGENTS.md#kimi-k31-pro-pruned-75-retirement-2026-11-21).
 
-- **Size / fit.** 737,611,524,480 parameters = U8 680,685,207,552 MXFP4-packed elements (340.3 GB) +
-  BF16 56,915,256,320 (113.8 GB) + F32 11,060,608 (0.04 GB) = **454.2 GB = 423.0 GiB**. Over TP=4
-  that is 105.75 GiB per rank against ~121 GiB usable, i.e. 82.6 % of the 128 GB device before KV,
-  so the arm ships 32k context at utilisation 0.92. An OOM at profile is sizing, not the checkpoint.
-  The pinned `config.json` corroborates the pruning arithmetic: `num_experts: 224`,
-  `num_experts_per_token: 16`, `num_shared_experts: 2`, 93 hidden layers with
-  `first_k_dense_replace: 1` (so 92 MoE layers), `dsa_config.dsa_layers` listing the 24 full/DSA
-  layers, `kda_layers` the other 69, and `quantization_config.format: mxfp4-pack-quantized`.
-- **Engine gate: PASSED from the image itself, and now boot-proven.** I pulled the pinned nightly
-  arm64 (`0.33.0rc1.dev1016+g06129ab02`, created 2026-11-07) and walked its filesystem: the module
-  tree `vllm/models/kimi_k3/` is present and
-  `vllm/model_executor/models/registry.py` maps `"KimiK31ForConditionalGeneration"` to it. The same
-  image's `vllm/tool_parsers/__init__.py` registers `kimi_k3`, so the serve line's parsers exist.
-  On the 2026-11-08 TP=4 attempt the engine printed `Resolved architecture:
-  KimiK31ForConditionalGeneration` and `Defaulting to tokenizer_mode='kimi_k3'` — the class
-  resolves end to end. Upstream context: the last release tag `v0.33.0rc3` does **not** carry the
-  class, which is why this nightly is the earliest known pin rather than any release. Serving needs
-  `--trust-remote-code` (config `auto_map`) and the card's `kimi_k3` reasoning/tool parsers. The
-  pinned digest still resolves in GHCR, but no node held the image before this boot, which paid the
-  pull; the checkpoint was not staged at that moment — the pool held one stub `config.json`, and
-  the full body was pulled into it at 08:23–09:38 the same day (see the staging bullet below).
-- **No `tokenizer.json` ships, by construction.** The repo carries `tokenization_kimi.py` (a slow
-  `PreTrainedTokenizer` subclass), `tiktoken.model` and `tokenizer_class: TikTokenTokenizer` with an
-  `auto_map`; that class builds a `tiktoken.Encoding` from the local BPE file. There is no
-  `tokenizers` serialization to load, so "missing fast tokenizer" is the checkpoint's own shape,
-  **not a defect** — do not file it as one.
-- **First boot died on the pool's config-only stub, not on a missing dependency (2026-11-08
-  07:47 UTC).** After printing `Resolved architecture: KimiK31ForConditionalGeneration` and
-  `tokenizer_mode='kimi_k3'`, `VllmConfig` failed with `Couldn't instantiate the backend tokenizer …
-  You need to have sentencepiece or tiktoken installed to convert a slow tokenizer to a fast one`.
-  That message is vLLM's generic fallback when no tokenizer file is on disk, and the pinned nightly
-  **already carries both backends** — `tiktoken 0.14.0` and `sentencepiece 0.2.3` on
-  `/usr/bin/python3` 3.12.3, the only python in the image (verified `docker run --rm --entrypoint
-  `python3 <pinned digest>` 2026-11-08). At 07:47 the staged pool snapshot `fc72e5a1` was a
-  **config-only stub**: one entry, `config.json` (7,303 B), with `refs/main` beside it and no
-  `tokenization_kimi.py`, `tiktoken.model`, `tokenizer_config.json` or weight files. That stub was
-  then filled: the same snapshot now holds **112 entries, 96/96 safetensors shards, zero
-  `.incomplete` blobs, 475,525,935,884 B = 442.87 GiB** by an inode-deduped `stat` walk,
-  `hf cache verify` rc=0, no writer (2026-11-08 11:05 pool read). **Presence is no longer the
-  block; fit is.** The shards measure 442.85 GiB, so TP=4 is **110.71 GiB/rank**, and the shipped
-  `gpu_memory_utilization: 0.92` (111.95 GiB of the engine's 121.69 GiB total) leaves 1.24 GiB of
-  slack before overhead and is **2.23 GiB short** once the measured 3.05 GiB of activation/graph
-  overhead and the 0.42 GiB of KDA state are included. The envelope, its inputs and the one bootable
-  point are worked out in
-  [Fit arithmetic inside one GB10](#fit-arithmetic-inside-one-gb10-2026-11-08-tp4-accepts-16k-rejects-32k-and-the-drafter);
-  the recipe shipped that point until the 2026-11-10 boot (below). The 423.0 GiB figure in
-  [Size / fit](#kimik31-pro-pruned75-mxfp4-vllm-tp4) is nominal parameter arithmetic and stale for
-  fit. An OOM on this arm is therefore a **sizing answer**, not an engine or checkpoint verdict —
-  and 2026-11-10 supplied it: see the fit section's measured paragraph (the floor is the weights,
-  not the overhead term).
-  **Measure presence with `du -sL` or an inode-deduped `stat` walk:** `du -sb` reads 8,179 B even
-  for the complete body because every snapshot entry is a symlink into the content-addressed store,
-  so it describes a stub and a whole checkpoint identically. Receipt
-  `~/benchmarks/h2h-20261107/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4/`
-  (`serve-0.log` lines 13-14, 63-68; launch failed at 76.1 s).
-- **Wheelhouse route: proven and kept as a template, unused on this arm.** Staged pinned wheels
-  installed as uid 1000 with `pip install --no-index --find-links <dir> --no-deps` (rc=0), followed
-  by a real round-trip through the checkpoint's `tiktoken.model`: 13 tokens, decoded text identical
-  to input. It is not needed here because the image ships tiktoken; it stays in the record as the
-  pattern for an image that does not. Pins: **tiktoken 0.14.0** (cp312
-  `manylinux_2_28_aarch64`, sha256 `7db45b98e94adf4173a5cd7422b150999a7ee11ff847783a14f6e1b80cc38cb6`,
-  1,186,355 B) plus **regex 2026.11.7** (same tag, sha256
-  `c94b8f2fd73b419d5278b8d08d213d042b91edd5acf24ae7226388e9ef106fd4`, 806,351 B). Finding worth
-  keeping: under `--no-index` tiktoken's `requests` dependency is invisible to the resolver, so the
-  route needs either a staged `requests` wheel or `--no-deps`.
-- **Quality, as the card states it.** GSM8K 5-shot 43.67 % on four B300s at TP=4, with "expect a large
-  quality regression relative to the source model" in the card. Not a general-purpose candidate.
-- **Chat template: none on the Hub.** The repo has no `chat_template.jinja` and
-  `tokenizer_config.json` carries no `chat_template` key (the base does not either); formatting is a
-  Python `TikTokenTokenizer.apply_chat_template` / `kimi_k3_processor` method that vLLM's Jinja
-  path does not use. So the arm expects `/v1/chat/completions` to answer "chat template is not
-  defined" and measures on `/v1/completions`; the chat endpoint is tested once as a diagnostic,
-  and whichever way it settles is recorded rather than assumed. Code-level corroboration on vLLM
-  main (2026-11-08): `renderers/hf.py` resolves the template from `--chat-template`, then an
-  AutoProcessor `chat_template` (this repo's `kimi_k3_processor` defaults it to `None`), then the
-  tokenizer, then `transformers_utils/chat_templates/registry.py` — a bundled-fallback map with
-  only blip2/clip/colpali/ocr/minicpmv/openvla/paligemma/siglip entries and **no** `kimi_k31` or
-  `kimi_linear` key. That is why the chat endpoint is expected to refuse.
-- **Licence.** `other` / `kimi-k3.1-pro`, inherited with the base's LICENSE link — not Apache-2.0.
-- **Acceptance.** Same markerless shape as the DSpark sibling below: no chat template means the chat
-  instruments write no ladder and no `house.yaml`, so the serve itself is the evidence. Do not read a
-  healthy boot with no marker as an engine failure.
+Two findings from that block outlive the arms and stay here:
 
-## `kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4`
-
-**Drafter sibling of the arm above (attempted 2026-11-08; config bind proven; blocked on fit, not
-staging).**
-Same target and image, plus
-`LithosAI/Kimi-K3.1-Pro-DSpark` pinned `d791d217` as a vLLM `dspark` speculator carried in
-`defaults.speculative_config` (so sparkrun distributes the draft repo and its own revision). The
-draft is a 2.25 B BF16 head (4.50 GB): 5 dense GQA layers, hidden 7168, SwiGLU 14336, reading target
-hidden states of layers 7/23/67/83/91 through a `dspark` projector, a rank-256 Markov head and a
-confidence head, sharing the target's embedding and LM head. `num_speculative_tokens: 4` is the
-trained shape (1 current + 4 drafts against the exported `block_size: 5`), and the Omni-only
-`n == block_size` equality check does not run for a Kimi target (bind bullet below); the card's
-width-8 acceptance number needs block 8, which this config does not declare. Context is moot until
-the fit is worked out: the plain arm's 442.85 GiB of shards is already 110.71 GiB/rank at TP=4,
-and the drafter adds its 4.19 GiB on rank 0 (draft TP=1) — see the fit section below, which rejects
-this arm at TP=4 outright.
-
-The engine side is verified rather than assumed: the pinned image's `config/speculative.py` declares
-`DSparkModelTypes = Literal["dspark"]` and its registry maps both `Qwen3DSparkModel` → `qwen3_dspark`
-and a Kimi-native `K3DSparkModel` → `vllm/models/kimi_k3/nvidia/dspark_mla`. One question is
-answered and one stays open:
-
-1. **The drafter's config binding is proven (2026-11-08 15:21 UTC, no serve).** In an ephemeral
-   container from the pinned nightly, `SpeculativeConfig(method="dspark",
-   num_speculative_tokens=4)` accepted the staged target's `config.json` (93 layers, hidden 7168,
-   vocab 163,840) and the staged LithosAI draft (`d791d217`): the resolved draft config reads
-   `Qwen3DSparkModel`, 5 layers, hidden 7168, `num_target_layers: 93`, `block_size: 5`,
-   `target_layer_ids [7, 23, 67, 83, 91]`, `draft_vocab_size: 163840`. Resolving
-   `Qwen3DSparkForCausalLM` and constructing it inside `set_current_vllm_config(...)` with a
-   one-rank gloo group succeeds: 4,598,107,009 parameters (8.56 GiB BF16 module tree including the
-   full-vocab heads, against the 4.19 GiB on-disk pack), 5 decoder layers, `DSparkMarkovHead` +
-   `DSparkConfidenceHead`, first layer name `model.layers.93.self_attn.attn` (its start layer id is
-   the target's depth, 93), `target_vocab 163840`, `draft_vocab 163840`. The Omni-only
-   `_validate_qwen3_omni_dspark` returns early for a non-Omni target, so its `n == block_size`
-   equality check never runs here: n=4 with block 5 is accepted because 1 current + 4 drafts is the
-   trained shape, not because the target is Omni. The construction needs a device only to pick an
-   attention backend (`--gpus none` dies at `ValueError: Invalid attention backend for None`), no
-   weights load. So the label is **"config bind proven, acceptance counters pending"**: what
-   remains is a real serve — and before that, staging (below). At `max_num_batched_tokens: 2048`
-   the engine also emits its speculative-aware advisory `max_num_scheduled_tokens is set to 2048 …
-   suboptimal performance`; that is a tuning note, not a bind failure.
-2. **Cross-checkpoint acceptance.** The draft was trained against the unpruned base (the card
-   declares no base revision) while this target has 75 % of its experts pruned, so the card's 3.448
-   mean acceptance length is not transferable to this body — a first-boot measurement, not an
-   assumption.
-
-**First boots died in `CacheConfig`, before any weight or draft loaded.** Both arms shipped
-`kv_cache_dtype: bf16`, and the pinned nightly's vLLM rejects that spelling: `Value error, Invalid
-kv_cache_dtype: 'bf16'. Valid values are: ['auto', 'float16', 'bfloat16', …]` (reaped serve logs
-`serve-reaped-…_node_0.log` of the attempts on `.30`–`.33`, 2026-11-08 05:19–05:32 ET). The value
-renders straight into `--kv-cache-dtype`, so the engine aborted in argument validation and neither
-arm reached model load, let alone speculator init — the drafter-binding question above was therefore
-**unproven at that point** (it is now answered at config level, bullet 1). Both recipes now pass
-`bfloat16` (2026-11-08 06:05 ET); nothing else about them changed. **Corrected 2026-11-10:**
-`bfloat16` only clears `CacheConfig` spelling validation — the SM121 sparse-MLA backend
-(`FLASHINFER_MLA_SPARSE_SM120`) requires the packed `fp8_ds_mla` layout and rejects bfloat16 at
-backend selection, so both recipes now ship `kv_cache_dtype: fp8_ds_mla`; see the fit section's
-measured paragraph.
-
-**Staging: both artifacts are present.** Checked 2026-11-08: the pool's
-`vllm-project/Kimi-K3.1-Pro-pruned75` (snapshot `fc72e5a1`) holds the full body — 112 entries,
-442.87 GiB by an inode-deduped stat walk, `hf cache verify` rc=0 — and
-`models--LithosAI--Kimi-K3.1-Pro-DSpark` (`d791d217`) is staged on `.30`/`.31` with its 4.19 GiB
-safetensors. Nothing here waits on a download any more: what blocks the pair is the TP=4 fit
-(110.71 GiB/rank of target weights against a 121.69 GiB device, and the drafter's 4.19 GiB on
-rank 0), worked out in the fit section below. Chat template is
-confirmed absent at the pin: `tokenizer_config.json` has no `chat_template` key and the repo ships
-no `chat_template.jinja`, so both arms measure on `/v1/completions`.
-
-**The 07:46 boot's block was staging, not compatibility (2026-11-08).** That boot resolved the target
-(`Resolved architecture: KimiK31ForConditionalGeneration`, `tokenizer_mode = 'kimi_k3'`) and then
-failed `SpeculativeConfig` with `Invalid repository ID or local directory specified:
-'LithosAI/Kimi-K3.1-Pro-DSpark'` — `HF_HUB_OFFLINE=1` with the drafter absent from the pool, so
-nothing initialised. The plain arm's tokenizer message was the same kind of staging artifact (the
-config-only stub), not an image dependency gap. With the drafter staged, the construction path is
-clean: the falsifier at 15:21 UTC built `SpeculativeConfig` and instantiated
-`Qwen3DSparkForCausalLM` against the target's `config.json` alone, so the remaining block is the
-TP=4 fit (the target's weights alone exceed the util-0.92 budget by ~1 GiB/rank, and the draft adds
-~4.5 GiB/rank on top). The label is **"config bind proven, acceptance counters pending; fit recut
-needed"**.
-Receipt `~/benchmarks/h2h-20261107/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4/` (`serve-0.log`
-lines 10-71; launch failed at 76.9 s).
-
-**What a successful serve can produce here — no marker.** No Jinja template exists anywhere on the
-Hub for this family, so `/v1/chat/completions` refuses; every shipped instrument speaks chat
-(llama-benchy 0.4.0, tool-eval-bench's standard suite, `quality-battery.py`), so a healthy vLLM boot
-writes **no `ladder.json` and no `house.yaml`**, and an `ARM_EXTRA_CLIENT` house cell returns 37×400
-exactly as the SuperExpert probe's does. Acceptance for this arm is therefore the serve itself and
-the drafter evidence: `/v1/models` 200 with the served id, `max_model_len` as shipped, and the
-DSpark acceptance counters in the serve log (drafts, accepted tokens, mean accepted length) that
-settle the binding gate above. That is where the drafter's verdict is read — never from a marker.
-"The serve is healthy and no marker appeared" is the expected shape for both Kimi arms (this one and
-the plain `kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4`); it is not an engine failure.
-
-### Fit arithmetic inside one GB10 (2026-11-08): TP=4 accepts 16k, rejects 32k and the drafter
-
-**Superseded by measurement 2026-11-10: the arm is rejected at weight-tensor allocation, before
-any term this envelope can move — read the measured paragraph at the end of this section. The
-envelope below stays as the 2026-11-08 arithmetic record.**
-
-Every input below is checkable from the tree or the fleet.
-
-- **Weights per rank.** The staged shards measure **442.85 GiB**; over TP=4 that is
-  **442.85 / 4 = 110.71 GiB/rank**.
-- **Device and free memory — two totals, not one.** The engine's own line
-  `Free memory on device (…/121.69 GiB)` reports the **kernel-visible total, 121.69 GiB** (earlyoom's
-  `mem total: 124608 MiB` is the same number), and `--gpu-memory-utilization` multiplies *that*.
-  The other figure in the register rows, **119.21 GiB**, is the nominal `128 GB` label converted at
-  2³⁰ (`128e9 / 2³⁰ = 119.209`): a conservative stand-in 2.48 GiB **below** the measured total, not
-  a measured pool and not a reserved carve-out. What an engine can actually start in is neither —
-  measured **free at startup is 112.33–115.02 GiB** across five boots (`gpu_worker.py` lines under
-  `~/benchmarks/`).
-- **Non-KV overhead, measured on the same boots.** Peak activation **1.41–2.81 GiB** and CUDAGraph
-  **0.07–0.24 GiB**, i.e. **1.48–3.05 GiB/rank**. The arithmetic below uses the pessimistic 3.05;
-  the optimistic column is noted only where it changes a verdict.
-- **KV per token, from `config.json` (`text_config`).** **24 full-attention layers**
-  (`dsa_config.dsa_layers`) with MLA latent `kv_lora_rank 512 + qk_rope_head_dim 64` at BF16, plus
-  the DSA indexer key of `index_head_dim 128 + 4 B` scale (`indexer_cache_entry_bytes` returns
-  `head_dim + 4` for the bf16/fp8 default):
-  `24 × ((512 + 64) × 2 B + (128 + 4) B) = 24 × 1,284 B = 30,816 B = 30.1 KiB/token.`
-- **KDA state, from `linear_attn_config`.** The other **69 layers** are linear attention
-  (`num_heads 96`, `head_dim 128`, `short_conv_kernel_size 4`) and hold a **per-sequence** state,
-  not a per-token cache: recurrent `96/4 × 128 × 128 × 4 B` plus conv
-  `((96 × 128 + 2 × 96 × 128) / 4) × 3 × 2 B` per layer →
-  `69 × (1,572,864 + 55,296) B = 0.105 GiB per sequence`. The recipe's `max_num_seqs: 4` therefore
-  reserves **0.42 GiB**.
-
-Envelope: `budget(U) = 121.69 × U` and
-`KV(U) = budget(U) − 110.71 − 3.05 − 0.42`, giving `ctx = KV × 2³⁰ / 30,816`.
-
-| util | budget | after weights + overhead + state | max ctx | free memory it requires |
-|---|---|---|---|---|
-| 0.92 (as previously authored) | 111.95 | **−2.23 GiB** | 0 | 111.95 |
-| 0.935 | 113.78 | −0.40 | 0 | 113.78 |
-| 0.94 | 114.39 | 0.21 | 7,200 | 114.39 |
-| 0.945 (shipped now) | 115.00 | 0.82 | 28,400 | 115.00 |
-| 0.946 | 115.12 | 0.94 | 32,700 | 115.12 — **above the best reading, 115.02** |
-| 0.95 | 115.61 | 1.42 | 49,600 | 115.61 — no measured node reports it |
-
-**Both readings of supply, and the verdict each gives.** Demand is 110.71 GiB of weights +
-3.05 GiB overhead + 0.42 GiB state = **114.18 GiB**. Against the engine's total
-(`0.92 × 121.69 = 111.95 GiB`) the arm has 1.24 GiB of slack before overhead and is 2.23 GiB short
-after it; against the nominal label (`0.92 × 119.21 = 109.67 GiB`) it is 1.04 GiB short before
-overhead and 4.51 GiB after. The shortfall differs by 2.28 GiB — which is the 2.48 GiB between the
-totals scaled by 0.92, not a separate error — but **the verdict does not flip**: no KV
-block, let alone a context, fits under either reading, and no measured free memory
-(112.33–115.02 GiB) clears the 0.92 pair either way. The shipped point is computed on the engine's
-total because that is the quantity `--gpu-memory-utilization` multiplies:
-`0.945 × 121.69 = 115.00 GiB`.
-
-Verdict, stated plainly: **32k is infeasible at TP=4.** The authored pair missed by 2.23 GiB once
-overhead and state are counted (1.24 GiB of slack before them), and even at util 0.946 the 32k
-KV+state (1.36 GiB) needs 115.12 GiB free, 0.10 GiB more than the best measured reading. The recipe
-now ships the one point that holds the weights and
-a usable context: **`gpu_memory_utilization: 0.945`, `max_model_len: 16384`** (needs 114.65 GiB
-free, met by 3 of 5 readings, and leaves 0.35 GiB spare at the pessimistic overhead). A node that
-reports less refuses at startup: sizing, not a checkpoint verdict.
-
-**Measured 2026-11-10 — the floor is the weights, not the overhead term (the envelope above is
-arithmetic only).** Two quartet boots on `.31`–`.34`, receipt
-`head:~/benchmarks/fit-kimi-eager-20261110/`. (1) The shipped `kv_cache_dtype: bfloat16` selects
-**no attention backend**: the only sparse-MLA backend this SM121 image carries is
-`FLASHINFER_MLA_SPARSE_SM120`, whose constructor raises unless the cache is the packed
-`fp8_ds_mla` layout (`flashinfer_mla_sparse_sm120.py:70-74`), so the boot died in 80 s with
-`ValueError: No valid attention backend found` before any weight load. (2) With
-`--kv-cache-dtype fp8_ds_mla --enforce-eager`, 8192 ctx, 2 seqs and 1024 batched tokens — the
-reduced set the 3.05 GiB term would answer to — the boot reached model init and the **weight-tensor
-allocation alone** took host `MemAvailable` from 117.4 GiB to **0.79 / 1.79 / 2.03 / 4.07 GiB**
-(`.31/.32/.33/.34`, MemFree 0.98–2.16) within one 0.5 s sample, with the rank cgroup at ~11 GiB
-and page tables ≤43 MiB — no KV cache, no graph pool, no prefill. The 6.0 GiB guard stopped the
-task at its floor; zero kernel `oom-kill` and zero earlyoom lines. So the deciding term is
-110.71 GiB of weights + a measured **2.01–4.33 GiB** of engine host-side init from `/proc/meminfo`
-(the rest of the 112–115 GiB drop was the node's pre-existing 4.9–6.9 GiB baseline), not the 3.05 GiB
-non-KV term: no context/seqs/graph flag moves it, and the honest deficit at TP=4 is **~4 GiB on the best
-node and ~8 GiB on rank 0** — so the route is two more ranks as TP=2 x PP=3 over all six nodes
-(442.833 GiB / 6 = 73.80 GiB/rank; register `kimi-tp2-pp3-six-node`), ~4–8 GiB more memory, or a
-smaller pruned body; TP=8
-is out of reach on this fleet (six nodes, max rank count 6, TP=4 the validated shape). `fp8_ds_mla`'s
-packed row is 656 B/layer/token (512 fp8 + 16 B scale + 128 B bf16
-RoPE tail), so the shipped-dtype KV is 24 × (656 + 132) = **18,912 B/token**, not 30,816; the
-table above is kept as the 2026-11-08 bf16 envelope.
-
-**Measured 2026-11-11 — the parameter set alone floors at five to nine GiB/rank, so the 2026-11-10
-sub-4 GiB trough was not parameter allocation.** A `--load-format dummy` probe over `.31`–`.35`
-(25 rounds at 5 s, `MEM_FRACTION_STATIC=0.75`, image
-`sha256:e5fcda3386c8b498e6cdd011792c0d83e71f93cdcbda21f66119b2fbefec8651`) reads its verdict as
-**`measured`**: the parameter-set dive is **112.05 / 109.84 / 108.20 / 109.46 GiB**, inside the
-pre-registered 110.7 ± 10 % sanity gate, and the floors after it are **5.012 / 7.565 / 9.170 /
-7.856 GiB** on those four ranks, with ~117 GiB free at the first sample. The pre-registered
-falsifier (≥6 GiB on all four) is **not met** — one rank reached 5.012 — so the reading is "the
-parameter set alone sits at five to nine GiB per rank", not "every rank clears six". Engine-core
-init failed at t=174 s and earlyoom took the remaining rank: the floor is a measurement, not a
-failed boot. That number is what the six-node shape's 73.80 GiB/rank had to clear, and it leaves
-roughly 64–69 GiB of the 121.69 GiB pool for KV there. Receipt
-`head:~/benchmarks/tp4-20261111/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4/`
-(`mem-floor.json`).
-
-**Under the six-node route (TP=2 x PP=3), the arm waits on an image built from vLLM main ≥ `4088c283`**
-(#66037, merged 2026-11-09); the pinned 2026-11-07 nightly predates it, no eugr/GB10 nightly is newer,
-and no knob in the pinned image admits the shape (`.scratch/kimi-six-engine-verdict-20261111.md`; row
-`kimi-k31-indexer-block-vs-blhnc-layout`).
-
-**The answer form decides, not the distance (ERNIE control pair, 2026-11-11).** On the same control
-boot (`/v1/completions` only — the checkpoint ships no chat template; 128-shard load; `Ready`
-2026-11-11T09:48:25Z) the QA form **passes at 4,005 and 26,547 prompt tokens** (code `ZX81-4321`
-present, 37.7 s / 17.4 s), while the imperative form **fails at 4,264 and 17,940 tokens** (2.6 s /
-9.3 s, output `1.` and a repeated instruction). Distance is not the variable: the shorter imperative
-prompt fails and the longer QA prompt answers. The window-append port answers the QA form beyond
-both the 128-token window and the 2,048-token top-k cap, which is the port's own acceptance shape.
-The imperative failure is recorded verbatim as a finding, not explained away. Receipts
-`head:~/benchmarks/tp4-20261110b/ernie-gate2/trio_c2.json` (beside `trio.json`),
-`head:~/benchmarks/tp4-20261111/zz-ernie-…-bare.3/`, and
-`.scratch/tp4-20261111/RECEIPT-boot-a-and-pool-census-20261111.md`.
-
-**Boot safety, not just fit.** The recut makes this arm arithmetically bootable, not safe to boot:
-a quartet attempt that overruns the unified pool takes the **host** down — the 2026-11-08 11:27
-kernel OOM killed `ssh`, NetworkManager, syncthing and a dashboard service on a loading node while
-earlyoom's swap term was unreachable. Until `QUESTIONS.md` **#67** (whether host memory policy may
-change on all nodes) is answered, a TP=4 attempt on this arm is an operator decision with a named
-risk, not a routine drain.
-
-**Drafter variant: rejected at TP=4.** The drafter is loaded at its own TP=1, so `rank 0` carries
-its **4.19 GiB** on top of the target's 110.71 GiB: 114.90 GiB of weights before any overhead, and
-`114.90 + 3.05 + 0.42 = 118.37 GiB` for a no-KV boot at util 0.973 — **3.35 GiB above the best
-measured free memory**, so it is impossible here regardless of context. What would make it
-feasible: a smaller pruned checkpoint or a host with a larger unified pool — TP=8 is out of reach on this
-fleet (six nodes, max rank count 6, TP=4 the validated shape).
+- **The answer form decides, not the distance (ERNIE control pair, 2026-11-11).** On the same control
+  boot (`/v1/completions` only — no chat template; 128-shard load; `Ready`
+  2026-11-11T09:48:25Z) the QA form **passes at 4,005 and 26,547 prompt tokens** (code `ZX81-4321`
+  present, 37.7 s / 17.4 s), while the imperative form **fails at 4,264 and 17,940 tokens** (2.6 s /
+  9.3 s, output `1.` and a repeated instruction). The shorter imperative prompt fails and the longer
+  QA prompt answers, so distance is not the variable; the window-append port answers the QA form
+  beyond both the 128-token window and the 2,048-token top-k cap. Receipts
+  `head:~/benchmarks/tp4-20261110b/ernie-gate2/trio_c2.json` (beside `trio.json`),
+  `head:~/benchmarks/tp4-20261111/zz-ernie-…-bare.3/`, and
+  `.scratch/tp4-20261111/RECEIPT-boot-a-and-pool-census-20261111.md`.
+- **Boot safety, not just fit.** A quartet attempt that overruns the unified pool takes the **host**
+  down — the 2026-11-08 11:27 kernel OOM killed `ssh`, NetworkManager, syncthing and a dashboard
+  service on a loading node while earlyoom's swap term was unreachable. Until `QUESTIONS.md` **#67**
+  (whether host memory policy may change on all nodes) is answered, an arm this close to the pool
+  edge is an operator decision with a named risk, not a routine drain.
 
 ## Kimi-K3.1-Pro spinoffs: REAPs, drafters and the EXL3 2-bit
 
@@ -2280,6 +1989,9 @@ archived recipes (3 Nemotron, 10 from the 2026-10-19 sweep, the main-image probe
 | [`zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2.yaml`](../../attic/explore/zz-beam-1.0-501b-a23b-nvfp4-tp4-vllm-boot2.yaml) | Retired 2026-11-19, TP=4 — second-boot twin (comment-only copy, so one recipe name cannot hold two queue rows): ladder **33.09±2.50 / 44.91±3.50 / 59.71±10.50 / 69.86±7.41 t/s** (C1 +26.3 %, C5 −6.7 % vs boot 1). Receipts `…/zz-beam-…-boot2/ladder.json`, `…/receipts/zz-beam-…-boot2.json`. |
 | [`zz-ernie-5.5-flash-base-tp4-sglang.yaml`](../../attic/explore/zz-ernie-5.5-flash-base-tp4-sglang.yaml) | Retired 2026-11-19, TP=4 — **refused boot**, task `sparkrun_e59088ba4d0f3858_3780b01ec8c1`: all 128 shards loaded from the pinned snapshot, then `Capture cuda graph failed: … Unsupported architecture for sparse decode fwd` (FlashMLA builds `sm_100a`/`sm_103a` only; the GB10 dynamic-smem probe reads 101,376 B against the kernel's 227 KiB `static_assert`). Per-rank `MemAvailable` minima 14.79–15.04 GiB. |
 | [`zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4.yaml`](../../attic/explore/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4.yaml) | Retired 2026-11-19, TP=4 — measured parameter-floor isolator: `--load-format dummy` dive **112.05/109.84/108.20/109.46 GiB** (inside the 110.7 ± 10 % gate), floors **5.012/7.565/9.170/7.856 GiB**; the ≥6 GiB falsifier is not met, so the parameter set alone sits at five to nine GiB per rank. Receipt `head:~/benchmarks/tp4-20261111/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4/mem-floor.json`. |
+| [`kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4.yaml`](../../attic/explore/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4.yaml) | Retired 2026-11-21, TP=4 — fit rejection, then the engine's KV-init contract: 442.85 GiB body = **110.71 GiB/rank**, and the weight-tensor allocation alone took host `MemAvailable` to **0.79 / 1.79 / 2.03 / 4.07 GiB**. Never served. Receipts `head:~/benchmarks/fit-kimi-eager-20261110/`, `head:~/benchmarks/h2h-20261107/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4/`. |
+| [`kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4.yaml`](../../attic/explore/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4.yaml) | Retired 2026-11-21, TP=4 — the same body plus `LithosAI/Kimi-K3.1-Pro-DSpark` (`d791d217`) as a `dspark` speculator: drafter config bind proven (4,598,107,009 params, `model.layers.93`), **no serve** — rank 0 carried 4.19 GiB more on top of a body that already did not fit. Receipt `head:~/benchmarks/h2h-20261107/kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4/`. |
+| [`kimi-k3.1-pro-pruned75-mxfp4-vllm-tp2-pp3.yaml`](../../attic/explore/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp2-pp3.yaml) | Retired 2026-11-21, six nodes TP=2 x PP=3 — the memory question answered (**75.25-76.31 GiB/rank**, six distinct stages loaded, KV 20.1-22.8 GiB/rank at util 0.82, rank minima 19.9-29.4 GiB, no guard trip) and the serve refused in KV-cache init. Receipt `head:~/benchmarks/tp4-20261111/kimi-six/` (`receipt-boot5.md`, `receipt-boot6.md`). |
 | [`zz-spark-x2.6-4b-int8-sglang.yaml`](../../attic/explore/zz-spark-x2.6-4b-int8-sglang.yaml) | Retired 2026-11-20 — **kernel refusal**: loads (5.47 GB in 28.08 s), dies 57 s in during prefill CUDA-graph capture, `NotImplementedError: No implemented int8_scaled_mm for current compute capability` (GB10 is sm_121, the pinned `v0.5.22-cu130` has no INT8 GEMM). No ladder or quality cell. Receipt `head:~/benchmarks/spark-x26-20261022/` (`boot-int8.log`, `serve-int8.log`). |
 | [`zz-spark-x2.6-4b-fp8-ngram-sglang.yaml`](../../attic/explore/zz-spark-x2.6-4b-fp8-ngram-sglang.yaml) | Retired 2026-11-20 — **measured-rejected 2026-10-25**: NGRAM **38.0 / 69.6 / 134.7 / 189.0** vs plain **40.3 / 75.7 / 143.8 / 214.8** t/s at c1/2/5/10, same node and window, n=5 (−5.7 % C1 to −12.0 % C10). Receipt `head:~/benchmarks/tplt4-20261024/sparkx26/` (`ladder-ngram.yaml`, `ladder-plain-ctl30.yaml`). |
 | [`zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap-loadmode.yaml`](../../attic/explore/zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap-loadmode.yaml) | Retired 2026-11-20 — the maintained copy of the mmap A side (revision `4159d684`, `--load-mode none` spelling); mmap ON vs the shipped OFF: **108.80 vs 110.64 / 151.78 vs 151.87 / 196.48 vs 208.28 / 143.45 vs 144.82** t/s, worst cell C5 −5.7 %. Receipt `~/benchmarks/mellum-mmap-20261019/`. |

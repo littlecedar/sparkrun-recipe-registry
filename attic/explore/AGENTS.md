@@ -1246,3 +1246,139 @@ bytes needed a distinct name: the original 2026-10-19 archive keeps
 `zz-mellum2.1-12b-a2.5b-q4km-thinking-llamacpp-mmap.yaml` (revision `20b4394`), and the maintained
 revision (`4159d684`, the `--load-mode none` spelling plus `--metrics`) moved in beside it as
 `…-mmap-loadmode.yaml`. Both hashes were checked before and after the `mv`.
+
+## Kimi K3.1 Pro pruned-75 retirement (2026-11-21)
+
+Three arms left `recipes/explore/` on the owner's decision: the plain TP=4 pair
+([`kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4.yaml`](kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4.yaml),
+[`…-dspark-vllm-tp4.yaml`](kimi-k3.1-pro-pruned75-mxfp4-dspark-vllm-tp4.yaml)) and the six-node
+TP=2 x PP=3 shape
+([`…-vllm-tp2-pp3.yaml`](kimi-k3.1-pro-pruned75-mxfp4-vllm-tp2-pp3.yaml)). All three load the same
+442.85 GiB body — `vllm-project/Kimi-K3.1-Pro-pruned75` at `fc72e5a1`, 896 → 224 routed experts per
+MoE layer — on the same pinned engine
+(`ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:98a2535b…`, vLLM `0.33.0rc1.dev1016+g06129ab02`,
+built 2026-11-07), and none of them ever served a request. The files moved with `git mv` and their
+bytes are unchanged: `git hash-object` on each destination equals `HEAD:` on the old path.
+
+### What was tried
+
+The arms are a fit hunt that turned into an engine hunt. The TP=4 pair was rejected on memory before
+it ever reached a KV cache: the weight-tensor allocation alone took host `MemAvailable` to
+**0.79 / 1.79 / 2.03 / 4.07 GiB** on the four ranks (`head:~/benchmarks/fit-kimi-eager-20261110/`),
+with the rank cgroup at ~11 GiB and page tables ≤43 MiB — no KV cache, no graph pool, no prefill. A
+`--load-format dummy` probe then separated the parameter set from the loader: the dive is
+**112.05 / 109.84 / 108.20 / 109.46 GiB** and the floors after it **5.012 / 7.565 / 9.170 /
+7.856 GiB** per rank (`head:~/benchmarks/tp4-20261111/zz-kimi-k3.1-pro-pruned75-load-format-dummy-vllm-tp4/mem-floor.json`).
+
+The six-node shape answered the memory question and lost on the engine. Over one window the engine
+accepted TP=2 x PP=3 (pp/tp/ep groups built, six distinct stages loaded), every rank reported
+**75.25-76.31 GiB** of weights — so the row's "far above 73.6 GiB" falsifier was not met — KV took
+**20.1-22.8 GiB/rank** at util 0.82, rank minima sat at 19.9-29.4 GiB, no guard tripped, and the
+lease was held and released. **Boots 5 and 6 of that window reached the engine and died while
+allocating the KV cache.** In boots 2-3 the 6 GiB guard fired only *after* the engine had already
+freed memory, so the guard was not the cause there: the watchdog's `serve_pid=gone` timestamp is the
+death evidence, not the guard's trip. Receipts `head:~/benchmarks/tp4-20261111/kimi-six/`
+(`receipt-boot5.md`, `receipt-boot6.md`, `receipt-window.md`).
+
+The DSpark sibling never got that far: its drafter config bind was proven without a serve
+(`SpeculativeConfig(method="dspark", num_speculative_tokens=4)` accepted the staged target and the
+`d791d217` draft; `Qwen3DSparkForCausalLM` constructed at 4,598,107,009 params, first layer
+`model.layers.93…`), and the arm was then rejected at TP=4 because rank 0 carries the drafter's
+4.19 GiB on top of a body that already did not fit.
+
+### The mechanism: a 64-token kernel block against a 5,760-token manager block
+
+The model's indexer declares **64-token kernel blocks**. The KDA/mamba page alignment sizes the KV
+manager's block to **5,760 tokens** — the engine prints `Setting attention block size to 5760 tokens`
+(`vllm/v1/core/kv_cache_utils.py`'s interface path, `interface.py:1115` in the pinned tree) — and
+`--block-size 64` is accepted on the command line and then overridden by that clamp. The manager
+then holds a 5,760-token block table while the attention layer asks for packed 64-token kernel
+blocks, and the pinned vLLM refuses to view one as the other:
+
+- `vllm/v1/worker/utils.py:413-419` raises the `ValueError` (the block-table-to-slot-mapping path);
+  the message's suggested remedy is a layout the Kimi backend does not implement.
+- `supported_kv_cache_layouts() -> (BLHNC,)` for this backend. The resolver requires the explicit
+  layout to appear in **every** worker's supported set, so the layer-compact `LBNHC` alternative is
+  refused even though `envs.py` lists it.
+
+No recipe-side lever exists. The knob audit, run against the pinned image and recorded in
+`.scratch/kimi-six-engine-verdict-20261111.md`: `--block-size` only raises (the clamp overrides it);
+`LBNHC` / `LBHNC` / `BLNHC` / `BHLNC` are all refused (supported set is `['BLHNC']` alone);
+`--no-enable-prefix-caching` is irrelevant to a block-size mismatch; the kv and mamba dtypes move
+the clamp but never to 64; `VLLM_SSM_CONV_STATE_LAYOUT`, `--mamba-block-size` and a page-size flag
+either do not exist in this build or do not break the clamp.
+
+### The engine finding
+
+The fix is upstream and merged: **vllm-project/vllm#66037**, merge commit **`4088c283`**,
+2026-11-09T04:31Z — packed hybrid block size, slot-mapping methods, and honouring
+`writes_kv_cache_from_block_table()` so a packed token cache splits into 64-token kernel blocks
+instead of raising. It is a cross-layer contract change (block size, slot mapping and the
+block-table writer together), **not a back-portable hunk**, and it is in no release: the newest tag
+is `v0.33.0rc3` (2026-11-02), which also predates it.
+
+The pinned digest predates the fix and the GHCR mirror is not a route: its November tags
+`20261118`, `2026111901` and `20261119` all resolve to the same `sha256:98a2535b…`. One newer build
+does exist in the source lineage — Docker Hub `eugr/spark-vllm:nightly-20261119` (digest
+`sha256:034ae5ad2263a…`, built 2026-11-19T11:24:47Z) — whose `/workspace/build-metadata.yaml`
+records `vllm_ref: main` and `vllm_commit: 885cce7546884c1f9b749f433ee8b4cf9449868c`. Main at that
+instant (`2a55c287`, 2026-11-19T11:00:08Z) is **913 commits ahead of `4088c283` with merge-base
+`4088c283`**, so a main build of that date should carry #66037. **It was never verified in-image**:
+`885cce754` does not resolve in `vllm-project/vllm` (API 404) and is absent from main's history for
+2026-11-16..19, so the engine identity rests on the image's own build metadata. The only public
+image known to carry the fix is `docker.io/vllm/vllm-openai:nightly` arm64 `sha256:c68112d8…`
+(2026-11-11, main `f5d93296`) — a different build line with no eugr SM121 patches, a probe rather
+than this arm's route. #66037 itself was validated only at TP8 on 2×B300 with dummy weights, so the
+first GB10/PP3 boot is still an experiment.
+
+### Resource arithmetic, and why it does not fit today
+
+The GB10 pool has **two totals, not one**, and they are the budget rule this lane uses:
+the engine's kernel-visible **121.69 GiB** (earlyoom's `mem total: 124608 MiB` is the same number),
+which is what `--gpu-memory-utilization` multiplies — `budget(U) = 121.69 × U` — and the nominal
+`128 GB` label at 2³⁰ = **119.21 GiB**, a conservative stand-in 2.48 GiB *below* the measured total,
+not a measured pool and not a carve-out. Measured free at startup across five boots was
+**112.33-115.02 GiB**, so neither total is what an engine can actually start in.
+
+Against that: the body is **442.85 GiB** staged, which over six ranks is **73.80 GiB/rank** and
+measured **75.25-76.31 GiB/rank**; KV adds **20.1-22.8 GiB/rank** at util 0.82 and the rank minima
+landed at 19.9-29.4 GiB. Six ranks means six hosts — the whole fleet — and one 1M-context
+production serve (DeepSeek-V4.1-Flash-1017) is already fenced on **`.31`-`.34`**, four of those six
+(`.local/fleet-leases.json`, fence `tp-le2-20261120`, `fenced_at` 2026-11-20T07:25:27Z; the serve's
+`node_0` container was Up 22 hours and `/v1/models` answered). So the shape does not fit our cluster
+today: it needs every host the fleet has, and four of them are carrying a production serve.
+
+### Retry condition
+
+Owner's words, verbatim: **"when the cluster has enough resources to fit it easily."**
+
+The concrete shape that would satisfy it: **six ranks of ~74 GiB over six hosts, with the
+production serve not on four of them** — i.e. either four more nodes, or the 1M-context serve moved
+elsewhere, or a smaller pruned body that lands a rank near 40 GiB — **plus an engine build carrying
+#66037 verified in-image.** Absent the engine half, no amount of memory helps: the boot dies in KV
+init at any rank count.
+
+### What a retry must re-check first
+
+1. **The engine identity, in-image, not from build metadata.** `docker run --rm --network none
+   --entrypoint grep <image> -rn map_to_kernel_slot_mapping /usr/local/lib/python3.12/dist-packages/vllm/v1/worker/utils.py`,
+   and read the engine banner for the commit. The Docker Hub 2026-11-19 build above is the first
+   candidate, and its `vllm_commit` is unverifiable from the Hub.
+2. **The block size the manager actually reports.** The admission test is the boot log's
+   `Setting attention block size to …` line: 64 tokens (or a packed path that no longer clamps) is
+   the pass; 5,760 is the same refusal again.
+3. **The fleet, not just the arithmetic.** `.local/fleet-leases.json` must not fence the hosts, and a
+   six-node window with an executable `mem-guard.sh` must exist before `.30` takes a rank — the
+   `director lease` guard refuses an excluded host for a four-plus-rank claim without it.
+4. **The per-rank floor.** Weights far above 76.31 GiB mean PP did not split the body; the dummy-load
+   probe (5.0-9.2 GiB/rank after the 108-112 GiB dive) is the isolator if the fit looks wrong again.
+
+### Node hygiene
+
+The retirement moves no weights and deletes nothing from the pool: the pruned body
+(`vllm-project/Kimi-K3.1-Pro-pruned75`, `fc72e5a1`, 112 entries / 442.87 GiB) and the drafter
+(`LithosAI/Kimi-K3.1-Pro-DSpark`, `d791d217`) stay staged. The node-local receipts cited only by
+these arms — `head:~/benchmarks/tp4-20261111/kimi-six/`,
+`head:~/benchmarks/fit-kimi-eager-20261110/`,
+`head:~/benchmarks/h2h-20261107/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4/` and its `-dspark-` sibling —
+are **left in place**, not deleted: they are the only copies of the boot logs this report cites.

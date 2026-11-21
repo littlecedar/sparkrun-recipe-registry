@@ -1473,8 +1473,8 @@ attempt is an operator decision: it has twice taken the whole user session down 
 not fit the unified pool at TP=4" without proving it — nothing here measures the repacked buffers
 at ~11 % above the nominal 576. The pool's two totals, their provenance and the budget rule live in
 one place,
-[`recipes/explore/README.md` §Fit arithmetic](../explore/README.md#fit-arithmetic-inside-one-gb10-2026-11-08-tp4-accepts-16k-rejects-32k-and-the-drafter),
-so this lane does not restate a budget. Keep the two apart: treating an inferred mechanism as the
+[`attic/explore/AGENTS.md` §Kimi K3.1 Pro pruned-75 retirement](../../attic/explore/AGENTS.md#kimi-k31-pro-pruned-75-retirement-2026-11-21)
+(the explore lane's fit envelope retired with that arm, 2026-11-21), so this lane does not restate a budget. Keep the two apart: treating an inferred mechanism as the
 measurement is what has cost this lane its earlier attempts.
 
 **Host-side page size is closed, and the fit negative stands (2026-11-09).** A one-shot 64 KiB-page
