@@ -304,8 +304,10 @@ def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
     """(entries, explanation lines, arm -> why it is not runnable) from the register's ordering.
 
     Only `queued` rows that name a `recipe` and `tp` are work: `blocked`/`done` are somebody else's
-    answer, `running` is another session's claim, and a row whose `tp` exceeds the declared host
-    count is skipped by name rather than truncated onto fewer nodes. A row whose `blocked_by` is
+    answer and `running` is another session's claim. A row whose `tp` exceeds the declared host
+    count is still adopted, never truncated onto fewer nodes: it is the plan build that records it
+    `unplaceable` by name (`plan.unplaceable_reason`), because a row dropped here would be
+    indistinguishable from a row the register holds. A row whose `blocked_by` is
     not an explicit empty list is held too, whatever its `state`: the mirror is the register's
     structural hold, and a missing field is not an edit that opens one. A recipe named by several
     rows is one arm, so a `blocked` or `done` sibling holds it even while the row being read says
