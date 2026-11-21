@@ -1377,7 +1377,12 @@ init at any rank count.
 
 The retirement moves no weights and deletes nothing from the pool: the pruned body
 (`vllm-project/Kimi-K3.1-Pro-pruned75`, `fc72e5a1`, 112 entries / 442.87 GiB) and the drafter
-(`LithosAI/Kimi-K3.1-Pro-DSpark`, `d791d217`) stay staged. The node-local receipts cited only by
+(`LithosAI/Kimi-K3.1-Pro-DSpark`, `d791d217`) stay staged. By the letter of the deletion rule this
+body and drafter would be prune-eligible once every reference lives in `attic/`, but on **2026-11-21**
+they are deliberately **held**, not reclaimed: the owner intends a retry
+(`vllm-project/Kimi-K3.1-Pro-pruned75` `fc72e5a1`, 112 entries / 442.87 GiB, plus
+`LithosAI/Kimi-K3.1-Pro-DSpark` `d791d217`) "when the cluster has enough resources to fit it easily",
+so a later cache sweep must treat them as in use. The node-local receipts cited only by
 these arms — `head:~/benchmarks/tp4-20261111/kimi-six/`,
 `head:~/benchmarks/fit-kimi-eager-20261110/`,
 `head:~/benchmarks/h2h-20261107/kimi-k3.1-pro-pruned75-mxfp4-vllm-tp4/` and its `-dspark-` sibling —
