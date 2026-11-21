@@ -4038,4 +4038,21 @@ node without credentials can pull it. Then restore with
 names `sglang-main-arm64:6563312` any more, so a prune pass on `.35` may delete it. Accepted: it is
 28.9 GB of image no recipe can reach.
 
+## Image trap: dsv41-sm121-dg:0.2.1 cannot produce a ladder cell (2026-11-21)
+
+Image `dsv41-sm121-dg:0.2.1` (`sha256:85c1ffc3…9195dc7`, `recipes/ds4/README.md:1315`) cannot run
+the SM121 survey ladder: llama-benchy's first warm-up request takes the adapter's `AcceptSampling`
+top-k branch and `/opt/dsv41/adapter/block_verify.py:106` calls
+`dflash_utils.build_dflash_verify_target_probs`, which the pinned SGLang spells
+`build_speculative_verify_target_probs`, so the scheduler dies with
+`AttributeError: module sglang.srt.speculative.dflash_utils has no attribute build_dflash_verify_target_probs`.
+No ladder cell exists for any arm on this tag — the only measurements it can yield are boot cells and
+long-context cells (`tools/longctx-cell.py` at 128K, C5/C10, on the same ready-gated boot). If the arm
+is ever revived, the fix is a one-symbol alias in the overlay adapter's startup shim
+(`recipes/ds4/mods/dsv41-sglang-overlay/launcher.py`): after the engine module imports, set
+`dflash_utils.build_dflash_verify_target_probs = dflash_utils.build_speculative_verify_target_probs`
+when the old name is absent (guarded by `hasattr`). The crash text is preserved at
+`zz-ds4-1017-sm121-arm3-control/ladder-crash.txt` and in the `mad-science/queue.json` row
+`sm121-ladder-acceptsampling-dflash`.
+
 
