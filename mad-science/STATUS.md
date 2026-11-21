@@ -1,4 +1,4 @@
-# Board — generated 2026-11-21 16:51 ET
+# Board — generated 2026-11-21 17:15 ET
 
 ## In flight
 | where | owner | what |
@@ -696,3 +696,4 @@ flowchart LR
 | 16:01 | board measurement | head clone syncthing lag, healed inside the tick: at `2026-11-21T21:14:58Z` the head's clone read `HEAD` = `942241ce` with `fatal: bad object HEAD` (ref before object) while its worktree `mad-science/STATUS.md` sha256 `cb41ba59…` was the published base; by `21:30Z` it resolves `c46eae77` = `origin/main`, so no session on the head needed a `git fetch` this cycle |
 | 16:12 | `942241ce` | Scope the `.30`-exclusion close note's live proof to the lease path: placement is covered by the offline `test_plan.py` cases, and the six-rank arm that would have exercised it live is retired |
 | 16:25 | `c46eae77` | Record the swept Sage hunk in `942241ce` and withdraw its "unsplittable" claim: `47260e07`, `a45e4aba`, `6e466ed7` and `e610b203` each landed `queue.json` at one hunk through a throwaway index |
+| 17:15 | board correction | the `16:01 ET` measurement row's "pool and the six roots moved in opposite directions by nearly the same amount" pairing is withdrawn for this interval: `.30`'s own fall (250,970,112 B) is its trace log on the same filesystem — `~/.cache/sparkrun/traces/2026/11/21/saved-traces.jsonl` grew **+218,397,726 B** over the 3,612 s from the base's trace read (`20:10:09Z`) to the census read (`21:10:21Z`), 60,464 B/s, which at that rate covers **245,606,745 B** (**97.9 %**) of the root's 4,062 s fall — so the other five roots net only **-49,172,480 B** (`.31` +44,797,952 · `.32` -23,539,712 · `.33` -23,535,616 · `.34` -23,552,000 · `.35` -23,343,104) against a pool rise of **+299,892,736 B**, and the two sides do not cancel once `.30` is excluded; the pool-side mover stays **unidentified**. The same row's 99.53 % figure compared the file's 3,889 s growth to the root's 4,062 s fall — mismatched intervals; the same-instant ratio is **97.9 %** |
