@@ -1836,6 +1836,20 @@ the same way once the quality suite ran (2026-11-20, task `…_b6b6871fabd8`). B
 `gpu_memory_utilization: 0.75` (~30 GiB of host headroom); the depth cells below were taken at that
 setting.
 
+**Third pass, 2026-11-20 (thread t1) — the four quality cells, on the DFlash2 arm.** Receipt
+`head:~/benchmarks/tp2-depth-20261120/ripple-dflash2-tp1/`. Task `ed290cbd6792ca7c_5bc279bf1e88` at the new
+default 0.75 held **23 GiB available (19 %)** through the whole suite. **GSM8K 94.0 % (188/200)**,
+**ARC 94.0 % (188/200)**, **BFCL 91.2 % (114/125)**, **TEB 100 (15/15, 0 partial, 326 s)**. The hard tier is
+the lane's own instrument (`recipes/ds4/benchmarks/run_benchmarks.py`, n=200, seed 1234, thinking off): 0
+errors on both benches, 6 empty replies each, `finish=length` 7 (GSM8K) and 6 (ARC) — the same truncation
+class the tool documents, not a miss. BFCL is a **reduced shape**: `tools/bfcl-eval.py --limit 25` over the
+five v3 categories (125 questions, `--max-tokens 4096`), because the full 1240-question run costs ~2 min per
+question on this arm; per category simple 23/25, multiple 21/25, parallel 23/25, parallel_multiple 24/25,
+irrelevance 23/25. TEB is the standard 15-scenario profile against the same boot
+(`sparkrun benchmark tools --profile benchmarking/standard-suite.yaml --skip-run`). The plain NVFP4 twin
+still has **no quality cells**: its 0.90 boot died to earlyoom (above), and its TP=1 plain decode runs ~2.6×
+the drafter arm's, so the full shape does not fit one pass — a re-run at the new 0.75 default is queued.
+
 The nine `rc=9` attempts each NVFP4 arm made at 02:51–02:52 ET are the recorded evidence for a dead
 `.35` sparkrun daemon — `daemon-preflight.txt` reads `false`, the executor's inactive-daemon refusal
 — and are superseded by these runs; they are not measurements.
@@ -2094,6 +2108,16 @@ Ladder (5 runs/cell, depth 0, pp 2048 / tg 128): c1 **1232.7 / 22.6**, c2 **1292
 round trip returned `get_weather {"city":"Berlin"}` with 57 completion tokens (41 reasoning) in 2.14 s.
 Lease `session:t34-hy4-pair:zz-hy4-flash-220b-nvfp4-tp2-vllm:1795203993` was taken for the pair and
 released after teardown; 0 containers on both nodes after.
+
+**Third pass, 2026-11-20 (thread t1) — the needle at the served window.** Receipt
+`head:~/benchmarks/tp2-depth-20261120/hy4-nvfp4-tp2/`. Task `261430353ba2889a_267940f87e81` (node_0 `.30`,
+node_1 `.35`), ready 7 m 24 s after launch on warm autotune caches, `tencent/Hy4-flash` at
+`max_model_len` 262,144; the pair lease `session:t1-depth:…:1795221101` was held across the boot and released
+after teardown. `tools/needle-haystack.py --context-length 262144 --depths 10,50,100 --max-tokens 1024` reads
+**3/3 PASS** — depth 10 % at 256,659 prompt tokens in 246.2 s, 50 % at 256,577 in 221.1 s, 100 % at 257,002 in
+302.0 s, 14 m 30 s wall. The 1024-token completion budget is 16× the tool's 64-token default, which is what
+keeps a thinking arm from spending the budget inside the think block; the watchdog held `unprobeable=0` with
+`mem_avail` 13.3–13.8 % against earlyoom's 4 % line throughout. This is the last unmeasured cell on the arm.
 
 ## [zz-inkling-2-small-nvfp4-thinking-tools-tp4-vllm](zz-inkling-2-small-nvfp4-thinking-tools-tp4-vllm.yaml)
 
