@@ -2053,7 +2053,7 @@ MM_END = "# metadata-map: end"
 
 SSH_STUB = """#!/usr/bin/env bash
 host="${@: -2:1}"; host="${host#red@}"; cmd="${@: -1}"
-[ -f "$NODES/$host.on" ] || { echo "ssh: connect to host $host: Connection refused" >&2; exit 255; }
+[ -f "$NODES/$host.on" ] && [ ! -f "$NODES/$host.off" ] || { echo "ssh: connect to host $host: Connection refused" >&2; exit 255; }
 DP_HOST="$host" PATH="$BINS:$PATH" bash -c "$cmd"
 """
 
@@ -2148,6 +2148,18 @@ NODE_PYTHON_STUB = """#!/usr/bin/env bash
 exit "$(sed -n 1p "$NODES/${DP_HOST:-?}.port" 2>/dev/null || echo 0)"
 """
 
+# Fixture lines for a node's `df -h /mnt/beegfs`: <exit code>, then the line `df` prints. No
+# fixture is a mount that answers nothing (a stale mount under `timeout`), which the probe records
+# as `DF=timeout` and never as a verdict.
+NODE_DF_STUB = """#!/usr/bin/env bash
+f="$NODES/${DP_HOST:-?}.df"
+[ -f "$f" ] || exit 1
+ex=$(sed -n 1p "$f")
+[ "${ex:-0}" -ne 0 ] && exit "$ex"
+sed -n '2,$p' "$f"
+exit 0
+"""
+
 # A host's earlyoom journal: <exit code> on line 1, then the lines the unit wrote. No fixture is
 # an unreadable journal (journalctl failed), which is the `unknown` case, never "no line".
 NODE_JOURNALCTL_STUB = """#!/usr/bin/env bash
@@ -2209,7 +2221,8 @@ class ExecutedBlock(unittest.TestCase):
                                ("sparkrun", NODE_SPARKRUN_STUB), ("ls", NODE_LS_STUB),
                                ("systemctl", NODE_SYSTEMCTL_STUB), ("mount", NODE_MOUNT_STUB),
                                ("journalctl", NODE_JOURNALCTL_STUB),
-                               ("ip", NODE_IP_STUB), ("python3", NODE_PYTHON_STUB)):
+                               ("ip", NODE_IP_STUB), ("python3", NODE_PYTHON_STUB),
+                               ("df", NODE_DF_STUB)):
                 stub_path = bins / name
                 stub_path.write_text(stub)
                 stub_path.chmod(0o755)
@@ -2643,14 +2656,38 @@ class PoolGate(ExecutedBlock):
                    "rank1.test.port": PORT_OK})
         self.assertEqual(rc, 11, out)
         self.assertIn("rank1.test", out)
-        self.assertIn("head.test role=mgmtd units=", files["pool-preflight.txt"])
+        self.assertIn("head.test ts=", files["pool-preflight.txt"])
+        self.assertIn("role=mgmtd units=", files["pool-preflight.txt"])
 
     def test_the_verdict_is_not_a_df(self):
-        """`df`/`ls` are client-connectivity probes; the verdict must come from units and ports."""
+        """`DF` is evidence, not a verdict: a stale mount that answers nothing is recorded as
+        `DF=timeout`, and the row still reads pool-ready from its units and ports."""
         block = self.block()
         self.assertIn("systemctl is-active", block, "the server side is not consulted")
         self.assertIn("socket.create_connection", block, "no listening-port check")
-        self.assertNotIn("df ", block, "a df was read as a verdict")
+        self.assertIn("DF=", block, "the df evidence the row names is not recorded")
+        rc, out, files, _ = self.run_pool(POOL_PRESENT, files={"head.test.df": "124\n"})
+        self.assertEqual(rc, 0, out)  # a hung df decided the verdict
+        self.assertIn("NEXT", out)
+        pool = files["pool-preflight.txt"]
+        self.assertIn("DF=timeout", pool)
+        self.assertIn("status=pool-ready", pool)
+        self.assertIn(" ts=", pool, "the row carries no timestamp")
+
+    def test_an_unreadable_probe_refuses_at_11_naming_probe_unreadable(self):
+        """An ssh failure is not a pool fault, and it must not read as one either."""
+        rc, out, files, _ = self.run_pool(
+            POOL_PRESENT, hosts=("head.test", "ghost.test"),
+            files={"ghost.test.off": ""})
+        self.assertEqual(rc, 11, out)
+        self.assertIn("probe unreadable", out)
+        self.assertIn("ghost.test", out)
+        self.assertIn("status=pool-unhealthy", files["pool-preflight.txt"])
+        self.assertIn("detail=probe-unreadable", files["pool-preflight.txt"])
+        self.assertIn("status=pool-unhealthy path=/fake/pool/huggingface",
+                      files["model-preflight.txt"])
+        self.assertIn("detail=probe-unreadable", files["model-preflight.txt"])
+        self.assertNotIn("NEXT", out)
 
     def test_negative_control_without_the_block_a_missing_snapshot_proceeds(self):
         self.assertIn(MP_START, read_tool(), "the gate is gone; this control would be vacuous")

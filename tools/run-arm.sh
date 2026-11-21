@@ -303,7 +303,7 @@ POOL_POLL=${ARM_POOL_POLL:-10}
 printf '# hub=%s model=%s revision=%s path=%s wait=%ss driver=%s view=host\n' \
   "${MP_HUB:--}" "${MP_MODEL:--}" "${MP_REV:--}" "${MP_PATH:--}" "$POOL_WAIT" "$MP_DRIVER" \
   > "$L/model-preflight.txt"
-printf '# wait=%ss view=host\n' "$POOL_WAIT" > "$L/pool-preflight.txt"
+printf '# ts wait=%ss role units ports DF status detail view=host\n' "$POOL_WAIT" > "$L/pool-preflight.txt"
 # A cluster-less host cannot name the cache root, and reporting that as "the model path could not
 # be resolved" sends the reader hunting staging instead of a missing definition. A launch always
 # names `--cluster WOPR` and never falls back to an anonymous cluster -- that would fan the weights
@@ -331,6 +331,11 @@ for hn in $(echo "$HOSTS" | tr ',' ' '); do
   mp_out=$(ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
              "MP='$MP_PATH' WAIT='$POOL_WAIT' POLL='$POOL_POLL' sh -s" 2>/dev/null <<'PROBE'
 units= fault=
+# Evidence only, never a verdict: a stale mount makes `df` hang (timeout 10 -> 124), so an empty
+# answer is recorded as `DF=timeout` and the units/ports below still decide.
+TS=$(date -u +%FT%TZ)
+DF=$(timeout 10 df -h /mnt/beegfs 2>/dev/null | tail -1 | awk '{print $3"/"$2}')
+[ -n "$DF" ] || DF=timeout
 # The mount names its server (`sysMgmtdHost`); the host does not. So the mgmtd/meta requirement
 # is derived by asking whether this host owns that address -- moving the mgmtd to another node
 # re-hosts the requirement instead of leaving the gate green everywhere. `beegfs-meta=failed`
@@ -370,10 +375,12 @@ socket.create_connection(("127.0.0.1", 8003), 2).close()' 2>/dev/null; then
       sport=closed; fault="$fault,storage-port"
     fi ;;
 esac
+echo "TS=$TS"
 echo "ROLE=$role"
 echo "UNITS=$units"
 echo "PORTS=mgmtd=$mport storage=$sport"
-if [ -n "$fault" ]; then echo "POOL=pool-unhealthy"; echo "DETAIL=$fault"; exit 0; fi
+echo "DF=$DF"
+if [ -n "$fault" ]; then echo "POOL=pool-unhealthy"; echo "DETAIL=${fault#,}"; exit 0; fi
 deadline=$(( $(date +%s) + WAIT ))
 while :; do
   out=$(timeout 10 ls -A "$MP" 2>&1); rc=$?
@@ -392,15 +399,18 @@ PROBE
   mp_role=$(printf '%s\n' "$mp_out" | sed -n 's/^ROLE=//p' | head -1)
   mp_units=$(printf '%s\n' "$mp_out" | sed -n 's/^UNITS=//p' | head -1)
   mp_ports=$(printf '%s\n' "$mp_out" | sed -n 's/^PORTS=//p' | head -1)
+  mp_ts=$(printf '%s\n' "$mp_out" | sed -n 's/^TS=//p' | head -1)
+  mp_df=$(printf '%s\n' "$mp_out" | sed -n 's/^DF=//p' | head -1)
   mp_detail=$(printf '%s\n' "$mp_out" | sed -n 's/^DETAIL=//p' | head -1)
   mp_kind=$(printf '%s\n' "$mp_out" | sed -n 's/^POOL=//p' | head -1)
   case "${mp_kind%%:*}" in
     entries) mp_status=pool-ready ;;
+    "") mp_status=pool-unhealthy mp_detail=probe-unreadable ;;
     *) mp_status=${mp_kind%%:*} ;;
   esac
-  printf '%s role=%s units=%s ports=%s status=%s detail=%s view=host\n' "$hn" \
-    "${mp_role:-unknown}" "${mp_units:-unknown}" "${mp_ports:-unknown}" "${mp_status:-unknown}" \
-    "${mp_detail:--}" >> "$L/pool-preflight.txt"
+  printf '%s ts=%s role=%s units=%s ports=%s DF=%s status=%s detail=%s view=host\n' "$hn" \
+    "${mp_ts:-unknown}" "${mp_role:-unknown}" "${mp_units:-unknown}" "${mp_ports:-unknown}" \
+    "${mp_df:-timeout}" "${mp_status:-unknown}" "${mp_detail:--}" >> "$L/pool-preflight.txt"
   case "$mp_kind" in
     entries:0) printf '%s status=empty path=%s entries=0 view=host\n' "$hn" "$MP_PATH" \
                  >> "$L/model-preflight.txt"; MP_MISS+=("$hn (entries=0)") ;;

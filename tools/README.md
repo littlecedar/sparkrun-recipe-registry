@@ -143,7 +143,10 @@ with the verdict. The campaign receipt carries the same verdict, read from the a
 death is attributable without opening `launch.log`. The gate's first production green on the pooling path
 was taken on the healthy fleet revision: `.30` reads `role=mgmtd` with all three units active,
 `.31`–`.35` read `role=client units=…-no-role … storage=active`, and every host verdict is
-`pool-ready` (2026-11-08, receipt in `.scratch/pool-preflight-live-2026-11-08.txt`).
+`pool-ready` (2026-11-08, receipt in `.scratch/pool-preflight-live-2026-11-08.txt`). Each row
+carries `ts=` (UTC probe time) and `DF=` (used/size from `df -h /mnt/beegfs`); `DF` is evidence
+only — a stale mount hangs, so `timeout 10` records `DF=timeout` and the units and ports still
+decide the verdict.
 
 An embed/rerank arm takes no chat suite, so `run-arm.sh` gives it a deliberately different receipt
 from every other arm, and a consumer deciding whether the arm is finished has to read it by that
