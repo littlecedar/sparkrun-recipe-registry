@@ -1849,8 +1849,14 @@ five v3 categories (125 questions, `--max-tokens 4096`), because the full 1240-q
 question on this arm; per category simple 23/25, multiple 21/25, parallel 23/25, parallel_multiple 24/25,
 irrelevance 23/25. TEB is the standard 15-scenario profile against the same boot
 (`sparkrun benchmark tools --profile benchmarking/standard-suite.yaml --skip-run`). The plain NVFP4 twin
-still has **no quality cells**: its 0.90 boot died to earlyoom (above), and its TP=1 plain decode runs ~2.6×
-the drafter arm's, so the full shape does not fit one pass — a re-run at the new 0.75 default is queued.
+ran the same TEB profile at its own 0.78 boot (task `ed290cbd6792ca7c_3678f27a9eb1`, receipt
+`head:~/benchmarks/tp2-depth-20261120/ripple-nvfp4-tp1/`): **TEB 100 (15/15, 0 partial, 1106 s)** against
+the drafter's 326 s, and **no hard tier** — GSM8K/ARC run at 90–120 s per case here, so n=200 is a 6–7 h
+run and even n=50 passed 100 min before it was stopped; BFCL would be ~2–3× the twin's 27 min for 125
+questions. The partial attempts stay in the receipt as evidence (`suite-078-n100-partial/`, `suite-078/hard-gsm8k.log`),
+not as results. 0.75 cannot serve this arm at all — vLLM grants 33.09 GiB of KV where 524,288 tokens need
+33.27 and refuses to start — so its default is 0.78, which grants 39.62 GiB and leaves 18 GiB of host
+memory free at ready.
 
 The nine `rc=9` attempts each NVFP4 arm made at 02:51–02:52 ET are the recorded evidence for a dead
 `.35` sparkrun daemon — `daemon-preflight.txt` reads `false`, the executor's inactive-daemon refusal
