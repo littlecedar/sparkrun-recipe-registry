@@ -62,6 +62,12 @@ run() {
   "$@"
 }
 
+# The package is not installed into the venv; `-m sparkrun_campaign` only resolves with the
+# project on sys.path, so the director must run from there. The subshell keeps the caller's cwd.
+run_uv() {
+  ( cd "$project" && run uv run --project . --frozen python -B -m sparkrun_campaign.director "$@" )
+}
+
 need_uv() {
   if ! command -v uv >/dev/null 2>&1; then
     echo "campaign: uv is not on PATH; the director runs under uv run --project $project" >&2
@@ -87,19 +93,16 @@ case "$cmd" in
   status)
     check_root
     need_uv
-    run uv run --project "$project" --frozen python -B -m sparkrun_campaign.director \
-      status --root "$root" "$@"
+    run_uv status --root "$root" "$@"
     ;;
   leases)
     need_uv
-    run uv run --project "$project" --frozen python -B -m sparkrun_campaign.director \
-      lease --list --repo-root "$repo" "$@"
+    run_uv lease --list --repo-root "$repo" "$@"
     ;;
   plan)
     check_hosts
     need_uv
-    run uv run --project "$project" --frozen python -B -m sparkrun_campaign.director \
-      plan --hosts "$hosts" --repo-root "$repo" "$@"
+    run_uv plan --hosts "$hosts" --repo-root "$repo" "$@"
     ;;
   log)
     run journalctl --user -u sparkrun-campaign.service -f "$@"

@@ -16,11 +16,12 @@ from pathlib import Path
 
 WRAPPER = Path(__file__).resolve().parents[1] / "bin" / "campaign"
 CAMPAIGN = WRAPPER.parents[1]
-DIRECTOR = ["run", "--project", str(CAMPAIGN), "--frozen", "python", "-B", "-m",
+DIRECTOR = ["run", "--project", ".", "--frozen", "python", "-B", "-m",
             "sparkrun_campaign.director"]
-# /bin/sh is dash on CI: no bashisms in the stub.
+# /bin/sh is dash on CI: no bashisms in the stub. The first line is the directory uv ran in.
 STUB_UV = """#!/bin/sh
-printf '%s\\n' "$@" > "$UV_LOG"
+printf 'PWD=%s\\n' "$(pwd)" > "$UV_LOG"
+printf '%s\\n' "$@" >> "$UV_LOG"
 """
 
 
@@ -52,8 +53,13 @@ class WrapperCase(unittest.TestCase):
         environ.update(env)
         return subprocess.run([str(WRAPPER), *args], env=environ, capture_output=True, text=True)
 
+    def _pwd(self) -> str:
+        first = self.log.read_text().splitlines()[0]
+        self.assertTrue(first.startswith("PWD="), first)
+        return first.removeprefix("PWD=")
+
     def _argv(self) -> list[str]:
-        return self.log.read_text().splitlines()
+        return self.log.read_text().splitlines()[1:]
 
     def _state(self, root: Path) -> Path:
         root.mkdir(parents=True, exist_ok=True)
@@ -65,6 +71,7 @@ class WrapperCase(unittest.TestCase):
         result = self._run("status")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self._argv(), DIRECTOR + ["status", "--root", str(root)])
+        self.assertEqual(self._pwd(), str(CAMPAIGN))
 
     def test_status_is_the_default_with_no_subcommand(self) -> None:
         root = self._state(self.tmp / "elsewhere")
@@ -84,6 +91,7 @@ class WrapperCase(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self._argv(),
                          DIRECTOR + ["lease", "--list", "--repo-root", str(self.repo)])
+        self.assertEqual(self._pwd(), str(CAMPAIGN))
 
     def test_plan_reads_the_hosts_from_the_env_file(self) -> None:
         self._env_file("CAMPAIGN_HOSTS=alpha,beta\n")
@@ -93,6 +101,7 @@ class WrapperCase(unittest.TestCase):
             "plan", "--hosts", "alpha,beta", "--repo-root", str(self.repo),
             "--manifest", "/tmp/manifest.json",
         ])
+        self.assertEqual(self._pwd(), str(CAMPAIGN))
 
     def test_plan_passes_an_override_and_extra_args_through(self) -> None:
         result = self._run("plan", "--manifest", "/tmp/m.json", "--exclude-host", ".30",
@@ -109,6 +118,17 @@ class WrapperCase(unittest.TestCase):
         self.assertIn("CAMPAIGN_HOSTS", result.stderr)
         self.assertIn(str(self.env_file), result.stderr)
         self.assertFalse(self.log.exists())
+
+    def test_the_real_uv_finds_the_director_module_from_the_project(self) -> None:
+        # The venv does not install the package: only the project cwd puts it on sys.path.
+        if shutil.which("uv") is None:
+            self.skipTest("uv is not on PATH")
+        result = subprocess.run(
+            ["uv", "run", "--project", ".", "--frozen", "python", "-B", "-m",
+             "sparkrun_campaign.director", "--help"],
+            cwd=CAMPAIGN, capture_output=True, text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_help_lists_the_subcommands_and_overrides(self) -> None:
         result = self._run("--help")
