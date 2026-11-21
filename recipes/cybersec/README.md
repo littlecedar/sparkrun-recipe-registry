@@ -23,6 +23,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
 - [deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang](#deepseek-v41-flash-abliterated-cyber-tp2-tensorfold-sglang)
 - [orcacyber-nano-1.0-15.7g-gguf-llamacpp](#orcacyber-nano-10-157g-gguf-llamacpp)
 - [orcacyber-nano-1.0-13g-gguf-llamacpp](#orcacyber-nano-10-13g-gguf-llamacpp)
+- [orcacyber-nano-1.0-15.7g-dflash2-llamacpp](#orcacyber-nano-10-157g-dflash2-llamacpp)
 - [zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang](#zz-devsecllm-ornith-15-122b-nvfp4-ablated-dflash2-sglang)
 - [Attic index](#attic-index)
 
@@ -581,6 +582,53 @@ default except the `model:` tier suffix and the `model_dtype` estimator key is i
   mode-dependent, not tier-dependent; refusal probe **0/4 refusals**; vision **2/2 exact** (3 and 7
   circles). The 13G control matches the 15.7G default on every quality leg measured so far
   (`~/benchmarks/tp2-queue-20261024/{battery-13g-{on,off}.json, vision-refusal-{13g,157}.json}`).
+
+## `orcacyber-nano-1.0-15.7g-dflash2-llamacpp`
+
+**Arm 8 — POSITIVE (TP=1).** The 15.7G body with the vendor's **external** 1.9B DFlash2 Q8_0
+drafter in place of the checkpoint's in-file MTP head. Shipped 2026-11-21 on a measured bar
+(C1 > 29 t/s with quality unchanged); it does not replace either sibling — the MTP arm stays the
+default, this one is the faster single-stream shape of the same checkpoint.
+
+- Model: [orcarouter/OrcaCyber-Nano-1.0] `:Mix-15.7G` (15,695,148,832 B) **plus**
+  `OrcaCyber-Nano-1.0-AI-Defense-DFlash2-Q8_0.gguf` — 2,056,414,112 B, sha256 `1336ac75…`,
+  `general.architecture = dflash`, 81 tensors, block size 8, `selector_top_k 16` (the DFlash2
+  lattice path), published in the same repo at revision `97140f3ff7e2`. It is **not** a quant of
+  the model: the 15.7G and 13G bodies are byte-identical across the two revisions, so no re-pin of
+  either sibling is implied.
+- Runtime llama-cpp on the same `upstream-a37cc46-cu130@sha256:ef2d4bc8…` pin, with
+  `-md <drafter> --spec-type draft-dflash --spec-draft-n-max 7` (block size 8 minus the anchor;
+  the engine clamps above it). The drafter path is hardcoded to the pool snapshot because
+  sparkrun's llama-cpp runtime resolves only `mmproj` into a container path — `sparkrun recipe
+  validate` flags it as a `restated-managed-path` suggestion, not a rule.
+- **Why it loads at all (the falsifier).** The drafter reads per-layer target hidden states
+  (`llama_get_embeddings_layer_inp` at its 5 `dflash.target_layers` ids) and `speculative.cpp`
+  hard-aborts with `DFlash: target layer %d input not extracted.` when the target graph does not
+  record them. This body does (`src/models/qwen35.cpp`: `res->t_layer_inp[il] = inpL`), and the
+  serve log proves the pairing: `adding speculative implementation 'draft-dflash'`,
+  `n_extract=5, sample_from_anchor=true`, then real drafts. Receipt
+  `~/benchmarks/orcacyber-dflash-20261120/falsifier.log`.
+- **Paired C1 (2026-11-21, `.35`, same window, same instrument, `--skip-run` against the live
+  serve, d0 pp 2048 tg 128, n=5).** Drafter on: **29.33 ± 1.79** (boot 1) and **33.06 ± 7.35**
+  (boot 2), full ladder on boot 2 **C1 31.18 ± 3.82 · C2 40.98 ± 4.19 · C5 35.62 ± 3.33 ·
+  C10 31.00 ± 0.68**. Control, the shipped MTP arm booted in the same window: **25.30 ± 1.14**.
+  So the gain is **+16 to +23 % at C1 only** — C2/C5/C10 land on the MTP arm's recorded band
+  (40.1 / 36.2 / 32.9) and the shape is the same: peak at C2, queue past it. Draft acceptance on
+  the recorded decode lines reads **0.21–0.47, mean len 2.50–4.29**, against the MTP head's
+  0.40–0.86 / 2.19–3.57 — a lower hit rate that still wins, because 7 draft tokens per step beat 3.
+- **Quality / refusal / vision cells (same boot as boot 1's C1).** House battery thinking-on
+  **37/37** (19/19 easy + 18/18 hard, stable); refusal probe **0/4** (two replies truncated-empty at
+  the 2,048-token cap, the same shape the MTP arm shows); vision **2/2 exact** (3 and 7 circles,
+  `finish=stop`). No cell differs from the MTP arm — which is the expected result, since
+  speculative decode is verification-correct: a delta here would have been an accept-path defect,
+  not a quality finding.
+- **Boot shape.** TTR 47.3 s on boot 1 and ~19 s on boot 2 (warm pool reads, `no transfer` on the
+  image pin); `n_slots = 4, n_ctx_slot = 32768, kv_unified = 'true'`; container footprint
+  11.16 GiB. Watchdog armed before the readiness poll on every boot, `unprobeable=0`, exit 0.
+  Instrument note: `/v1/models` answered 200 ~20 s **before** the serve log's `model loaded` on the
+  control boot, so a readiness gate here must be the log line or a decode, never the status code.
+- **Receipt:** `~/benchmarks/orcacyber-dflash-20261120/` (falsifier log, per-boot ladders,
+  battery, vision/refusal JSON, watchdog logs); queue row `hf-cache-20261110-orcacyber-new-quant`.
 
 ## `zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang`
 

@@ -26,6 +26,7 @@ sparkrun work; the *policy* is not — see §1.
   - [Arms 3 and 4 — the card-documented vLLM routes (2026-10-15)](#arms-3-and-4--the-card-documented-vllm-routes-2026-10-15)
   - [Arm 5 — deepseek-v4.1-flash-abliterated-cyber-tp2-tensorfold-sglang — POSITIVE (TP=2)](#arm-5--deepseek-v41-flash-abliterated-cyber-tp2-tensorfold-sglang--positive-tp2)
   - [Arm 6 — orcacyber-nano-1.0-15.7g-gguf-llamacpp — POSITIVE (TP=1)](#arm-6--orcacyber-nano-10-157g-gguf-llamacpp--positive-tp1)
+  - [Arm 8 — orcacyber-nano-1.0-15.7g-dflash2-llamacpp — POSITIVE (TP=1)](#arm-8--orcacyber-nano-10-157g-dflash2-llamacpp--positive-tp1)
 - [Recipe comment archive (2026-10-14)](#recipe-comment-archive-2026-10-14)
   - [qwen3.8-27b-uncensored-nvfp4-sglang.yaml](#qwen38-27b-uncensored-nvfp4-sglangyaml)
   - [qwen3.8-27b-ablit-cyber-unlock-nvfp4-dflash2-sglang.yaml](#qwen38-27b-ablit-cyber-unlock-nvfp4-dflash2-sglangyaml)
@@ -602,6 +603,56 @@ pack named there when the served dir has none (commit `1dd1ece`).
   quality battery, and any vision request (`multimodal` is the server's capability advertisement).
   Receipt `~/benchmarks/orcacyber-nano-20261022/` (`serve.log`, `ladder.yaml`/`.json`/`.csv`,
   `ttr.txt`).
+
+### Arm 8 — `orcacyber-nano-1.0-15.7g-dflash2-llamacpp` — POSITIVE (TP=1)
+
+The same 15.7G body with the vendor's **external** 1.9B DFlash2 Q8_0 drafter instead of the in-file
+MTP head. Shipped 2026-11-21 on a pre-registered bar (C1 > 29 t/s, quality unchanged) after a
+one-command load falsifier; the row `hf-cache-20261110-orcacyber-new-quant` closed on it.
+
+- **Falsifier first, recipe second.** `llama-server -m <15.7G> -md <DFlash2-Q8_0> --spec-type
+  draft-dflash --spec-draft-n-max 7` in the pinned image, one detached container on `.35`, pool at
+  `/cache`: verdict **HEALTHY** — `adding speculative implementation 'draft-dflash'`,
+  `n_max=7, n_min=0, p_min=0.00`, `block_size=8, mask_token_id=248070, n_extract=5,
+  sample_from_anchor=true`, `model loaded`, then a `/completion` decoding 48 tokens at 30.5 t/s with
+  `draft_n=76, draft_n_accepted=35`. The abort the plan expected
+  (`DFlash: target layer %d input not extracted.`) never fired: `src/models/qwen35.cpp` records
+  `res->t_layer_inp[il] = inpL` for every trunk layer, so all 5 target layers are extractable.
+  Log `~/benchmarks/orcacyber-dflash-20261120/falsifier.log` (the one `E` line, `dflash requires
+  ctx_other to be set`, is the memory-fit probe and normal).
+- **Boots (`.35`, one node, 0 containers before and after each).** Boot 1 task
+  `f5f1433d7dd0b74e_432d53da6120` (TTR 47.3 s, watchdog armed before the readiness poll, exit 0);
+  boot 2 `f5f1433d7dd0b74e_6e6a08886fbd` (~19 s, watchdog `t=1s loading → t=23s healthy`,
+  `unprobeable=0`); control `f5f1433d7dd0b74e_21bfd140f205` (the shipped MTP arm, `model loaded` at
+  39.3 s). `GET /v1/models` → `orcarouter/OrcaCyber-Nano-1.0`, `n_ctx 32768`,
+  `n_params 27320697856`; serve log `n_slots = 4, n_ctx_slot = 32768, kv_unified = 'true'`;
+  container footprint 11.16 GiB.
+- **Paired C1 (d0 pp 2048 tg 128, n=5, `benchmarking/concurrency-ladder.yaml`, `--skip-run`).**
+  Drafter on: **29.33 ± 1.79** (28.29 / 27.91 / 32.72 / 29.54 / 28.19, boot 1) and **33.06 ± 7.35**
+  (31.94 / 40.56 / 27.68 / 22.99 / 42.11, boot 2). Control, same window: **25.30 ± 1.14** (26.0 /
+  25.36 / 26.55 / 23.2 / 25.4) — the shipped arm's recorded 25.4 ± 3.5 reproduced, so the pair is
+  clean. **Bar arithmetic: 29.33 > 29 and 33.06 > 29; +15.9 % / +30.7 % over the paired control**;
+  boot 1 is the tight cell at +0.33 over the bar.
+- **Full ladder (boot 2, `benchmarking/concurrency-ladder.yaml`, four rungs).** **C1 31.18 ± 3.82 ·
+  C2 40.98 ± 4.19 · C5 35.62 ± 3.33 · C10 31.00 ± 0.68**; prefill 749.4 / 719.0 / 466.3 / 433.0;
+  ttfr 2,528 / 4,972 / 11,750 / 22,353 ms. Against the MTP arm's recorded 25.4 / 40.1 / 36.2 / 32.9
+  the whole gain is at C1 — C2-C10 are the same band, same shape (peak at C2, queue past it).
+- **Quality / refusal / vision (same boot as boot 1's C1).** House thinking-on **37/37** (19/19 easy
+  + 18/18 hard, stable); refusal probe **0/4** (two replies truncated-empty at the 2,048-token cap —
+  the same shape arm 6 shows); vision **2/2 exact** (3 and 7 circles, `finish=stop`). Identical to
+  the MTP arm, which is the expected result: speculative decode is verification-correct, so a
+  quality delta would have been an accept-path defect, not a finding.
+- **Draft counters (boot 1 decode lines).** `draft acceptance 0.21–0.47, mean len 2.50–4.29` against
+  the MTP head's 0.40–0.86 / 2.19–3.57: a lower hit rate that still wins, because 7 draft tokens per
+  step beat 3.
+- **Instrument note.** On the control boot `/v1/models` answered 200 ~20 s **before** the serve
+  log's `model loaded`, so a readiness gate on this build must be the log line or a decode, never
+  the status code. Every measurement here was gated on `listening on` / `model loaded`.
+- **One unmeasured lever:** `p_min` (the confidence-head gate) was left at 0 — the card's line does
+  not set it, and the arm already clears its bar without it.
+- Receipt `~/benchmarks/orcacyber-dflash-20261120/`: `falsifier.log`, `serve.log`,
+  `completion.json`, `ladder-c1{,-boot2}.{yaml,json,csv}`, `ladder-full.*`, `ladder-control-c1.*`,
+  `battery-dflash.{json,log}`, `vision-refusal-dflash.json`, `watchdog-*.log`, `launch*.log`.
 
 ## Recipe comment archive (2026-10-14)
 

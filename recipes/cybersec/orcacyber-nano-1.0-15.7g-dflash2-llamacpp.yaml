@@ -1,0 +1,76 @@
+recipe_version: "2"
+model: orcarouter/OrcaCyber-Nano-1.0:Mix-15.7G
+model_revision: 1af1635aa22b97e965450c2d69525761d9bd463f
+runtime: llama-cpp
+# Same engine as the two shipped OrcaCyber arms: a37cc4610 carries `qwen35`, its in-file MTP
+# graph, `qwen3vl_merger`, and the `draft-dflash` speculative impl that reads the 5 target-layer
+# inputs this 27B body records (src/models/qwen35.cpp: `res->t_layer_inp[il] = inpL`).
+container: littlecedar/dgx-spark-llama-cpp:upstream-a37cc46-cu130@sha256:ef2d4bc8983f1cfa5d097ec0c3d57e1a0214450ec7c2e2dd7bc454b5d6ca2d93
+mmproj: mmproj-OrcaCyber-Nano-1.0-AI-Defense-F16.gguf
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  OrcaCyber Nano 1.0 "AI Defense" at the vendor's 15.7G tier with the vendor's own 1.9B
+  external DFlash2 Q8_0 block-diffusion drafter (`-md`, `--spec-type draft-dflash`) as the
+  speculative path instead of the checkpoint's in-file MTP head. Same 15,695,148,832 B body,
+  same F16 vision projector, same pinned llama.cpp build as the MTP sibling; the only
+  difference is 1.92 GiB of drafter and 7 draft tokens per step. Measured on one GB10
+  against that sibling in the same window: C1 31.2 vs 25.3 t/s, identical at C2 and above,
+  and the same quality cells (house 37/37, refusal 0/4, vision 2/2).
+metadata:
+  model_url: https://huggingface.co/orcarouter/OrcaCyber-Nano-1.0
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "27.32B"
+  model_dtype: iq4_xs
+  kv_dtype: fp16
+  tags: cybersec, vision, reasoning, speculative-decode, gguf
+  caveats: >
+    Gated repo, same as the shipped tiers: each node needs an HF_TOKEN with this repo's release
+    accepted. The drafter is not a quant of the model — it is a separate 2,056,414,112 B
+    (sha256 1336ac75…) DFlash2 lattice artifact published in the same repo at revision
+    97140f3ff7e2, and its path below is hardcoded because sparkrun's llama-cpp runtime resolves
+    only `mmproj` into a container path. `spec_draft_n_max: 7` is the trained block size 8 minus
+    the anchor (the engine clamps above it).
+
+executor_config:
+  entrypoint: ""
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  served_model_name: orcarouter/OrcaCyber-Nano-1.0
+  ctx_size: 32768
+  parallel: 4
+  n_gpu_layers: 999
+  flash_attn: auto
+  reasoning_format: deepseek
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 20
+  spec_type: draft-dflash
+  spec_draft_n_max: 7
+  load_mode: none
+
+command: >
+  llama-server -hf {model}
+  --alias {served_model_name}
+  --host {host}
+  --port {port}
+  --ctx-size {ctx_size}
+  --parallel {parallel}
+  --kv-unified
+  --n-gpu-layers {n_gpu_layers}
+  --temp {temperature}
+  --top-p {top_p}
+  --top-k {top_k}
+  --flash-attn {flash_attn}
+  --reasoning-format {reasoning_format}
+  --spec-type {spec_type}
+  --spec-draft-n-max {spec_draft_n_max}
+  -md /cache/huggingface/hub/models--orcarouter--OrcaCyber-Nano-1.0/snapshots/97140f3ff7e2034feaef16e04f417f9a69619a7f/OrcaCyber-Nano-1.0-AI-Defense-DFlash2-Q8_0.gguf
+  --jinja
+  --no-webui
+  --load-mode {load_mode}
+  --cont-batching
+  --metrics
