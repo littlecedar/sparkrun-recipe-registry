@@ -608,14 +608,17 @@ default, this one is the faster single-stream shape of the same checkpoint.
   serve log proves the pairing: `adding speculative implementation 'draft-dflash'`,
   `n_extract=5, sample_from_anchor=true`, then real drafts. Receipt
   `~/benchmarks/orcacyber-dflash-20261120/falsifier.log`.
-- **Paired C1 (2026-11-21, `.35`, same window, same instrument, `--skip-run` against the live
-  serve, d0 pp 2048 tg 128, n=5).** Drafter on: **29.33 ± 1.79** (boot 1) and **33.06 ± 7.35**
-  (boot 2), full ladder on boot 2 **C1 31.18 ± 3.82 · C2 40.98 ± 4.19 · C5 35.62 ± 3.33 ·
-  C10 31.00 ± 0.68**. Control, the shipped MTP arm booted in the same window: **25.30 ± 1.14**.
-  So the gain is **+16 to +23 % at C1 only** — C2/C5/C10 land on the MTP arm's recorded band
-  (40.1 / 36.2 / 32.9) and the shape is the same: peak at C2, queue past it. Draft acceptance on
-  the recorded decode lines reads **0.21–0.47, mean len 2.50–4.29**, against the MTP head's
-  0.40–0.86 / 2.19–3.57 — a lower hit rate that still wins, because 7 draft tokens per step beat 3.
+- **Paired C1 (2026-11-21, `.35`, same window, same instrument, `--skip-run --fresh` against the
+  live serve, d0 pp 2048 tg 128, n=5).** Drafter on, four independent boots: **29.33 ± 1.79**
+  (boot 1), **33.06 ± 7.35** (boot 2), **31.18 ± 3.82** (boot 3) and **32.20 ± 5.69** (boot 4),
+  four-boot mean **31.44 ± 1.60**; full ladder on boot 2 **C1 31.18 ± 3.82 · C2 40.98 ± 4.19 ·
+  C5 35.62 ± 3.33 · C10 31.00 ± 0.68**. Control, the shipped MTP arm booted in the same window:
+  **25.30 ± 1.14**, so the bar is 25.30 × 1.15 = **29.095** — cleared by all four boots, boot 1 the
+  tightest at +0.33. So the gain is **+16 to +31 % at C1 only** (mean +24 %) — C2/C5/C10 land on
+  the MTP arm's recorded band (40.1 / 36.2 / 32.9) and the shape is the same: peak at C2, queue
+  past it. Draft acceptance on the recorded decode lines reads **0.21–0.47, mean len 2.50–4.29**,
+  against the MTP head's 0.40–0.86 / 2.19–3.57 — a lower hit rate that still wins, because 7 draft
+  tokens per step beat 3.
 - **Quality / refusal / vision cells (same boot as boot 1's C1).** House battery thinking-on
   **37/37** (19/19 easy + 18/18 hard, stable); refusal probe **0/4** (two replies truncated-empty at
   the 2,048-token cap, the same shape the MTP arm shows); vision **2/2 exact** (3 and 7 circles,
@@ -623,10 +626,14 @@ default, this one is the faster single-stream shape of the same checkpoint.
   speculative decode is verification-correct: a delta here would have been an accept-path defect,
   not a quality finding.
 - **Boot shape.** TTR 47.3 s on boot 1 and ~19 s on boot 2 (warm pool reads, `no transfer` on the
-  image pin); `n_slots = 4, n_ctx_slot = 32768, kv_unified = 'true'`; container footprint
+  image pin); boot 4 (`f5f1433d7dd0b74e_bcf888d00b64`, container `…_solo`) took 53 s, watchdog
+  healthy at t=33 s, and was stopped by literal id with `.35` back at 0 containers;
+  `n_slots = 4, n_ctx_slot = 32768, kv_unified = 'true'`; container footprint
   11.16 GiB. Watchdog armed before the readiness poll on every boot, `unprobeable=0`, exit 0.
   Instrument note: `/v1/models` answered 200 ~20 s **before** the serve log's `model loaded` on the
   control boot, so a readiness gate here must be the log line or a decode, never the status code.
+- **Launch note.** Boot it with `--cluster WOPR`: without the cluster's shared-cache profile the
+  launch dies at "prepared model is not visible through the workload mounts".
 - **Receipt:** `~/benchmarks/orcacyber-dflash-20261120/` (falsifier log, per-boot ladders,
   battery, vision/refusal JSON, watchdog logs); queue row `hf-cache-20261110-orcacyber-new-quant`.
 

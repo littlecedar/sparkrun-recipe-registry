@@ -624,15 +624,19 @@ one-command load falsifier; the row `hf-cache-20261110-orcacyber-new-quant` clos
   `f5f1433d7dd0b74e_432d53da6120` (TTR 47.3 s, watchdog armed before the readiness poll, exit 0);
   boot 2 `f5f1433d7dd0b74e_6e6a08886fbd` (~19 s, watchdog `t=1s loading → t=23s healthy`,
   `unprobeable=0`); control `f5f1433d7dd0b74e_21bfd140f205` (the shipped MTP arm, `model loaded` at
-  39.3 s). `GET /v1/models` → `orcarouter/OrcaCyber-Nano-1.0`, `n_ctx 32768`,
-  `n_params 27320697856`; serve log `n_slots = 4, n_ctx_slot = 32768, kv_unified = 'true'`;
+  39.3 s); boot 4 `f5f1433d7dd0b74e_bcf888d00b64` (container
+  `sparkrun_f5f1433d7dd0b74e_bcf888d00b64_solo`, TTR 53 s, watchdog healthy at t=33 s, stopped by
+  literal id, `.35` back at 0 containers). `GET /v1/models` → `orcarouter/OrcaCyber-Nano-1.0`,
+  `n_ctx 32768`, `n_params 27320697856`; serve log `n_slots = 4, n_ctx_slot = 32768, kv_unified = 'true'`;
   container footprint 11.16 GiB.
-- **Paired C1 (d0 pp 2048 tg 128, n=5, `benchmarking/concurrency-ladder.yaml`, `--skip-run`).**
-  Drafter on: **29.33 ± 1.79** (28.29 / 27.91 / 32.72 / 29.54 / 28.19, boot 1) and **33.06 ± 7.35**
-  (31.94 / 40.56 / 27.68 / 22.99 / 42.11, boot 2). Control, same window: **25.30 ± 1.14** (26.0 /
-  25.36 / 26.55 / 23.2 / 25.4) — the shipped arm's recorded 25.4 ± 3.5 reproduced, so the pair is
-  clean. **Bar arithmetic: 29.33 > 29 and 33.06 > 29; +15.9 % / +30.7 % over the paired control**;
-  boot 1 is the tight cell at +0.33 over the bar.
+- **Paired C1 (d0 pp 2048 tg 128, n=5, `benchmarking/concurrency-ladder.yaml`, `--skip-run
+  --fresh`).** Drafter on, four independent boots: **29.33 ± 1.79** (28.29 / 27.91 / 32.72 / 29.54
+  / 28.19, boot 1), **33.06 ± 7.35** (31.94 / 40.56 / 27.68 / 22.99 / 42.11, boot 2), **31.18 ±
+  3.82** (boot 3) and **32.20 ± 5.69** (boot 4), four-boot mean **31.44 ± 1.60**. Control, same
+  window: **25.30 ± 1.14** (26.0 / 25.36 / 26.55 / 23.2 / 25.4) — the shipped arm's recorded 25.4 ±
+  3.5 reproduced, so the pair is clean. **Bar arithmetic: 25.30 × 1.15 = 29.095; all four boots
+  clear it (29.33 / 33.06 / 31.18 / 32.20), boot 1 the tight cell at +0.33, +15.9 % / +30.7 % /
+  +23.2 % / +27.3 % over the paired control.**
 - **Full ladder (boot 2, `benchmarking/concurrency-ladder.yaml`, four rungs).** **C1 31.18 ± 3.82 ·
   C2 40.98 ± 4.19 · C5 35.62 ± 3.33 · C10 31.00 ± 0.68**; prefill 749.4 / 719.0 / 466.3 / 433.0;
   ttfr 2,528 / 4,972 / 11,750 / 22,353 ms. Against the MTP arm's recorded 25.4 / 40.1 / 36.2 / 32.9
