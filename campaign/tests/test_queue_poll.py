@@ -1,6 +1,6 @@
 """The serve loop's poll gate: the register is re-read on every tick, not only once drained.
 
-Measured 2026-11-21 (head `red@10.0.4.30`, `NRestarts=0`): a pending quartet with two free hosts
+Measured 2026-11-21 (the head node, `NRestarts=0`): a pending quartet with two free hosts
 made `plan.next_assignment` return None, so `drained()` never turned true and the one call that
 re-reads the register sat behind that gate. The register was written at 16:10; the plan in force
 was built at 00:12 and never looked again. These cases pin the loop's gate -- a row queued after
