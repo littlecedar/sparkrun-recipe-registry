@@ -356,20 +356,17 @@ def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
             lines.append(f"queue-skip: {task} ({reason})")
             excluded[arm] = reason
             continue
-        if tp > len(hosts):
-            reason = f"tp={tp} needs {tp} hosts, {len(hosts)} declared"
-            lines.append(f"queue-skip: {task} ({reason})")
-            excluded[arm] = reason
-            continue
         risky = memory_risky(row)
         declared = row.get("exclude_hosts") or ()
         per_arm = tuple(str(host) for host in declared) if isinstance(declared, (list, tuple)) else ()
         allow, window = waiver(task, row, risky, tuple(excluded_hosts) + per_arm)
-        if risky:
+        if risky and tp <= len(hosts):
             # A shape that cannot be placed without an excluded host is refused by name, never
             # narrowed onto that host: the row stays queued for a human to reshape. A declared
             # waiver is the one exception, and the director proves the host's guardrails before
-            # the lease record exists.
+            # the lease record exists. A shape over the declared host count is not a spill risk
+            # (it can never be placed at all): it is adopted, and the plan records it
+            # `unplaceable` by name, so it never holds `drained()` false.
             barred_for_arm = tuple(excluded_hosts) + per_arm
             if barred_for_arm and not any(barred(host, barred_for_arm) for host in hosts):
                 # Fail closed: a hostname-declared set that matches no exclusion would sort as if
@@ -489,6 +486,23 @@ def build(
         elif arm in measured:
             lines.append(f"measured: {arm} ({measured[arm]})")
     return order, lines
+
+
+def unplaceable_reason(record: dict[str, Any], hosts: list[str] | tuple[str, ...],
+                       max_nodes: int | None = None) -> str:
+    """Why this campaign can never hold the shape, or "" when it can.
+
+    Checked when the plan is built, never at assignment: a shape the declared hosts (or the
+    operator's `--max-nodes`) cannot hold must be recorded `unplaceable`, not left pending. A
+    pending arm holds `drained()` false, and until 2026-11-21 that gate also stopped the register
+    poll, so one impossible quartet hid every row queued behind it for seventeen hours.
+    """
+    nodes = int(record.get("nodes") or record.get("tp") or 1)
+    if nodes > len(hosts):
+        return f"needs {nodes} ranks; campaign declares {len(hosts)} hosts"
+    if max_nodes is not None and nodes > int(max_nodes):
+        return f"needs {nodes} ranks; --max-nodes {int(max_nodes)}"
+    return ""
 
 
 def next_assignment(

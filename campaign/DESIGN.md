@@ -83,9 +83,22 @@ Exclusions are named, never truncated:
 | `done` | skipped; if this campaign holds no measurement for that arm it is blocked, not booted |
 | `blocked_by` not an explicit empty list | skipped by name (`queue-skip: <row> (blocked by <ids>)`): a live dependency edge holds the row whatever its `state`, and a missing mirror is not an edit that opens it |
 | no `recipe`/`tp` | counted in one line (`authoring, not bootable`): most rows are prose work |
-| `tp` > declared hosts | skipped by name (`tp=4 needs 4 hosts, 2 declared`); a quartet is never cut onto fewer nodes |
+| `tp` > declared hosts | adopted, then recorded `unplaceable` (`unplaceable: <arm> (needs 4 ranks; campaign declares 2 hosts)`): the arm is in the plan, named, and never `pending` — a pending shape that can never fit holds `drained()` false and hid the register poll behind that gate (2026-11-21) |
 | memory-risky shape with no room outside the excluded hosts | skipped by name (`queue-skip: <row> (memory-risky shape needs 6 ranks, 5 declared outside .30)`); the row stays queued, never narrowed onto the head — unless its own `allow_hosts`/`window` declaration waives the host, which then requires the lease-time proof (§The head is waivable…) |
 | two rows naming one recipe | one arm: any non-runnable sibling (`blocked`, `done`, a live edge, another session's claim) holds it by name (`queue-skip: <row> (recipe also named by sibling <id> is 'blocked')`), so a blocked or done row protects the recipe; two runnable rows are an ambiguity, named with both ids and skipped for that tick only, because the register has not said which row the numbers would close |
+
+**A shape the campaign cannot hold is recorded, not waited on.** Every plan build — `prepare`, and
+each poll's `refresh` — runs `plan.unplaceable_reason` over the arms: a rank count above the
+declared host set, or above the operator's `--max-nodes`, becomes `unplaceable` with the reason, a
+receipt and one printed line, and never `pending`. Two things follow, and both were missing on
+2026-11-21: the arm cannot hold `drained()` false (so `--once` exits and the exit report names it),
+and the poll behind that gate is not the only thing that would ever have looked at the register
+again. The status is terminal for the run and spends no retry budget — nothing was attempted — and
+a later run with more hosts, or a looser ceiling, re-plans it to `pending` and prints `placeable:`.
+`--max-nodes N` is the approval written down: it lands in `state.json`, a restart that omits the
+flag keeps the stored ceiling, and the plan-build refusal is what makes it an approval rather than
+a remembered one. The check runs before the record-host gate, so an arm that will never boot is
+not refused for a boot it cannot make.
 
 **Placement keeps the head available, never a rank.** `--exclude-host` (default `.30`; a placement
 decision of the run, never a node role) sorts excluded hosts last in the free list, so a shape with
@@ -377,6 +390,7 @@ Three writers can disagree about one arm, so one precedence rule decides, newest
 | Writer | Wins for | Why |
 |---|---|---|
 | `--retries` on the command line | every arm, at open | The operator restarting to retry a terminal arm is the newer decision; an omitted flag keeps the number the previous life stored instead of resetting it to `0`. |
+| `--max-nodes` on the command line | the ceiling `state.json` stores, and so every arm's plan-build verdict | The approval is a policy, not a memory: an omitted flag keeps the stored ceiling, and a shape over it is `unplaceable` at plan build rather than a pending arm waiting for hosts that will never be free. |
 | `--receipts-root` on the command line | `ARM_RECEIPTS_ROOT` in every arm that can still run | It is this run's decision and the evidence readers look under it; an executor writing elsewhere produces numbers the campaign cannot attribute. |
 | The register row (queue mode) | `env`, and `path`/`tp`/`task` while no reap is outstanding, for an arm that is not leased, measured or skipped | The row is the current launch plan: a client hook or readiness timeout added since the last attempt must reach the next boot. `path` waits for the reap because the containers a reap must find are labelled with the path that launched them. |
 | The state record | every field of an arm that is leased, measured or skipped | The record is what is running or what ran; rewriting it would make the state disagree with the receipt it produced. A new attempt is a new decision, so the row's `env` applies to it. |

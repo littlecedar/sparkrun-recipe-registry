@@ -45,6 +45,7 @@ from .state import (
     MEASURED,
     PENDING,
     SKIPPED,
+    UNPLACEABLE,
     Campaign,
     StateError,
     write_json,
@@ -167,7 +168,12 @@ class Director:
         measured = evidence.measured(self.receipts_root)
         entries, queue_lines, excluded = self._plan()
         declared = list(self.campaign.data.get("hosts", []))
-        gate = plan.record_gate(entries, declared, self.record_hosts, self.record_risk)
+        # A shape this campaign can never hold is recorded `unplaceable` below, never planned onto
+        # the record host: that gate is about a boot, and this arm does not boot.
+        gate = plan.record_gate(
+            [entry for entry in entries
+             if not plan.unplaceable_reason(entry, declared, self.campaign.max_nodes)],
+            declared, self.record_hosts, self.record_risk)
         for line in gate:
             print(line, file=self.out)
         if self.record_risk and any(host in declared for host in self.record_hosts):
@@ -229,6 +235,7 @@ class Director:
         self._pin_receipts_root()
         if self.register is not None:
             self._reconcile(entries, excluded, unblock=True)
+        self._refuse_unplaceable()
 
     # --- plan source -------------------------------------------------------------------------
 
@@ -332,6 +339,7 @@ class Director:
         fresh = [entry for entry in entries if entry["arm"] not in self.campaign.arms()]
         if not fresh:
             self._reconcile(entries, excluded)
+            self._refuse_unplaceable()
             return False
         for line in lines:
             print(line, file=self.out)
@@ -357,7 +365,33 @@ class Director:
         self._reconcile(entries, excluded)
         print(f"queue: {len(fresh)} new runnable row(s): "
               f"{', '.join(entry['arm'] for entry in fresh)}", file=self.out)
+        self._refuse_unplaceable()
         return True
+
+    def _refuse_unplaceable(self) -> None:
+        """Record every arm this campaign's own shape cannot hold, one line and receipt each.
+
+        The plan-build check that was missing (2026-11-21): a quartet waited seventeen hours on
+        two free hosts as `pending`, holding `drained()` false and, behind that gate, the register
+        poll. `plan.unplaceable_reason` is the one test -- declared hosts, then `--max-nodes` --
+        and it is re-run on every build, so a later run with more hosts (or a looser ceiling)
+        re-plans the arm as pending instead of leaving it refused forever.
+        """
+        hosts = list(self.campaign.data.get("hosts", []))
+        ceiling = self.campaign.max_nodes
+        for arm in self.campaign.order:
+            record = self.campaign.arms()[arm]
+            if record["status"] in (LEASED, MEASURED, SKIPPED) or record["needs_reap"]:
+                continue
+            reason = plan.unplaceable_reason(record, hosts, ceiling)
+            if reason:
+                if self.campaign.unplaceable(arm, reason):
+                    print(f"unplaceable: {arm} ({reason})", file=self.out)
+                    self._write_receipt(arm, status=UNPLACEABLE, rc=None, note=reason, mdir="",
+                                        hosts=[], lease_id="", started=None, leftovers=[])
+                continue
+            if self.campaign.replan(arm, "the campaign's declared hosts can hold it"):
+                print(f"placeable: {arm} (the campaign's hosts can hold it now)", file=self.out)
 
     def _wait_for_rows(self) -> None:
         """Re-read the register at a bounded interval, on every tick, drained or not."""
@@ -496,7 +530,7 @@ class Director:
         print(f"campaign {self.campaign.data['campaign']}: {line}", file=self.out)
         for arm in self.campaign.order:
             record = self.campaign.arms()[arm]
-            if record["status"] in (FAILED, BLOCKED):
+            if record["status"] in (FAILED, BLOCKED, UNPLACEABLE):
                 print(f"  {record['status']}: {arm} -- {record['last'].get('reason', '')}",
                       file=self.out)
         return 0
@@ -1231,6 +1265,11 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--retries", type=int, default=None,
                        help="extra attempts for an arm whose receipt says it did not measure "
                             "(default: the number the campaign stored; 0 when it is new)")
+    serve.add_argument("--max-nodes", type=int, default=None, metavar="N",
+                       help="the largest rank count this campaign approves: a bigger shape is "
+                            "recorded unplaceable at plan build instead of waiting for hosts that "
+                            "will never be free. Recorded in state.json and kept by later runs "
+                            "unless changed")
     serve.add_argument("--receipts-root", default=os.path.expanduser("~/benchmarks"),
                        help="where the per-arm executor writes its tp12-* windows")
     serve.add_argument("--repo-root", default=fleet.default_repo_root(),
@@ -1313,6 +1352,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"cannot start: duplicate hosts in {hosts!r}", file=sys.stderr)
         return 2
     excluded = _excluded(args)
+    if args.max_nodes is not None and args.max_nodes < 1:
+        print(f"cannot start: --max-nodes {args.max_nodes} approves no shape", file=sys.stderr)
+        return 2
     if args.once and args.queue is None:
         print("cannot start: --once is a queue-mode flag; a manifest campaign drains and exits",
               file=sys.stderr)
@@ -1327,6 +1369,7 @@ def main(argv: list[str] | None = None) -> int:
             hosts=hosts,
             max_parallel=args.max_parallel or len(hosts),
             retries=args.retries,
+            max_nodes=args.max_nodes,
         )
         register = None
         if args.queue is not None:

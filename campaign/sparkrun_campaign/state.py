@@ -33,6 +33,10 @@ MEASURED = "measured" # a receipt says the arm has numbers
 FAILED = "failed"     # a receipt does not; retryable while `failures <= retries`
 SKIPPED = "skipped"   # the recipe records this arm as a measured negative
 BLOCKED = "blocked"   # a human must look: an unverifiable leftover, or a reap that could not run
+#: The plan's own refusal: the declared hosts, or `--max-nodes`, cannot hold this shape. Terminal
+#: for this run and not a failure -- nothing was attempted, so no retry budget is spent -- and it
+#: never holds `drained()` false, so an impossible arm cannot stall the campaign.
+UNPLACEABLE = "unplaceable"
 
 #: A worker beats every 20 s; 300 s is fifteen missed beats. The bound that decides this number is
 #: the director's longest in-request stall, not a dead worker's detection latency: `_report` runs a
@@ -102,6 +106,7 @@ class Campaign:
         hosts: tuple[str, ...] | list[str] = (),
         max_parallel: int = 1,
         retries: int | None = None,
+        max_nodes: int | None = None,
         order: list[str] | None = None,
     ) -> Campaign:
         """Open or create; `retries=None` (flag omitted) keeps the number the previous life stored.
@@ -109,6 +114,10 @@ class Campaign:
         An explicit retry budget on the command line is the newer decision -- the operator
         restarting a campaign to retry a terminal arm must not have that overruled by the
         `retries=0` the previous invocation recorded.
+
+        `max_nodes` is the approved shape ceiling, recorded in `state.json` for the same reason:
+        a restart that forgets `--max-nodes` must not silently re-approve a bigger shape, so the
+        stored policy stands until an explicit run changes it.
         """
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -119,8 +128,14 @@ class Campaign:
                 if data.get("version") != VERSION:
                     raise StateError(f"{path}: version {data.get('version')!r}, expected {VERSION}")
                 instance = cls(path, data, fd)
+                changed = False
                 if retries is not None and int(retries) != instance.retries:
                     data["retries"] = int(retries)
+                    changed = True
+                if max_nodes is not None and int(max_nodes) != instance.max_nodes:
+                    data["max_nodes"] = int(max_nodes)
+                    changed = True
+                if changed:
                     instance.save()
                 return instance
             if not campaign:
@@ -132,6 +147,7 @@ class Campaign:
                 "hosts": list(hosts),
                 "max_parallel": int(max_parallel),
                 "retries": int(retries or 0),
+                "max_nodes": int(max_nodes) if max_nodes is not None else None,
                 "lease_ttl": LEASE_TTL,
                 "order": list(order or []),
                 "arms": {},
@@ -156,6 +172,12 @@ class Campaign:
     @property
     def retries(self) -> int:
         return int(self.data.get("retries", 0))
+
+    @property
+    def max_nodes(self) -> int | None:
+        """The approved rank ceiling this run was started under; None is no declared limit."""
+        value = self.data.get("max_nodes")
+        return None if value is None else int(value)
 
     @property
     def lease_ttl(self) -> float:
@@ -244,10 +266,11 @@ class Campaign:
         """Adopt a register row's current launch fields for an arm that is not running now.
 
         Queue mode's precedence: the row is the current launch plan, so an arm awaiting its next
-        attempt (pending, failed inside the retry budget, or blocked with its row runnable again)
-        takes the row's `env` -- a client hook or a readiness timeout added since the last attempt
-        must reach the next boot, not the one already recorded. A leased, measured or skipped arm
-        keeps the record it ran with, because that record is what its receipt describes.
+        attempt (pending, failed inside the retry budget, blocked with its row runnable again, or
+        unplaceable while the row may shrink under the ceiling) takes the row's `env` -- a client
+        hook or a readiness timeout added since the last attempt must reach the next boot, not the
+        one already recorded. A leased, measured or skipped arm keeps the record it ran with,
+        because that record is what its receipt describes.
 
         `path`/`tp`/`task` move only when no reap is outstanding: the containers a reap must find
         are labelled with the path that launched them, so the old path stays until `prepare` has
@@ -438,6 +461,34 @@ class Campaign:
         record["last"] = {"at": time.time(), "reason": reason, **extra}
         self.event(arm, "blocked", reason=reason)
         self.save()
+
+    def unplaceable(self, arm: str, reason: str) -> bool:
+        """Record the plan's refusal of this shape; False when it already said so.
+
+        A shape the declared hosts (or `--max-nodes`) can never hold must not sit pending: a
+        pending arm holds `drained()` false, and until 2026-11-21 that gate also stopped the
+        register poll that would have found the row queued behind it.
+        """
+        record = self.arm(arm)
+        if record["status"] == UNPLACEABLE and record["last"].get("reason") == reason:
+            return False
+        record["status"] = UNPLACEABLE
+        record["lease"] = None
+        record["last"] = {"at": time.time(), "reason": reason}
+        self.event(arm, "unplaceable", reason=reason)
+        self.save()
+        return True
+
+    def replan(self, arm: str, evidence: str) -> bool:
+        """Withdraw a refusal: a later run's hosts, or a looser `--max-nodes`, can hold it now."""
+        record = self.arm(arm)
+        if record["status"] != UNPLACEABLE:
+            return False
+        record["status"] = PENDING
+        record["last"] = {"at": time.time(), "reason": evidence}
+        self.event(arm, "replan", evidence=evidence)
+        self.save()
+        return True
 
     def counts(self) -> dict[str, int]:
         out: dict[str, int] = {}

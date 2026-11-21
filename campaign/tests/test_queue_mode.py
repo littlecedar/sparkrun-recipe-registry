@@ -136,9 +136,11 @@ class QueueCase(unittest.TestCase):
 
     def build(self, hosts=("node-a", "node-b"), once: bool = False,
               retries: int | None = None,
-              exclude_hosts: tuple[str, ...] | None = None):
+              exclude_hosts: tuple[str, ...] | None = None,
+              max_nodes: int | None = None):
         campaign = state.Campaign.open(self.root / "state.json", campaign="test",
-                                        hosts=hosts, max_parallel=2, retries=retries)
+                                        hosts=hosts, max_parallel=2, retries=retries,
+                                        max_nodes=max_nodes)
         self.addCleanup(campaign.close)
         leader = director_module.Director(
             campaign,
@@ -170,23 +172,27 @@ class PlanFromTheRegister(QueueCase):
         self.assertEqual(campaign.order, ["two", "one"])
         self.assertEqual(leader.handle(protocol.poll("w1"))["lease"]["arm"], "two")
 
-    def test_blocked_running_authoring_and_oversized_rows_are_excluded_with_reasons(self) -> None:
+    def test_blocked_and_running_rows_are_excluded_and_an_oversized_one_is_unplaceable(self) -> None:
+        recipe(self.repo, "lane", "quartet")
         self.shell.rows = [
             row("blocked-task", "recipes/lane/one.yaml", 1, state_="blocked", node_cost="single"),
             row("claimed-task", "recipes/lane/two.yaml", 1, state_="running", node_cost="single",
                 claimed_by="another-session"),
             row("authoring-task"),
-            row("quartet-task", "recipes/lane/negative.yaml", 4, node_cost="quartet"),
+            row("quartet-task", "recipes/lane/quartet.yaml", 4, node_cost="quartet"),
             row("good-task", "recipes/lane/good.yaml", 1, node_cost="single"),
         ]
         leader, campaign = self.build()
         leader.prepare()
         text = self.out.getvalue()
-        self.assertEqual(campaign.order, ["good"])
+        # A shape over the declared host count is adopted and recorded, never left pending: a
+        # pending arm holds `drained()` false and hid the register poll behind that gate.
+        self.assertEqual(campaign.order, ["quartet", "good"])
+        self.assertEqual(campaign.arm("quartet")["status"], state.UNPLACEABLE)
+        self.assertIn("unplaceable: quartet (needs 4 ranks; campaign declares 2 hosts)", text)
         self.assertIn("queue-skip: blocked-task (register state blocked)", text)
         self.assertIn("queue-skip: claimed-task (claimed running by another-session)", text)
         self.assertIn("queue: 1 row(s) queued without a recipe (authoring, not bootable)", text)
-        self.assertIn("queue-skip: quartet-task (tp=4 needs 4 hosts, 2 declared)", text)
         self.assertNotIn("queue-skip: good-task", text)
 
     def test_a_queued_row_with_a_live_blocking_edge_is_excluded(self) -> None:

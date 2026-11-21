@@ -13,8 +13,12 @@ No socket and no fleet: `_bind` returns a stand-in whose `handle_request` is one
 
 from __future__ import annotations
 
+import contextlib
+import io
+import json
 import unittest
 
+from sparkrun_campaign import director as director_module
 from sparkrun_campaign import leases, protocol, state
 
 from .test_queue_mode import QueueCase, row
@@ -103,6 +107,104 @@ class PollGate(QueueCase):
         self.assertEqual(len(assigns), 1, assigns)
         self.assertNotIn("queue: no runnable rows", self.out.getvalue(),
                          "a leased arm is not a quiet plan")
+
+
+class Unplaceable(QueueCase):
+    """A shape the campaign can never hold is recorded, not left pending.
+
+    Until 2026-11-21 nothing compared an arm's rank count to the campaign's declared hosts (or to
+    an operator ceiling) at plan build, so a quartet sat `pending` on two free hosts for seventeen
+    hours. `pending` holds `drained()` false, and behind that gate sat the register poll, so every
+    row queued after it was invisible.
+    """
+
+    def test_a_quartet_over_two_declared_hosts_is_unplaceable_and_once_exits(self) -> None:
+        self.shell.rows = [row("quartet-task", "recipes/lane/one.yaml", 4, node_cost="quartet")]
+        leader, campaign = self.build(hosts=("node.30", "node.31"), once=True)
+        server = TickingServer(leader, ticks=2)
+        leader._bind = lambda: server
+        self.assertEqual(leader.serve(), 0)
+        self.assertEqual(server.ticks, 1, "--once exits on the first drained tick")
+        self.assertEqual(campaign.arm("one")["status"], state.UNPLACEABLE)
+        self.assertEqual(campaign.arm("one")["attempts"], 0)
+        self.assertIn("unplaceable: one (needs 4 ranks; campaign declares 2 hosts)",
+                      self.out.getvalue())
+        self.assertIn("plan drained", self.out.getvalue())
+
+    def test_max_nodes_refuses_a_bigger_shape_at_plan_build(self) -> None:
+        # Four hosts declared, so the shape fits the fleet; the operator's ceiling is what refuses
+        # it. The policy is the newer decision, and it is what makes the approval auditable.
+        self.shell.rows = [row("quartet-task", "recipes/lane/one.yaml", 4, node_cost="quartet")]
+        leader, campaign = self.build(hosts=("n1", "n2", "n3", "n4"), max_nodes=2,
+                                      exclude_hosts=())
+        leader.prepare()
+        self.assertEqual(campaign.arm("one")["status"], state.UNPLACEABLE)
+        self.assertEqual(campaign.arm("one")["last"]["reason"], "needs 4 ranks; --max-nodes 2")
+        self.assertIn("unplaceable: one (needs 4 ranks; --max-nodes 2)", self.out.getvalue())
+        self.assertTrue(leader.drained(), "an impossible arm never makes the campaign wait")
+        self.assertIsNone(leader.handle(protocol.poll("w1")).get("lease"))
+
+    def test_the_ceiling_is_recorded_and_kept_by_a_later_run(self) -> None:
+        self.shell.rows = [row("pair-task", "recipes/lane/one.yaml", 2, node_cost="pair")]
+        leader, campaign = self.build(hosts=("n1", "n2"), max_nodes=2, exclude_hosts=())
+        leader.prepare()
+        self.assertEqual(campaign.max_nodes, 2)
+        self.assertEqual(campaign.arm("one")["status"], state.PENDING,
+                         "a two-rank arm is inside the ceiling")
+        campaign.close()
+
+        reopened = state.Campaign.open(self.root / "state.json")
+        self.addCleanup(reopened.close)
+        self.assertEqual(reopened.max_nodes, 2, "a restart that omits the flag keeps the policy")
+
+    def test_a_lifted_ceiling_re_plans_the_arm(self) -> None:
+        self.shell.rows = [row("quartet-task", "recipes/lane/one.yaml", 4, node_cost="quartet")]
+        leader, campaign = self.build(hosts=("n1", "n2", "n3", "n4"), max_nodes=2,
+                                      exclude_hosts=())
+        leader.prepare()
+        self.assertEqual(campaign.arm("one")["status"], state.UNPLACEABLE)
+        campaign.close()
+
+        leader, campaign = self.build(hosts=("n1", "n2", "n3", "n4"), max_nodes=4,
+                                      exclude_hosts=())
+        leader.prepare()
+        self.assertEqual(campaign.arm("one")["status"], state.PENDING,
+                         "an explicit larger ceiling approves the shape again")
+        self.assertIn("placeable: one (the campaign's hosts can hold it now)",
+                      self.out.getvalue())
+
+    def test_a_two_rank_arm_is_placed_under_a_two_node_ceiling(self) -> None:
+        self.shell.rows = [row("pair-task", "recipes/lane/one.yaml", 2, node_cost="pair")]
+        leader, _ = self.build(hosts=("node.30", "node.31", "node.32"), max_nodes=2)
+        leader.prepare()
+        self.assertNotIn("unplaceable", self.out.getvalue())
+        lease = leader.handle(protocol.poll("w1"))["lease"]
+        self.assertEqual((lease["arm"], lease["hosts"]), ("one", ["node.31", "node.32"]))
+
+    def test_the_ceiling_flag_is_refused_when_it_approves_nothing(self) -> None:
+        self.assertEqual(director_module.main([
+            "serve", "--queue", str(self.queue), "--hosts", "n1", "--root", str(self.root),
+            "--repo-root", str(self.repo), "--max-nodes", "0"]), 2)
+
+    def test_the_ceiling_flag_reaches_state_and_the_plan(self) -> None:
+        # Every other case fakes the tool; the real CLI shells out to it, so this one answers
+        # `queue --json` the way `tools/task-queue.py` does.
+        rows = [row("quartet-task", "recipes/lane/one.yaml", 4, node_cost="quartet")]
+        (self.repo / "tools" / "task-queue.py").write_text(
+            f"print({json.dumps(json.dumps(rows))})\n", encoding="utf-8")
+        text = io.StringIO()
+        with contextlib.redirect_stdout(text):
+            code = director_module.main([
+                "serve", "--queue", str(self.queue), "--hosts", "n1,n2,n3,n4",
+                "--root", str(self.root), "--repo-root", str(self.repo),
+                "--receipts-root", str(self.receipts),
+                "--run-arm", str(self.repo / "tools" / "run-arm.sh"),
+                "--exclude-host", "", "--max-nodes", "2", "--dry-run"])
+        self.assertEqual(code, 0)
+        self.assertIn("unplaceable: one (needs 4 ranks; --max-nodes 2)", text.getvalue())
+        campaign = state.Campaign.open(self.root / "state.json")
+        self.addCleanup(campaign.close)
+        self.assertEqual(campaign.max_nodes, 2, "the policy is on the record the run wrote")
 
 
 if __name__ == "__main__":
