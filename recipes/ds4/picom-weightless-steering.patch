@@ -156,11 +156,11 @@ index 0000000..4ba2c3a
 +  std::vector<Value> arr;
 +};
 +
-+Value read_kind(Cursor& c, uint32_t kind, int depth);
++inline Value read_kind(Cursor& c, uint32_t kind, int depth);
 +
 +inline Value read_value(Cursor& c, int depth) { return read_kind(c, c.get<uint32_t>(), depth); }
 +
-+Value read_kind(Cursor& c, uint32_t kind, int depth) {
++inline Value read_kind(Cursor& c, uint32_t kind, int depth) {
 +  Value v;
 +  v.kind = kind;
 +  switch (kind) {
@@ -450,7 +450,7 @@ index 7a71dec..8068991 100644
 +  // glp_dev + L * kDim. cur_steer is the StepIn::steer of the command in flight (0/1; per row on the device),
 +  // so it is part of a captured step's identity (graph()).
 +  model::glp::Glp glp{};
-+  const bf16* glp_dev = nullptr;
++  bf16* glp_dev = nullptr;
 +  int cur_steer = 0;
 +  bool steer_on(int L) const { return cur_steer != 0 && glp.steered(L); }
 +  // The GLP flag of the commands after this one; returns the previous one.

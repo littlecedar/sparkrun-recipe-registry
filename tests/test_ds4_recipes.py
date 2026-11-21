@@ -3497,10 +3497,10 @@ def _assert_weightless_arm_contract(tc, r: "Recipe", text: str) -> None:
     tc.assertIn("mods/picom-launcher", text)
     # The checkpoint is the vector's own base_model, not the lane's pin.
     tc.assertEqual(r.model_revision, "1bae0e1088993b9b82de08f59de5be5a34e42170")
-    # The image is a local tag until the steering build is published: a digest
-    # here would name an image that does not contain the patch.
-    tc.assertNotIn("@sha256:", r.container)
-    tc.assertIn("NOT PUBLISHED", text)
+    # The image is this registry's own build, published and pinned by digest: a
+    # tag here could name an image that does not contain the patch.
+    tc.assertRegex(r.container, r"^ghcr\.io/littlecedar/dgx-picom-ds41f@sha256:[0-9a-f]{64}$")
+    tc.assertNotIn("NOT PUBLISHED", text)
     # The engine's argv is the launcher's own four flags.
     tc.assertIn("--served-model-name {served_model_name}", r.command_template)
     tc.assertIn("--revision {model_revision}", r.command_template)
@@ -3598,8 +3598,7 @@ class WeightlessDsgb10NegativeControls(unittest.TestCase):
 
     def test_control_unpublished_digest(self):
         r, text = self._mutated(
-            "container: dgx-picom-ds41f:weightless",
-            "container: ghcr.io/littlecedar/dgx-picom-ds41f@sha256:" + "0" * 64)
+            "dgx-picom-ds41f@sha256:", "dgx-picom-ds41f:tag-")
         with self.assertRaises(AssertionError):
             _assert_weightless_arm_contract(self, r, text)
 

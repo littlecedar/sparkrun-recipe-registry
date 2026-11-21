@@ -2873,8 +2873,8 @@ exactly why that arm needs an image of its own.
 | Artifact | `msuiche/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75` at `2715ffd5`, one 803,392-byte GGUF, sha256 `9c66d477…f5cf`, 39 layers, α 0.75, MIT, access-gated; staged by `mods/glp-vector-stage` |
 | Topology | TP=4, four GB10 nodes, one process per node, switched RoCE ring |
 | Context | 1,048,576 tokens served (`--max-ctx 1048576`, 16 slots, 4 big) |
-| Image | `dgx-picom-ds41f:weightless` — **a local tag, never published, and no digest is pinned** |
-| Status | **Probe.** Nothing here has been booted; the engine half has not even been compiled on this workstation (see "Not compiled here") |
+| Image | `ghcr.io/littlecedar/dgx-picom-ds41f@sha256:305b6e51…` — public and digest-pinned (tag `ds41f-7c123ad4-pr15-pr7-weightless`, built 2026-11-21 on `.30`) |
+| Status | **Probe.** Nothing here has been booted; the engine is compiled in the published image (see "Built, not booted") |
 
 **Probe framing.** The shipped picom arm borrows vLLM's distribution contract because the engine
 is not a vLLM server. This arm does not borrow it: a steered arm must refuse a host that is not a
@@ -2882,11 +2882,10 @@ GB10 (the vector is sm_121-bound), must not wait out a native rendezvous gate no
 launcher meets its peers on 19110 itself), and carries its own image — declarations, not recipe
 text, which is why the runtime exists. The image is built on an idle GB10 node from
 `Dockerfile.picom-ds41f` with the three-patch series (`git apply` in that order, `git apply
---check` proven, resulting tree `637fc87a`) and copied to the other ranks: `sparkrun` cannot pull
-it, `distribution_config.containers.enabled: false`, and `container:` carries the local tag. A
-digest-pinned `container:` cannot exist until someone publishes it, so **a third party cannot run
-this arm yet** — the same shape as the vLLM weightless probe above, with the extra dependency that
-the image is this registry's own build rather than another project's.
+--check` proven, resulting tree `637fc87a`), pushed to `ghcr.io/littlecedar/dgx-picom-ds41f` and
+pinned by digest, so `container:` is public and `sparkrun` pulls it like any other arm. The two
+compile defects the first build found are fixed in the patch (`read_kind` is `inline`; the
+`glp_dev` destination is not `const`).
 
 **The two-name contract.** One deployment, one checkpoint, two served names; the client picks per
 request by the body's `model`. `deepseek-v4.1-flash` is the stock stream. A request naming
@@ -2977,21 +2976,24 @@ claim them.
    `dsgb10`") is upstream at the pin, and is now superseded by this arm — the patch series is what
    makes the second name reachable.
 
-**Not compiled here.** This workstation has no `nvcc` and no `cmake`, so the twelve engine files in
-the patch series are reviewed, not built; the front half is compiled and tested (`cargo test
---locked`: 50 lib + 2 bin). What did run on the host: `glp_test` against the real 803,392-byte
-vector (**84 checks, 0 failed** — 39 directions, layers 1..39, α 0.750000, dim 5120, and every
-refusal path), `py_compile`, `bash -n` over every mod, and `sparkrun recipe validate --strict`
-(clean on this arm; all 118 recipes measured: 60 printing a finding, 24 with a warning).
+**Built, not booted.** The engine is compiled in the published image: `docker build -f
+recipes/ds4/Dockerfile.picom-ds41f recipes/ds4` on `.30` (GB10, arm64, the CUDA 13.0.1 devel base),
+three attempts — the first two failed on the two patch defects named above — then 42.8 s of `cmake`,
+12.8 s of `cargo build --release --locked` and 52 green `cargo test` cases off the warm cache.
+Read-only proof, no boot: `dsfront` against its own mock engine answers `/v1/models` with both
+names, and `dsgb10_rank` carries the GLP reader. What ran on the host before that: `glp_test`
+against the real 803,392-byte vector (**84 checks, 0 failed** — 39 directions, layers 1..39, α
+0.750000, dim 5120, and every refusal path), `py_compile`, `bash -n` over every mod, and
+`sparkrun recipe validate --strict` (clean on this arm; all 118 recipes measured: 60 printing a
+finding, 24 with a warning).
 
-**The boot gate.** Build `Dockerfile.picom-ds41f` with the three-patch series on an idle GB10 node,
-publish to `ghcr.io/littlecedar`, prove an anonymous pull, pin the digest in `container:`, then in a
-declared 4-rank window with a watchdog: the engine log's `rank 0: glp: 39 directions of 40 layers,
-alpha 0.750`, `GET /v1/models` listing both names, one request per name in the same batch with
-different text, a `stats:` line from each side showing `reqs_steered=1 reqs_stock=1`, and a
-`/v1/chat/completions` addressed to a name the server does not serve answering 400. Placement is
-the second gate and the same one the vLLM probe names: a TP=4 arm needs four free ranks in one
-lease, and `.31`–`.34` carry the production serve inside `.local/fleet-leases.json`.
+**The boot gate.** The image is published and pinned, so what is left is a declared 4-rank window
+with a watchdog: the engine log's `rank 0: glp: 39 directions of 40 layers, alpha 0.750`, `GET
+/v1/models` listing both names, one request per name in the same batch with different text, a
+`stats:` line from each side showing `reqs_steered=1 reqs_stock=1`, and a `/v1/chat/completions`
+addressed to a name the server does not serve answering 400. Placement is the second gate and the
+same one the vLLM probe names: a TP=4 arm needs four free ranks in one lease, and `.31`–`.34` carry
+the production serve inside `.local/fleet-leases.json`.
 
 ## External stack: spark-ds41f (survey, 2026-11-08)
 
