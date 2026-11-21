@@ -3502,7 +3502,7 @@ three scripts, `sparkrun_serve.log` (270 lines, boot 2) and `sparkrun_serve-dete
   `spark-x2.6-4b-fp8-sglang.yaml` = **fast tier** (C1 **40.80 ± 0.09**, 2× the control at every
   rung, house tied), `spark-x2.6-4b-bf16-sglang.yaml` = **accuracy control** (20.38 ± 0.09, 37/37
   on / 30/37 off). **Cell 2 closed: INT8 rejected at the kernel level** —
-  `recipes/explore/zz-spark-x2.6-4b-int8-sglang.yaml` (`sparkrun_f30a2cdba68653a9_64af2f7668b6` on
+  `attic/explore/zz-spark-x2.6-4b-int8-sglang.yaml` (retired to attic 2026-11-20; `sparkrun_f30a2cdba68653a9_64af2f7668b6` on
   `.35`) loads the checkpoint (quant=compressed-tensors auto-detected, **5.47 GB in 28.08 s**) and
   dies **57 s in during prefill CUDA-graph capture, before serving one request**:
   `NotImplementedError: No implemented int8_scaled_mm for current compute capability`
