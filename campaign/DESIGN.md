@@ -255,14 +255,20 @@ ranks match a declared host exactly (the `.30` tail is placement's shorthand, no
 so a manual session leases the spelling `--hosts` uses.
 
 **Draining.** Manifest mode is unchanged: drained means exit 0 and stay down. A queue campaign
-defaults to **polling** instead — every `QUEUE_POLL` (30 s) a drained plan re-reads the register,
-because the owner's requirement is "keep the available nodes busy" and the register is where the
-next bootable row lands (an authoring row gains a `recipe`, another session `unblock`s a row). The
-interval is what makes it a scheduler rather than a busy loop: rows that are `blocked`, not
-bootable, or over the host count are excluded at read time and never re-attempted, and the "no
-runnable rows" line is printed once per quiet spell, not per tick. SIGTERM ends the run through the
-ordinary service path. `--once` is the escape: run what is runnable now, then exit 0 like a manifest
-campaign — for a preflight, or an operator who wants one pass.
+defaults to **polling** instead — every `QUEUE_POLL` (30 s) the serve loop re-reads the register,
+**drained or not**, because the owner's requirement is "keep the available nodes busy" and the
+register is where the next bootable row lands (an authoring row gains a `recipe`, another session
+`unblock`s a row). Gating the poll on a drained plan was the 2026-11-21 defect: a pending arm the
+free hosts cannot place yet (`plan.next_assignment` -> `None`, e.g. a quartet with two free hosts)
+keeps `drained()` false indefinitely, so a row queued at 16:10 was still invisible to a plan built
+at 00:12 and `NRestarts=0` hid it. Polling mid-run is safe by construction: `refresh` only adopts
+rows for arms no lease has started (`Campaign.refresh` refuses a leased one) and only adds arms,
+never a second assignment. The interval is what makes it a scheduler rather than a busy loop: rows
+that are `blocked`, not bootable, or over the host count are excluded at read time and never
+re-attempted, and the "no runnable rows" line is printed once per quiet spell — and only for a plan
+that is actually drained, so a waiting arm is not reported as an empty queue. SIGTERM ends the run
+through the ordinary service path. `--once` is the escape: run what is runnable now, then exit 0
+like a manifest campaign — for a preflight, or an operator who wants one pass.
 
 Preflight against the live register (no boot, no worker; it prints the exclusions, the skip lines
 and the plan, and creates/updates `state.json`):

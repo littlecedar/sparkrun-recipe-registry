@@ -360,7 +360,7 @@ class Director:
         return True
 
     def _wait_for_rows(self) -> None:
-        """Queue mode's drained state: look again at a bounded interval, never per tick."""
+        """Re-read the register at a bounded interval, on every tick, drained or not."""
         now = time.monotonic()
         if now - self._last_poll < QUEUE_POLL:
             return
@@ -379,8 +379,9 @@ class Director:
             return
         if grew:
             self._idle_said = False
-        elif not self._idle_said:
+        elif not self._idle_said and self.drained():
             # Once per quiet spell, not once per tick: a blocked row must not fill the journal.
+            # Only a drained plan is quiet: a pending row the hosts cannot place yet is not.
             print(f"queue: no runnable rows; polling every {QUEUE_POLL:g}s for new ones",
                   file=self.out)
             self._idle_said = True
@@ -804,18 +805,32 @@ class Director:
         try:
             while not self._stop:
                 server.handle_request()
-                self.supervise()
-                if self.drained():
-                    if self.register is None or self.once:
-                        print("plan drained", file=self.out)
-                        break
-                    self._wait_for_rows()
+                if not self._tick():
+                    break
         finally:
             self._stop_workers()
             server.server_close()
             self.socket.unlink(missing_ok=True)
             signal.signal(signal.SIGTERM, previous)
         return self.summary()
+
+    def _tick(self) -> bool:
+        """One serve-loop pass; False when the plan is drained and this mode exits.
+
+        The register is polled on every tick, not only once `drained()`: a pending row the free
+        hosts cannot place right now keeps `drained()` false for as long as it waits, and polling
+        behind that gate froze ingestion (2026-11-21: a quartet over two free hosts never left the
+        plan, so a row queued at 16:10 was still invisible to a plan built at 00:12). Polling is
+        what a live lease must survive too: `refresh` only adds arms and adopts a row for an arm no
+        lease has started, so it cannot hand out a second assignment.
+        """
+        self.supervise()
+        if self.register is not None and not self.once:
+            self._wait_for_rows()
+        if self.drained() and (self.register is None or self.once):
+            print("plan drained", file=self.out)
+            return False
+        return True
 
     def _found_measured(self, arm: str, arm_dir: str, *, hosts: list[str], lease_id: str,
                         started: float | None) -> None:
