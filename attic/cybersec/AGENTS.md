@@ -657,6 +657,13 @@ one-command load falsifier; the row `hf-cache-20261110-orcacyber-new-quant` clos
 - Receipt `~/benchmarks/orcacyber-dflash-20261120/`: `falsifier.log`, `serve.log`,
   `completion.json`, `ladder-c1{,-boot2}.{yaml,json,csv}`, `ladder-full.*`, `ladder-control-c1.*`,
   `battery-dflash.{json,log}`, `vision-refusal-dflash.json`, `watchdog-*.log`, `launch*.log`.
+- **Correction 2026-11-21.** The paired-C1 bullet above counted boot 2's full-ladder C1 rung
+  (31.18 ± 3.82) as a third independent boot, so its "four independent boots" and "four-boot mean
+  31.44 ± 1.60" overstate the evidence. Three independent C1 cells stand: **29.33 ± 1.79** (boot 1),
+  **33.06 ± 7.35** (boot 2) and **32.20 ± 5.69** (boot 4) → **31.53 ± 1.95**. The 31.18 is a rung of
+  boot 2's own ladder (C1 31.18 · C2 40.98 · C5 35.62 · C10 31.00), not a separate boot. The bar
+  verdict is unchanged: 25.30 × 1.15 = 29.095, cleared by all three independent boots, boot 1 the
+  tightest at +0.33.
 
 ## Recipe comment archive (2026-10-14)
 
