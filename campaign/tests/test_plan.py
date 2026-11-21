@@ -76,6 +76,18 @@ class Manifest(unittest.TestCase):
         with self.assertRaises(plan.PlanError):
             plan.build(entries, {}, {}, self.root)
 
+    def test_a_six_rank_entry_without_the_flag_loads_memory_risky(self) -> None:
+        # `tp 2 x pp 3` is six ranks; `tp` alone would call it a pair. Rank count decides.
+        entries = plan.load_manifest(self.write(
+            [{"arm": "one", "path": "recipes/lane/one.yaml", "tp": 2, "pp": 3}]))
+        self.assertEqual((entries[0]["nodes"], entries[0]["memory_risky"]), (6, True))
+
+    def test_an_explicit_safe_declaration_is_kept(self) -> None:
+        entries = plan.load_manifest(self.write(
+            [{"arm": "one", "path": "recipes/lane/one.yaml", "tp": 2, "pp": 3,
+              "memory_risky": False}]))
+        self.assertFalse(entries[0]["memory_risky"], "the recorded override outranks rank count")
+
     def test_every_exclusion_is_explained(self) -> None:
         recipe(self.root, "lane", "gone",
                marker="2026-11-01 \u2014 died at engine load (docs/lane.md:2)")
@@ -151,6 +163,21 @@ class MemoryRiskyPlacement(unittest.TestCase):
         arms = {"six": arm_record(tp=6, memory_risky=True), "next": arm_record(tp=1)}
         self.assertEqual(plan.next_assignment(["six", "next"], arms, list(HOSTS)),
                          ("next", (HOSTS[1],)))
+
+    def test_a_six_rank_record_without_the_flag_is_skipped_for_the_next_candidate(self) -> None:
+        # No `memory_risky` on the record at all: rank count classifies it, so it waits for five
+        # safe hosts instead of being truncated onto the head.
+        arms: dict[str, Any] = {"six": {"tp": 6, "status": "pending", "failures": 0,
+                                        "needs_reap": []},
+                                "next": arm_record(tp=1)}
+        self.assertEqual(plan.next_assignment(["six", "next"], arms, list(HOSTS)),
+                         ("next", (HOSTS[1],)))
+
+    def test_a_pair_without_the_flag_still_takes_two_hosts(self) -> None:
+        arms: dict[str, Any] = {"pair": {"tp": 2, "status": "pending", "failures": 0,
+                                        "needs_reap": []}}
+        self.assertEqual(plan.next_assignment(["pair"], arms, list(HOSTS)),
+                         ("pair", (HOSTS[1], HOSTS[2])))
 
     def test_the_control_with_no_excluded_hosts_places_on_the_head(self) -> None:
         arms = {"kimi": arm_record(tp=4, memory_risky=True)}

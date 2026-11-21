@@ -330,6 +330,7 @@ class LeaseCommand(unittest.TestCase):
             code = director_module.main([
                 "lease", "--hosts", hosts, "--holder", "session:tp4-20261111", "--ttl", "14400",
                 "--arm", "kimi-six", "--window", "tp4-20261111",
+                "--no-memory-risky", "measured safe: ~20 GiB/rank",
                 "--accept-record-risk", reason, "--repo-root", str(self.repo)])
         self.assertEqual(code, 0, out.getvalue())
         self.assertIn("record-risk-accepted:", out.getvalue())
@@ -353,6 +354,92 @@ class LeaseCommand(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertNotIn("record_risk",
                          leases.Ledger(self.repo / leases.LEDGER).leases()[0])
+
+    def test_a_four_host_lease_on_the_head_refuses_and_names_both_overrides(self) -> None:
+        err = io.StringIO()
+        with mock.patch.object(plan, "local_identities", return_value={"elsewhere"}), \
+                mock.patch.object(director_module.guardrails, "prove",
+                                  lambda host, window="": self.fail("refused before any probe")), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            code = director_module.main([
+                "lease", "--hosts", "node.30,node.31,node.32,node.33", "--holder", "manual-a",
+                "--ttl", "600", "--repo-root", str(self.repo)])
+        self.assertEqual(code, 3)
+        text = err.getvalue()
+        self.assertIn("node.30", text, "the refusal names the host it would put a rank on")
+        self.assertIn("4 ranks; exclusion .30", text, "and the set it is excluded by")
+        self.assertIn("--allow-host node.30 --window", text, "the waiver is named with its window")
+        self.assertIn("--no-memory-risky", text, "the measured-safe declaration is named too")
+        self.assertIn("Lease the remaining ranks", text)
+        self.assertEqual(leases.Ledger(self.repo / leases.LEDGER).leases(), [],
+                         "a refused shape writes no record")
+
+    def test_a_proven_waiver_records_the_window_the_proof_and_the_allowance(self) -> None:
+        calls: list[tuple[str, str]] = []
+
+        def proof(host: str, window: str = "") -> list[str]:
+            calls.append((host, window))
+            return ["OOMScoreAdjust ssh.service = -900"]
+
+        out = io.StringIO()
+        with mock.patch.object(plan, "local_identities", return_value={"elsewhere"}), \
+                mock.patch.object(director_module.guardrails, "prove", proof), \
+                contextlib.redirect_stdout(out):
+            code = director_module.main([
+                "lease", "--hosts", "node.31,node.32,node.33,node.30", "--holder", "manual-a",
+                "--ttl", "600", "--window", "tp4-20261120", "--allow-host", "node.30",
+                "--repo-root", str(self.repo)])
+        self.assertEqual(code, 0, out.getvalue())
+        self.assertEqual(calls, [("node.30", "tp4-20261120")],
+                         "the proof is taken for the declared window, before the claim")
+        self.assertIn("lease-proof: node.30 OOMScoreAdjust ssh.service = -900", out.getvalue())
+        record = leases.Ledger(self.repo / leases.LEDGER).leases()[0]
+        self.assertEqual(record["window"], "tp4-20261120")
+        self.assertEqual(record["proof"], ["OOMScoreAdjust ssh.service = -900"])
+        self.assertEqual(record["allow_hosts"], ["node.30"])
+        self.assertTrue(record["memory_risky"])
+        listed = io.StringIO()
+        with contextlib.redirect_stdout(listed):
+            self.assertEqual(director_module.main(["lease", "--list", "--repo-root",
+                                                   str(self.repo)]), 0)
+        self.assertIn("memory-risky=True allow=node.30", listed.getvalue())
+
+    def test_a_failed_waiver_proof_writes_no_record(self) -> None:
+        def refuse(host: str, window: str = "") -> list[str]:
+            raise plan.PlanError(f"{host}: no executable guard script in window {window!r}")
+
+        err = io.StringIO()
+        with mock.patch.object(plan, "local_identities", return_value={"elsewhere"}), \
+                mock.patch.object(director_module.guardrails, "prove", refuse), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            code = director_module.main([
+                "lease", "--hosts", "node.31,node.32,node.33,node.30", "--holder", "manual-a",
+                "--ttl", "600", "--window", "tp4-20261120", "--allow-host", "node.30",
+                "--repo-root", str(self.repo)])
+        self.assertEqual(code, 3)
+        self.assertIn("lease-refused: node.30 (node.30: no executable guard script",
+                      err.getvalue())
+        self.assertEqual(leases.Ledger(self.repo / leases.LEDGER).leases(), [],
+                         "the proof precedes the claim, so a refusal leaves no record")
+
+    def test_a_two_host_lease_away_from_the_head_is_unchanged(self) -> None:
+        listed = io.StringIO()
+        with mock.patch.object(plan, "local_identities", return_value={"elsewhere"}), \
+                mock.patch.object(director_module.guardrails, "prove",
+                                  lambda host, window="": self.fail("a pair proves nothing")), \
+                contextlib.redirect_stdout(io.StringIO()):
+            code = director_module.main(["lease", "--hosts", "node.31,node.32", "--holder",
+                                         "manual-a", "--ttl", "600", "--repo-root", str(self.repo)])
+        self.assertEqual(code, 0)
+        record = leases.Ledger(self.repo / leases.LEDGER).leases()[0]
+        self.assertEqual(record["hosts"], ["node.31", "node.32"])
+        self.assertEqual(record["proof"], [])
+        self.assertFalse(record["memory_risky"], "two ranks are not the overrunning class")
+        self.assertEqual(record["allow_hosts"], [])
+        with contextlib.redirect_stdout(listed):
+            self.assertEqual(director_module.main(["lease", "--list", "--repo-root",
+                                                   str(self.repo)]), 0)
+        self.assertNotIn("memory-risky=", listed.getvalue())
 
     def test_an_empty_acceptance_is_refused(self) -> None:
         err = io.StringIO()
@@ -711,7 +798,7 @@ class SixNodeShape(DirectorCase):
             [{"arm": "six", "path": "recipes/lane/six.yaml", "tp": 2, "pp": 3}])))
         self.assertEqual((entries[0]["tp"], entries[0]["pp"], entries[0]["nodes"]), (2, 3, 6))
 
-        leader, _ = self.build([self.arm("six", tp=2, pp=3)], hosts=self.HOSTS)
+        leader, _ = self.build([self.arm("six", tp=2, pp=3, memory_risky=False)], hosts=self.HOSTS)
         lease = leader.handle(protocol.poll("w1"))["lease"]
         self.assertEqual(sorted(lease["hosts"]), sorted(self.HOSTS))
         self.assertEqual((lease["tp"], lease["pp"], lease["nodes"]), (2, 3, 6))
@@ -721,15 +808,24 @@ class SixNodeShape(DirectorCase):
 
     def test_any_held_rank_refuses_the_six_node_lease(self) -> None:
         self.ledger.acquire("another-session", ["node.32"], ttl=600)
-        leader, _ = self.build([self.arm("six", tp=2, pp=3)], hosts=self.HOSTS)
+        leader, _ = self.build([self.arm("six", tp=2, pp=3, memory_risky=False)], hosts=self.HOSTS)
         self.assertEqual(leader.handle(protocol.poll("w1"))["op"], "idle")
         self.assertIn("lease-held: node.32", self.out.getvalue())
         self.assertNotIn("assign:", self.out.getvalue())
 
     def test_the_lease_names_six_ranks_and_a_five_host_set_is_not_enough(self) -> None:
-        leader, _ = self.build([self.arm("six", tp=2, pp=3)], hosts=self.HOSTS[:5])
+        leader, _ = self.build([self.arm("six", tp=2, pp=3, memory_risky=False)],
+                               hosts=self.HOSTS[:5])
         self.assertEqual(leader.handle(protocol.poll("w1"))["op"], "idle")
         self.assertNotIn("assign:", self.out.getvalue())
+
+    def test_six_ranks_without_the_override_wait(self) -> None:
+        # Six ranks and no `memory_risky` declaration is risky by rank count, so the head is not
+        # truncated onto: the arm waits (idle, no assign, no lease) instead of taking all six.
+        leader, _ = self.build([self.arm("six", tp=2, pp=3)], hosts=self.HOSTS)
+        self.assertEqual(leader.handle(protocol.poll("w1"))["op"], "idle")
+        self.assertNotIn("assign:", self.out.getvalue())
+        self.assertEqual(self.ledger.leases(), [], "a waiting shape writes no claim")
 
 
 class RecordRoot(DirectorCase):
@@ -744,7 +840,8 @@ class RecordRoot(DirectorCase):
     HOSTS = HEAD
 
     def six(self, **fields) -> dict:
-        return self.arm("six", tp=2, pp=3, **fields)
+        # Explicitly not memory-risky: this class is about the record root, not the head's pool.
+        return self.arm("six", tp=2, pp=3, memory_risky=False, **fields)
 
     def test_a_six_rank_shape_that_must_take_the_record_host_refuses_naming_it(self) -> None:
         with self.assertRaises(plan.PlanError) as ctx:
@@ -795,7 +892,7 @@ class RecordRoot(DirectorCase):
 
     def test_a_quartet_that_would_only_fit_by_taking_the_record_host_waits(self) -> None:
         self.ledger.acquire("another-session", ["node.31", "node.32"], ttl=600)
-        leader, _ = self.build([self.arm("six", tp=2, pp=2)], hosts=self.HOSTS,
+        leader, _ = self.build([self.arm("six", tp=2, pp=2, memory_risky=False)], hosts=self.HOSTS,
                                record_hosts=("node.30",))
         self.assertEqual(leader.handle(protocol.poll("w1"))["op"], "idle")
         self.assertNotIn("assign:", self.out.getvalue())
@@ -884,7 +981,8 @@ class PlanOnly(unittest.TestCase):
         self.assertFalse((self.repo / ".local").exists())
 
     def test_the_declared_risk_plans_six_hosts_and_prints_the_acceptance(self) -> None:
-        entries = [{"arm": "six", "path": "recipes/lane/six.yaml", "tp": 2, "pp": 3}]
+        entries = [{"arm": "six", "path": "recipes/lane/six.yaml", "tp": 2, "pp": 3,
+                    "memory_risky": False}]
         code, text, err = self.run_plan_risk(
             entries, extra=("--accept-record-risk", "owner accepted the record host"),
             identities={"node.30"})
@@ -892,6 +990,15 @@ class PlanOnly(unittest.TestCase):
         self.assertIn("record-risk-accepted: node.30 (owner accepted the record host)", text)
         self.assertIn("plan: six -> node.31,node.32,node.33,node.34,node.35,node.30", text)
         self.assertFalse((self.tmp / "state.json").exists(), "plan writes no state")
+
+    def test_a_six_rank_plan_without_the_override_waits(self) -> None:
+        # Six ranks, no declaration, and no waiver: five safe hosts cannot hold six ranks, so the
+        # plan refuses rather than truncating onto the head.
+        entries = [{"arm": "six", "path": "recipes/lane/six.yaml", "tp": 2, "pp": 3}]
+        code, text, err = self.run_plan_risk(entries, identities={"elsewhere"})
+        self.assertEqual(code, 3, err)
+        self.assertIn("plan: no pending arm fits the declared hosts", text)
+        self.assertFalse((self.tmp / "state.json").exists(), "a refusal writes no state")
 
     def test_a_quartet_that_fits_outside_the_record_host_plans_normally(self) -> None:
         entries = [{"arm": "quartet", "path": "recipes/lane/quartet.yaml", "tp": 2, "pp": 2}]

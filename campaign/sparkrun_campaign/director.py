@@ -1055,7 +1055,10 @@ def lease_command(args: argparse.Namespace) -> int:
     Same ledger and same record as the director uses, so one mechanism claims a multi-rank boot.
     A `--ttl` is required to write: the claim expires on its own, which is what lets a lost session
     stop holding the fleet. A release names one record — its id, or the same holder and hosts it
-    was written with — because a holder is a session, not a claim.
+    was written with — because a holder is a session, not a claim. A memory-risky shape (four or
+    more ranks unless `--memory-risky/--no-memory-risky` says otherwise) may not take an excluded
+    host without `--allow-host` naming it and a `--window`: the same waiver the plan requires, with
+    the host's guardrails proved before the record exists.
     """
     ledger = leases.Ledger(Path(args.repo_root).expanduser() / leases.LEDGER)
     try:
@@ -1084,6 +1087,11 @@ def lease_command(args: argparse.Namespace) -> int:
                       + (f" arm={record['arm']}" if record.get("arm") else "")
                       + (f" record-risk={record['record_risk']}"
                          if record.get("record_risk") else "")
+                      + (f" memory-risky={record['memory_risky']} "
+                         f"allow={','.join(record.get('allow_hosts') or ()) or '-'}"
+                         if record.get("memory_risky") else "")
+                      + (f" memory-safe={record['memory_safe']}"
+                         if record.get("memory_safe") else "")
                       + (f" note={record['note']}" if record.get("note") else ""))
             for fence in fences:
                 serve = fence.get("serve") or {}
@@ -1107,6 +1115,11 @@ def lease_command(args: argparse.Namespace) -> int:
                   "string", file=sys.stderr)
             return 2
         hosts = _host_list(args.hosts)
+        safe_reason = (args.no_memory_risky or "").strip()
+        if args.no_memory_risky is not None and not safe_reason:
+            print("cannot lease: --no-memory-risky needs the reason, not an empty string",
+                  file=sys.stderr)
+            return 2
         # The same rule the plan applies: a rank on the host holding the campaign record root loses
         # the record with the node. The manual claim states its ranks outright, so any included
         # record host is the risk; the plan additionally refuses shapes that cannot avoid one.
@@ -1117,11 +1130,46 @@ def lease_command(args: argparse.Namespace) -> int:
                   f"there loses the record with the node. Lease the remaining ranks, or declare "
                   f"the risk with --accept-record-risk \"<why>\"", file=sys.stderr)
             return 3
+        # The same rule the plan applies to a memory-risky shape: an excluded host is waivable
+        # only inside a window named per boot, and its guardrails are proved before the claim.
+        # One rank per host is enforced by `acquire`, so the host count is the rank count.
+        excluded = _excluded(args)
+        allow = [host for value in (args.allow_host or ())
+                 for host in (cell.strip() for cell in value.split(",")) if host]
+        window = (args.window or "").strip()
+        risky = (False if safe_reason else
+                 True if args.memory_risky else len(hosts) >= 4)
+        barred_here = [host for host in hosts if plan.barred(host, excluded)]
+        waived = all(plan.barred(host, allow) for host in barred_here)
+        if risky and barred_here and not (window and waived):
+            print(f"cannot lease: {','.join(barred_here)} is excluded for a memory-risky shape "
+                  f"({len(hosts)} ranks; exclusion {','.join(excluded)}): a global pool overrun "
+                  f"there takes ssh, NetworkManager and BeeGFS with it. Lease the remaining "
+                  f"ranks, or declare each host with --allow-host {barred_here[0]} --window "
+                  f"<name> (its guardrails are proved before the claim), or declare "
+                  f"--no-memory-risky \"<why>\" for a shape measured to fit", file=sys.stderr)
+            return 3
+        proof: list[str] = []
+        if risky:
+            for host in barred_here:
+                try:
+                    lines = guardrails.prove(host, window=window)
+                except plan.PlanError as exc:
+                    print(f"lease-refused: {host} ({exc})", file=sys.stderr)
+                    return 3
+                proof.extend(lines)
+                for line in lines:
+                    print(f"lease-proof: {host} {line}")
         record = ledger.acquire(args.holder, hosts, ttl=args.ttl,
-                                arm=args.arm, window=args.window, takeover=args.takeover,
-                                record_risk=(accept or "").strip() if record_here else "")
+                                arm=args.arm, window=window, takeover=args.takeover,
+                                record_risk=(accept or "").strip() if record_here else "",
+                                proof=proof, memory_risky=risky, allow_hosts=allow,
+                                memory_safe=safe_reason)
         print(f"leased {record['id']} to {record['holder']} on {','.join(record['hosts'])}"
               f" until {record['expires_at']:.0f}")
+        if record.get("memory_safe"):
+            print(f"memory-safe-declared: {','.join(record['hosts'])} "
+                  f"({record['memory_safe']})")
         if record.get("record_risk"):
             print(f"record-risk-accepted: {','.join(record['hosts'])} "
                   f"({record['record_risk']})")
@@ -1205,6 +1253,19 @@ def main(argv: list[str] | None = None) -> int:
     claim.add_argument("--ttl", type=float, help="seconds until the lease expires (required)")
     claim.add_argument("--arm", default="", help="arm the ranks are booting, for the record")
     claim.add_argument("--window", default="", help="declared window name, per boot")
+    claim.add_argument("--exclude-host", action="append", metavar="HOST",
+                       help="host a memory-risky lease may not take (repeatable, comma-separated; "
+                            "default: $CAMPAIGN_EXCLUDE_HOSTS, else "
+                            f"{','.join(plan.MEMORY_RISKY_EXCLUDED_HOSTS)})")
+    claim.add_argument("--allow-host", action="append", metavar="HOST",
+                       help="waive the exclusion for one excluded host (repeatable; needs "
+                            "--window and is proved before the claim)")
+    shape = claim.add_mutually_exclusive_group()
+    shape.add_argument("--memory-risky", action="store_true",
+                       help="declare the shape memory-risky (the default at four or more ranks)")
+    shape.add_argument("--no-memory-risky", default=None, metavar="WHY",
+                       help="declare a shape measured to fit; the reason is stored on the record "
+                            "and shown by --list")
     claim.add_argument("--release", default="", metavar="ID",
                        help="drop one record: give its id, or a holder plus --hosts")
     claim.add_argument("--takeover", action="store_true",

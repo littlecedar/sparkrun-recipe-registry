@@ -224,7 +224,9 @@ class Ledger:
     def acquire(self, holder: str, hosts: list[str] | tuple[str, ...], *, ttl: float,
                 arm: str = "", window: str = "", proof: list[str] | tuple[str, ...] = (),
                 lease_id: str = "", takeover: bool = False,
-                record_risk: str = "") -> dict[str, Any]:
+                record_risk: str = "", memory_risky: bool = False,
+                allow_hosts: list[str] | tuple[str, ...] = (),
+                memory_safe: str = "") -> dict[str, Any]:
         """Write one claim for `hosts`, or refuse naming every live lease it would replace.
 
         An identical (holder, hosts, window) re-write refreshes that record -- a restart or a
@@ -234,6 +236,9 @@ class Ledger:
         `record_risk` is the operator's declared acceptance of a rank on the host holding the
         campaign record root: the refusal rule is the caller's (`director lease`, the director's
         own gate), and the fact is stored here so `--list` shows it beside the claim.
+        `memory_risky` and `allow_hosts` are the shape's memory declaration and the excluded hosts
+        it waives; `memory_safe` is the operator's reason for declaring a 4+ rank shape safe.
+        Stored for the same reason, so the ledger, not a journal, is the audit record.
         """
         hosts = [str(host) for host in hosts]
         if not hosts or len(set(hosts)) != len(hosts):
@@ -243,6 +248,9 @@ class Ledger:
             raise LeaseError(declared.verdict)
         mine = (str(holder), tuple(sorted(hosts)), str(window))
         wanted = set(hosts)
+        shape = {"memory_risky": bool(memory_risky),
+                 "allow_hosts": [str(host) for host in allow_hosts],
+                 "memory_safe": str(memory_safe)}
 
         def change(data: dict[str, Any], now: float) -> dict[str, Any]:
             fenced = self._fence_holds(data, hosts)
@@ -255,7 +263,7 @@ class Ledger:
                              if self.claim(lease) == mine), None)
             if existing is not None:
                 existing.update({"ttl": float(ttl), "expires_at": now + float(ttl),
-                                 "proof": list(proof)})
+                                 "proof": list(proof), **shape})
                 if arm:
                     existing["arm"] = arm
                 if record_risk:
@@ -288,6 +296,7 @@ class Ledger:
                 "ttl": float(ttl),
                 "issued_at": now,
                 "expires_at": now + float(ttl),
+                **shape,
             }
             if superseded:
                 record["note"] = f"takeover of {superseded}"

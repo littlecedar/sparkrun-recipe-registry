@@ -96,13 +96,16 @@ hostname (the address-hygiene gate); a risky row whose exclusion set matches **n
 refuses the plan rather than sorting as if the head were absent — the guard must not look installed
 while matching nothing. A **memory-risky** shape is declared by its row
 (`memory_risky: true`, or `exclude_hosts` naming hosts for that arm) and, absent a declaration, by
-`node_cost: quartet` — the class that has overrun the pool. `tp` alone is the wrong lever in both
-directions: a TP=2 x PP=3 six-node shape overruns while a ~20 GiB/rank quartet does not. A risky
-shape that cannot fit the declared hosts outside the exclusion is refused in the table above; one
-that is only short on *free* safe hosts waits rather than spill onto one, and is never truncated
-onto an excluded host. An explicit `memory_risky: false` overrides the cost fallback for a shape
-measured to fit. The trigger and its hosts travel with the row into the state record
-(`memory_risky`, `exclude_hosts`), so assignment reads the row's current declaration.
+its **rank count** — `nodes`, else `tp`, of four or more — or by `node_cost: quartet`; the
+manifest loader asks that one function rather than re-deriving, so a `tp 2 x pp 3` entry with no
+flag is six ranks and risky, not a pair. `tp` alone is the wrong lever in both directions: a
+TP=2 x PP=3 six-node shape overruns while a ~20 GiB/rank quartet does not, so a `tp >= 4` test
+passes the first and a `tp == 4` test misses it. A risky shape that cannot fit the declared hosts
+outside the exclusion is refused in the table above; one that is only short on *free* safe hosts
+waits rather than spill onto one, and is never truncated onto an excluded host. An explicit
+`memory_risky: false` overrides the rank count and the cost fallback for a shape measured to fit.
+The trigger and its hosts travel with the row into the state record (`memory_risky`,
+`exclude_hosts`), so assignment reads the row's current declaration.
 
 **The head is waivable only by the boot's own declaration, and only with proof.** Owner ruling
 2026-11-11 (#2): `.30` may host a memory-risky shape only inside an explicitly declared window,
@@ -213,7 +216,15 @@ share one record-root rule: a lease whose ranks include the host holding the cam
 is refused unless `--accept-record-risk "<why>"` declares it, since the manual claim states its
 ranks outright instead of being placed. The declaration is stored on the ledger record and shown
 as `record-risk=` in `--list`, the same acceptance `state.json` carries under `record_risk` for a
-campaign. The director
+campaign. The picker applies the placement rule too, because a manual claim states its ranks
+instead of being placed: a shape with four or more ranks (one rank per host, so the host count is
+the rank count; `--memory-risky` / `--no-memory-risky "<why>"` overrides) may not take an excluded
+host without `--allow-host` naming **every** excluded rank it takes and a `--window` — otherwise
+it exits 3 naming the hosts, the exclusion set and the three ways out. On a waiver the picker runs
+`guardrails.prove` for each such host **before** the claim, prints `lease-proof: <host> <line>`,
+and stores `memory_risky`, `allow_hosts`, `proof` and `memory_safe` (the operator's reason for
+declaring a 4+ rank shape safe) on the record, shown by `--list` as `memory-risky=` / `allow=` /
+`memory-safe=`. The ledger, not a journal, is the audit record. The director
 is the writer for campaign boots — the record exists, and any rank is checked again, before the
 state lease a worker can launch from — and a manual session uses the same code path:
 
@@ -222,6 +233,7 @@ cd <checkout>/campaign
 uv run --frozen python -m sparkrun_campaign.director lease --hosts "$NODES" \
   --holder <session> --ttl 14400 --window <window-name>
 #   --list, --release <id>; no --ttl refused: a claim that cannot expire is not a claim
+#   a 4+ rank claim that takes an excluded host adds --allow-host <host> (proved first)
 ```
 
 Another holder's live lease is honoured: its ranks are removed from the campaign's free list

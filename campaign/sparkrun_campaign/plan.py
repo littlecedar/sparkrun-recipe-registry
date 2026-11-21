@@ -159,15 +159,17 @@ def memory_risky(row: dict[str, Any]) -> bool:
     """Whether a shape may not take an excluded host.
 
     The row decides, explicitly: `memory_risky: true`, or `exclude_hosts` naming hosts for this
-    arm alone. Absent both, the only numeric shape declaration the register carries is
-    `node_cost`, and a quartet is the class that has overrun the pool. `tp` alone is wrong in both
-    directions -- a TP=2 x PP=3 six-node shape overruns while a ~20 GiB/rank quartet does not --
-    so a shape the row does not classify is not refused; the excluded hosts still sort last for
-    it, so it cannot displace a safe host it had room for.
+    arm alone. Absent both, the shape is judged on its **rank count** -- `nodes`, else `tp` -- and
+    four or more ranks is the class that has overrun the pool. `tp` alone is wrong in both
+    directions: a TP=2 x PP=3 six-node shape overruns while a ~20 GiB/rank quartet does not, so a
+    `tp >= 4` test passes the first and a `tp == 4` test misses it. `node_cost: quartet` stays a
+    declaration of its own, and an explicit `memory_risky: false` overrides the rank count for a
+    shape measured to fit.
     """
     if "memory_risky" in row:
         return bool(row["memory_risky"])
-    return bool(row.get("exclude_hosts")) or row.get("node_cost") == "quartet"
+    return (bool(row.get("exclude_hosts")) or row.get("node_cost") == "quartet"
+            or int(row.get("nodes") or row.get("tp") or 1) >= 4)
 
 
 def waiver(owner: str, row: dict[str, Any], risky: bool,
@@ -453,10 +455,11 @@ def load_manifest(path: str | Path) -> list[dict[str, Any]]:
         env = entry.get("env") or {}
         if not isinstance(env, dict):
             raise PlanError(f"{path}: {arm} has a non-object `env`")
-        risky = bool(entry.get("memory_risky", False))
+        nodes = int(tp) * pp
+        risky = memory_risky({**entry, "nodes": nodes})
         allow, window = waiver(f"{path}: {arm}", entry, risky)
         out.append({"arm": arm, "path": recipe, "tp": int(tp), "pp": pp,
-                    "nodes": int(tp) * pp, "env": dict(env), "memory_risky": risky,
+                    "nodes": nodes, "env": dict(env), "memory_risky": risky,
                     "exclude_hosts": [], "allow_hosts": allow, "window": window})
     return out
 
@@ -503,13 +506,15 @@ def next_assignment(
     hosts in one lease -- `tools/run-arm.sh` is launched once with both, so one worker owns the pair.
 
     Hosts keep the declared order except that excluded ones come last, so a shape with room on
-    the safe hosts never takes the head whatever its `nodes`. A memory-risky shape that is short
-    on free safe hosts waits instead of spilling onto one; the plan has already refused it by
-    name when the declared set could never cover it, and truncating onto the excluded host is the
-    2026-11-10 defect. The one way a risky shape takes an excluded host is that boot's own
-    declaration (`allow_hosts` + `window`), and even then it is tried only after every safe host
-    -- the director proves the host's guardrails before the lease. A risky shape still runs when
-    the safe hosts cover it: a ~20 GiB/rank quartet on five safe hosts is placed, never refused.
+    the safe hosts never takes the head whatever its `nodes`. A record that does not carry
+    `memory_risky` is classified by its rank count, the same rule `load_manifest` applies. A
+    memory-risky shape that is short on free safe hosts waits instead of spilling onto one; the
+    plan has already refused it by name when the declared set could never cover it, and truncating
+    onto the excluded host is the 2026-11-10 defect. The one way a risky shape takes an excluded
+    host is that boot's own declaration (`allow_hosts` + `window`), and even then it is tried only
+    after every safe host -- the director proves the host's guardrails before the lease. A risky
+    shape still runs when the safe hosts cover it: a ~20 GiB/rank quartet on five safe hosts is
+    placed, never refused.
     """
     free = list(free_hosts)
     for arm in order:
@@ -526,7 +531,7 @@ def next_assignment(
         barred_for_arm = tuple(excluded_hosts) + tuple(record.get("exclude_hosts") or ())
         allow = tuple(record.get("allow_hosts") or ())
         safe = [host for host in free if not barred(host, barred_for_arm)]
-        if record.get("memory_risky"):
+        if memory_risky(record):
             waived = [host for host in free
                       if barred(host, barred_for_arm) and barred(host, allow)]
             if len(safe) + len(waived) < need:
