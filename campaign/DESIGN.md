@@ -735,6 +735,24 @@ Deliberately not done: a system-wide unit (needs root for no benefit), a timer (
 started by a decision, not a schedule), and `Restart=always` (a finished campaign must not restart
 and re-read a plan whose arms are all answered).
 
+## Running it
+
+`campaign/bin/campaign` is the human wrapper: it resolves its own checkout, so it runs from
+anywhere and nobody types the `uv run` line.
+
+```bash
+campaign/bin/campaign status    # per-arm state of the live campaign (the default)
+campaign/bin/campaign leases    # every live fleet lease
+campaign/bin/campaign plan --manifest <file>   # placement and head proof; extras pass through
+campaign/bin/campaign log       # follow the service journal (journalctl, no uv)
+```
+
+Two env overrides: `CAMPAIGN_ROOT` (default `~/benchmarks/h2h-20261107`, the root the service
+serves) and `CAMPAIGN_HOSTS`, which defaults to the `CAMPAIGN_HOSTS` in the unit's untracked
+`~/.config/sparkrun-campaign.env` (a tracked file may not carry cluster addresses). `-v` first
+echoes the exact command. A missing `<root>/state.json` exits 2 naming the path and the override:
+the live root is on the head.
+
 ## Phase 2: what the campaign run must show
 
 One unattended campaign over the declared node set, covering the whole checklist in one run:

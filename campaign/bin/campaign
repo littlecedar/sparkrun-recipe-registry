@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# Human wrapper around the campaign director: the long command lines, with the live defaults.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+project="$(dirname "$here")"
+repo="$HOME/src/sparkrun-recipe-registry"
+
+# The unit's untracked EnvironmentFile is where the live node set and root already live (a tracked
+# file may not carry cluster addresses); an exported value still wins. shortcut: simple KEY=value
+# lines only, which is what the file is documented to hold.
+env_file="$HOME/.config/sparkrun-campaign.env"
+root="${CAMPAIGN_ROOT:-}"
+hosts="${CAMPAIGN_HOSTS:-}"
+if [ -f "$env_file" ]; then
+  while IFS='=' read -r key value; do
+    case "$key" in
+      CAMPAIGN_ROOT) root="${root:-$value}" ;;
+      CAMPAIGN_HOSTS) hosts="${hosts:-$value}" ;;
+    esac
+  done < "$env_file"
+fi
+root="${root:-$HOME/benchmarks/h2h-20261107}"
+
+usage() {
+  cat <<'EOF'
+campaign — run the campaign director without remembering its command line
+
+usage: campaign [status|leases|plan|log|help] [args...]
+
+  status    per-arm state of the live campaign (the default)
+  leases    every live fleet lease
+  plan      placement and head proof; pass --manifest and any plan args
+  log       follow the campaign service journal (no uv)
+  help      this text
+
+env overrides:
+  CAMPAIGN_ROOT   campaign directory holding state.json
+                  (default: ~/benchmarks/h2h-20261107)
+  CAMPAIGN_HOSTS  comma-separated hosts the campaign may use
+                  (default: CAMPAIGN_HOSTS from ~/.config/sparkrun-campaign.env)
+
+-v as the first argument echoes the command before running it.
+EOF
+}
+
+verbose=0
+if [ "${1:-}" = "-v" ]; then
+  verbose=1
+  shift
+fi
+
+cmd="${1:-status}"
+if [ $# -gt 0 ]; then shift; fi
+
+run() {
+  if [ "$verbose" = 1 ]; then
+    printf '# '
+    printf '%q ' "$@"
+    printf '\n'
+  fi
+  "$@"
+}
+
+need_uv() {
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "campaign: uv is not on PATH; the director runs under uv run --project $project" >&2
+    exit 2
+  fi
+}
+
+check_root() {
+  if [ ! -f "$root/state.json" ]; then
+    echo "campaign: no state.json at $root/state.json — the campaign root lives on the head; set CAMPAIGN_ROOT to it" >&2
+    exit 2
+  fi
+}
+
+check_hosts() {
+  if [ -z "$hosts" ]; then
+    echo "campaign: CAMPAIGN_HOSTS is not set; put it in $env_file or export it" >&2
+    exit 2
+  fi
+}
+
+case "$cmd" in
+  status)
+    check_root
+    need_uv
+    run uv run --project "$project" --frozen python -B -m sparkrun_campaign.director \
+      status --root "$root" "$@"
+    ;;
+  leases)
+    need_uv
+    run uv run --project "$project" --frozen python -B -m sparkrun_campaign.director \
+      lease --list --repo-root "$repo" "$@"
+    ;;
+  plan)
+    check_hosts
+    need_uv
+    run uv run --project "$project" --frozen python -B -m sparkrun_campaign.director \
+      plan --hosts "$hosts" --repo-root "$repo" "$@"
+    ;;
+  log)
+    run journalctl --user -u sparkrun-campaign.service -f "$@"
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    echo "campaign: unknown subcommand '$cmd' (try: campaign help)" >&2
+    exit 2
+    ;;
+esac
