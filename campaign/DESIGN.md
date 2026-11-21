@@ -747,11 +747,13 @@ campaign/bin/campaign plan --manifest <file>   # placement and head proof; extra
 campaign/bin/campaign log       # follow the service journal (journalctl, no uv)
 ```
 
-Two env overrides: `CAMPAIGN_ROOT` (default `~/benchmarks/h2h-20261107`, the root the service
-serves) and `CAMPAIGN_HOSTS`, which defaults to the `CAMPAIGN_HOSTS` in the unit's untracked
-`~/.config/sparkrun-campaign.env` (a tracked file may not carry cluster addresses). `-v` first
-echoes the exact command. A missing `<root>/state.json` exits 2 naming the path and the override:
-the live root is on the head.
+Two overrides, each resolved exported → `~/.config/sparkrun-campaign.env` → the live unit's
+`ExecStart`: `CAMPAIGN_ROOT` (else the unit's `--root`, else `~/benchmarks/h2h-20261107`, the
+documented default, announced on stderr) and `CAMPAIGN_HOSTS` (else the unit's `--hosts`; with none
+of the three it exits 2 naming the env file and the unit). The director runs from the caller's cwd
+with the project on `PYTHONPATH`, so a relative `--manifest ./m.json` resolves where you stood.
+`-v` first echoes the exact command. A missing `<root>/state.json` exits 2 naming the path and the
+override: the live root is on the head.
 
 ## Phase 2: what the campaign run must show
 

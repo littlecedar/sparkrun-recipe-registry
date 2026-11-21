@@ -6,6 +6,12 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 project="$(dirname "$here")"
 repo="$HOME/src/sparkrun-recipe-registry"
 
+verbose=0
+if [ "${1:-}" = "-v" ]; then
+  verbose=1
+  shift
+fi
+
 # The unit's untracked EnvironmentFile is where the live node set and root already live (a tracked
 # file may not carry cluster addresses); an exported value still wins. shortcut: simple KEY=value
 # lines only, which is what the file is documented to hold.
@@ -20,7 +26,58 @@ if [ -f "$env_file" ]; then
     esac
   done < "$env_file"
 fi
-root="${root:-$HOME/benchmarks/h2h-20261107}"
+
+# The live unit on this host is the second source: its ExecStart carries --root and --hosts.
+# Read once, only when a value is still missing. shortcut: the `--flag value` form, not `--flag=value`.
+unit_exec=""
+unit_read=0
+# Extract the token after --flag from an ExecStart line using bash builtins.
+# shortcut: the `--flag value` form, not `--flag=value`.
+_unit_val() {
+  local flag="$1" word want=0
+  local -a words
+  read -r -a words <<< "$2"
+  for word in "${words[@]}"; do
+    if [ "$want" = 1 ]; then
+      printf '%s\n' "$word"
+      return 0
+    fi
+    [ "$word" = "$flag" ] && want=1
+  done
+  return 0
+}
+unit_arg() {
+  local execs
+  if [ "$unit_read" = 0 ]; then
+    unit_read=1
+    if command -v systemctl >/dev/null 2>&1; then
+      execs="$(systemctl --user show sparkrun-campaign.service -p ExecStart 2>/dev/null || true)"
+      unit_exec="${execs#ExecStart=}"
+    fi
+  fi
+  _unit_val "$1" "$unit_exec"
+  return 0
+}
+
+resolve_root() {
+  [ -n "$root" ] && return 0
+  root="$(unit_arg --root)"
+  if [ -n "$root" ]; then
+    [ "$verbose" = 1 ] && echo "campaign: root from sparkrun-campaign.service: $root" >&2
+    return 0
+  fi
+  root="$HOME/benchmarks/h2h-20261107"
+  echo "campaign: no CAMPAIGN_ROOT and no --root in sparkrun-campaign.service; falling back to $root (export CAMPAIGN_ROOT to override)" >&2
+}
+
+resolve_hosts() {
+  [ -n "$hosts" ] && return 0
+  hosts="$(unit_arg --hosts)"
+  if [ -n "$hosts" ]; then
+    [ "$verbose" = 1 ] && echo "campaign: hosts from sparkrun-campaign.service: $hosts" >&2
+  fi
+  return 0
+}
 
 usage() {
   cat <<'EOF'
@@ -36,19 +93,15 @@ usage: campaign [status|leases|plan|log|help] [args...]
 
 env overrides:
   CAMPAIGN_ROOT   campaign directory holding state.json
-                  (default: ~/benchmarks/h2h-20261107)
+                  (default: --root from sparkrun-campaign.service,
+                  else ~/benchmarks/h2h-20261107)
   CAMPAIGN_HOSTS  comma-separated hosts the campaign may use
-                  (default: CAMPAIGN_HOSTS from ~/.config/sparkrun-campaign.env)
+                  (default: CAMPAIGN_HOSTS from ~/.config/sparkrun-campaign.env,
+                  else --hosts from sparkrun-campaign.service)
 
 -v as the first argument echoes the command before running it.
 EOF
 }
-
-verbose=0
-if [ "${1:-}" = "-v" ]; then
-  verbose=1
-  shift
-fi
 
 cmd="${1:-status}"
 if [ $# -gt 0 ]; then shift; fi
@@ -63,9 +116,13 @@ run() {
 }
 
 # The package is not installed into the venv; `-m sparkrun_campaign` only resolves with the
-# project on sys.path, so the director must run from there. The subshell keeps the caller's cwd.
+# project on sys.path. PYTHONPATH supplies that without leaving the caller's cwd, so relative
+# arguments (--manifest ./m.json, --root ./x) still resolve against where the caller stood.
 run_uv() {
-  ( cd "$project" && run uv run --project . --frozen python -B -m sparkrun_campaign.director "$@" )
+  (
+    export PYTHONPATH="$project${PYTHONPATH:+:$PYTHONPATH}"
+    run uv run --project "$project" --frozen python -B -m sparkrun_campaign.director "$@"
+  )
 }
 
 need_uv() {
@@ -76,6 +133,7 @@ need_uv() {
 }
 
 check_root() {
+  resolve_root
   if [ ! -f "$root/state.json" ]; then
     echo "campaign: no state.json at $root/state.json — the campaign root lives on the head; set CAMPAIGN_ROOT to it" >&2
     exit 2
@@ -83,8 +141,9 @@ check_root() {
 }
 
 check_hosts() {
+  resolve_hosts
   if [ -z "$hosts" ]; then
-    echo "campaign: CAMPAIGN_HOSTS is not set; put it in $env_file or export it" >&2
+    echo "campaign: CAMPAIGN_HOSTS is not set; put it in $env_file, export it, or add --hosts to sparkrun-campaign.service" >&2
     exit 2
   fi
 }
