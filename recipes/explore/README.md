@@ -1832,9 +1832,11 @@ traffic and the engine is killed **by host policy**. `OOMKilled=false`, no kerne
 empty `journalctl -t earlyoom` are all consistent with that — earlyoom writes to syslog, not journald,
 which is why the first pass read it as "silent". **The 524,288-versus-131,072 window was a red
 herring**: the DFlash2 arm survived only because its cells ran before the pool tightened, and it died
-the same way once the quality suite ran (2026-11-20, task `…_b6b6871fabd8`). Both arms now default to
-`gpu_memory_utilization: 0.75` (~30 GiB of host headroom); the depth cells below were taken at that
-setting.
+the same way once the quality suite ran (2026-11-20, task `…_b6b6871fabd8`). The drafter arm now
+defaults to `gpu_memory_utilization: 0.75` (~30 GiB of host headroom) and the plain arm to **0.78**,
+the floor at which its own engine still grants the 524,288 window: at 0.75 vLLM answers "33.09 GiB KV
+available, 33.27 needed, estimated max model length 521,408" and refuses to start; the depth cells
+below were taken at those settings.
 
 **Third pass, 2026-11-20 (thread t1) — the four quality cells, on the DFlash2 arm.** Receipt
 `head:~/benchmarks/tp2-depth-20261120/ripple-dflash2-tp1/`. Task `ed290cbd6792ca7c_5bc279bf1e88` at the new
