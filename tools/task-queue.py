@@ -1025,6 +1025,46 @@ def committed_text(path: Path) -> str | None:
     return ref_text(path, "HEAD")
 
 
+#: What a `blocked` row's notes must name. These are *structured* phrases, not words: "any gate that
+#: treats 'not failed' as healthy" and "the sparkrun task owner" are prose that would pass a bare
+#: `gate|owner` test while naming no gate at all (both did, measured 2026-11-22). Owner correction
+#: 2026-11-22: a row that says only what work remains ("needs a live armed boot") is not blocked, it
+#: is queued work wearing an annotation nothing can clear.
+GATE_MARKER = re.compile(
+    r"(?i)(?:"
+    r"\bgate\s*:"                       # an explicit `gate: <what holds it>` marker
+    r"|\bowner[-\s]decision\b"          # "OWNER DECISION 2026-11-22: ..."
+    r"|\bowner[-\s](?:ruling|directive)\b"
+    r"|\b(?:decision|ruling|fence)\s*:"
+    r"|\bblocked on\b"
+    r"|\bauthori[sz]ed by\b"
+    r")")
+
+
+def lint_blocked(data: dict) -> list[tuple[str, str]]:
+    """`(id, detail)` for every `blocked` row that names no blocker (pure).
+
+    `blocked` is the register's one annotation for an *external* gate (`QUEUE.md` §Session
+    protocol step 6), so the row must name that gate: a `blocked_by` edge to the task that is the
+    work, or a notes line naming the decision/fence/authorisation with its provenance. Anything
+    else is work wearing a hold, and the cost is the one this rule was written for — runnable work
+    reads as waiting on somebody, and no tick can ever clear it.
+    """
+    out: list[tuple[str, str]] = []
+    for task in data.get("tasks", []):
+        if task.get("state") != "blocked":
+            continue
+        if task.get("blocked_by"):
+            continue
+        if GATE_MARKER.search(str(task.get("notes", ""))):
+            continue
+        out.append((str(task.get("id", "?")),
+                    "blocked with no `blocked_by` edge and no gate/decision named in its notes — "
+                    "add the task that is the work and link it, name the owner decision with its "
+                    "provenance, or return the row to `queued`"))
+    return out
+
+
 def cmd_lint(args, path: Path) -> None:
     """Lint markdown files; the board is the default because it is hand-written."""
     paths = [Path(p) for p in (args.paths or [DEFAULT_BOARD])]
@@ -1074,6 +1114,14 @@ def cmd_lint(args, path: Path) -> None:
             total += len(rows)
     if total:
         raise QueueError(f"{total} markdown problem(s) in {len(paths)} file(s)")
+    # The register's own rule (owner correction 2026-11-22). `lint` takes markdown paths, so the
+    # rule applies only when this invocation's file is not one of them — i.e. when `main` passed the
+    # register (`--file`, or the default). A markdown target is never parsed as the register.
+    held = [] if path in paths else lint_blocked(load(path))
+    for task_id, detail in held:
+        print(f"{path}: blocked: {task_id}: {detail}")
+    if held:
+        raise QueueError(f"{len(held)} blocked row(s) name no blocker")
     print(f"ok: {len(paths)} markdown file(s) render")
 
 

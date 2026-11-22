@@ -487,6 +487,74 @@ class Done(unittest.TestCase):
         self.assertEqual((weight, blocked), (2.0, {"b": 2.0}))
 
 
+class BlockedNeedsAGate(unittest.TestCase):
+    """A `blocked` row must name what holds it (owner correction 2026-11-22).
+
+    `blocked` is the register's one annotation for an *external* gate, so a row that names only the
+    work left ("needs a live armed boot") hides runnable work behind an annotation no tick can
+    clear. The rule is in `lint`, not `check`: the JSON is valid, the annotation is wrong.
+
+    The marker is deliberately structured (`gate:`, `owner decision`, `decision:`, `fence:`,
+    `blocked on`, `authorised by`) rather than a bare word: "any gate that treats 'not failed' as
+    healthy" and "the sparkrun task owner" are prose that would pass a word test while naming no
+    gate at all — both rows existed on 2026-11-22 and both were legitimate holds for other reasons.
+    """
+
+    def blocked(self, notes: str, blocked_by=()) -> dict:
+        row = task("held", 1.0, state="blocked")
+        row["notes"] = notes
+        row["blocked_by"] = list(blocked_by)
+        return row
+
+    def test_a_blocked_row_with_a_blocker_edge_passes(self):
+        # `relink` derives the mirror from `blocks`, so the edge is built the way the tool builds it.
+        held = self.blocked("needs the proof boot")
+        self.assertEqual(tq.lint_blocked(data([held, task("proof", 1.0, blocks=["held"])])), [])
+        self.assertEqual(held["blocked_by"], ["proof"], "the fixture's edge did not derive")
+
+    def test_a_named_owner_decision_passes(self):
+        held = self.blocked("OWNER DECISION 2026-11-22: this row runs in its own session")
+        self.assertEqual(tq.lint_blocked(data([held])), [])
+
+    def test_an_explicit_gate_marker_passes(self):
+        for notes in ("gate: the fenced serve's owner window",
+                      "decision: owner 2026-11-20",
+                      "fence: tp-le2-20261120",
+                      "blocked on the owner's window",
+                      "authorised by owner directive 2026-11-20"):
+            with self.subTest(notes=notes):
+                self.assertEqual(tq.lint_blocked(data([self.blocked(notes)])), [], notes)
+
+    def test_a_work_shaped_hold_is_flagged_by_name(self):
+        held = self.blocked("needs one live armed boot; the code already proves the teardown")
+        found = tq.lint_blocked(data([held]))
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0][0], "held")
+        self.assertIn("no `blocked_by` edge", found[0][1])
+
+    def test_the_prose_that_used_to_pass_a_word_test_is_flagged(self):
+        # "gate" and "owner" as ordinary words named no gate; the structured marker is the rule.
+        for notes in ("any gate that treats 'not failed' as healthy now sees a unit that never served",
+                      "identify the session from its own evidence, the sparkrun task owner"):
+            with self.subTest(notes=notes):
+                self.assertEqual(len(tq.lint_blocked(data([self.blocked(notes)]))), 1, notes)
+
+    def test_negative_control_the_same_notes_on_a_queued_row_pass(self):
+        row = task("work", 1.0)
+        row["notes"] = "needs one live armed boot"
+        self.assertEqual(tq.lint_blocked(data([row])), [])
+
+    def test_lint_exits_non_zero_and_names_the_row(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            queue = Path(tmp) / "queue.json"
+            queue.write_text(json.dumps(data([self.blocked("needs a live boot")])), encoding="utf-8")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                rc = tq.main(["--file", str(queue), "lint"])
+            self.assertEqual(rc, 1)
+            self.assertIn("blocked: held", out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
 
