@@ -1,20 +1,20 @@
 # Mechanics
 
 Recipe-schema reference for the `littlecedar` registry, written against **sparkrun
-0.4.2-alpha+g36d8a44**; the installed build is **0.4.3** (upgraded 2026-10-29), at
+0.4.2-alpha+g36d8a44**; the installed build is **0.4.3-alpha+gd34eb23** (read 2026-11-22), at
 `/home/siv/.local/share/uv/tools/sparkrun/lib/python3.14/site-packages/sparkrun/`.
 Every `file.py:line` cite is relative to that package tree, whose line numbers can move
 between builds; re-derive a line before trusting it after an upgrade, and let
 `sparkrun --version` name the build you have.
 
-**Cite provenance.** The 2026-11-16 pass re-derived, against the installed
-0.4.3-alpha+g35b208a, every cite in §[The one rule](#the-one-rule-that-decides-whether-a-knob-works)
-and in §Key reference under *Format and identity*. The earlier 0.4.2 pass (2026-10-21)
-covered *`model_revision`* under §Model and serving and all of §[Notes](#notes); it did not
-re-read them. Every other cite still carries 0.4.0 numbering — re-derive it with `grep -n`
-on the named symbol before trusting it. The module paths themselves
-(`core/launcher.py`, `core/recipe.py`, `core/validation.py`, `models/runtime.py`) are the
-same in both builds.
+**Cite provenance.** Each pass names the build it read. The 2026-11-22 pass re-derived §Model and
+serving, §Runtimes, §Topology and §Container and lifecycle against **0.4.3-alpha+gd34eb23**, and
+re-checked the two sections below, correcting two anchors the moved build had invalidated. The
+2026-11-16 pass re-derived, against 0.4.3-alpha+g35b208a, every cite in
+§[The one rule](#the-one-rule-that-decides-whether-a-knob-works) and in §Key reference under
+*Format and identity*; the 0.4.2 pass (2026-10-21) covered *`model_revision`* under §Model and
+serving and all of §[Notes](#notes). **§Build, execution, placement, §Plugin-owned keys and §Notes
+still carry 0.4.0/0.4.2 numbering** — re-derive with `grep -n` on the named symbol first.
 
 The format is v2 and the authoritative key set is `_KNOWN_KEYS`
 (`core/recipe.py:81-123`): **41 keys**, counted from the literal set. A key outside
@@ -51,9 +51,9 @@ reaches the engine through exactly one of:
 
 1. a `{placeholder}` of the same name in `command:`, in another default's value, or in
    an `env:` value (`core/launcher.py:798-818`);
-2. the runtime's flag map, exposed as `known_config_keys()` (`runtimes/base.py:903-928`;
+2. the runtime's flag map, exposed as `known_config_keys()` (`runtimes/base.py:907-932`;
    per-runtime extras in the runtime table below);
-3. a shared consumed key in `BASE_CONSUMED_CONFIG_KEYS` (`runtimes/base.py:41-86`) —
+3. a shared consumed key in `BASE_CONSUMED_CONFIG_KEYS` (`runtimes/base.py:46-85`) —
    parallelism dims, `max_model_len`, `gpu_memory_utilization`, `kv_cache_dtype`,
    `served_model_name`, `api_key`, `port`, `host`, executor and builder selectors, and the
    benchmark keys;
@@ -99,7 +99,7 @@ under `runtime_config:` so it reads as intentional.
   `recipe list` and `recipe search` read the top-level key **and** fall back to
   `metadata.description` (`core/recipe.py:2925-2928`), so both spellings list.
 - **`metadata`** — mapping, default `{}`. Feeds VRAM estimation and display, never the
-  serve command (`core/recipe.py:1353-1355`, `1676-1725`). Recognized labels include
+  serve command (`core/recipe.py:1353-1355`, `1676-1724`). Recognized labels include
   `model_params`, `model_dtype`, `kv_dtype`, `quantization`, `quant_bits`, `model_type`,
   `layer_types`, `description`, `maintainer`, and `spark_arena_benchmarks`. A malformed
   value is a **suggestion** (`recipe-metadata`), never a launch blocker
@@ -127,87 +127,87 @@ under `runtime_config:` so it reads as intentional.
 ### Model and serving
 
 - **`model`** — string, default `""`; required after resolution
-  (`core/recipe.py:1626-1627`). A Hugging Face repo id, a GGUF `repo:quant` spec, or an
+  (`core/recipe.py:1762-1763`). A Hugging Face repo id, a GGUF `repo:quant` spec, or an
   absolute host path. An absolute path means pre-placed weights: no download or
-  distribution, identity-mounted into the container (`core/recipe.py:1080-1098`).
+  distribution, identity-mounted into the container (`core/recipe.py:1205-1221`).
 - **`model_revision`** — string, default unset. Pins the served repo for distribution and
-  is stamped onto the auto-generated distribution entry (`core/recipe.py:333-350`). It
-  enters the template chain only when set (`core/recipe.py:1534-1535`). A pin that never
+  is stamped onto the auto-generated distribution entry (`core/recipe.py:442-465`). It
+  enters the template chain only when set (`core/recipe.py:1668-1669`). A pin that never
   reaches the engine as a revision flag warns `unpinned-model-revision`
-  (`core/validation.py:866-935`) — eleven shipped arms carry that warning deliberately.
+  (`core/validation.py:856-925`) — eleven shipped arms carry that warning deliberately.
   A typo'd top-level `revision:` is a dead pin: it is not in `_KNOWN_KEYS`, so it is swept
   into `runtime_config` and never reaches the engine — the spelling is top-level
   `model_revision:`.
 - **`runtime`** — string, default `""`; required after resolution
-  (`core/recipe.py:1628-1629`). Omitted, it is inferred from the command prefix:
+  (`core/recipe.py:1764-1765`). Omitted, it is inferred from the command prefix:
   `vllm serve` → `vllm`, `sglang serve` or `python -m sglang.launch_server` → `sglang`,
   `llama-server` → `llama-cpp`, `trtllm-serve` or `mpirun … trtllm` → `trtllm`
-  (`core/recipe.py:52-55`, `509-534`). Bare `vllm` then resolves to `vllm-distributed`,
+  (`core/recipe.py:55-58`, `641-664`). Bare `vllm` then resolves to `vllm-distributed`,
   or to `vllm-ray` when `defaults.distributed_executor_backend` is `ray` or the command
   contains `--distributed-executor-backend ray`; a CLI `-o` wins
-  (`core/recipe.py:39`, `644-662`).
-- **`runtime_version`** — string, default `""` (`core/recipe.py:1177`). Parsed, exported,
-  and hashed into the workload fingerprint (`orchestration/job_metadata.py:378-382`);
-  nothing in the installed 0.4.0 runtime tree reads it to change a command.
+  (`core/recipe.py:44`, `776-794`).
+- **`runtime_version`** — string, default `""` (`core/recipe.py:1303`). Parsed, exported,
+  and hashed into the workload fingerprint (`orchestration/job_metadata.py:388`);
+  nothing in the installed 0.4.3 runtime tree reads it to change a command.
 - **`command`** — folded string, default unset; any non-string is a load error
-  (`core/recipe.py:676-678`). It is a template rendered against the config chain
-  (`core/recipe.py:1540-1588`); see §Notes for the placeholder and vLLM/sglang traps.
+  (`core/recipe.py:808-810`). It is a template rendered against the config chain
+  (`core/recipe.py:1676-1724`); see §Notes for the placeholder and vLLM/sglang traps.
 - **`defaults`** — mapping, default `{}`; a non-mapping is a load error
-  (`core/recipe.py:679-682`). The recipe tier of the config chain
-  (`core/recipe.py:1532-1538`); read §The one rule before adding a key.
+  (`core/recipe.py:811-814`). The recipe tier of the config chain
+  (`core/recipe.py:1627-1674`); read §The one rule before adding a key.
 - **`runtime_config`** — mapping, default `{}`; a non-mapping is a load error
-  (`core/recipe.py:679-682`). The v1 escape hatch and the sweep target for unknown
-  top-level keys (`core/recipe.py:1264-1270`), read only by name — `build_args`, `mods`,
+  (`core/recipe.py:811-814`). The v1 escape hatch and the sweep target for unknown
+  top-level keys (`core/recipe.py:1386-1392`), read only by name — `build_args`, `mods`,
   `dashboard`, and `mmproj` are the consumers the checker names
-  (`core/validation.py:1176-1194`). Export flattens it back to the top level
-  (`core/recipe.py:2472-2474`).
-- **`env`** — mapping of string to string, default `{}` (`core/recipe.py:1217`). Only
+  (`core/validation.py:1178-1185`). Export flattens it back to the top level
+  (`core/recipe.py:2644-2646`).
+- **`env`** — mapping of string to string, default `{}` (`core/recipe.py:1342`). Only
   reserved `{config.NAME}` and `{launch.NAME}` tokens are expanded, with no shell
-  evaluation or host lookup (`core/env_templates.py:1-20`, `20-68`); `launch.NAME` must be
-  one of the documented fields (`core/env_templates.py:20`). A top-level `env_templates:`
-  key is rejected at load (`core/recipe.py:1218-1219`).
+  evaluation or host lookup (`core/env_templates.py:1-20`, `21-66`); `launch.NAME` must be
+  one of the documented fields (`core/env_templates.py:21`). A top-level `env_templates:`
+  key is rejected at load (`core/recipe.py:1343-1344`).
 - **`capabilities`**, **`unsupported_capabilities`** — lists of strings, default `[]`.
   Gateway declarations of what the served model can do; sparkrun never infers them, and an
-  undeclared capability is left to gateway policy (`core/recipe.py:1272-1284`). They are
+  undeclared capability is left to gateway policy (`core/recipe.py:1405-1406`). They are
   deliberately real attributes rather than swept keys so they stay **out of the workload
-  fingerprint** (`core/recipe.py:1275-1279`; the hashed attribute list is
-  `orchestration/job_metadata.py:371-382`).
+  fingerprint** (`core/recipe.py:1394-1403`; the hashed attribute list is
+  `orchestration/job_metadata.py:380-395`).
 
 ### Runtimes and what each consumes
 
-Every runtime also honors `BASE_CONSUMED_CONFIG_KEYS` (`runtimes/base.py:45-85`). The rows below add
+Every runtime also honors `BASE_CONSUMED_CONFIG_KEYS` (`runtimes/base.py:46-85`). The rows below add
 the runtime's own `known_config_keys()`: flag-map keys plus the keys it reads outside the map.
 
 | `runtime:` | Source | Additional consumed keys |
 |---|---|---|
-| `sglang` | `runtimes/sglang.py:153` | `_SGLANG_FLAG_MAP` plus `speculative_draft_model`, `speculative_draft_model_path`, `speculative_draft_model_revision` (`:281-292`) |
-| `vllm-distributed` | `runtimes/vllm_distributed.py:32` | `VLLM_FLAG_MAP` plus `data_parallel_rpc_port` (`runtimes/_vllm_common.py:87-98`) |
-| `vllm-ray` | `runtimes/vllm_ray.py:30` | the same vLLM map (`runtimes/_vllm_common.py:87-98`) |
-| `trtllm` | `runtimes/trtllm.py:79` | flag map plus `backend`, `cuda_graph_max_batch_size`, `cuda_graph_padding`, `free_gpu_memory_fraction`, `kv_cache_enable_block_reuse`, `moe_backend`, `print_iter_log` (`:86-98`) |
-| `atlas` | `runtimes/atlas.py:275` | `_ATLAS_FLAG_MAP` plus `_ATLAS_SPARKRUN_OWNED_KEYS` (`:250-262`, `:386-393`) |
-| `modular-max` | `runtimes/modular_max.py:70` | `_MAX_FLAG_MAP` plus `devices` (`:73-79`) |
-| `tokenary` | `runtimes/tokenary.py:72` | `_TOKENARY_FLAG_MAP` plus `command_binary` (`:78-84`) |
-| `llama-cpp` | `runtimes/llama_cpp.py:100` | flag map + bool flags + `flash_attn`, `webui`, `mmap`, plus `mmproj` (`:103-114`) |
-| `eugr-vllm` | `runtimes/eugr_vllm_ray.py:42` | none declared: it extends `vllm-ray` but returns `None` from `known_config_keys()`, which silences the unmapped-key report (`:55-63`). Deprecated; prefer `runtime: vllm-ray` with `builder: eugr`. |
+| `sglang` | `runtimes/sglang.py:147` | `_SGLANG_FLAG_MAP` plus `speculative_draft_model`, `speculative_draft_model_path`, `speculative_draft_model_revision` (`:289-300`) |
+| `vllm-distributed` | `runtimes/vllm_distributed.py:24` | `VLLM_FLAG_MAP` plus `data_parallel_rpc_port` (`runtimes/_vllm_common.py:399-490`) |
+| `vllm-ray` | `runtimes/vllm_ray.py:25` | the same vLLM map (`runtimes/_vllm_common.py:399-490`) |
+| `trtllm` | `runtimes/trtllm.py:68` | flag map plus `backend`, `cuda_graph_max_batch_size`, `cuda_graph_padding`, `free_gpu_memory_fraction`, `kv_cache_enable_block_reuse`, `moe_backend`, `print_iter_log` (`:90-106`) |
+| `atlas` | `runtimes/atlas.py:265` | `_ATLAS_FLAG_MAP` plus `_ATLAS_SPARKRUN_OWNED_KEYS` (`:67-195`, `:250-262`, `:390-398`) |
+| `modular-max` | `runtimes/modular_max.py:60` | `_MAX_FLAG_MAP` plus `devices` (`:46-54`, `:75-80`) |
+| `tokenary` | `runtimes/tokenary.py:64` | `_TOKENARY_FLAG_MAP` plus `command_binary` (`:32-53`, `:82-87`) |
+| `llama-cpp` | `runtimes/llama_cpp.py:81` | flag map + bool flags + `flash_attn`, `webui`, `mmap`, plus `mmproj` (`:22-44`, `:106-114`) |
+| `eugr-vllm` | `runtimes/eugr_vllm_ray.py:28` | none declared: it extends `vllm-ray` but returns `None` from `known_config_keys()`, which silences the unmapped-key report (`:54-63`). Deprecated; prefer `runtime: vllm-ray` with `builder: eugr`. |
 
 ### Topology
 
-- **`min_nodes`** — integer, default `1`; must be ≥ 1 (`core/recipe.py:1184`,
-  `1632-1633`).
+- **`min_nodes`** — integer, default `1`; must be ≥ 1 (`core/recipe.py:1307`,
+  `1768-1769`).
 - **`max_nodes`** — integer or null, default unset; must be ≥ `min_nodes`
-  (`core/recipe.py:1634-1635`). `mode: solo` forces both to 1, and
-  `max_nodes: 1` derives `mode: solo` (`core/recipe.py:1183-1190`).
-- **`mode`** — string, default `"auto"`, derived from the node range (`core/recipe.py:1183-1190`).
+  (`core/recipe.py:1770-1771`). `mode: solo` forces both to 1, and
+  `max_nodes: 1` derives `mode: solo` (`core/recipe.py:1306-1314`).
+- **`mode`** — string, default `"auto"`, derived from the node range (`core/recipe.py:1306-1314`).
   Deprecated to write: `mode: solo` migrates to `max_nodes: 1`, `mode: cluster` to
   `min_nodes: 2`, and `mode: auto` to nothing; declaring it draws `deprecated-topology`
-  (`core/validation.py:1371-1385`, `1540-1572`).
+  (`core/validation.py:1440`, `1555-1575`).
 - **`solo_only`** — deprecated boolean. Truthy sets `max_nodes: 1` and `mode: solo`;
-  falsy constrains nothing (`core/recipe.py:1194-1196`; migration text at
-  `core/validation.py:1371-1385`). Use `max_nodes: 1`.
+  falsy constrains nothing (`core/recipe.py:1320-1322`; migration text at
+  `core/validation.py:1440`, `1555-1575`). Use `max_nodes: 1`.
 - **`cluster_only`** — deprecated boolean. Truthy sets `min_nodes: max(min_nodes, 2)` and
-  `mode: cluster`; falsy constrains nothing (`core/recipe.py:1191-1193`). Use
+  `mode: cluster`; falsy constrains nothing (`core/recipe.py:1317-1319`). Use
   `min_nodes: 2`: the boolean still only makes `run` print a one-host warning, whereas
-  `min_nodes` is enforced by validation and placement (`core/validation.py:1558-1560`).
+  `min_nodes` is enforced by validation and placement (`core/validation.py:1562-1565`).
 
 ### Container and lifecycle
 
@@ -216,26 +216,26 @@ the runtime's own `known_config_keys()`: flag-map keys plus the keys it reads ou
 - **`containers`** — list of `{host, image}`, default `[]`; `container` stays the
   fallback. Parsed permissively — entries missing either field are dropped with a warning —
   and validated against the cluster's host list only at launch
-  (`core/images.py:54-72`, `26-32`; `core/recipe.py:1197-1206`).
+  (`core/images.py:54-76`, `229`; `core/recipe.py:1332`).
 - **`pre_exec`** — list of strings or `{copy: …, exec: …}` mappings, default `[]`; a
-  scalar is coerced to one entry (`core/recipe.py:1286-1288`; `utils/text.py:101`).
+  scalar is coerced to one entry (`core/recipe.py:1410`; `utils/text.py:101`).
   Runs before the serve command; `mods:` are resolved into this list.
-- **`mods`** — list of mod references, default `[]` (`core/recipe.py:1298-1300`). A mod is
+- **`mods`** — list of mod references, default `[]` (`core/recipe.py:1420-1422`). A mod is
   a directory with `run.sh`; resolution order is scoped `@registry/<rel>`, adjacent to the
   recipe file (`<rel>` then `mods/<rel>`), the recipe's own registry, then the `eugr`
   fallback. Each mod becomes pre_exec entries: a `copy` and a `./run.sh` exec
   (`core/mods.py:1-33`).
 - **`post_exec`** — list of strings, default `[]`. Runs **inside the head container** after
-  readiness (`core/launcher.py:2653-2667`).
+  readiness (`core/launcher.py:2816-2830`).
 - **`post_commands`** — list of strings, default `[]`. Runs **on the control machine**
-  after readiness (`core/launcher.py:2669-2672`).
+  after readiness (`core/launcher.py:2833-2841`).
 - **`stop_after_post`** — boolean, default `false`. Stops the workload after post hooks
-  and exits 0 (`core/launcher.py:2681-2690`; `core/recipe.py:1291`).
+  and exits 0 (`core/launcher.py:2851-2868`; `core/recipe.py:1413`).
 - **`readiness`** — mapping, default `{}`. Keys: `port_timeout_s` (1800 s),
   `health_timeout_s` (900 s), `inference` (true), `inference_style` (`auto`),
   `inference_timeout_s` (1200 s), and `inference_prompt`
-  (`core/readiness.py:14-15`, `49-56`). Any other key is an error
-  (`core/readiness.py:101-143`), raised at load (`core/recipe.py:1210-1213`).
+  (`core/readiness.py:14-15`, `57-64`). Any other key is an error
+  (`core/readiness.py:97-106`), raised at load (`core/recipe.py:1337`).
 
 ### Build, execution, placement
 
