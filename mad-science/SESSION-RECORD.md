@@ -17338,3 +17338,63 @@ Edge0-145B-NVFP4 105.96 — each `stat -L` verified, 0 broken links).
 - **The drain's twelve single-node boot rows are all closed**, and the pair they gated has now run:
   17 `single` rows carrying a recipe are `done` overall. Nothing is left holding a host.
 - **Register.** `check` ok, **228 tasks: 204 done, 22 queued, 2 blocked, 0 running**.
+
+### 2026-11-22 06:39 ET — code/doc chore drain: two house-battery defects fixed, four rows already repaired in the tree, five blocked on a named gate
+
+Worked the register's code/doc chores with no boot and no host outside the unfenced set; one commit
+per item, pathspec-only, each gated and pushed.
+
+- **Fixed: `house-num-scorer-trailing-period` (done).** `score()`'s num regex was
+  `-?\d+\.?\d*`, so a sentence-final period was captured as part of the number and the Ripple
+  hard-arith-1 reply (`… 37 x 2 = 74.`) stored `74.` and scored false. A decimal now requires
+  digits after the dot (`-?\d+(?:\.\d+)?`); four unit cases pin bare, trailing-period, a `7.5`
+  decimal control, and that `74.5` does not match `74`.
+- **Fixed: `house-scores-reasoning-only-as-empty` (done).** `chat()` now keeps `finish_reason` and
+  the `reasoning_content` length, and `run_tier` classifies a content-less reply as `REASONING`
+  (budget spent thinking) or `EMPTY` (no channel at all) — printed as its own bracket, summarised
+  as `REASONING-TRUNCATED`, and kept in the `--json` artifact as `outcomes`/`finish_reason` per
+  case. A task tuple's optional sixth element (`{"max_tokens", "thinking"}`) pins one case's budget
+  so a reasoning-heavy prompt need not raise the whole tier. Two stub-serve tests cover the
+  reasoning-only 200 at `finish_reason=length` and that a pinned case does not leak into its
+  neighbours.
+- **Healed: `head-clone-object-store-incomplete` (blocked).** On the head the ref
+  `refs/heads/main` pointed at a commit the clone did not have, so `git show-ref` itself exited
+  128 and `ls-tree`/`log`/`status` all failed; fsck reported 7 missing blobs. The head reaches
+  GitHub directly, so `git fetch origin main` restored every object (7 → 0 missing/broken) and
+  `git read-tree HEAD` rebuilt the index — no `gc`/`prune`/`reset`, no object copying from a peer,
+  worktree unchanged. The mechanism is still unnamed; the only new evidence is 89 stale
+  `.syncthing.*.tmp` and 181 `.sync-conflict-*` files under `.git/objects` from one 2026-11-21
+  23:52 burst, and every conflict copy's canonical name is present today. Blocked on the owner
+  choice between unsharing `.git` for the head (it makes no local commits, and origin is
+  reachable) and running a periodic fetch there.
+- **Already repaired, closed with evidence: `campaign-ingest-freezes-on-an-unplaceable-pending-arm`,
+  `board-publish-keeps-in-flight-row-set`.** `_tick()` polls the register on every tick and
+  `_refuse_unplaceable()` stops an unplaceable arm holding `drained()` false, with
+  `test_queue_poll`'s ingest test; `inflight_problems()` refuses a board missing any required
+  In-flight row and `test_task_queue_tool` carries the pass-through plus a negative control that
+  drops the `queue` row. Both docstrings name the instance they fix.
+- **Closed with a test and the rule written down:** `campaign-state-copy-re-nests` (nothing copies
+  `state.json` — `Campaign.save()` writes `self.path`, so the 40 nested copies came from pointing
+  `--root` inside a receipts tree; a two-run test proves one file and `DESIGN.md` names the
+  operator rule) and `watchdog-stall-mmap-flat-residual` (took the row's second exit: a page-cache
+  fill whose per-check delta stays under the 128 MiB floor is classified `stalled` on purpose —
+  cumulative memory cannot tell a slow fill from a slow leak — so a test pins the shape and
+  `tools/README.md` records the trade instead of weakening the rule).
+- **`hf-cache-20261110-docs-only-repin-bundle` (queued).** All 14 live rows still carry their
+  receipt pin, so nothing has been re-pinned since the sweep. The row now names them with full
+  shas (pin → Hub head) instead of pointing at a receipt that only exists on the head; a pin move
+  is boot-gated and this workstream holds no boot.
+- **Blocked on a named gate, not faked closed:** `queue-mode-done-sibling-holds-canary-row` (exit
+  (c), whether a `done` sibling should keep holding a recipe — every recipe named by more than one
+  register row is `done` today, so no queued row is held), `window-lock-does-not-stop-direct-boots`
+  (whether a direct `sparkrun run` must consult the window lock and the lease ledger),
+  `fleet-boot-without-lease-record` (its first step is identifying a launching session on a live
+  quartet), `mem-guard-outlives-its-task` (needs one live armed boot whose stop leaves no guard
+  process; the code and `tools/README.md` already name that as the remaining proof).
+- **Not reached:** `board-publish-accepts-weaker-replacement` (per-row fact series: capture count,
+  state labels, teardown clause), `executor-release-host-claim-on-failure` (run-arm.sh must wait
+  for or kill a container-less launcher and verify `sparkrun daemon resources list` is empty, with
+  a distinct holder-busy code), `sparkrun-single-gid-index-for-two-hcas` (report-only here; the
+  repair is in sparkrun's `scripts/ib_detect.sh` and `infiniband.py`), `mech-cites-0-4-3` and
+  `cache-audit-pool-budget`.
+- **Register.** `check` ok, **228 tasks: 210 done, 11 queued, 7 blocked, 0 running**.
