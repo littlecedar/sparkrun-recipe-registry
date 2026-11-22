@@ -1332,6 +1332,70 @@ class InflightRows(unittest.TestCase):
             self.assertEqual(tq.main(["lint", str(target)]), 0)
 
 
+class WeakerReplacement(unittest.TestCase):
+    """A composition may not replace a row's facts with older ones.
+
+    Measured 2026-11-11 20:18 ET: four captures ending `01:16:49Z`, node rows reading 'nothing
+    live' and a teardown timeline were replaced by three captures ending `01:06:58Z` and rows
+    reading 'live, loading', and `publish` accepted it — every other guard compares bytes against a
+    base that was itself the peer's copy, so none could see the incoming row was the weaker one.
+    """
+
+    DISK = "**nothing live (no reservation)** — idle; captures 2026-11-11T01:16:49Z, 2026-11-11T01:11:02Z; teardown at 01:13Z"
+
+    def board(self, node, census="2026-11-11T01:16:49Z"):
+        return ("# Board — generated 2026-11-11 20:18 ET\n\n## In flight\n\n"
+                "| where | owner | what |\n|---|---|---|\n"
+                f"| census | this tick | {census} |\n"
+                "| pool | — | serving |\n| queue | — | 0 open |\n| window | — | none |\n"
+                "| campaign | — | idle |\n| publication | tick | base |\n"
+                f"| .30 | — | {node} |\n")
+
+    def test_an_unchanged_row_is_not_reported(self):
+        self.assertEqual(tq.weaker_inflight(self.board(self.DISK), self.board(self.DISK)), [])
+
+    def test_a_shrunken_capture_series_is_named(self):
+        weaker = self.board("**live containers** — 1 running; capture 2026-11-11T01:06:58Z")
+        found = tq.weaker_inflight(self.board(self.DISK), weaker)
+        self.assertEqual(len(found), 1)
+        self.assertIn("`.30`", found[0])
+        self.assertIn("2 capture(s) -> 1", found[0])
+        self.assertIn("nothing live", found[0])
+        self.assertIn("teardown clause gone", found[0])
+
+    def test_a_label_that_claims_live_at_the_same_capture_is_named(self):
+        weaker = self.board("**live containers** — 1 running; captures 2026-11-11T01:16:49Z, "
+                            "2026-11-11T01:11:02Z; teardown at 01:13Z")
+        found = tq.weaker_inflight(self.board(self.DISK), weaker)
+        self.assertEqual([("`.30`" in item, "claims live" in item) for item in found], [(True, True)])
+
+    def test_negative_control_a_newer_capture_may_retire_the_detail(self):
+        # The escape the rule exists to leave open: a fresher read may legitimately shrink a row.
+        retired = self.board("**nothing live (no reservation)** — idle; capture 2026-11-11T01:26:10Z")
+        self.assertEqual(tq.weaker_inflight(self.board(self.DISK), retired), [])
+
+    def test_publish_refuses_the_weaker_board_and_leaves_the_file(self):
+        root = Path(tempfile.mkdtemp())
+        board, base = root / "STATUS.md", root / "base.md"
+        disk = self.board(self.DISK)
+        board.write_text(disk, encoding="utf-8")
+        base.write_text(disk, encoding="utf-8")
+        # A fresher census carrying an older row: the measured shape, and the one the title guard
+        # and the sha/base gates all pass.
+        weak = self.board("**live containers** — 1 running; capture 2026-11-11T01:06:58Z",
+                          census="2026-11-11T01:20:00Z")
+        before = board.read_bytes()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            saved, sys.stdin = sys.stdin, io.StringIO(weak)
+            try:
+                rc = tq.main(["publish", "--board", str(board), "--lock", str(root / "lock"),
+                              "--base", str(base)])
+            finally:
+                sys.stdin = saved
+        self.assertEqual(rc, 1, "a composition refusal is a QueueError, exit 1")
+        self.assertEqual(board.read_bytes(), before, "the weaker body was written anyway")
+
+
 def board_text(census, title=None):
     """Minimal board carrying one census stamp — the only part `publish` reads."""
     title = title or census[:16]

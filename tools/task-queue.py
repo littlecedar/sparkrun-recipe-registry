@@ -888,17 +888,17 @@ def lint_addresses(text: str) -> list[tuple[int, str, str]]:
 _INFLIGHT_REQUIRED = ("census", "pool", "queue", "window", "campaign", "publication")
 
 
-def inflight_keys(text: str) -> set[str]:
-    """First-cell keys of the board's `## In flight` table; empty when the section is absent.
+def inflight_rows(text: str) -> dict[str, str]:
+    """where-key -> the row's own line, for the board's `## In flight` table.
 
-    Nodes and the quartet row are keys too (`.30`, `quartet`), but only `_INFLIGHT_REQUIRED` is
-    checked: that set is the format's, while which nodes carry a rank belongs to the census.
+    One parser for both rules: `inflight_keys` is its key set, and `weaker_inflight`
+    needs the cell text as well.
     """
     lines = text.split("\n")
     start = next((i for i, line in enumerate(lines) if line.strip() == "## In flight"), None)
     if start is None:
-        return set()
-    keys: set[str] = set()
+        return {}
+    rows: dict[str, str] = {}
     for line in lines[start + 1:]:
         if line.startswith("## "):
             break
@@ -906,8 +906,55 @@ def inflight_keys(text: str) -> set[str]:
             continue
         cells = _table_cells(line)
         if cells and cells[0].strip():
-            keys.add(cells[0].strip().strip("`").split()[0].lower())
-    return keys
+            rows[cells[0].strip().strip("`").split()[0].lower()] = line
+    return rows
+
+
+def inflight_keys(text: str) -> set[str]:
+    """First-cell keys of the board's `## In flight` table; empty when the section is absent.
+
+    Nodes and the quartet row are keys too (`.30`, `quartet`), but only `_INFLIGHT_REQUIRED` is
+    checked: that set is the format's, while which nodes carry a rank belongs to the census.
+    """
+    return set(inflight_rows(text))
+
+
+#: An In-flight cell's captures are ISO-Z reads; the newest one is that row's own freshness.
+_CAPTURE = re.compile(r"\b\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\b")
+_TEARDOWN = re.compile(r"(?i)\bteardown|torn down|tore down\b")
+_NOTHING_LIVE = re.compile(r"(?i)nothing live")
+_CLAIMS_LIVE = re.compile(r"(?i)\b(?:live containers|container live|live/loading)\b")
+
+
+def weaker_inflight(disk_text: str, incoming: str) -> list[str]:
+    """Rows that carry fewer facts than the board on disk with no newer capture (by name).
+
+    Measured 2026-11-11 20:18 ET: a composition replaced a peer's In-flight set — four captures
+    ending `01:16:49Z`, node rows reading 'nothing live', a teardown timeline — with three captures
+    ending `01:06:58Z` and rows reading 'live, loading', and `publish` accepted it, because every
+    existing guard compares bytes against a base that was itself the peer's copy. Retirement is
+    legitimate, so the escape is a **newer capture**: a row whose newest ISO read moves forward may
+    lose detail; one that cannot show that may not.
+    """
+    disk, have = inflight_rows(disk_text), inflight_rows(incoming)
+    out: list[str] = []
+    for key, before in disk.items():
+        after = have.get(key)
+        if after is None:
+            continue  # a removed row is `inflight_problems`' business, not this rule's
+        was, now = _CAPTURE.findall(before), _CAPTURE.findall(after)
+        if was and now and max(now) > max(was):
+            continue
+        lost = []
+        if len(now) < len(was):
+            lost.append(f"{len(was)} capture(s) -> {len(now)}")
+        if _NOTHING_LIVE.search(before) and _CLAIMS_LIVE.search(after):
+            lost.append("claims live where the disk said nothing live")
+        if _TEARDOWN.search(before) and not _TEARDOWN.search(after):
+            lost.append("teardown clause gone")
+        if lost:
+            out.append(f"`{key}`: " + ", ".join(lost))
+    return out
 
 
 def inflight_problems(text: str) -> list[tuple[int, str, str]]:
@@ -1178,6 +1225,12 @@ def cmd_publish(args, path: Path) -> None:
                     f"refusing publish: {len(peer)} line(s) a peer wrote after your read are "
                     "absent from this body — merge them in, do not regenerate; first missing: "
                     + " | ".join(peer[:5])[:400])
+        weak = weaker_inflight(disk_text, text)
+        if weak:
+            raise QueueError(
+                f"refusing publish: {len(weak)} In flight row(s) carry fewer facts than the board "
+                "on disk and show no newer capture — " + "; ".join(weak[:3])[:400]
+                + " — compose over the disk rows, or carry a newer read for the row you shrink")
         tmp = board.with_name(board.name + ".tmp")
         tmp.write_text(text, encoding="utf-8")
         os.replace(tmp, board)
