@@ -17277,7 +17277,7 @@ Edge0-145B-NVFP4 105.96 — each `stat -L` verified, 0 broken links).
   tool timeout **interrupts sparkrun mid `pre_exec`**, leaving a container with a finished build and
   no serve (`98577d6426e2881f_a85d7776d379`, stopped by id). (2) That surviving sparkrun process kept a
   real host claim, so the next launch was refused with `Execution resources are busy:
-  host:10.0.4.35: held by running pid 1965030` until the claim was reconciled. (3) The launch that
+  host:.35: held by running pid 1965030` until the claim was reconciled. (3) The launch that
   did run (`98577d6426e2881f_a117734764a3`) was **reaped by the boot watchdog, exit 3**
   (`dead_candidate` → `sparkrun stop`), because this arm's serve process **does not exist until its
   in-container build finishes** — the never-seen-alive clock has to outlast the build, or the watchdog
