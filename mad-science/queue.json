@@ -2034,9 +2034,9 @@
       "evidence": "mad-science/STATUS.md 2026-11-10 00:15 ET queue row; commit 52b99ef",
       "claimed_by": "",
       "claimed_at": "",
-      "summary": "Canary row (tp4 quartet recipe) never leases because plan.sibling_hold keys arms on the recipe stem and done sibling h2h-second-boot-ds4-1017 holds it, fleet idle meanwhile; open choice: close sibling, own recipe file, or change the hold.",
-      "summary_src": "c799cd672c6070d373507f87aa6cae017aaff18a116fed5c3bd9fafd774968dd",
-      "summary_at": "2026-11-22T04:26:11Z"
+      "summary": "Blocked on whether a done sibling keeps holding a recipe: today's instance is resolved (both rows done, no queued row held), the behavior is documented as designed, and an env-only re-run still needs its own recipe file.",
+      "summary_src": "168ec1ae552cbd60e849b6a4fa767cc8c857d3894656e5702f4929d497b53462",
+      "summary_at": "2026-11-22T12:01:55Z"
     },
     {
       "id": "ds4-1017-template-refresh-ab",
@@ -2262,9 +2262,9 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": "",
-      "summary": "Docs-only drift bundle over 14 live recipe rows (8 of the 22 retired to attic): only README/LICENSE/eval_results differ from the head, no pin bumped since the sweep, each lane moves its pin at its next boot and records it.",
-      "summary_src": "642a3e3cfa3279825d5e208ebab20f65da7d0b0d1d235096a438dddd80c17327",
-      "summary_at": "2026-11-22T04:26:10Z"
+      "summary": "Queued: the docs-only drift bundle is 14 live rows (8 retired to attic), no live pin moved since the sweep, so each lane re-pins at its next boot - needs a live window, not a decision.",
+      "summary_src": "12f31750bb5be74fdc8e11c9f39a52ae6a2ce24c416c3ac095360ffafa80b853",
+      "summary_at": "2026-11-22T12:01:55Z"
     },
     {
       "id": "hf-cache-20261110-cache-consistency-defects",
@@ -2415,9 +2415,9 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": "",
-      "summary": "Corrected: a leaked guard is a stale no-op because mem-guard stops only its own task id; what accumulates is processes and ssh sessions — three guards alive on 2026-11-10 with one task container; fix is guard lifetime and harness refusal.",
-      "summary_src": "ae9cfd649a6feda2b1760114ab21c851b42aa216e0760dddac78b299746947c9",
-      "summary_at": "2026-11-22T04:26:12Z"
+      "summary": "Blocked on a live boot: a leaked guard is a stale no-op (stops only its own task id), the harness kill and stub test are proven, and closing needs one real stop that leaves no guard process behind.",
+      "summary_src": "9a14f653b6cff382e19f2db0aebf7eb07a39eaf0be138534b2390ab818ddd1b6",
+      "summary_at": "2026-11-22T12:01:55Z"
     },
     {
       "id": "ds4-marlin-serial-loader",
@@ -3035,9 +3035,9 @@
       "claimed_by": "",
       "claimed_at": "",
       "memory_risky": false,
-      "summary": "Corrected: the unleased four-rank serve measured on 2026-11-11 is the shipped production arm (image digest and argv match), not a research quartet; open is whether a protected production boot must carry a lease under the S9 answer.",
-      "summary_src": "d2a9e44b2f80287fb3bcb595f3377af03e3a872ac04e4c3f9dd2c02616e6c408",
-      "summary_at": "2026-11-22T04:26:13Z"
+      "summary": "Blocked on a live window: the unleased quartet is the shipped production serve (digest and argv match), not a research boot, so the open question is whether a protected production boot must carry a lease under S9.",
+      "summary_src": "a721029841685b4f0badf0d435859d024130c66a4dfb2042f63412c5d5576ae6",
+      "summary_at": "2026-11-22T12:01:55Z"
     },
     {
       "id": "webai-twil-8b-eval-only-arm",
@@ -3413,9 +3413,9 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": "",
-      "summary": "A declared window stops campaign placement and lease but not a direct sparkrun run: inside the 01:04-01:16 window a solo container started on .35 with no lease record and no assign line; decide whether direct boots consult the lock.",
-      "summary_src": "fc32c55ae178b13c64972c316ad808af2578cfd098e50db56c77eb6ba37daa49",
-      "summary_at": "2026-11-22T04:26:14Z"
+      "summary": "Blocked on an owner decision: a declared window holds campaign placement and leases but not a direct `sparkrun run` (a solo boot ran on .35 inside it with no lease record), so decide whether launch must read the lock.",
+      "summary_src": "2c3754c807745c68d432cd2d67c34cb765ebe90912d5a8322d77245e8ec61cf8",
+      "summary_at": "2026-11-22T12:01:55Z"
     },
     {
       "id": "campaign-ingest-freezes-on-an-unplaceable-pending-arm",
@@ -3447,9 +3447,9 @@
       "notes": "Measured read-only 2026-11-21 22:35-23:50 ET on the head at `/home/red/src/sparkrun-recipe-registry`: `git ls-tree HEAD` failed `not a tree object`, `git show HEAD:<path>` failed `exists on disk, but not in HEAD`, `git log` reached `fatal: bad object HEAD`, and `git fsck --no-progress` grew **73 → 95** missing/invalid entries in 40 min. Packs agree with this clone (**22558** `in-pack` on both) while loose objects read **448** against **524**, so only loose objects go missing. **Healed twice** by `hash-object -w` from this clone (76 objects in five passes, then 15 more in three), after which `ls-tree`, `git log`, `git show` and `git rev-list --objects main` succeed; fsck then reports only dangling objects plus one stale reflog sha. **The gap reopens on every new commit**: 20 min after the first heal, `5d3b761d` and `497ea4f8` trees were missing again, and the next peer board commit (`080e5346`) reopened it once more. **The mechanism is narrowed but unnamed**: a file written into `.git/objects/` on this clone appeared on the head within 20 s and a file written on the head appeared here, so syncthing syncs that directory both ways — yet one specific 743 B tree object (`e56ef6f7…`) never arrived, even after `touch`, with no `.stignore` in the repo, its parents, `.git/` or `.git/objects/`, no conflict copy and no syncthing log mention. Until it is named, the heal is a maintenance loop, not a repair: re-run the skill's restore after each commit, or re-establish the head's folder / stop sharing `.git` so the head fetches from origin instead. Never `gc`/`prune`/`reset` on the shared clone. — HEALED + RE-DIAGNOSED 2026-11-22 chore-drain on the head node (`.30`), read-only except the two repairs the skill names. State found: refs/heads/main = 783d27b7 with the commit object absent, so git show-ref itself exited 128 ('bad ref refs/heads/main'), cat-file HEAD, ls-tree HEAD and status all failed; fsck reported 7 missing blobs. Repair: the head reaches GitHub directly (git ls-remote origin refs/heads/main = 783d27b7, rc 0), so 'git fetch origin main' brought every missing object (7 -> 0 missing/broken) and 'git read-tree HEAD' rebuilt the index; ls-tree, log, status and rev-list now succeed, worktree unchanged (only the peer's .idea/modules.xml dirty, as on the workstation). No gc/prune/reset, no object copying from a peer clone, no checkout. That makes the repair one fetch on the head instead of the hash-object -w loop the row described. Mechanism still unnamed, with new evidence: .git/objects holds 89 stale .syncthing.*.tmp and 181 *.sync-conflict-* files, all from a single 2026-11-21 23:52 burst, i.e. concurrent writes into .git/objects; every conflict copy's canonical name is present today and every checked temp's final object exists, so this snapshot shows neither 'object only survives as a conflict copy' nor 'temp never renamed'. BLOCKED on an owner decision, not on more measurement: the durable repair is either (a) stop sharing .git for the head's folder so it fetches from origin (proven reachable; the head makes no local commits, git rev-list origin/main..HEAD = 0), or (b) keep sharing and run a periodic 'git fetch origin main' on the head. Both change how every session's commits reach the head, which is not a chore's call.",
       "provenance": "board tick 2026-11-21 23:14 ET; mad-science/SESSION-RECORD.md §2026-11-21 22:39 ET (head clone's refs outran its objects)",
       "evidence": "head:/home/red/src/sparkrun-recipe-registry (fsck 7 missing -> 0 after git fetch origin main + git read-tree HEAD)",
-      "summary": "Head clone loses loose objects (packs agree) so git reads fail there; healed twice on 2026-11-21 (91 objects), yet the gap reopens on every commit and one 743 B tree never syncs, so the mechanism is unnamed.",
-      "summary_src": "ed7a6641f03313622bc67ed34a54b8f9a5d49c81d9bcd3d5779e216d05c2bb6b",
-      "summary_at": "2026-11-22T04:59:13Z",
+      "summary": "Blocked on an owner choice: the head clone keeps losing loose git objects (packs agree), healed 2026-11-22 by one `git fetch origin main` + `git read-tree HEAD` (7 missing to 0); stop sharing .git or fetch periodically.",
+      "summary_src": "1e22b02c802d686d0d761feae14e5ff8e6dbb862ed12676d80916285a8102ac5",
+      "summary_at": "2026-11-22T12:01:54Z",
       "claimed_by": "",
       "claimed_at": ""
     },
