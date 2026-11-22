@@ -24,9 +24,10 @@ This file is the interface for planning rounds:
 
 **Where things live:** this file holds **open work only** — completed items are archived in `../attic/DONE.md` as they close; dated session records live in `SESSION-RECORD.md` (same directory).
 
-# DECISIONS — settled record (questions live in `QUESTIONS.md`)
+# DECISIONS — settled record (open questions are `ask` rows in `queue.json`)
 
-Owner questions are rows in [`QUESTIONS.md`](QUESTIONS.md), one per row with its provenance; **what
+Owner questions are `ask` rows in `../queue.json` (`tools/task-queue.py questions` prints them; the
+`mad-science/QUESTIONS.md` index only keeps the `#N` numbering); **what
 stays here is the decisions already taken**, each with its rationale, so a later pass reads the call
 rather than re-opening it. Numbered decisions cited elsewhere —
 #6 in `attic/qwen4/SELECTION-RANKING.md`, #11 in `attic/decision/DECISION-MODELS-RESEARCH.md`,

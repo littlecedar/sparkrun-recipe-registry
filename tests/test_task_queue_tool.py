@@ -89,15 +89,13 @@ def ids(ordered):
     return [t["id"] for t in ordered]
 
 
-def qdata(tasks, questions=()):
-    """A register with an open `questions[]` array, deliberately NOT relinked.
+def qdata(tasks):
+    """A register left deliberately un-relinked, so a graph fixture can plant a mirror drift.
 
-    `relink` would repair the stored/derived drift the graph must tolerate and report, so the
-    graph fixtures build their `blocked_by` by hand.
+    It used to carry an open `questions[]` array too; owner directive 2026-11-22 retired that array
+    for `ask` rows, and `validate` now refuses the key, so the helper carries none.
     """
-    return {"priority_models": ["x"], "tasks": list(tasks),
-            "questions": [{"id": q, "status": "open", "summary": f"owner question {q}",
-                           "provenance": "test", "asked": "2026-11-08"} for q in questions]}
+    return {"priority_models": ["x"], "tasks": list(tasks)}
 
 
 class WeightArithmetic(unittest.TestCase):
@@ -444,32 +442,42 @@ class QuestionsAndCommitBound(unittest.TestCase):
             self.assertIn("new item", out.getvalue())
             self.assertNotIn("old item", out.getvalue())
 
-    def test_question_numbering_only_grows(self):
+    def test_the_retired_questions_array_is_refused(self):
         payload = data([task("a", 1.0)])
-        row = {"id": 5, "summary": "s", "status": "open", "provenance": "p", "asked": "2026-11-03"}
-        payload["questions"] = [row, dict(row, id=3)]
-        with self.assertRaises(tq.QueueError):
+        payload["questions"] = [{"id": 5, "summary": "s", "status": "open",
+                                 "provenance": "p", "asked": "2026-11-03"}]
+        with self.assertRaises(tq.QueueError) as ctx:
             tq.validate(payload)
-        payload["questions"] = [row, dict(row)]
-        with self.assertRaises(tq.QueueError):
-            tq.validate(payload)
+        self.assertIn("`ask` row", str(ctx.exception), "the refusal names the replacement")
 
-    def test_questions_command_lists_only_open_rows(self):
-        payload = data([task("a", 1.0)])
-        payload["questions"] = [
-            {"id": 1, "summary": "settled thing", "status": "answered 2026-11-02",
-             "provenance": "p", "asked": "2026-11-01"},
-            {"id": 2, "summary": "open thing", "status": "open", "provenance": "p",
-             "asked": "2026-11-03"},
-        ]
+    def test_questions_command_lists_the_ask_rows(self):
+        ask = task("ask-window", 0.5, ["held"], state="ask")
+        ask["title"] = "Ask: may the quartet boot inside a declared window?"
+        ask["provenance"] = "owner directive 2026-11-22; asked 2026-11-20"
+        held = task("held", 1.0, state="blocked")
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "queue.json"
-            path.write_text(json.dumps(payload), encoding="utf-8")
+            path.write_text(json.dumps(data([ask, held])), encoding="utf-8")
             with contextlib.redirect_stdout(io.StringIO()) as out:
                 self.assertEqual(tq.main(["--file", str(path), "questions"]), 0)
-            text = out.getvalue()
-            self.assertIn("open thing", text)
-            self.assertNotIn("settled thing", text, "a settled row leaves the array")
+        text = out.getvalue()
+        self.assertIn("ask-window", text)
+        self.assertIn("may the quartet boot inside a declared window", text)
+        self.assertIn("2026-11-20", text, "the asked date comes from the provenance")
+        self.assertIn("held", text, "the row it blocks is named")
+        self.assertIn("1 open owner question(s)", text)
+        self.assertNotIn("0 open of 0", text, "the retired array's line is gone")
+
+    def test_an_ask_row_with_no_provenance_date_prints_a_dash(self):
+        ask = task("ask-bare", 0.5, state="ask")
+        ask["title"] = "Ask: something"
+        ask["provenance"] = "no date here"
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "queue.json"
+            path.write_text(json.dumps(data([ask])), encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(tq.main(["--file", str(path), "questions"]), 0)
+        self.assertIn("| - |", out.getvalue())
 
 
 class Done(unittest.TestCase):
@@ -1148,7 +1156,7 @@ class DependencyGraph(unittest.TestCase):
     def test_the_connected_view_draws_only_edge_participants(self):
         rows = relink([task("a", 1.0, ["b"]), task("b", 1.0),
                        task("c", 1.0, state="blocked"), task("d", 1.0)])
-        body, _ = tq.graph_body(qdata(rows, [67]))
+        body, _ = tq.graph_body(qdata(rows))
         text = "\n".join(body)
         self.assertIn('t1["a · queued"]', text)
         self.assertIn('t2["b · queued"]', text)
@@ -1159,39 +1167,53 @@ class DependencyGraph(unittest.TestCase):
     def test_all_draws_every_open_row(self):
         rows = relink([task("a", 1.0, ["b"]), task("b", 1.0),
                        task("c", 1.0, state="blocked"), task("d", 1.0)])
-        body, _ = tq.graph_body(qdata(rows, [67]), all_rows=True)
+        body, _ = tq.graph_body(qdata(rows), all_rows=True)
         text = "\n".join(body)
         for label in ("a · queued", "b · queued", "c · blocked · owner", "d · queued"):
             self.assertIn(label, text)
         self.assertNotIn("rows not drawn", text, "nothing is omitted in the --all view")
 
     def test_a_gated_row_is_drawn_dashed_only_in_the_all_view(self):
-        body, _ = tq.graph_body(qdata([task("lonely", 1.0, state="blocked")], [67]))
+        body, _ = tq.graph_body(qdata([task("lonely", 1.0, state="blocked")]))
         self.assertIn("no edge recorded among the open rows", "\n".join(body))
         self.assertNotIn("-->", "\n".join(body))
-        full, _ = tq.graph_body(qdata([task("lonely", 1.0, state="blocked")], [67]),
+        full, _ = tq.graph_body(qdata([task("lonely", 1.0, state="blocked")]),
                                 all_rows=True)
         self.assertIn('· blocked · owner"]:::no-recorded-edge', "\n".join(full))
 
-    def test_sparse_register_still_draws_the_question_edges(self):
+    def test_a_prose_citation_of_a_question_draws_no_edge(self):
+        """The `q<n>` tier is gone (owner directive 2026-11-22).
+
+        It existed because a blocked row's gate used to be a `QUESTIONS.md` citation; an owner
+        question is an `ask` row now and the waiting row is `blocked` on it, so the `blocks` tier
+        draws that edge and a leftover `#67` in prose must draw nothing at all.
+        """
         rows = [task("blocked-a", 1.0, state="blocked"), task("blocked-b", 1.0, state="blocked")]
         rows[0]["notes"] = "waiting on host policy (QUESTIONS.md #67)"
         rows[1]["notes"] = "gated by prose, no citation"
-        body, warnings = tq.graph_body(qdata(rows, [67]))
+        body, warnings = tq.graph_body(qdata(rows))
         text = "\n".join(body)
-        self.assertIn('Q67 · owner question 67', text)
-        self.assertIn("q67 --> t1", text)                 # the citation is a real edge
-        self.assertNotIn("blocked-b", text)               # the uncited row is the omission
-        self.assertIn("2 blocked, 0 edges, 1 prose-gated, 1 question-gated, 1 question, "
-                      "1 rows not drawn (--all)", text)
+        self.assertNotIn("Q67", text)
+        self.assertNotIn("q67", text)
+        self.assertNotIn("-->", text, "neither row has a recorded edge")
+        self.assertIn("2 blocked, 0 edges, 2 prose-gated", text)
+        self.assertEqual(warnings, [])
+
+    def test_an_ask_row_and_its_dependent_are_one_edge(self):
+        ask = task("ask-x", 0.5, ["blocked-a"], state="ask")
+        blocked = task("blocked-a", 1.0, state="blocked")
+        body, warnings = tq.graph_body(data([ask, blocked]))
+        text = "\n".join(body)
+        self.assertIn('t1["ask-x · ask"]', text)
+        self.assertIn("t1 --> t2", text)
+        self.assertIn("1 blocked, 1 edges, 0 prose-gated", text)
         self.assertEqual(warnings, [])
 
     def test_the_counts_comment_names_the_rows_not_drawn(self):
         rows = relink([task("a", 1.0, ["b"]), task("b", 1.0), task("c", 1.0, state="blocked"),
                        task("d", 1.0), task("e", 1.0)])
-        rows[2]["notes"] = "#67"
-        body, _ = tq.graph_body(qdata(rows, [67]))
-        omitted = sum(1 for t in rows if t["state"] != "done") - 3   # a, b, c participate
+        body, _ = tq.graph_body(qdata(rows))
+        omitted = sum(1 for t in rows if t["state"] != "done") - 2   # a, b participate
         self.assertIn(f"{omitted} rows not drawn (--all)", "\n".join(body))
 
     def test_a_diamond_has_exactly_its_four_edges(self):
@@ -1265,8 +1287,8 @@ class DependencyGraph(unittest.TestCase):
     def test_the_block_carries_no_baked_colour_and_only_the_dashed_class(self):
         rows = relink([task("a", 1.0, ["b"]), task("b", 1.0, state="blocked"),
                        task("c", 1.0, state="blocked")])
-        connected = "\n".join(tq.graph_body(qdata(rows, [67]))[0])
-        everything = "\n".join(tq.graph_body(qdata(rows, [67]), all_rows=True)[0])
+        connected = "\n".join(tq.graph_body(qdata(rows))[0])
+        everything = "\n".join(tq.graph_body(qdata(rows), all_rows=True)[0])
         self.assertEqual(self.style_findings(connected, set()), [],
                          "the theme styles ordinary nodes; they carry no class at all")
         self.assertEqual(self.style_findings(everything, {"no-recorded-edge"}), [],
@@ -1290,7 +1312,7 @@ class DependencyGraph(unittest.TestCase):
     def test_the_cli_prints_exactly_one_fence(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "queue.json"
-            path.write_text(json.dumps(qdata([task("a", 1.0, state="blocked")], [67])),
+            path.write_text(json.dumps(qdata([task("a", 1.0, state="blocked")])),
                             encoding="utf-8")
             out = io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
@@ -1311,7 +1333,7 @@ class GraphFileFlag(unittest.TestCase):
     """
 
     def _write(self, path, rows):
-        path.write_text(json.dumps(qdata(relink(rows), [67])), encoding="utf-8")
+        path.write_text(json.dumps(qdata(relink(rows))), encoding="utf-8")
 
     def _graph(self, argv):
         out = io.StringIO()
@@ -1340,7 +1362,7 @@ class GraphFileFlag(unittest.TestCase):
             root = Path(tmp)
             (root / "mad-science").mkdir()
             (root / "mad-science" / "queue.json").write_text(
-                json.dumps(qdata([task("default-row", 1.0)], [])), encoding="utf-8")
+                json.dumps(qdata([task("default-row", 1.0)])), encoding="utf-8")
             named = root / "named.json"
             # an edge, so the connected view draws it and the label proves which file was read
             self._write(named, [task("named-row", 1.0, ["named-other"]),

@@ -21,7 +21,7 @@ still add no row, because an accuracy declaration belongs inside `metadata:` whe
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1939 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
+suite 1941 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -636,17 +636,21 @@ ignored by the board (owner directive, 2026-10-28):** a production serve is neve
 and is never counted by the census — the census counts *research* containers only and says so, so a
 protected serve must not be listed as work in progress nor inflate a container count.
 
-**Owner questions live in `mad-science/QUESTIONS.md` — the unresolved ones — and settled ones in
-`mad-science/TODO.md` §"Settled questions".** One table row per *unresolved* question, with its status, its
-`path:line` provenance and the date it was asked, grouped by subject. Since **2026-11-03 the register
-is `mad-science/queue.json`** (`QUEUE.md` the protocol, `tools/task-queue.py render --board` the board's
-`## Work queue`); `TODO.md` is a frozen archive holding item text as evidence, its `# DECISIONS` block
-the decisions already taken, and §"Settled questions" the answered rows moved there verbatim — a new
-open `- [ ]` item belongs in the queue, and `task-queue.py orphans` reports one that lands in the
-archive instead. Numbering is stable across both files, so a citation such as `QUESTIONS.md #9` still resolves for
-a question that has since settled. A question never stays buried in a lane README, a board cell or a commit
-body — it either lands as a row in `QUESTIONS.md` or it does not exist. A row the owner answered keeps its
-answer, so the question is not re-opened.
+**Owner questions are `ask` rows in the register — the unresolved ones — and settled ones in
+`mad-science/TODO.md` §"Settled questions".** Owner directive 2026-11-22: an owner input is a row
+(`task-queue.py add --state ask`, the question in `title` and the options and answer procedure in
+`notes`), and every row that needs the answer is `blocked` on it, so `check` refuses a blocked row
+that names no blocker and `task-queue.py questions` prints the open set. Since **2026-11-03 the
+register is `mad-science/queue.json`** (`QUEUE.md` the protocol, `tools/task-queue.py render --board`
+the board's `## Work queue`); `TODO.md` is a frozen archive holding item text as evidence, its
+`# DECISIONS` block the decisions already taken, and §"Settled questions" the answered rows moved
+there verbatim — a new open `- [ ]` item belongs in the queue, and `task-queue.py orphans` reports
+one that lands in the archive instead. `mad-science/QUESTIONS.md` is now only an **index** of the
+numbering (`#1`–`#89`), so a citation such as `QUESTIONS.md #9` still resolves; it holds no open
+rows, and the `questions` array the tool used to read is retired (`validate` refuses the key). A
+question never stays buried in a lane README, a board cell or a commit body — it either lands as an
+`ask` row or it does not exist. A row the owner answered keeps its answer, so the question is not
+re-opened.
 
 ### Documentation zones (a rule)
 
@@ -1016,7 +1020,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1939 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1941 tests,
   3 skipped on 2026-11-08** in a clean checkout of the tracked tree, 4 in CI and 2 in this clone (it
   carries the untracked `.local/fleet.yaml`). The first three, by name and cause: `test_ifm_recipes`'
   research-doc case (the git-ignored K2-09B docs are absent on any fresh checkout);
