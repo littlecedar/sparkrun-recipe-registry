@@ -97,6 +97,27 @@ log_var USER_GROUP
 mkdir -p "${RUNTIME_DIR}" "${SAMPLE_DIR}"
 reown "${RUNTIME_DIR}"
 
+# flashinfer's JIT logger opens <XDG_CACHE_HOME>/flashinfer/.cache/…/flashinfer_jit.log
+# at import, and its tree is a sibling of this runtime dir. The engine gate
+# below runs `from diffusers import DiffusionPipeline`, which imports
+# diffusers' quantizers → flashinfer, so the *gate* creates that tree as root
+# while the serve runs as the pool user — the 2026-11-22 first boot then died
+# with PermissionError on flashinfer_jit.log before diffusers finished loading.
+# Repair it around the gate (once for a stale tree the gate itself could not
+# write, once for what the gate just wrote) so a retry needs no manual chown.
+# The JIT cache is rebuildable: clear it when this user cannot own it.
+repair_flashinfer_cache() {
+  local dir
+  dir="$(dirname "${RUNTIME_DIR}")/flashinfer"
+  [[ -e "${dir}" ]] || return 0
+  reown "${dir}"
+  if [[ ! -w "${dir}" ]]; then
+    log "clearing unwritable ${dir} (flashinfer rebuilds its JIT cache)"
+    rm -rf "${dir}" || log "WARN: cannot clear ${dir}; the serve will fail on flashinfer_jit.log"
+  fi
+}
+repair_flashinfer_cache
+
 #####################################################################
 # Fail-closed environment gate
 #####################################################################
@@ -144,6 +165,9 @@ ENGINE_VERSIONS="$("${VENV_DIR}/bin/python" -c 'import importlib.metadata as md;
 log "engine versions: ${ENGINE_VERSIONS}"
 
 reown "${RUNTIME_DIR}"
+# The gate above imported diffusers as root, so flashinfer's tree is root-owned
+# again; hand it to the pool user before the serve starts.
+repair_flashinfer_cache
 log_var VENV_DIR
 log_var SAMPLE_DIR
 log "Done."

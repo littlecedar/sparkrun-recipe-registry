@@ -216,6 +216,14 @@ stage_weights() {
 
 run_stage() {
   log "stage: start (pid $$)"
+  # sparkrun exports HF_HUB_OFFLINE=1 for its distribution contract; this arm
+  # fetches its own node pack, base repack and LoRAs, and `hf download` refuses
+  # to reach the Hub under it — the first attempt died 81 s in with "offline
+  # mode is enabled" (2026-11-22 receipt). The LTX arm's documented fix is to
+  # set it to 0, not unset it (ltx-25-launcher/run.sh:273, README.md:76-79).
+  # Only this detached stage process sees the override: launcher.py and ComfyUI
+  # run in the serve process, which keeps the launch offline.
+  export HF_HUB_OFFLINE=0
   stage_engine || die "engine stage failed"
   stage_weights || die "weight stage failed"
   cp -f "${MOD_DIR}"/workflows/*_api.json "${WORKFLOW_DIR}/" || die "workflow copy failed"

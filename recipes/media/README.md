@@ -538,6 +538,12 @@ diffusers' custom `MOSSImagePipeline` + [`recipes/media/mods/kromoss-launcher`](
   (diffusers 0.41 / transformers 5.19 / torch 2.13.0+cu130), so this arm costs a recipe, not a new
   mod. The server's `--sample-prefix` names this arm's PNGs `moss-image-sft-*` so a shared sample
   dir cannot mix the two arms' receipts.
+- **Two attempts on `.30` (2026-11-22) died before a render, both in the loader.** The first hit
+  `PermissionError` on `flashinfer_jit.log`: the engine gate imports diffusers (→ flashinfer) as
+  root while the serve runs as the pool user, so the launcher now repairs that cache around its gate.
+  The second logged `Expected types for transformer: (<class …>,), got <class …>` — diffusers 0.43
+  re-executes the custom module file on every class lookup, so the transformer had a second identity
+  — and the launcher now executes that module once and builds the pipeline from its namespace.
 - **Not measured:** every cell — TTR, s/image, peak and the step-knob hash.
 
 ## [audio8-realistic-air-0.6b-bf16-transformers-tts](audio8-realistic-air-0.6b-bf16-transformers-tts.yaml)
@@ -1040,6 +1046,12 @@ credit, no use of the Works to improve another model) are in the recipe banner.
 keys match the *pruned* DiT (`LoraLoaderBypassModelOnly` reports unmatched keys in the ComfyUI log —
 the vendor repacked them against the base transformer), and whether ComfyUI 0.42.0 plus the node pack
 starts under the pinned image. No cell is measured: no task rate, no Mem%, no receipt.
+
+**The first attempt (2026-11-22, `.30`) died in staging, not in ComfyUI:** 81 s in, the node-pack
+fetch answered `offline mode is enabled` because sparkrun exports `HF_HUB_OFFLINE=1` and the mod's
+`hf download` inherited it. The mod now sets `HF_HUB_OFFLINE=0` for the detached stage process only
+(the LTX arm's documented fix, `mods/ltx-25-launcher/run.sh:273`), so the launch itself stays
+offline. Both questions above are still open.
 
 Drive it from the launcher's own verb; `source` and `refs` must already be in
 `/cache/runtime/viggle-remake/input` (the vendor's `examples/inputs/*` are not staged):

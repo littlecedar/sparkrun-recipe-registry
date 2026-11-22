@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""lodestones/Kromoss image-generation server (diffusers custom pipeline).
+"""MOSS-Image server for the diffusers custom pipeline (Kromoss, MOSS-Image-SFT).
 
 `MOSSImagePipeline` (shipped as the repo's own `pipeline_moss_image.py`, loaded
-via `custom_pipeline="pipeline_moss_image"` + `trust_remote_code=True`) has no
-serving runtime, so this script *is* the server for the media lane's Kromoss
-arm, in the shape of the Qwen-Image-2.1-Turbo launcher
+with `trust_remote_code=True`) has no serving runtime, so this script *is* the
+server for the media lane's two MOSS-Image arms, in the shape of the
+Qwen-Image-2.1-Turbo launcher
 (`recipes/media/mods/qwen-image-2.1-turbo-launcher/server.py`). Launched by the
 recipe as
 
@@ -14,13 +14,25 @@ with the venv staged by this mod's run.sh (diffusers >= 0.41 + transformers
 >= 5.17 on the image's own torch — the card's floor is diffusers>=0.38 /
 transformers>=5.3, so the staged floor satisfies it).
 
-Card loading shape (Kromoss README Quick start):
-    DiffusionPipeline.from_pretrained(repo, custom_pipeline="pipeline_moss_image",
-                                      trust_remote_code=True,
-                                      torch_dtype={"default": bf16, "vae": fp32})
-    pipe.scheduler = type(pipe.scheduler).from_config(pipe.scheduler.config)
-    pipe.to("cuda")
-and the generation call carries `uncond_skip_layers=[22]` at 50 steps / CFG 3
+Loading shape: the checkpoint's module is executed **once** by
+`get_class_from_dynamic_module`, and every component is built from that
+namespace, so the pipeline's annotation and the transformer share one class
+object:
+
+    pipeline_cls = get_class_from_dynamic_module(
+        snapshot, "pipeline_moss_image.py", class_name="MOSSImagePipeline",
+        trust_remote_code=True)
+    transformer = MOSSImageTransformer.from_pretrained(snapshot/"transformer", bf16)
+    text_encoder = AutoModel.from_pretrained(snapshot/"text_encoder", bf16)
+    tokenizer    = AutoTokenizer.from_pretrained(snapshot/"tokenizer")
+    vae          = AutoencoderKLFlux2.from_pretrained(snapshot/"vae", fp32)
+    scheduler    = MOSSImageScheduler.from_pretrained(snapshot/"scheduler")
+    pipe = pipeline_cls(transformer, scheduler, text_encoder, tokenizer, vae)
+
+`DiffusionPipeline.from_pretrained(..., custom_pipeline=…)` is deliberately not
+used: diffusers 0.43 re-executes the module file on every class lookup, which
+gave the transformer a second class identity (2026-11-22 receipt). The
+generation call carries `uncond_skip_layers=[22]` at 50 steps / CFG 3
 (CFG 1 with a turbo LoRA runs without the negative branch).
 
 The 8-steps-dmd2 LoRA is applied UNMERGED (the card is explicit: never merge it
@@ -145,28 +157,44 @@ def resolve_snapshot_dir(model: str) -> str:
 
 def load_pipeline(model: str, device: str, lora: str | None, lora_strength: float):
     import torch
-    from diffusers import DiffusionPipeline
+    from diffusers import AutoencoderKLFlux2
+    from diffusers.utils import get_class_from_dynamic_module
+    from transformers import AutoModel, AutoTokenizer
 
     before = mem_available_gib()
     torch.cuda.reset_peak_memory_stats()
     log("loading pipeline from %s (MemAvailable %.1f GiB)" % (model, before or float("nan")))
     t0 = time.time()
-    dtype_kw = {"torch_dtype": {"default": torch.bfloat16, "vae": torch.float32}}
-    # diffusers' custom_pipeline loader hits `model_info()` (a Hub API call)
-    # when given a repo id, even with the repo fully cached — dead under
-    # HF_HUB_OFFLINE. A local snapshot path takes the file-copy branch instead.
+    # One execution of the checkpoint's module, then every component built from
+    # that namespace. `DiffusionPipeline.from_pretrained` resolves the pipeline
+    # class and each component class through separate `get_class_in_module`
+    # calls, and diffusers 0.43 re-executes the module file on every one of
+    # them (`utils/dynamic_modules_utils.py:185-215`: `exec_module` sits outside
+    # the `sys.modules` check), so the transformer's class object was not the
+    # one in the pipeline's own annotation — the 2026-11-22 boot logged
+    # "Expected types for transformer: (<class '…MOSSImageTransformer'>,), got
+    # <class '…MOSSImageTransformer'>". Building the pipeline class ourselves
+    # keeps one identity. A local snapshot path also keeps this offline: a repo
+    # id takes the loader's Hub `model_info()` branch.
     snapshot = resolve_snapshot_dir(model)
     log("resolving %s -> snapshot %s" % (model, snapshot))
-    try:
-        pipe = DiffusionPipeline.from_pretrained(
-            snapshot, custom_pipeline="pipeline_moss_image", trust_remote_code=True, **dtype_kw)
-    except TypeError:
-        # diffusers < the torch_dtype rename spells the per-module map differently.
-        pipe = DiffusionPipeline.from_pretrained(
-            snapshot, custom_pipeline="pipeline_moss_image", trust_remote_code=True,
-            torch_dtype=torch.bfloat16)
-    # The card rebuilds the scheduler from its own config (fresh Euler state).
-    pipe.scheduler = type(pipe.scheduler).from_config(pipe.scheduler.config)
+    pipeline_cls = get_class_from_dynamic_module(
+        snapshot, "pipeline_moss_image.py",
+        class_name="MOSSImagePipeline", trust_remote_code=True)
+    namespace = pipeline_cls.__init__.__globals__
+    transformer_cls = namespace["MOSSImageTransformer"]
+    scheduler_cls = namespace["MOSSImageScheduler"]
+    transformer = transformer_cls.from_pretrained(
+        os.path.join(snapshot, "transformer"), torch_dtype=torch.bfloat16).eval()
+    text_encoder = AutoModel.from_pretrained(
+        os.path.join(snapshot, "text_encoder"), dtype=torch.bfloat16).eval()
+    tokenizer = AutoTokenizer.from_pretrained(os.path.join(snapshot, "tokenizer"))
+    vae = AutoencoderKLFlux2.from_pretrained(
+        os.path.join(snapshot, "vae"), torch_dtype=torch.float32).eval()
+    # The checkpoint's own Euler config (shift 5.0); a default-constructed
+    # MOSSImageScheduler would sample on the wrong grid.
+    scheduler = scheduler_cls.from_pretrained(os.path.join(snapshot, "scheduler"))
+    pipe = pipeline_cls(transformer, scheduler, text_encoder, tokenizer, vae)
     pipe.to(device)
     hooked = 0
     if lora:
