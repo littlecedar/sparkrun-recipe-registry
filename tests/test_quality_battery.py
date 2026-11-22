@@ -174,5 +174,22 @@ class Credential(unittest.TestCase):
         self.assertIn("rejected the credential", str(ctx.exception))
 
 
+class Score(unittest.TestCase):
+    """`kind=num` must read a sentence-final period as punctuation, not a number."""
+
+    def test_bare_integer_passes(self):
+        self.assertTrue(TOOL.score("num", "74", "74"))
+
+    def test_trailing_period_passes(self):
+        # The Ripple 2026-11-20 hard-arith-1 reply: "... 37 x 2 = 74."
+        self.assertTrue(TOOL.score("num", "74", "7 * 6 = 42, 42 - 5 = 37, 37 x 2 = 74."))
+
+    def test_decimal_control_still_passes(self):
+        self.assertTrue(TOOL.score("num", "7.5", "The answer is 7.5."))
+
+    def test_decimal_does_not_match_its_integer_prefix(self):
+        self.assertFalse(TOOL.score("num", "74", "74.5"))
+
+
 if __name__ == "__main__":
     unittest.main()

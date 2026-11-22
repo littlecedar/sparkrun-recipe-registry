@@ -203,7 +203,9 @@ def chat(base: str, model: str, prompt: str, max_tokens: int = 384,
 def score(kind: str, expect, reply: str) -> bool:
     r = reply.strip().lower()
     if kind == "num":
-        nums = re.findall(r"-?\d+\.?\d*", reply.replace(",", ""))
+        # A decimal needs digits after the dot, so a sentence-final period
+        # ("... = 74.") is punctuation, not a malformed number.
+        nums = re.findall(r"-?\d+(?:\.\d+)?", reply.replace(",", ""))
         return bool(nums) and (nums[-1] == expect or expect in nums)
     if kind == "any":
         return any(e.lower() in r for e in expect)
