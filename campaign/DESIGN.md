@@ -284,12 +284,13 @@ ledger's rules verbatim (`read_window`): a lock past its end still holds — a b
 and a lock with no parseable `window-end` holds as well, because an unreadable declaration is not
 the absence of one. The window's own owner boots inside it with
 `ARM_ALLOW_DECLARED_WINDOW=<reason>`, and the reason lands in `<receipt>/window-override.txt` so an
-override is evidence rather than a silent bypass. **The remaining gap is upstream, not here:** a
-human typing `sparkrun run` or `sparkrun benchmark` directly bypasses every repo launcher and never
-sees the lock. The request to sparkrun is to read a declared-window file (or accept a `--window`
-declaration) before placement, or to expose a pre-launch hook this repo can install; until one
-exists, the rule is enforced in the repo's launchers and documented for the human path — it is not
-claimed to be blocked.
+override is evidence rather than a silent bypass. **The direct-boot path is campaign-scope by owner
+decision** (2026-11-22, ViBoard thread t21): the window lock and the lease ledger bind campaign
+placement, and a direct manual boot is the owner's own act, not a path that has to consult them. A
+human typing `sparkrun run` or `sparkrun benchmark` therefore bypasses the repo launchers by design,
+and the rule stays enforced where the campaign places work — the launchers' exit-19 check above is
+unchanged. The upstream request (sparkrun reads a declared-window file, accepts `--window`, or
+exposes a pre-launch hook) is withdrawn unless the owner reopens it.
 
 **Draining.** Manifest mode is unchanged: drained means exit 0 and stay down. A queue campaign
 defaults to **polling** instead — every `QUEUE_POLL` (30 s) the serve loop re-reads the register,
