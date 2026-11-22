@@ -17,9 +17,12 @@ What is pinned:
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -80,8 +83,18 @@ class CensusTool(unittest.TestCase):
         stub = self.bin / "ssh"
         stub.write_text(SSH_STUB, encoding="utf-8")
         stub.chmod(0o755)
+        # The head fixture's `register_sha` is a stub answer, not a fact about today's register:
+        # pinning it to the sha the register had when the fixture was cut made every queue.json
+        # write redden this test (measured 2026-11-22, the summaries commit). Derive it instead.
+        self.fixtures = self.root / "fixtures"
+        shutil.copytree(FIXTURES, self.fixtures)
+        head = self.fixtures / "head-n30.txt"
+        register_sha = hashlib.sha256(
+            (REPO_ROOT / "mad-science" / "queue.json").read_bytes()).hexdigest()
+        head.write_text(re.sub(r"(?m)^register_sha\|.*$", f"register_sha|{register_sha}",
+                               head.read_text(encoding="utf-8")), encoding="utf-8")
         self.env = dict(os.environ, PATH=f"{self.bin}:{os.environ['PATH']}",
-                        FIXTURES=str(FIXTURES), CALLS=str(self.calls), FAIL_HOST="")
+                        FIXTURES=str(self.fixtures), CALLS=str(self.calls), FAIL_HOST="")
 
     def run_tool(self, *args, env=None):
         return subprocess.run([sys.executable, "-B", str(TOOL), *args],
