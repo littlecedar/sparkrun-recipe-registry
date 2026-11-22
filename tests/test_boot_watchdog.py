@@ -389,6 +389,17 @@ class MemoryIsProgress(unittest.TestCase):
         _rc, _calls, log = self.drive(self.flat())
         self.assertIn("verdict=stalled", log)
 
+    def test_a_sub_floor_mmap_fill_is_the_accepted_risk(self):
+        # The one shape the floor cannot tell from a freeze: a page-cache fill whose per-check
+        # delta stays under MEM_PROGRESS_FLOOR while io and log are flat. It is classified stalled,
+        # on purpose — the floor sits above the measured allocator jitter, and no boot has been
+        # seen in this shape. tools/README.md §boot-watchdog records the trade; this test pins it.
+        near = bw.MEM_PROGRESS_FLOOR - 1
+        _rc, calls, log = self.drive(
+            self.loading([self.BASE + near * (k + 1) for k in range(4)]))
+        self.assertIn("verdict=stalled", log)
+        self.assertIn(["sparkrun", "stop", "abc123"], calls)
+
     def test_a_quiet_rank_0_with_a_moving_peer_is_not_stalled(self):
         # The TP=4 shape the single-node predicate could not judge: rank 0's io and log are flat
         # and its memory only jitters, while rank 1 climbs 1 GiB per check.

@@ -69,6 +69,15 @@ or blocks the stop. **Its limit is one host:** a TP=2 arm's rank-1 container liv
 node, so only rank 0's log is preserved; `--node` names a single host and probing both is out of
 scope for now.
 
+**One shape is accepted as a stall, on purpose.** The `--stall` clock resets on io, log or memory
+progress, and memory counts only past `MEM_PROGRESS_FLOOR` (128 MiB per check), because a bare
+nonzero test resets on allocator jitter — one measured boot moved +548K, -598K, +1.29M and one
+-90 MiB per check. A page-cache mmap fill whose per-check delta stays under that floor while io and
+log are flat is therefore classified `stalled` at 600 s. No boot has been measured in that shape
+(a real load moves ~282 MB per 10 s check), so the trade is recorded rather than paid for with a
+weaker rule that would re-open the frozen-boot masking; `tests/test_boot_watchdog.py` pins both
+sides of it.
+
 **Three fields name what happened, not what the script assumed.** A stopped boot writes
 `<receipt>/watchdog-verdict.txt` carrying the watchdog's own `verdict=` word (`dead` or `stalled`):
 `rc=3` covers both, and a stall filed as a death blames the engine for a frozen probe (measured 753B
