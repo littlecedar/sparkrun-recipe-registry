@@ -103,6 +103,7 @@ defaults:
 command: >
   bash /workspace/mods/edge0-strata-build/launch.sh
   --model {model}
+  --revision {model_revision}
   --port {port}
   --host {host}
   --served-model-name {served_model_name}

@@ -22,6 +22,7 @@
 set -euo pipefail
 
 MODEL_DIR=""
+REVISION=""
 PORT=8000
 HOST=0.0.0.0
 NAME=""
@@ -29,6 +30,7 @@ NAME=""
 while [[ $# -gt 0 ]]; do
   case "${1}" in
     --model) MODEL_DIR="${2:-}"; shift 2 ;;
+    --revision) REVISION="${2:-}"; shift 2 ;;
     --port) PORT="${2:-}"; shift 2 ;;
     --host) HOST="${2:-}"; shift 2 ;;
     --served-model-name) NAME="${2:-}"; shift 2 ;;
@@ -41,6 +43,31 @@ die() { echo "edge0-launch: FATAL: ${*}" >&2; exit 1; }
 ENGINE_DIR="${EDGE0_ENGINE_DIR:-/cache/runtime/edge0-strata/current}"
 RUNDIR="${EDGE0_RUNDIR:-/cache/runtime/edge0-strata}"
 [[ -n "${MODEL_DIR}" ]] || die "no --model given"
+
+# `{model}` renders the repo id under this profile (the WOPR profile does not
+# rebind it to a prepared path), while every check below needs the pack folder.
+# Resolve the id to its staged snapshot under the mounted HF cache: the recipe's
+# revision when it passes one, else refs/main, else the only staged snapshot.
+if [[ ! -d "${MODEL_DIR}" ]]; then
+  MODEL_ID="${MODEL_DIR}"
+  HUB="${HF_HUB_CACHE:-${HF_HOME:-/cache/huggingface}/hub}"
+  REPO_DIR="${HUB}/models--${MODEL_ID//\//--}"
+  SNAP_ROOT="${REPO_DIR}/snapshots"
+  [[ -d "${SNAP_ROOT}" ]] || die "model '${MODEL_ID}' is not a folder and has no staged repo at ${REPO_DIR} (is the HF cache mounted at ${HUB}?)"
+  if [[ -n "${REVISION}" ]]; then
+    [[ -d "${SNAP_ROOT}/${REVISION}" ]] || die "model '${MODEL_ID}' has no staged snapshot ${REVISION} under ${SNAP_ROOT}"
+    MODEL_DIR="${SNAP_ROOT}/${REVISION}"
+  elif [[ -f "${REPO_DIR}/refs/main" ]]; then
+    MODEL_DIR="${SNAP_ROOT}/$(cat "${REPO_DIR}/refs/main")"
+  else
+    shopt -s nullglob
+    CANDIDATES=("${SNAP_ROOT}"/*/)
+    shopt -u nullglob
+    [[ "${#CANDIDATES[@]}" -eq 1 ]] || die "model '${MODEL_ID}' has ${#CANDIDATES[@]} staged snapshots under ${SNAP_ROOT}; pass --revision to pick one"
+    MODEL_DIR="${CANDIDATES[0]%/}"
+  fi
+  echo "edge0-launch: resolved ${MODEL_ID} -> ${MODEL_DIR}" >&2
+fi
 [[ -d "${MODEL_DIR}" ]] || die "model folder ${MODEL_DIR} does not exist"
 [[ -f "${MODEL_DIR}/model.json" ]] || die "no model.json in ${MODEL_DIR} (not an Edge0 pack)"
 [[ -x "${ENGINE_DIR}/build/strata" ]] || die "no engine at ${ENGINE_DIR}/build/strata (did the build mod run?)"
