@@ -17398,3 +17398,51 @@ per item, pathspec-only, each gated and pushed.
   repair is in sparkrun's `scripts/ib_detect.sh` and `infiniband.py`), `mech-cites-0-4-3` and
   `cache-audit-pool-budget`.
 - **Register.** `check` ok, **228 tasks: 210 done, 11 queued, 7 blocked, 0 running**.
+
+### 2026-11-22 06:53 ET — chore drain, second batch: a pool budget, a board that cannot shrink a row, and a released claim
+
+Three code rows closed, one report-only row closed against its upstream issue, one left for a later
+pass. Same discipline: claim, fix at the mechanism, narrow gate, close with evidence, pathspec commit,
+push by SHA — with `doc-census.py --fix` run before each commit that adds tests and every push-gate
+verdict read directly.
+
+- **Fixed: `cache-audit-pool-budget` (done).** `--budget-gb` is a per-node runtime-cache rule and
+  cannot answer the HF cache's own budget, which the policy restates at pool level (all six nodes
+  report the same figure through the hub). `--pool-usage-gb` + `--pool-capacity-gb` print usage, the
+  pool's capacity, the cap at 90 % of capacity and one PASS/OVER line with the headroom, and carry
+  that into the exit code; either number absent is refused by name rather than defaulted, because a
+  guessed capacity would read as measured. Pool mode needs no census. Five tests (pass, over, the
+  90 % arithmetic, the pairing refusal, both exit codes through `main`), 30 in the module green.
+- **Fixed: `board-publish-accepts-weaker-replacement` (done).** `publish` compared bytes against a
+  base that could itself be the weaker copy, so a composition replaced four captures ending
+  `01:16:49Z`, 'nothing live' node rows and a teardown timeline with three captures ending
+  `01:06:58Z` and rows reading 'live, loading' and landed. It now diffs each In-flight row against
+  the disk board and refuses one that loses captures, claims live where the disk said nothing live,
+  or drops a teardown clause, while showing no newer ISO capture; a fresher read may still retire
+  detail, which is the escape that keeps legitimate retirement legal. One parser now serves both the
+  row-set rule and this one. Five tests including the negative control and an end-to-end refusal that
+  leaves the bytes; 142 in the module green. Replayed on the real `STATUS.md`: the peer row claiming
+  live with an older capture is named, a fresher row retiring its detail passes.
+- **Fixed: `executor-release-host-claim-on-failure` (done).** A launcher that produced no container
+  kept its claim while the executor moved on, and the next three arms were refused as failed boots.
+  `release_claim` now kills a still-alive launcher, polls `sparkrun daemon resources list` until the
+  wildcard claim clears (`ARM_CLAIM_RELEASE_WAIT`, 120 s; `ARM_CLAIM_RELEASE_POLL`, 5 s) and writes
+  `claim-release.txt` either `released after Ns` or `STILL HELD after Ns` with the daemon listing; it
+  runs on both prompt no-container exits (5 and the ceiling's 1). A refused claim is no longer a
+  failed boot: `ARM BUSY` writes `claim-busy.txt`, arms nothing, retries nothing and exits **18**.
+  The holder is never touched — only a dead owner is reconciled, at startup, as before. Five tests
+  drive the extracted block against a stub `sparkrun`; 211 in the module green, `bash -n` clean.
+- **Closed as reported upstream: `sparkrun-single-gid-index-for-two-hcas` (done).** The defect is
+  `spark-arena/sparkrun#341`, closed COMPLETED 2026-11-21T07:03:12Z, whose body carries this
+  2026-11-11 WOPR pair measurement and the proposed reduction (cards agree → today's number; they
+  disagree → `-1`, NCCL's per-device AUTO, needing NCCL 2.21+). Nothing in this repo changes, and a
+  recipe env line is explicitly not the repair. **Caveat recorded on the row:** the upstream close is
+  not backed by a code change on main — `src/sparkrun/scripts/ib_detect.sh:43-44` still derives the
+  index once and `orchestration/infiniband.py:258-259` still applies it to every host, in upstream
+  main and in the installed `0.4.3-alpha+gd34eb23`, so a two-rail boot can still hit
+  `ncclCommInitRank`/`ibv_modify_qp 61`. Re-opening upstream is the next action there.
+- **Left for a later pass: `mech-cites-0-4-3`.** The 117 remaining anchors cannot be renumbered
+  mechanically — `core/recipe.py` is 3080 lines in the installed build against the ~2.4k the 0.4.2
+  pass read — so each needs its sentence re-read before a range is chosen. That is the row's whole
+  4 h, and this batch had no room for it after the three code rows.
+- **Register.** `check` ok, **228 tasks: 214 done, 7 queued, 7 blocked, 0 running**.
