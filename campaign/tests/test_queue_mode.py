@@ -771,7 +771,7 @@ class Holds(QueueCase):
                          ("one", ("node-a",)),
                          "the cached state cannot see the register; _admit is the guard")
 
-    def test_a_recipe_named_by_a_stricter_row_is_held_at_plan(self) -> None:
+    def test_a_blocked_sibling_holds_the_queued_row_at_plan(self) -> None:
         queued = row("queued-row", "recipes/lane/one.yaml", 1, node_cost="single")
         blocked = row("blocked-row", "recipes/lane/one.yaml", 1, state_="blocked",
                       node_cost="single")
@@ -783,12 +783,42 @@ class Holds(QueueCase):
                       "is 'blocked')", self.out.getvalue())
         campaign.close()
 
-        done = dict(blocked, id="done-row", state="done")
+    def test_a_done_sibling_no_longer_holds_and_the_row_boots_its_own(self) -> None:
+        """Owner decision 2026-11-22: reuse is allowed, and the reuse row writes its own receipt.
+
+        The receipt already on disk belongs to the done sibling, so adopting it would close the
+        new row as measured without a boot — the arm must stay `pending` with the sibling's dir
+        named in the log, and the boot rotates that dir to `.prev-<HHMMSS>`.
+        """
+        queued = row("queued-row", "recipes/lane/one.yaml", 1, node_cost="single")
+        done = row("done-row", "recipes/lane/one.yaml", 1, state_="done", node_cost="single")
         self.shell.rows = [queued, done]
+        receipt(self.receipts, "one", cells=2)      # the sibling's measurement
         leader, campaign = self.build()
         leader.prepare()
-        self.assertEqual(campaign.order, [])
-        self.assertIn("sibling done-row is 'done'", self.out.getvalue())
+        self.assertEqual(campaign.order, ["one"], "a done sibling must not hold the recipe")
+        self.assertEqual(campaign.arm("one")["status"], "pending",
+                         "the sibling's receipt was adopted as this row's measurement")
+        self.assertIn("reuse: one", self.out.getvalue())
+        self.assertIn("done-row's receipt", self.out.getvalue())
+        campaign.close()
+
+    def test_a_reuse_row_that_was_attempted_adopts_its_own_receipt(self) -> None:
+        """The guard is narrow: only a never-booted row refuses the receipt it finds."""
+        queued = row("queued-row", "recipes/lane/one.yaml", 1, node_cost="single")
+        done = row("done-row", "recipes/lane/one.yaml", 1, state_="done", node_cost="single")
+        self.shell.rows = [queued, done]
+        receipt(self.receipts, "one", cells=2)
+        leader, campaign = self.build()
+        leader.prepare()
+        campaign.arm("one")["attempts"] = 1        # this row has booted once already
+        campaign.save()
+        campaign.close()
+        leader, campaign = self.build()
+        leader.prepare()
+        self.assertEqual(campaign.arm("one")["status"], "measured",
+                         "a row's own measurement must still be adopted after a restart")
+        campaign.close()
 
     def test_a_blocked_sibling_holds_the_queued_row_at_assignment(self) -> None:
         self.single()

@@ -620,6 +620,90 @@ class ClaimRelease(unittest.TestCase):
         self.assertIn("claim-busy.txt", text[at: at + 400])
 
 
+W_START = "# window-lock: start"
+W_END = "# window-lock: end"
+
+
+class DeclaredWindow(unittest.TestCase):
+    """A direct boot refuses while a window is declared (owner decision 2026-11-22).
+
+    The campaign and `director lease` already honour `.local/fleet-window.lock`, and
+    `tools/queue-drip.py` refuses on it; `run-arm.sh` is the repo's other launch path, so an arm
+    must not slip onto the fleet through it. The ledger's rules are reused: a lock past its end
+    still holds (a boot may be inside it) and an unparseable lock holds too.
+    """
+
+    def run_block(self, lock: str | None, body: str = "window-end = 2099-01-01T00:00:00Z\n",
+                  where: str = ".local/fleet-window.lock", allow: str | None = None
+                  ) -> tuple[int, str, str]:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            receipt = tmp / "receipt"
+            receipt.mkdir()
+            if lock is not None:
+                target = tmp / where
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(body)
+            script = tmp / "window.sh"
+            script.write_text(
+                "#!/usr/bin/env bash\n"
+                "set -uo pipefail\n"
+                f"cd {str(tmp)!r}\n"
+                f"L={str(receipt)!r}\n"
+                "NAME=test\n"
+                + block_region(read_tool(), W_START, W_END)
+                + '\necho "reached-launch"\n'
+            )
+            env = {**os.environ}
+            env.pop("ARM_ALLOW_DECLARED_WINDOW", None)
+            if allow is not None:
+                env["ARM_ALLOW_DECLARED_WINDOW"] = allow
+            out = subprocess.run(["bash", str(script)], capture_output=True, text=True,
+                                 check=False, env=env, timeout=60)
+            recorded = receipt / "window-override.txt"
+            return out.returncode, out.stdout + out.stderr, (
+                recorded.read_text() if recorded.is_file() else "<absent>")
+
+    def test_no_lock_boots(self):
+        rc, out, _ = self.run_block(None)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("reached-launch", out)
+
+    def test_a_declared_window_refuses_the_boot(self):
+        rc, out, _ = self.run_block("lock")
+        self.assertEqual(rc, 19, out)
+        self.assertIn("ARM REFUSED", out)
+        self.assertIn(".local/fleet-window.lock", out)
+        self.assertIn("2099-01-01T00:00:00Z", out)
+        self.assertNotIn("reached-launch", out)
+
+    def test_a_stale_window_still_refuses(self):
+        # A boot may be inside a window whose declared end has passed; the ledger holds it too.
+        rc, out, _ = self.run_block("lock", body="window-end = 2020-01-01T00:00:00Z\n")
+        self.assertEqual(rc, 19, out)
+
+    def test_an_unparseable_window_still_refuses(self):
+        rc, out, _ = self.run_block("lock", body="holder = someone\n")
+        self.assertEqual(rc, 19, out)
+        self.assertIn("no window-end", out)
+
+    def test_the_legacy_scratch_path_refuses_too(self):
+        rc, out, _ = self.run_block("lock", where=".scratch/fleet-window.lock")
+        self.assertEqual(rc, 19, out)
+
+    def test_the_window_owner_can_boot_inside_it_and_the_override_is_recorded(self):
+        rc, out, recorded = self.run_block("lock", allow="the window's own quartet")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("reached-launch", out)
+        self.assertIn("OVERRIDDEN", out)
+        self.assertIn("the window's own quartet", recorded)
+
+    def test_the_check_sits_before_the_launch(self):
+        text = read_tool()
+        self.assertLess(text.index(W_END), text.index("\nlaunch_arm\n"),
+                        "the window check must refuse before anything is launched")
+
+
 class OverrideEvidence(unittest.TestCase):
     """A row-env ARM_OPTS reaches `sparkrun run` with its values whole and is recorded verbatim.
 

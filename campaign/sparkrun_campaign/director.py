@@ -222,10 +222,21 @@ class Director:
         # Anything measured while no director was listening is already answered; a worker that died
         # between the last cell and its report must not cost a second boot.
         for arm in self.campaign.order:
-            if self.campaign.arms()[arm]["status"] in (MEASURED, SKIPPED):
+            record = self.campaign.arms()[arm]
+            if record["status"] in (MEASURED, SKIPPED):
                 continue
-            ok, reason, arm_dir = evidence.find_measurement(self.receipts_root, arm)
-            if ok:
+            measured, reason, arm_dir = evidence.find_measurement(self.receipts_root, arm)
+            rows = self.register.rows() if self.register is not None else []
+            reuse = plan.done_sibling(rows, arm, str(record.get("task", "")))
+            if measured and reuse and not record["attempts"]:
+                # Owner decision 2026-11-22: a done sibling no longer holds the recipe, so this
+                # row may reuse it — but that receipt is the sibling's. Booting writes this row's
+                # own (the executor rotates the old dir to `.prev-<HHMMSS>`); adopting it here
+                # would close the row as measured without a boot.
+                print(f"reuse: {arm} ({arm_dir}) is {reuse}'s receipt; booting this row for its own",
+                      file=self.out)
+                measured = False
+            if measured:
                 self._found_measured(arm, arm_dir, hosts=[], lease_id="", started=None)
             elif arm_dir:
                 print(f"unmeasured: {reason}", file=self.out)
@@ -358,6 +369,13 @@ class Director:
                 self._close_skipped(arm, verdict)
                 continue
             measured, reason, arm_dir = evidence.find_measurement(self.receipts_root, arm)
+            reuse = next((entry.get("reuse", "") for entry in fresh if entry["arm"] == arm), "")
+            if measured and reuse:
+                # A fresh row reusing a done sibling's recipe: the receipt on disk is the
+                # sibling's, so this row boots for its own (owner decision 2026-11-22).
+                print(f"reuse: {arm} ({arm_dir}) is {reuse}'s receipt; booting this row for its own",
+                      file=self.out)
+                measured = False
             if measured:
                 self._found_measured(arm, arm_dir, hosts=[], lease_id="", started=None)
             elif arm_dir:

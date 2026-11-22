@@ -118,6 +118,39 @@ fi
 mkdir -p "$L"
 rc=0
 
+# window-lock: start
+# Owner decision 2026-11-22: a direct boot REFUSES while a window is declared. The campaign and
+# `director lease` already honour `.local/fleet-window.lock`; `tools/queue-drip.py` refuses on it
+# too. This is the repo's other launch path, so an arm must not slip onto the fleet through it.
+# The ledger's rules are reused verbatim (`campaign/sparkrun_campaign/leases.py:read_window`): a
+# lock past its declared end still holds -- a boot may be inside it -- and a lock with no parseable
+# `window-end` holds as well, because "cannot read the declaration" is never "no declaration".
+# A human `sparkrun run` typed directly is outside this repo and is NOT covered; the request to
+# sparkrun is recorded in `campaign/DESIGN.md` §"A declared window is hands off".
+WINDOW_LOCK=
+for f in .local/fleet-window.lock .scratch/fleet-window.lock; do
+  if [ -f "$f" ]; then WINDOW_LOCK=$f; break; fi
+done
+if [ -n "$WINDOW_LOCK" ]; then
+  WINDOW_END=$(sed -n 's/^[[:space:]]*window[-_]end[[:space:]]*=[[:space:]]*//p' "$WINDOW_LOCK" \
+               | head -1 | tr -d "\"'")
+  if [ -n "${ARM_ALLOW_DECLARED_WINDOW:-}" ]; then
+    # The window's own owner booting inside it: recorded, never silent.
+    printf 'declared window %s (%s) overridden: %s\n' \
+      "$WINDOW_LOCK" "${WINDOW_END:-no window-end}" "$ARM_ALLOW_DECLARED_WINDOW" \
+      > "$L/window-override.txt"
+    echo "window: $WINDOW_LOCK (${WINDOW_END:-no window-end}) OVERRIDDEN for this arm"
+  else
+    echo "ARM REFUSED $NAME: a window is declared in $WINDOW_LOCK (${WINDOW_END:-no window-end= line})."
+    echo "  A declared window is hands off for every boot, stale or unparseable included; the"
+    echo "  campaign, 'director lease' and queue-drip already refuse it. Clear the file when the"
+    echo "  window is over, or pass ARM_ALLOW_DECLARED_WINDOW=<reason> to boot inside your own"
+    echo "  window (the reason lands in $L/window-override.txt)."
+    exit 19
+  fi
+fi
+# window-lock: end
+
 # A benchmark can print a complete table and still leave no machine-readable
 # output (measured 2026-10-29: the 9B dflash arm exited 0 with both tables in its
 # logs and no yaml/json on disk). rc=0 must mean the numbers are in files another

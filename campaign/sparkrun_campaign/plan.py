@@ -276,16 +276,33 @@ def row_runnable(row: dict[str, Any], session: str) -> bool:
     return (state == "queued" or ours) and row.get("blocked_by") == []
 
 
+def done_sibling(rows: list[dict[str, Any]], arm: str, task: str) -> str:
+    """The id of a `done` row naming this recipe other than `task`, or "".
+
+    Owner decision 2026-11-22: a done sibling no longer holds its recipe, so a measured arm may
+    be re-run. The reuse row must produce **its own** receipt — the one already on disk is the
+    sibling's — so both the plan and the director's receipt adoption ask this question.
+    """
+    for row in rows:
+        if (row.get("state") == "done" and str(row.get("id", "")) != task
+                and row.get("recipe") and Path(str(row["recipe"])).stem == arm):
+            return str(row.get("id", ""))
+    return ""
+
+
 def sibling_hold(others: list[dict[str, Any]], session: str) -> str:
     """The strictest row sharing a recipe that holds it, as a log phrase, or "".
 
-    One recipe named by several rows is one arm, so a `blocked` or `done` sibling holds it even
-    when its own row reads `queued`; the 2026-11-08 survey pair (`done` + `blocked`) showed a
-    queued sibling protecting nothing. `blocked` outranks `done` outranks another session's
-    `running`; two runnable rows are not a hold but an ambiguity `queue_entries` skips by name.
+    One recipe named by several rows is one arm. A `blocked` row holds it (that row is an
+    external gate on the arm) and another session's `running` row holds it — the double-boot
+    protection is the rule's point, not the recipe's ownership. A **`done`** row does not hold:
+    owner decision 2026-11-22, reuse is allowed and the reuse row writes its own receipt (see
+    `done_sibling` and the director's adoption guard). Two runnable rows are not a hold but an
+    ambiguity `queue_entries` skips by name.
     """
-    order = {"blocked": 0, "done": 1, "running": 2}
-    held = [row for row in others if not row_runnable(row, session)]
+    order = {"blocked": 0, "running": 1}
+    held = [row for row in others
+            if row.get("state") != "done" and not row_runnable(row, session)]
     if not held:
         return ""
     worst = min(held, key=lambda row: order.get(str(row.get("state")), 3))
@@ -408,7 +425,8 @@ def queue_entries(rows: list[dict[str, Any]], hosts: list[str], session: str,
         entries.append({"arm": arm, "path": recipe, "tp": int(tp), "pp": 1, "nodes": int(tp),
                         "env": dict(row.get("env") or {}), "task": task,
                         "memory_risky": risky, "exclude_hosts": list(per_arm),
-                        "allow_hosts": allow, "window": window})
+                        "allow_hosts": allow, "window": window,
+                        "reuse": done_sibling(rows, arm, task)})
     if authoring:
         lines.append(f"queue: {authoring} row(s) queued without a recipe (authoring, not bootable)")
     return entries, lines, excluded

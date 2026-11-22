@@ -85,7 +85,7 @@ Exclusions are named, never truncated:
 | no `recipe`/`tp` | counted in one line (`authoring, not bootable`): most rows are prose work |
 | `tp` > declared hosts | adopted, then recorded `unplaceable` (`unplaceable: <arm> (needs 4 ranks; campaign declares 2 hosts)`): the arm is in the plan, named, and never `pending` — a pending shape that can never fit holds `drained()` false and hid the register poll behind that gate (2026-11-21) |
 | memory-risky shape with no room outside the excluded hosts | skipped by name (`queue-skip: <row> (memory-risky shape needs 6 ranks, 5 declared outside .30)`); the row stays queued, never narrowed onto the head — unless its own `allow_hosts`/`window` declaration waives the host, which then requires the lease-time proof (§The head is waivable…) |
-| two rows naming one recipe | one arm: any non-runnable sibling (`blocked`, `done`, a live edge, another session's claim) holds it by name (`queue-skip: <row> (recipe also named by sibling <id> is 'blocked')`), so a blocked or done row protects the recipe; two runnable rows are an ambiguity, named with both ids and skipped for that tick only, because the register has not said which row the numbers would close |
+| two rows naming one recipe | one arm: a `blocked` sibling, a live edge or another session's claim holds it by name (`queue-skip: <row> (recipe also named by sibling <id> is 'blocked')`), so a gated row protects the recipe; a **`done`** sibling does not hold — owner decision 2026-11-22: reuse is allowed, and the reuse row boots for **its own** receipt (the executor rotates the measured dir to `.prev-<HHMMSS>`, and the director refuses to adopt the sibling's receipt for a row that has never been attempted, printing `reuse: <arm> (<dir>) is <row>'s receipt`); two runnable rows are an ambiguity, named with both ids and skipped for that tick only, because the register has not said which row the numbers would close |
 
 **A shape the campaign cannot hold is recorded, not waited on.** Every plan build — `prepare`, and
 each poll's `refresh` — runs `plan.unplaceable_reason` over the arms: a rank count above the
@@ -274,6 +274,22 @@ a syncthing artefact, and treating it as a declaration would block every lease �
 expired record holds nothing, so a lost director stops holding the fleet after one TTL. Ledger
 ranks match a declared host exactly (the `.30` tail is placement's shorthand, not the ledger's),
 so a manual session leases the spelling `--hosts` uses.
+
+**A declared window is hands off, and the repo's own launch paths refuse it.** Owner decision
+2026-11-22. The campaign, `director lease` and `tools/queue-drip.py` already refused a declared
+window; `tools/run-arm.sh` did not, so a direct arm could slip onto the fleet through the repo's
+other launch path. It now reads `.local/fleet-window.lock` (and the legacy `.scratch/` twin) before
+anything is launched and exits **19** with the file and its declared end named, reusing the
+ledger's rules verbatim (`read_window`): a lock past its end still holds — a boot may be inside it —
+and a lock with no parseable `window-end` holds as well, because an unreadable declaration is not
+the absence of one. The window's own owner boots inside it with
+`ARM_ALLOW_DECLARED_WINDOW=<reason>`, and the reason lands in `<receipt>/window-override.txt` so an
+override is evidence rather than a silent bypass. **The remaining gap is upstream, not here:** a
+human typing `sparkrun run` or `sparkrun benchmark` directly bypasses every repo launcher and never
+sees the lock. The request to sparkrun is to read a declared-window file (or accept a `--window`
+declaration) before placement, or to expose a pre-launch hook this repo can install; until one
+exists, the rule is enforced in the repo's launchers and documented for the human path — it is not
+claimed to be blocked.
 
 **Draining.** Manifest mode is unchanged: drained means exit 0 and stay down. A queue campaign
 defaults to **polling** instead — every `QUEUE_POLL` (30 s) the serve loop re-reads the register,
