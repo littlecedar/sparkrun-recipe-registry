@@ -17129,3 +17129,54 @@ id. Receipts are on the head under `~/benchmarks/campaign-20261122/<row>/`.
   redden the register.
 - **Register.** `check` ok, **228 tasks: 195 done, 31 queued, 2 blocked, 0 running**. `mad-science/queue.json`
   and this file only.
+
+### 2026-11-22 03:50 ET — drain, third batch: the first MiniMax-H3 single-node cell, and two arm-side walls
+
+All five missing bodies were staged at their recipe pins before this batch (TwIL-8B 67.81 GiB,
+DaisyRose-27B 51.77, Qwen3.8-27B 51.77 + pi-LoRA 0.61, inworld/voice-isolator 0.46,
+Edge0-145B-NVFP4 105.96 — each `stat -L` verified, 0 broken links).
+
+- **Row closed: `minimax-h3-fl2va-t2va-first-boot` (done) — the first MiniMax-H3 cell on one node.**
+  Boot `05929de845c64661_113e27afa382` on `.30`, watchdog pid 1883028 `verdict=healthy` at t=562 s
+  (`mem_avail` 56.0 %), TTR ≈ 10 min 8 s. One `POST /v1/videos` `task=t2va`
+  (`target={short_edge:768, aspect_ratio:16:9, duration_seconds:4}`, seed 42, 8 steps) returned
+  **completed 1344×768 / 4.458 s in 382.91 s**, peak **46,248 MB**, denoise 8/8 at 42.49 s/it, decode
+  29.18 s, artifact 346,665 B with `avc1` video **and `mp4a` audio** tracks. The recipe's AdaLN
+  first-boot question did not bite — the pruned FP8 DiT took its own path, no
+  `--minimax-h3-adaln-online` and no cache build, and the absolute-pool-path component overrides
+  still avoid `OfflineModeIsEnabled`. **API quirk worth recording:** `/v1/videos` reports
+  `status: queued, progress: 0` for the whole generation and only flips to `completed` at the end, so
+  a client polling that field cannot distinguish a working denoise from a wedge — the serve log and
+  GPU utilisation can. Receipt `head:~/benchmarks/campaign-20261122/minimax-h3-fl2va-t2va-first-boot/run.md`.
+- **Row closed: `daisyrose-27b-bf16-thinking-first-boot` (done) — coherent, and the thinking contract
+  holds.** Boot `015816314bb07465_207763c3286b`, watchdog `verdict=healthy` at t=446 s. `/v1/models`
+  200; C1 chat 128 tokens in 28.965 s = **4.42 t/s** with `content_chars 0` / **`reasoning_chars 634`**
+  in `message.reasoning_content`; raw completion coherent (`The capital of Germany is Berlin…`).
+  **Decision recorded: it qualifies for the index**, but the `zz-` rename and the index row are a
+  lane-doc/recipe edit and stay with the lane owner — campaign commits are register-only. Quote the
+  4.42 t/s with its 128-token cap: it is a reasoning-phase rate, not a finished-answer rate.
+- **`moss-image-sft-5b-first-boot` back to `queued`, two defects, the second arm-side.** (1) The
+  first boot died on `PermissionError` for `/cache/runtime/flashinfer/.cache/flashinfer/0.7.0.post1/121a/flashinfer_jit.log`
+  — a **root-owned JIT dir inside this recipe's own runtime tree**, created by the failed boot itself;
+  `chown -R red:red` on that `flashinfer` subtree fixed it and the retry imported cleanly past
+  flashinfer. (2) The retry then died in the pipeline load with a duplicate-class failure:
+  `Expected types for transformer: (<class diffusers_modules.local.pipeline_moss_image.MOSSImageTransformer'>,),
+  got <class diffusers_modules.local.pipeline_moss_image.MOSSImageTransformer'>` — same name, different
+  class object, i.e. the repo's custom pipeline is imported twice under different module identities.
+  That is a launcher/mod defect (load it once, or compare by name); weights, the kromoss venv and all
+  five component loads succeeded. Nothing measured.
+- **`viggle-remake-h3-lora-v2v-first-boot` back to `queued`, arm-side fetch wall.** The mod's stage
+  died 81 s in: `node pack fetch failed — Error: Local entry not found. Cannot reach
+  https://huggingface.co/api/models/Viggle/Viggle-Remake/tree/7e5be143…: offline mode is enabled`.
+  sparkrun injects `HF_HUB_OFFLINE=1` and this mod does not clear it for its own fetch — the exact
+  fix the LTX arm documents. The body is complete in the pool (156.06 GiB), so the stage should read
+  the cache instead of the API. Watchdog `dead_candidate, serve_pid=gone`.
+- **Harness fixes made while draining.** `.local/sparkrun-home`'s `littlecedar` registry pointed at
+  `file:///home/siv/src/sparkrun-recipe-registry` (a workstation-only path), so any recipe using
+  `@littlecedar/mods/…` failed with `Failed to ensure registry 'littlecedar' on 10.0.4.30`; repointed
+  at the GitHub URL and the DaisyRose boot then passed (registry is `trusted: false`, so it ran with
+  `--trust`). And a launch-failure fallback in my boot helper once armed a watchdog against the
+  **fenced production serve's** id (`58cddf1c62ba6578_b8865cad5863`) after reading the wrong job from
+  `sparkrun status`; the watchdog refused to arm (no such container on `.30`), so nothing was touched,
+  but the rule is now explicit: resolve the task id only from the launch's own output.
+- **Register.** `check` ok, **228 tasks: 197 done, 29 queued, 2 blocked, 0 running**.
