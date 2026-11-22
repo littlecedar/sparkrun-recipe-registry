@@ -16982,11 +16982,13 @@ single-writer pass over `mad-science/queue.json`, and no boot ran from it.
   the authoring row became a first-boot row and was retitled and re-summarized). The other 18 rows
   are tool, docs, director-logic and read-only measurement work whose text names no boot shape, so
   they keep an empty cost rather than a guessed one.
-- **Ten candidate rows, one update.** Eight new single-node first-boot rows (Ornith-122B DFlash2,
+- **Ten candidate rows, three updates.** Ten new single-node first-boot rows (Ornith-122B DFlash2,
   DaisyRose-27B, inworld voice-isolator, qwen3.8-27B pi-LoRA probe, the two no-drafter Ornith probes,
-  Edge0-145B strata, MiniMax-H3 fl2va) plus the Laguna-M.1 pair re-boot; `webai-twil` updated in
-  place rather than twinned. The two Ornith probes carry no edge between them — the doc makes them
-  sequential on one host, not blocking. Every row's estimate is `provisional` with its basis stated.
+  Edge0-145B strata, MiniMax-H3 fl2va, MOSS-Image-SFT) plus the Laguna-M.1 pair re-boot;
+  `webai-twil` was updated in place rather than twinned, and the Audio8 survey row became its own
+  first-boot row instead of a duplicate. The two Ornith probes carry no edge between them — the doc
+  makes them sequential on one host, not blocking. Every row's estimate is `provisional` with its
+  basis stated.
 - **Owner decisions applied.** MiniMax-H3 and Viggle-Remake were split out of the conflated
   `minimax-viggle-remake-eval-only-arm` (closed `done` with the split as evidence); the MiniMax-H3
   row records the 2026-11-22 ruling (MiniMax's lawyers, relayed by the owner) that authoring and R&D
@@ -16999,9 +17001,9 @@ single-writer pass over `mad-science/queue.json`, and no boot ran from it.
   place it. `tools/run-arm.sh` does read `ARM_NODE` (`:33`, `HOSTS=${2:-${ARM_NODE:-}}`), but the
   campaign worker always passes the host list positionally (`worker.py:57`), so an `env` pin would
   look like a pin and do nothing.
-- **Laguna sorts after the singles by edge, not by luck.** All ten single-node boot rows name it in
+- **Laguna sorts after the singles by edge, not by luck.** All eleven single-node boot rows name it in
   `blocks`, so its weight stays 2.00 while each of theirs drops by 2.00 — the only structural way to
   express "runs after all single-node work concludes" in a weight-ordered register.
-- **Register.** `check` ok, **227 tasks: 186 done, 39 queued, 2 blocked, 0 running**. `mad-science/queue.json`
+- **Register.** `check` ok, **228 tasks: 186 done, 40 queued, 2 blocked, 0 running**. `mad-science/queue.json`
   and this file only; `.idea/modules.xml`, `TODO.md`, `QUESTIONS.md` and the `recipes/media/` edits in
   the worktree are a peer's.

@@ -2117,21 +2117,23 @@
     },
     {
       "id": "lane-survey-edge0-audio8-tts",
-      "title": "Media-lane survey: Edge0/Audio8-TTS-Realistic-Air - 0.6B DualAR TTS + bundled codec, TP<4 so surveyed only",
+      "title": "First boot the Audio8-TTS-Realistic-Air arm and record its RTF and wav round-trip",
       "estimate_h": 0.5,
-      "blocks": [],
+      "blocks": [
+        "laguna-m1-vllm-v032-reboot"
+      ],
       "blocked_by": [],
       "state": "queued",
       "model": "Edge0/Audio8-TTS-Realistic-Air",
       "node_cost": "single",
-      "notes": "OWNER DIRECTION 2026-11-22: no longer surveyed-only -- staging plus recipe authoring are directed. The recipe is now tracked (recipes/media/audio8-realistic-air-0.6b-bf16-transformers-tts.yaml, model Edge0/Audio8-TTS-Realistic-Air, min_nodes 1) with its server mod at recipes/media/mods/audio8-tts-server, so this row is machine-runnable and the boot is the test. State stays queued. Survey facts the recipe respects: license class Apache-2.0, unrestricted, so it ships as a normal arm with no eval-only banner; 601,159,424 params BF16 in model.safetensors 1.20 GB plus a separate 44.1 kHz codec.pth 1.35 GB, repo 2.39 GiB; model_type arktts, architectures ArkttsModel, custom Transformers code in-repo with auto_map, so trust_remote_code is REQUIRED; 23 languages, zero-shot voice cloning from a reference clip plus transcript or with no reference; DualAR (slow AR semantic token, fast AR) after Fish-Audio S2 Pro. TP verdict: 2.39 GiB total is 2 percent of one node and a 0.6B TTS has no parallel shape (compare the lane's Kokoro and phonon CPU-TTS arms), hence node_cost single. ACCEPTANCE: the recipe boots one node, the mod answers one POST /v1/audio/speech with a non-empty audio artifact, and the wall time is recorded as a receipt. estimate: provisional -- no boot measured.",
-      "provenance": "owner direction 2026-11-22 (staging + recipe authoring); HF API /api/models/Edge0/Audio8-TTS-Realistic-Air (+ /tree/main, config.json, README) read 2026-11-10",
+      "notes": "OWNER DIRECTION 2026-11-22: no longer surveyed-only -- staging plus recipe authoring are directed, and both landed. The recipe is tracked (recipes/media/audio8-realistic-air-0.6b-bf16-transformers-tts.yaml, model Edge0/Audio8-TTS-Realistic-Air pinned 6bf7a980..., min_nodes 1) with its server mod at recipes/media/mods/audio8-tts-server, so this row is machine-runnable and the boot is the test; staging of the 2.39 GiB body is in progress. Apache-2.0 and ungated, so it ships without a zz- prefix and with no eval-only banner. Engine is the repo's custom Transformers code under a staged venv pinned to transformers 4.57.x (the card's >=4.57,<5 ceiling), not the sibling diffusers arms' 5.x venv and not the card's SGLang Omni adapter, which is not in the fleet pins. Surface is the lane's TTS contract: POST /v1/audio/speech -> 44.1 kHz mono 16-bit WAV, optional reference_audio + reference_text for cloning, and a reference clip must be 44.1 kHz mono because the venv deliberately omits torchaudio. Weights 601,159,424 params BF16 (1.20 GB model.safetensors) plus a 1.35 GB 44.1 kHz codec.pth, 2.39 GiB repo; 23 languages; DualAR after Fish-Audio S2 Pro. TP verdict: 2.39 GiB is 2 percent of one node and a 0.6B TTS has no parallel shape, hence node_cost single. ACCEPTANCE: /health ok, one POST /v1/audio/speech returns a non-empty 44.1 kHz mono WAV, and RTF plus the wav round-trip are recorded as a receipt. estimate: provisional -- every cell unmeasured.",
+      "provenance": "recipes/media/README.md:543-560 (arm section, authored 2026-11-22), :119 (never booted, 2.39 GiB); recipes/media/audio8-realistic-air-0.6b-bf16-transformers-tts.yaml:1-11; owner 2026-11-22 (recipe path and single-node cost forwarded); HF API /api/models/Edge0/Audio8-TTS-Realistic-Air read 2026-11-10",
       "evidence": "",
       "claimed_by": "",
       "claimed_at": "",
-      "summary": "Edge0/Audio8-TTS survey: Apache-2.0, 0.6B DualAR TTS plus a 1.35 GB 44.1 kHz codec, trust_remote_code required, SGLang Omni adapter unverified; TP<4, so surveyed only with no recipe per the owner rule.",
-      "summary_src": "bca3fc6983264b4c5a3b9960ff5e50eb1c753a548cc12088e2cc6b040789b79c",
-      "summary_at": "2026-11-22T04:26:10Z",
+      "summary": "Recipe and server mod are tracked and the 2.39 GiB body is staging; the remaining work is its first boot: /health, one POST /v1/audio/speech returning a 44.1 kHz mono WAV, and RTF recorded.",
+      "summary_src": "69a6243f136e8f54692f65b8ef1124a9a71d1304c1fcd6ad61d8b042e1a8aa5f",
+      "summary_at": "2026-11-22T06:22:19Z",
       "recipe": "recipes/media/audio8-realistic-air-0.6b-bf16-transformers-tts.yaml",
       "tp": 1
     },
@@ -3507,7 +3509,9 @@
         "daisyrose-27b-bf16-thinking-first-boot",
         "edge0-145b-latentmoe-strata-first-boot",
         "inworld-voice-isolator-first-boot",
+        "lane-survey-edge0-audio8-tts",
         "minimax-h3-fl2va-t2va-first-boot",
+        "moss-image-sft-5b-first-boot",
         "ornith-122b-nospec-noparsers-boot",
         "ornith-122b-nospec-rawchat-boot",
         "ornith-122b-nvfp4-uncensored-dflash2-first-boot",
@@ -3704,6 +3708,25 @@
       "recipe": "recipes/media/viggle-remake-h3-lora-v2v-comfyui-script.yaml",
       "tp": 1,
       "memory_risky": true
+    },
+    {
+      "id": "moss-image-sft-5b-first-boot",
+      "title": "First boot the vendor MOSS-Image-SFT arm on the Kromoss launcher and record one image cell",
+      "estimate_h": 1.5,
+      "blocks": [
+        "laguna-m1-vllm-v032-reboot"
+      ],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "single",
+      "notes": "Authored 2026-11-22, NOT booted (recipes/media/README.md:517-540, table row :118); staging of the 27.23 GB body is to follow. OpenMOSS-Team/MOSS-Image-SFT pinned f972bd4b..., Apache-2.0 with no banner, no revenue threshold and no non-commercial clause. Weights 27.23 GB (transformer 10.16 + text encoder 16.79 + VAE 0.25) with ~30-36 GiB peak expected [INFERENCE, scaled from the Qwen-Image arm's 36.85 GiB at 32.5 GB], so nothing is memory-blocked on one node. Engine: the Kromoss launcher unchanged (its venv clears diffusers 0.41 / transformers 5.19 / torch 2.13.0+cu130), no new mod; its --sample-prefix names this arm's PNGs moss-image-sft-* so a shared sample dir cannot mix receipts with kromoss-mossimage-5b. Sampling is the card's control, not a distilled path: flow-matching Euler, shift 5.0, 50 steps at CFG 3.0 with uncond_skip_layers=[22], i.e. ~100 DiT forwards per image, so the step count is this arm's latency lever. ACCEPTANCE: /health ok, /v1/models names the pinned repo, one POST /generate at 1024x1024 returns a non-empty PNG and its metrics, and TTR, s/image, peak and the step-knob hash are recorded as a receipt. estimate: provisional -- every cell is unmeasured; 1.5 h assumes the staging lands first.",
+      "provenance": "recipes/media/README.md:517-540 (arm section, authored 2026-11-22), :118 (never booted, 27.23 GB); recipes/media/moss-image-sft-5b-bf16-diffusers-script.yaml:1-16; recipes/media/mods/kromoss-launcher/server.py:32-34 (/health, /v1/models, POST /generate); owner 2026-11-22 (recipe path and single-node cost forwarded)",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": "",
+      "recipe": "recipes/media/moss-image-sft-5b-bf16-diffusers-script.yaml",
+      "tp": 1
     }
   ],
   "questions": []
