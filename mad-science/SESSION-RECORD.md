@@ -17047,3 +17047,56 @@ id. Receipts are on the head under `~/benchmarks/campaign-20261122/<row>/`.
   (121.15 GiB in the pool at 06:38Z, and a peer is transferring into the same pool now).
 - **Register.** `check` ok, 228 tasks. `mad-science/queue.json` and this file only; `.idea/modules.xml`,
   `AGENTS.md`, `README.md` and `TODO.md` in the worktree are peers'.
+
+### 2026-11-22 02:25 ET — same drain, second batch: probe B, the DFlash2 cell, and the TTS first boot
+
+- **Row closed: `ornith-122b-nospec-noparsers-boot` (done) — probe B is SALAD too.** Boot
+  `f9ad4d811367b4be_ff6ba256a300` on `.30`, watchdog pid 1811004 `verdict=healthy` at t=621 s; serve
+  line byte-identical to probe A minus the two parser flags. Four `/v1/chat/completions` probes
+  (template on, `enable_thinking: false`, same prompt strings) all HTTP 200 in 4.56–4.62 s with
+  `reasoning_chars=0` and all incoherent — every one opens on the same `exotic` token, i.e. one
+  attractor rather than a prompt-following distribution. **Salad on both sides of the A/B retires the
+  template and parser hypotheses and leaves the export**: the arm stays a recorded negative, and the
+  follow-ups are an engine bump that implements the draft algorithm or a re-export whose
+  `quantization_config` uses only implemented names. Receipt
+  `head:~/benchmarks/campaign-20261122/ornith-122b-nospec-noparsers-boot/run.md`.
+- **Row closed: `ornith-122b-nvfp4-uncensored-dflash2-first-boot` (done) — the drafter loads and
+  accepts nothing.** Boot `f9ad4d811367b4be_afb1d13b86ff`, watchdog pid 1831140 `verdict=healthy` at
+  t=639 s, `/v1/models` 200, target load 517.33 s (78.24 GB), drafter load 16.83 s (1.82 GB, fused KV
+  on 6 layers, selector folded into the draft CUDA graph). **C1 decode 10.3 t/s** (256 tokens in
+  24.853 s; the engine's own decode lines hold 10.29–10.37) and **DFlash2 accept len 1.00 / accept
+  rate 0.00 on every batch**. The lane's shipped NVFP4 DFlash2 arm reads C1 37.7 t/s at accept > 1
+  with the same 4 draft tokens, so this arm is ~3.7× slower with the drafter contributing nothing —
+  what a collapsed distribution looks like at the verifier. The engine also logs
+  `DFLASH block size mismatch: using speculative_num_draft_tokens=4 but draft config block_size=16`,
+  which is the first thing to try if this target is ever served coherently. **Instrument note:** the
+  llama-benchy cell is refused by its own coherence gate (`Expected 'Paris'. Got: ...`), so the C1
+  number comes from the engine log plus wall clock and is labelled as such; and under
+  `HOME=.local/sparkrun-home` `uvx llama-benchy` cannot build `safetensors==0.8.0` (no rust default
+  toolchain), so the benchmark half needs the real HOME even when the launch used the override.
+  Receipt `head:~/benchmarks/campaign-20261122/ornith-122b-nvfp4-uncensored-dflash2-first-boot/run.md`.
+- **Row closed: `lane-survey-edge0-audio8-tts` (done) — the TTS arm serves.** Boot
+  `7102a666beb48dcc_2a48eaf6b2a4`, watchdog pid 1849932 `verdict=healthy` at t=13 s, TTR ≈ 49 s
+  (mod venv stage 16.6 s off the pool's warm pip cache + model load 13.0 s). Two
+  `POST /v1/audio/speech` calls return 44.1 kHz mono 16-bit WAV that round-trips clean (235,520 and
+  204,800 frames, −20.3 / −19.1 dBFS RMS, so not silence); **RTF (wall/audio) 1.698 cold and 0.743
+  warm**, engine `transformers 4.57.6 / torch 2.13.0+cu130`. Zero-shot cloning was not exercised — it
+  needs a 44.1 kHz mono reference clip this receipt does not stage. Receipt
+  `head:~/benchmarks/campaign-20261122/lane-survey-edge0-audio8-tts/run.md`.
+- **Two rows became bootable mid-drain and are queued, not skipped.** The MOSS-Image body landed
+  complete at `f972bd4b…` (25.36 GiB = the recipe's 27.23 GB, 4-shard text-encoder index, no broken
+  links, no `.incomplete`) and `Viggle-Remake` finished at **156.06 GiB**; both notes were corrected
+  from their earlier "absent/incomplete" lines. Neither was booted before the session cutoff.
+- **`minimax-h3-fl2va-t2va-first-boot` is `queued`, aborted on the budget, not on evidence.** Boot
+  `05929de845c64661_2a3d8bb6db22` launched clean (preflight 116.7 GiB free, port 30010 free, all three
+  Comfy-Org component files present at 19.52/14.61/5.21 GB) and was two minutes into component load
+  (`text_encoder` shard 0/1, NVFP4 detected, `Defaulting to Torch SDPA backend on SM12.x`) when it was
+  stopped by task id for the cutoff: containers 0, `mem_avail` back to 116.5 GiB, watchdog killed. No
+  cell was taken and nothing about the arm is refuted.
+- **Still skipped with the reason in their notes:** `daisyrose-27b` (`--RadixArk--DaisyRose-27B`
+  absent), `inworld-voice-isolator` (`--inworld--voice-isolator` absent), `qwen38-27b-pi-lora`
+  (no `--Qwen--Qwen3.8-27B` base; only the NVFP4/abliterated variants are staged),
+  `webai-twil-8b` (`--webAI-Official--TwIL-8B` absent) and `edge0-145b-latentmoe-strata`
+  (`--Edge0--Edge0-145B-NVFP4` absent, and `.35` was never used).
+- **Register.** `check` ok, **228 tasks: 192 done, 34 queued, 2 blocked, 0 running**. `mad-science/queue.json`
+  and this file only.
