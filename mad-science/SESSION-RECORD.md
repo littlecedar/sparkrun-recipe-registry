@@ -17312,3 +17312,29 @@ Edge0-145B-NVFP4 105.96 — each `stat -L` verified, 0 broken links).
   `…_node_0` while a solo launch names it `…_solo`; pass `--container` explicitly here.
 - **Nothing left behind:** `.35` at 0 containers / 117.5 GiB, no resource claims.
 - **Register.** `check` ok, **228 tasks: 202 done, 24 queued, 2 blocked, 0 running**.
+
+### 2026-11-22 06:25 ET — the drain closes: Edge0 serves one node, and the pair unblocks
+
+- **Row closed: `edge0-145b-latentmoe-strata-first-boot` (done) — the 106 GiB pack serves on one
+  node.** Boot `98577d6426e2881f_44faaa3a7b3d` on `.35` only, under mod fix `43f35b95`, with both
+  watchdog lessons applied (`--container …_solo` explicitly, `--dead-grace 1500`): **verdict=healthy
+  at t=530 s**, `mem_avail` 46.7 %, `earlyoom=none`. `/v1/models` 200 (`Edge0/Edge0-145B-NVFP4`,
+  `status.loaded`, `n_ctx 131072`); one C1 chat cell **128 tokens in 6.218 s = 20.59 t/s**, coherent
+  and on-task. The mechanism that makes it fit: `[strata] mapping the experts from the model files
+  (tens of GB, --mmap-experts): they are not loaded into RAM` and `filling the GPU's expert cache
+  (24576 experts, 44.30 GiB of VRAM)` — mmap plus a 44.30 GiB GPU expert cache, not residency. The
+  cached build carried the launch to `Step 3/3` with no apt and no compile, which is what made the
+  retry cheap. Not measured: throughput beyond C1, tool calling, the `mtp/` draft head, long context.
+- **Row closed: `laguna-m1-vllm-v032-reboot` (done) — the pair boots on v0.32.0 and the lane's
+  `BUMPED, NOT RE-BOOTED` label is retired for the boot question.** Boot
+  `dee59939d01336f0_fd3fa5a6974b` on `.30` + `.35`, watchdog armed with `--rank` on both nodes,
+  **verdict=healthy at t=924 s** (`ranks=2`, `unprobeable=0`), TTR ≈ 16 min from 28 shards at
+  ~33 s. `/v1/models` 200 (`poolside/Laguna-M.1-NVFP4`, `max_model_len 262144`); KV **36.15 GiB →
+  520,832 tokens**, 1.99× concurrency at the full window; C1 chat **12.73 t/s** with the thinking in
+  `message.reasoning` (591 chars, 0 content at the 128-token cap), raw completion 12.90 t/s and
+  coherent. **`mem_avail` 5.3 % on `.30` at healthy** — the closest any arm in this drain came to the
+  4 % earlyoom line, so a co-tenant on either host is a real risk. The v0.29.0 concurrency ladder and
+  quality suite are **not** replaced by this cell.
+- **The drain's twelve single-node boot rows are all closed**, and the pair they gated has now run:
+  17 `single` rows carrying a recipe are `done` overall. Nothing is left holding a host.
+- **Register.** `check` ok, **228 tasks: 204 done, 22 queued, 2 blocked, 0 running**.
