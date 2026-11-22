@@ -17207,3 +17207,47 @@ Edge0-145B-NVFP4 105.96 — each `stat -L` verified, 0 broken links).
   no claim is outstanding: `.30` reads 0 containers at 116.7 GiB free, and every row is either `done`
   or `queued` with no `claimed_by`.
 - **Register.** `check` ok, **228 tasks: 198 done, 28 queued, 2 blocked, 0 running**.
+
+### 2026-11-22 04:30 ET — drain, fifth batch: TwIL-8B boots, and Edge0 needs its image first
+
+- **Row closed: `webai-twil-8b-eval-only-arm` (done) — the eval-only 8B boots and answers.** Boot
+  `85e51b4e628ff797_e8fd4a94e0a3` on `.30`, watchdog pid 1924417 `verdict=healthy` at t=259 s; weight
+  load 153.48 s / 16.86 GB (`GraniteForCausalLM`, post-trained from `granite-4.2-8b`), KV 517,079
+  tokens at `context_len 131072`. `/v1/models` 200; **C1 chat 128 tok in 10.235 s = 12.51 t/s** with
+  572 content chars and `reasoning_chars 0` — the recipe carries no `--reasoning-parser`, so the
+  thinking lands inline in `content` (the card's verbose variant). Raw completion 12.52 t/s and
+  coherent. Eval-only and non-shippable per the webAI non-commercial licence, so no house cell was
+  taken. Receipt `head:~/benchmarks/campaign-20261122/webai-twil-8b-eval-only-arm/run.md`.
+- **`edge0-145b-latentmoe-strata-first-boot` back to `queued` — the build stage cannot run apt as
+  uid 1000.** Its `exclude_hosts` is `['.30','.31','.32','.33','.34']`, so `.35` was the only legal
+  placement, and headroom there was fine (**117.3 GiB MemAvailable, 0 containers, load 0.12**). The
+  image was not the obstacle either: the launch's OCI relay pulled
+  `nvidia/cuda:13.0.1-devel-ubuntu24.04@sha256:7d2f6a8c…` and verified it in 58.5 s (2.0 GiB
+  transferred, 9 layers reused). The boot then died in `pre_exec[2]`, the mod's
+  `edge0-strata-build` stage, on `apt-get update && apt-get install … git cmake ninja-build python3 …`.
+  **Root cause measured, not guessed:** the same image runs that line fine as root (38.2 MB fetched
+  in 2 s) and fails as uid 1000 with `E: List directory /var/lib/apt/lists/partial is missing. -
+  Acquire (13: Permission denied)` — sparkrun runs the container `1000:1000` and the mod's apt step
+  needs root. The fix is a mod/launch change (run the apt+build stage as root, or launch this arm
+  `--rootful` with the `reown` the other mods do). **Not retried with `--rootful` deliberately:** it
+  would seed root-owned files into the shared `/cache/runtime/edge0-strata` tree, the exact defect
+  that blocked moss-image on `.30` the same day. The failed launch left its container **Up** on `.35`
+  (sparkrun keeps it when a `pre_exec` fails) — stopped by literal task id, `.35` verified at 0
+  containers / 117.5 GiB.
+- **Row closed: `qwen38-27b-pi-lora-probe-boot` (done) — the adapter works, and the selector is the
+  colon form.** First boot measured the **bare** adapter name and found byte-identical output at 160
+  and 512 tokens; the owner supplied the fix — this SGLang build selects an adapter with
+  `model: "Qwen/Qwen3.8-27B:qwen38-pi-adapted"` (or `lora_path`), while the bare id is advertised in
+  `/v1/models` and silently serves base weights with a 200. Second boot
+  (`ebae5e6d554c7d86_a87a6796b406`, `verdict=healthy` at t=632 s) confirmed it with the cheap
+  discriminator (`max_tokens 1, logprobs 1, echo true`): first-token logprob **−0.4368842840194702**
+  on the base vs **−0.41961669921875** on the colon form, and at 160 tokens the reasoning diverges at
+  **character 177** (base `Need likely implement class or function?` vs adapter `They likely want a
+  function that processes stream…`). Both cells end at the cap with 0 content — they are
+  reasoning-phase cells. The first receipt's "no effect" conclusion was rewritten, not left standing.
+- **The pair stays gated, checked rather than assumed.** `laguna-m1-vllm-v032-reboot` still has three
+  unfinished blockers: `edge0-145b-latentmoe-strata-first-boot`, `moss-image-sft-5b-first-boot` and
+  `viggle-remake-h3-lora-v2v-first-boot` (`qwen38` and TwIL closed here). Body and image are already
+  verified for when it unblocks: 129.75 GiB at `e4f3ba80` in the pool, `vllm/vllm-openai:v0.32.0`
+  digest `befccf0e` on both `.30` and `.35`.
+- **Register.** `check` ok, **228 tasks: 200 done, 26 queued, 2 blocked, 0 running**.
