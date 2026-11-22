@@ -1838,9 +1838,9 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": "",
-      "summary": "#68 must separate three instrument regimes — the free post-cell scrape, the recipe metrics flag mounted for the whole boot, and mid-run sampling — via one identical recipe off vs on; acceptance: no order-of-magnitude throughput difference.",
-      "summary_src": "a93fa6681a07212e5026562b680e1b9b8041d43adad19ef10e13f2a6d37f43db",
-      "summary_at": "2026-11-22T04:26:14Z"
+      "summary": "#68 decomposition, non-bootable until recipe/tp/env are filled: three regimes (free post-cell scrape, whole-boot metrics flag, mid-run sampling) need one identical recipe off vs on; acceptance no order-of-magnitude throughput delta.",
+      "summary_src": "905b8bc159b4a79928f4ae9335a3dffaab9053981ee6e012fcc164e7919bc93b",
+      "summary_at": "2026-11-22T07:02:21Z"
     },
     {
       "id": "sm121-marlin-oom-diagnosis",
@@ -1904,9 +1904,9 @@
       "evidence": ".scratch/infra-chores-20261122/beegfs-meta/RECEIPT.md",
       "claimed_by": "",
       "claimed_at": "",
-      "summary": "OOM drop-in's Restart=on-failure loops beegfs-meta every 5 s on .31-.35 (NRestarts 3431 on .31, 956.6 MB journal) while is-active reads activating; fix is masking the unit on role-gated hosts, .30 untouched, storage serving.",
-      "summary_src": "33b9bd1d8bcccc039011c1428a0f805b234295595eba4fb797985a14c515d79c",
-      "summary_at": "2026-11-22T04:26:10Z"
+      "summary": "Blocked, owner 2026-11-22: the OOM drop-in Restart=on-failure loops beegfs-meta every 5 s on .31-.35 (NRestarts 3431, 956.6 MB journal) while is-active reads activating; remedy is masking the unit there, .30 untouched.",
+      "summary_src": "04bf824f0689aa29db9580cdd92020a45c129daf9c6748d60d4165eb91f72af7",
+      "summary_at": "2026-11-22T07:02:20Z"
     },
     {
       "id": "head-mesh-cannot-reach-30",
@@ -2211,9 +2211,9 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": "",
-      "summary": "K2-Horizon drift A/B: both head snapshots are complete and differ from the pins in chat_template.jinja (0.9B also modeling code, two templates removed); a single-node template-bytes plus tool-call check decides re-pin, no throughput claim.",
-      "summary_src": "d8ea4e090343001f1db696800e1bf24013bccab25c244abe72f848fd0cd6a382",
-      "summary_at": "2026-11-22T04:26:12Z"
+      "summary": "Queued after a read-only 2026-11-22 triage: both K2 heads are complete but templates differ from the pins (0.9B also modeling code, two templates removed); the tool-call-shaped served-bytes check needs an SGLang boot.",
+      "summary_src": "960ed5534effa01a0db796f06f1afa34b6e4705c3c3a371e74f9747d072f46b1",
+      "summary_at": "2026-11-22T07:02:20Z"
     },
     {
       "id": "hf-cache-20261110-pool-fetch-gaps",
@@ -3380,9 +3380,9 @@
       "evidence": "recipes/ds4/README.md section zz-deepseek-v4.1-flash-1017-weightless-tp4-1m (cache_dir change, task 261430353ba2889a_9e41b9e252af)",
       "claimed_by": "",
       "claimed_at": "",
-      "summary": "WOPR's new cache_dir profile was proven only on vLLM: boot one SGLang arm and one llama.cpp arm with --cluster WOPR and assert the prepared model path resolves inside the cache mount; a bare -H anonymous cluster should refuse.",
-      "summary_src": "97b090c6ea31daa7f1d82150fdf02741daee43970f3c02d496de45dabb8b7188",
-      "summary_at": "2026-11-22T04:26:12Z"
+      "summary": "Queued after 2026-11-22 triage: the profile cache_dir was proven on vLLM only, so one SGLang and one llama.cpp boot with --cluster WOPR must resolve the model path inside the cache mount; a bare -H cluster is expected to refuse.",
+      "summary_src": "fca1f81bef2e0a7cfc5d0c8959c38341f7b7d23910680a0d80937eeeff2667f7",
+      "summary_at": "2026-11-22T07:02:20Z"
     },
     {
       "id": "todo-int8-cite-moved",
@@ -3464,7 +3464,10 @@
       "provenance": "2026-11-22 sage-q4km-trick1-empty-repeat; tools/quality-battery.py:196-200 chat(), :216-240 run_tier",
       "evidence": "head:~/benchmarks/sage-20261122/run.md",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "Queued: quality-battery chat() reads only message.content, so a reasoning-only reply (Sage-A1.5 empty content, 16-30k reasoning chars, finish_reason=length, 4/4 reproduced) scores as dead; fix records finish_reason.",
+      "summary_src": "b94d5936bfabfe83849ef0b6dc0241e1a7eb11c6e95c3c20e549382a0d9af07f",
+      "summary_at": "2026-11-22T07:02:20Z"
     },
     {
       "id": "ds4-fp4-kv-layout-sm121-port-sglang",
@@ -3481,7 +3484,10 @@
       "provenance": "queue row ds4-fp4-kv-layout-sm121-port (its provenance: deepseek_v4_memory_pool.py:197, kv_layout.cuh:38, pool_configurator.py:1024-1035, :1531, :1553-1568); recipes/ds4/README.md:3064 (976 vs 1,670.75 B/token), :1323 (DeepGEMM SM121 kernel gate 8/8); attic/ds4/zz-ds4-1017-sm121-indexer-scoring.yaml:16-21 (arch gate widened to majors 10 or 12)",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "Queued engine work: three SGLang edits at image commit 103ad321 (relax the is_sm100 gate, port the V41_FP4 layout, size the pool in fp4 bytes) so fp4 KV is admissible; a numerics gate before the parent TP4 boot.",
+      "summary_src": "75e3d938142442f33a7a4e27b41f0e7b25e5a77c0f674ec2c07697ef210dd016",
+      "summary_at": "2026-11-22T07:02:18Z"
     },
     {
       "id": "ds4-fp4-kv-layout-sm121-port-vllm",
@@ -3498,7 +3504,10 @@
       "provenance": "queue row ds4-fp4-kv-layout-sm121-port; recipes/ds4/README.md:3064 (976 B/token packed), :2029 (kv_cache_dtype fp8_e4m3 on the vLLM line); mad-science/SESSION-RECORD.md:69-71 (SM120 sparse-MLA forces fp8_ds_mla, nvfp4_ds_mla selects no backend, FLASHINFER_MLA_SPARSE unsupported on GB10); .scratch/ds4/tonyd2wild-vllm/patch/README.md; .scratch/ifm/upstream/vllm/vllm/config/cache.py:47-48, vllm/config/vllm.py:3234-3245, vllm/_custom_ops.py:3060",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "Queued engine work: upstream vLLM already ships nvfp4_ds_mla at 352 B/token against fp8 packed 976; the gap is the SM120 sparse-MLA backend selecting it on GB10, patched in the fork overlay, then the parent TP4 boot.",
+      "summary_src": "97d7c21e46c39f846ade75b2ad7e9db7bcb538380d373cc6ec2d4f550d7aeab5",
+      "summary_at": "2026-11-22T07:02:18Z"
     },
     {
       "id": "laguna-m1-vllm-v032-reboot",
@@ -3528,7 +3537,10 @@
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/explore/poolside-laguna-m1-nvfp4-vllm-tp2.yaml",
-      "tp": 2
+      "tp": 2,
+      "summary": "Queued, ordered last: the CVE bump to v0.32.0 was never re-booted, so TTR, KV pool and suite numbers are still v0.29.0; acceptance is a boot on the pinned digest, BUMPED removed, and the reasoning-token trap settled.",
+      "summary_src": "d95755f7f59fc2cc6e63bf28e4d62464dca1d1772aaf63f70ee44fd487f56439",
+      "summary_at": "2026-11-22T07:02:20Z"
     },
     {
       "id": "ornith-122b-nvfp4-uncensored-dflash2-first-boot",
@@ -3538,16 +3550,19 @@
         "laguna-m1-vllm-v032-reboot"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "ornith-1.5-122b",
       "node_cost": "single",
       "notes": "Authored, never booted (recipes/ornith/README.md:996: 75.65 GB, 'DRAFT, never booted, eval-only'). Target pin e6a1c178..., drafter incoai/...-DFlash2 9baefc1b... at 4 draft tokens, SGLang v0.5.22 digest-pinned, min_nodes 1. Its sibling recipes/cybersec/zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang.yaml booted and measured, so the shape fits one Spark; this arm's delta is the target pin and the uncensored body. ACCEPTANCE: /v1/models 200, one C1 decode cell and the DFlash2 acceptance rate, recorded as a receipt; the eval-only banner stays because the body is uncensored. estimate: provisional -- 75.65 GB on one node, no sizing in the lane doc.",
       "provenance": "recipes/ornith/README.md:990-1000 (survey table and the DRAFT status); recipes/ornith/zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-dflash2-sglang.yaml:10-15",
       "evidence": "",
-      "claimed_by": "",
-      "claimed_at": "",
+      "claimed_by": "campaign-runner-20261122",
+      "claimed_at": "2026-11-22T06:57:02Z",
       "recipe": "recipes/ornith/zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-dflash2-sglang.yaml",
-      "tp": 1
+      "tp": 1,
+      "summary": "Running, claimed by campaign-runner-20261122: first boot of the eval-only dealignai Ornith-122B NVFP4 DFlash2 arm (75.65 GB, one node); the ablated sibling booted, so the delta is the uncensored body plus the new pin.",
+      "summary_src": "7bc2605353337104b6929a44c03977ea110c0d222a8ed32dc86da7fa1fc740c6",
+      "summary_at": "2026-11-22T07:02:18Z"
     },
     {
       "id": "daisyrose-27b-bf16-thinking-first-boot",
@@ -3566,7 +3581,10 @@
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/qwen3/zz-daisyrose-27b-bf16-thinking-sglang.yaml",
-      "tp": 1
+      "tp": 1,
+      "summary": "Queued first boot: RadixArk DaisyRose-27B BF16 thinking arm is authored, never booted; acceptance is /v1/models, one C1 cell and the thinking contract (does the reply land in message.reasoning), then index or not.",
+      "summary_src": "a26c8d8ad1532b8ab6d13f930af75096430786eb06c01bfa8db0629cdf016c89",
+      "summary_at": "2026-11-22T07:02:19Z"
     },
     {
       "id": "inworld-voice-isolator-first-boot",
@@ -3585,7 +3603,10 @@
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/media/zz-inworld-voice-isolator-gpu-script.yaml",
-      "tp": 1
+      "tp": 1,
+      "summary": "Queued first boot: the 489 MB inworld voice-isolator GPU arm is authored, never booted; it is an SDK plus mod server (readiness off, empty entrypoint), acceptance one isolation request returning a non-empty audio artifact.",
+      "summary_src": "4488256858a31542769f9e9ebd124b83ba4ac0d98f63b7ad03b896c13f0902f9",
+      "summary_at": "2026-11-22T07:02:19Z"
     },
     {
       "id": "qwen38-27b-pi-lora-probe-boot",
@@ -3604,7 +3625,10 @@
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/qwen3/zz-qwen3.8-27b-pi-adapted-lora-sglang.yaml",
-      "tp": 1
+      "tp": 1,
+      "summary": "Queued probe, non-shippable, no receipt: acceptance is the pi-adapted LoRA loading and one C1 cell showing its effect against the same arm without it; reaching /v1/models does not close it.",
+      "summary_src": "3add41b1a44dc091502f512e155f586fbeacd8abadea6ef50da4c88fbe35632b",
+      "summary_at": "2026-11-22T07:02:19Z"
     },
     {
       "id": "ornith-122b-nospec-rawchat-boot",
@@ -3633,14 +3657,14 @@
         "laguna-m1-vllm-v032-reboot"
       ],
       "blocked_by": [],
-      "state": "running",
+      "state": "done",
       "model": "ornith-1.5-122b",
       "node_cost": "single",
-      "notes": "Probe B of the same no-drafter A/B (recipes/ornith/README.md:1236-1243): no drafter, template ON, parsers NONE -- the one-place difference from probe A. Runs after ornith-122b-nospec-rawchat-boot on the same host (the runbook's -H .35, recipes/ornith/README.md:1244); the pair is sequential by design, so no edge is stored between them. ACCEPTANCE: one probe on the same prompt set as probe A, recorded as a receipt, so the two cells are comparable. estimate: provisional -- no sizing in the lane doc.",
+      "notes": "Probe B of the same no-drafter A/B (recipes/ornith/README.md:1236-1243): no drafter, template ON, parsers NONE -- the one-place difference from probe A. Runs after ornith-122b-nospec-rawchat-boot on the same host (the runbook's -H .35, recipes/ornith/README.md:1244); the pair is sequential by design, so no edge is stored between them. ACCEPTANCE: one probe on the same prompt set as probe A, recorded as a receipt, so the two cells are comparable. estimate: provisional -- no sizing in the lane doc.\n\nMEASURED 2026-11-22 (probe B, boot f9ad4d811367b4be_ff6ba256a300 on .30, watchdog verdict=healthy t=621s): SALAD 4/4 on /v1/chat/completions (http 200, 64 tokens, 4.56-4.62 s, reasoning_chars=0, every reply opens on the same 'exotic' token). With probe A salad on the raw path, template+parser hypotheses are retired and the export is the defect. Weight load 534.7 s, KV 446,618 tok fp8. Receipt head:~/benchmarks/campaign-20261122/ornith-122b-nospec-noparsers-boot/run.md",
       "provenance": "recipes/ornith/README.md:1230-1250 (the A/B table and the -H .35 probe); recipes/ornith/zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-noparsers-sglang.yaml:17-22",
-      "evidence": "",
-      "claimed_by": "campaign-runner-20261122",
-      "claimed_at": "2026-11-22T06:44:31Z",
+      "evidence": "head:~/benchmarks/campaign-20261122/ornith-122b-nospec-noparsers-boot/run.md",
+      "claimed_by": "",
+      "claimed_at": "",
       "recipe": "recipes/ornith/zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-noparsers-sglang.yaml",
       "tp": 1
     },
@@ -3668,7 +3692,10 @@
         ".32",
         ".33",
         ".34"
-      ]
+      ],
+      "summary": "Queued first boot, pinned to .35 only via exclude_hosts: 106 GiB Edge0-145B NVFP4 whose strata engine is built from source inside the container, so the first boot is also the build; a build failure is the receipt.",
+      "summary_src": "dafcfa148aba6e60fc95198dafaf47146179e7f02ca53cd843fcedfad08b3b20",
+      "summary_at": "2026-11-22T07:02:19Z"
     },
     {
       "id": "minimax-h3-fl2va-t2va-first-boot",
@@ -3687,7 +3714,10 @@
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/media/zz-minimax-h3-fl2va-t2va-sglang.yaml",
-      "tp": 1
+      "tp": 1,
+      "summary": "Queued first boot: license settled 2026-11-22 (authoring and R&D ungated, fleet outside the Excluded Territories); 39.54 GiB single-node SGLang fl2va, the TP4 sibling deadlocks, acceptance one 4-15 s /v1/videos clip.",
+      "summary_src": "8e0145816f5ba3daaaff1a301dbef92da8f750bc567486eee8495de4ff937b7b",
+      "summary_at": "2026-11-22T07:02:19Z"
     },
     {
       "id": "viggle-remake-h3-lora-v2v-first-boot",
@@ -3707,7 +3737,10 @@
       "claimed_at": "",
       "recipe": "recipes/media/viggle-remake-h3-lora-v2v-comfyui-script.yaml",
       "tp": 1,
-      "memory_risky": true
+      "memory_risky": true,
+      "summary": "Queued on staging: the 156.06 GiB Viggle-Remake body is transferring into the pool, so the boot is the test; ~110 GiB resident is memory-risky and needs a host off the production serve; EVAL-ONLY, territorial license met.",
+      "summary_src": "216cd6b4d57572b356ee540fb6a0f7e68363dc46bb2617888a74f9555e465632",
+      "summary_at": "2026-11-22T07:02:20Z"
     },
     {
       "id": "moss-image-sft-5b-first-boot",
@@ -3726,7 +3759,10 @@
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/media/moss-image-sft-5b-bf16-diffusers-script.yaml",
-      "tp": 1
+      "tp": 1,
+      "summary": "Queued first boot: authored 2026-11-22, never booted, 27.23 GB body still to stage; Kromoss launcher unchanged, the card 50-step CFG-3.0 control is the latency lever, acceptance one non-empty 1024 PNG with TTR.",
+      "summary_src": "6e26445f22afe4cf5398460138e1bd2c233426277f4eb91af1f501d263eec92f",
+      "summary_at": "2026-11-22T07:02:19Z"
     }
   ],
   "questions": []
