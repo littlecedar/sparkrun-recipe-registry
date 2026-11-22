@@ -3250,12 +3250,12 @@
       "estimate_h": 0.5,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "done",
       "model": "InternScience/Sage-A1.5-Q4_K_M-GGUF",
       "node_cost": "single",
-      "notes": "The 2026-11-20 boot scored 36/37 on the 37-case house; the single miss is trick-1, which returned empty content (house.json). Empty content is a serving event, not a capability miss. Repeat that cell n=3 on the same boot shape (--parallel 10, 262144, kv-unified) and record recurrence; if it recurs, open a serving-side row against the llama.cpp pin. — campaign: zz-sage-a1.5-35b-a3b-q4km-llamacpp: no marker and no machine-readable artefact",
+      "notes": "REPRODUCED 3/3 (4/4 with 2026-11-20). Boot 24b520a8bd0b2f06_f4c6a1813acd on .30: --parallel 10 --ctx-size 262144 --kv-unified, image sha256:ad140554..., blob a64fe0bb...; watchdog pid 2301083 verdict=healthy t=47s, mem_avail 72.5%. House cell tools/quality-battery.py --tier both --repeat 3 --max-tokens 4096: 108/111 (easy 57/57, hard 51/54), only trick-1 empty in all 3 reps; no other empty reply. Cause measured, not a serve event: the same request returns 200 finish_reason=length with content empty and 16,063 chars of reasoning at 4096 tokens, 29,856 at 8192 — the model loops in the reasoning channel and never emits content; the instrument scores content only. Not a llama.cpp pin defect; follow-up row filed for the instrument.",
       "provenance": "2026-11-20 tp2-completion census; recipes/explore/zz-sage-a1.5-35b-a3b-q4km-llamacpp.yaml",
-      "evidence": "head:~/benchmarks/tp2-completion-20261120/sage-a1.5-35b/house.json",
+      "evidence": "head:~/benchmarks/sage-20261122/run.md",
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/explore/zz-sage-a1.5-35b-a3b-q4km-llamacpp.yaml",
@@ -3439,6 +3439,21 @@
       "summary": "Head clone loses loose objects (packs agree) so git reads fail there; healed twice on 2026-11-21 (91 objects), yet the gap reopens on every commit and one 743 B tree never syncs, so the mechanism is unnamed.",
       "summary_src": "ed7a6641f03313622bc67ed34a54b8f9a5d49c81d9bcd3d5779e216d05c2bb6b",
       "summary_at": "2026-11-22T04:59:13Z"
+    },
+    {
+      "id": "house-scores-reasoning-only-as-empty",
+      "title": "House battery scores a reasoning-only reply as empty — Sage trick-1 is a reasoning loop, not a serve event",
+      "estimate_h": 0.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "tools/quality-battery.py chat() reads only message.content and keeps no finish_reason, so a completion that spends its whole budget in the reasoning channel is scored as an empty reply — indistinguishable from a dead serve. Measured 2026-11-22 on Sage-A1.5 Q4_K_M (task 24b520a8bd0b2f06_f4c6a1813acd): trick-1 returns 200, finish_reason=length, content empty, 16,063 chars of reasoning_content at max_tokens 4096 and 29,856 at 8192; it reproduced 3/3 that boot and 1/1 on 2026-11-20. Fix: record finish_reason and whether reasoning_content is non-empty per case, report a reasoning-truncated outcome separately from an empty reply, and let a case pin enable_thinking=false or its own budget; add a regression case whose canned reply is reasoning-only with finish_reason=length.",
+      "provenance": "2026-11-22 sage-q4km-trick1-empty-repeat; tools/quality-battery.py:196-200 chat(), :216-240 run_tier",
+      "evidence": "head:~/benchmarks/sage-20261122/run.md",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ],
   "questions": []

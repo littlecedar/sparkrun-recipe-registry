@@ -16940,3 +16940,22 @@ reboot. Receipts under `.scratch/infra-chores-20261122/`.
   consistency, runtime-cache GC — and 3 returned to queued — K2 template, WOPR cache_dir, `#68`
   metrics); no claim left behind. `mad-science/queue.json` only; `.idea/modules.xml` and `TODO.md` changes in
   the worktree are a peer's.
+
+## 2026-11-22 01:10 ET — Sage Q4_K_M: the empty `trick-1` is the model's reasoning loop, not a serve event
+
+- **Row closed: `sage-q4km-trick1-empty-repeat` (done).** Receipt
+  `head:~/benchmarks/sage-20261122/run.md`. Boot `24b520a8bd0b2f06_f4c6a1813acd` on `.30` with the
+  2026-11-20 shape (`-o parallel=10`, `--ctx-size 262144`, `--kv-unified`), image
+  `sha256:2dcf49ada913…` from `scitrera/dgx-spark-llama-cpp:b10549-cu131@sha256:ad140554…`, watchdog pid
+  2301083 `verdict=healthy` at t=47 s, `mem_avail` 72.5 % at healthy, ready in 30 s.
+- **Result: 108/111, trick-1 empty 3/3.** `tools/quality-battery.py --tier both --repeat 3
+  --max-tokens 4096` — easy 57/57, hard 51/54; the only empty replies in 111 requests are
+  `hard/trick-1` rep0–2. With the 2026-11-20 boot that is **4/4**, so the defect is deterministic
+  on this prompt, not intermittent.
+- **Cause measured.** The same request returns 200 with `finish_reason: length`, `content: ""` and
+  16,063 chars of `reasoning_content` at 4096 tokens (56.9 s), 29,856 chars at 8192 (115.9 s): the
+  model re-decides the one-line answer inside the reasoning channel and never emits content. Not a
+  llama.cpp pin defect, so no serving-side row; the actionable gap is the instrument, which reads
+  content only and keeps no `finish_reason` — filed as `house-scores-reasoning-only-as-empty`.
+- **Cleanup.** `sparkrun stop 24b520a8bd0b2f06_f4c6a1813acd`, `docker ps -aq` empty on `.30`; nothing
+  written outside the receipt. **Register.** `check` ok, 215 tasks.
