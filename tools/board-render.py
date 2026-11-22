@@ -408,7 +408,8 @@ def render(evidence: dict, prev: dict | None, register: Path, repo: Path,
     data = tq.load(register)
     deltas = _deltas(evidence, prev)
     at = _parse(evidence["at"]).astimezone(_ET)
-    title = f"# Board — generated {at.strftime('%Y-%m-%d %H:%M')} ET"
+    title = f"# Board"
+    subtitle = f"_Generated {at.strftime('%Y-%m-%d %H:%M')} ET_"
 
     cells = [census_row(evidence), pool_row(evidence), queue_row(evidence),
              window_row(evidence), campaign_row(evidence), lease_row(evidence),
@@ -424,10 +425,13 @@ def render(evidence: dict, prev: dict | None, register: Path, repo: Path,
     for warning in warnings:
         print(f"board-render: graph: {warning}", file=sys.stderr)
 
-    lines = [title, "", "## In flight", "| where | owner | what |", "|---|---|---|", *inflight,
-             "", "## Work queue", "```mermaid", *graph, "```", "",
+    lines = [title, subtitle, "",
+             "## In flight",
+             "| where | owner | what |",
+             "|---|---|---|", *inflight,
+             "", "## Work Queue", "```mermaid", *graph, "```", "",
              *tq.board_rows(data, register),
-             "", "## Landed session", landed_window_line(evidence), "",
+             "", "## Completed Work", landed_window_line(evidence), "",
              "| time ET | commit | one clause |", "|---|---|---|",
              *landed_rows(repo, landed_window(evidence)[0])]
     return "\n".join(lines) + "\n"

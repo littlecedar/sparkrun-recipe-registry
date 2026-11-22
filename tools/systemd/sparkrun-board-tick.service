@@ -1,0 +1,36 @@
+# Per-user systemd unit for the hourly status board. Install and verify with the exact commands in
+# `tools/README.md` §board-tick.py; nothing here assumes root.
+#
+# Why a systemd timer and not only the omp extension: the extension arms its timer inside an
+# interactive session (`session_start` -> `setTimeout`), so it dies with that session and needs a
+# restart to come back. Measured 2026-11-22: the extension's log stopped at 04:50Z and the board
+# went stale from 07:02 ET onward with no timer left to fire. A user timer is the durable
+# scheduler; the extension stays for its summary duty.
+#
+# The gate inside `tools/board-tick.py` is what makes a 12-minute cadence cheap: with no session
+# mark and no board-input change since the last board commit, the tick writes `skipped:idle` and
+# exits 0 without a census, a render, a publish or a commit. The tick's own `flock` serialises it
+# against any session that runs the script by hand.
+
+[Unit]
+Description=sparkrun status board tick (census -> render -> publish -> commit -> gate -> push)
+Documentation=file:%h/src/sparkrun-recipe-registry/tools/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/src/sparkrun-recipe-registry
+# `uv` and `gh` live under %h/.local/bin; the push gate shells out to git and the suite.
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HOME=%h
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+SyslogIdentifier=sparkrun-board-tick
+# One tick, then exit: the timer owns the cadence and the script's own flock owns single-flight.
+# A non-zero exit is a real failure (render, publish, commit, gate or push) and is in the journal.
+ExecStart=/usr/bin/env python3 tools/board-tick.py
+# A tick that hangs (a wedged flock holder is bounded by the script, a wedged ssh is not) must not
+# block the next one for hours: 15 minutes is above the slowest observed tick (~50 s) by an order
+# of magnitude.
+TimeoutStartSec=900

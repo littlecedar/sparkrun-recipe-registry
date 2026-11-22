@@ -1,0 +1,21 @@
+# Timer for the status board tick. The gate inside `tools/board-tick.py` decides whether a fire
+# does any work, so this cadence is a poll interval, not a work rate.
+#
+# `OnCalendar=*:0/12` fires at :00, :12, :24, :36, :48 of every hour, which keeps a board cell at
+# most 12 minutes behind a census on an active fleet; `Persistent=true` catches up one missed fire
+# after a suspend or a reboot. Enable with:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now sparkrun-board-tick.timer
+#   systemctl --user list-timers sparkrun-board-tick.timer
+#   journalctl --user -u sparkrun-board-tick.service -n 40 --no-pager
+
+[Unit]
+Description=sparkrun status board tick timer (every 12 minutes; the tick gates itself)
+
+[Timer]
+OnCalendar=*:0/12
+Persistent=true
+Unit=sparkrun-board-tick.service
+
+[Install]
+WantedBy=timers.target

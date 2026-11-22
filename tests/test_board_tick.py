@@ -104,7 +104,20 @@ if cmd == "show":
         sys.exit(0)
     sys.exit(128)
 if cmd == "diff":
+    if "--name-only" in args:
+        # The gate asks which board inputs changed since the last board commit. Filter the canned
+        # CHANGED list by the pathspec the tool passed, so an irrelevant change really is invisible.
+        spec = args[args.index("--") + 1:] if "--" in args else []
+        for line in os.environ.get("CHANGED", "").splitlines():
+            if not line:
+                continue
+            if not spec or any(line == p or line.startswith(p.rstrip("/") + "/") for p in spec):
+                print(line)
+        sys.exit(0)
     sys.exit(int(os.environ.get("DIFF_RC", "1")))
+if cmd == "log":
+    print(os.environ.get("LOG_SHA", "abc1234"))
+    sys.exit(0)
 if cmd == "commit":
     sys.exit(int(os.environ.get("COMMIT_RC", "0")))
 if cmd == "push":
@@ -122,6 +135,9 @@ def build(root: Path, flock: bool = True) -> Path:
     (root / "mad-science" / "queue.json").write_text('{"priority_models": [], "tasks": []}\n')
     (root / "mad-science" / "STATUS.md").write_text("# Board — generated 2026-11-21 22:00 ET\n")
     (root / "remote-STATUS.md").write_text("# Board — generated 2026-11-21 22:00 ET\n")
+    # A declared window is a session mark, so these fixtures exercise the tick rather than the gate
+    # (owner direction 2026-11-22). The gate's own tests delete it and control the change list.
+    (root / ".local" / "fleet-window.lock").write_text("window-end = 2099-01-01T00:00:00Z\n")
     for name, body in (("board-census.py", CENSUS), ("board-render.py", RENDER),
                        ("task-queue.py", TASK_QUEUE), ("push-gate.py", PUSH_GATE)):
         (root / "tools" / name).write_text(body)
@@ -237,6 +253,92 @@ class BoardTick(unittest.TestCase):
         self.assertEqual(self.call_lines("task-queue publish"), [])
         self.assertEqual(self.call_lines("git commit"), [])
         self.assertEqual(self.call_lines("git push"), [])
+
+
+class Gate(unittest.TestCase):
+    """The tick runs only for a session mark or a board-input change (owner direction 2026-11-22).
+
+    Measured 2026-11-22: the only scheduler was the omp extension's per-session timer, which dies
+    with its session, so the board went stale from 07:02 ET with nothing left to fire it. A durable
+    timer is affordable only when an idle fleet costs nothing, so the tick decides for itself: a
+    declared window or a live lease means a session is running, and otherwise a change under the
+    board's own input paths since the last board commit is what earns a census, a publish and a
+    commit. Everything else is one `skipped:idle` ledger line.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.tool = build(self.root)
+        self.calls = self.root / "calls.log"
+        self.ledger = self.root / ".local" / "board-tick.jsonl"
+        self.board = self.root / "mad-science" / "STATUS.md"
+        self.window = self.root / ".local" / "fleet-window.lock"
+        self.window.unlink()                    # start with no session mark
+        self.env = dict(os.environ, PATH=f"{self.root / 'bin'}:{os.environ['PATH']}",
+                        CALLS=str(self.calls), REMOTE_BOARD=str(self.root / "remote-STATUS.md"),
+                        CHANGED="")
+
+    def run_tick(self, *args, **env):
+        return subprocess.run([sys.executable, "-B", str(self.tool), *args],
+                              cwd=str(self.root), env=dict(self.env, **env),
+                              capture_output=True, text=True, check=False)
+
+    def call_lines(self, prefix: str = "") -> list[str]:
+        if not self.calls.is_file():
+            return []
+        return [line for line in self.calls.read_text().splitlines() if line.startswith(prefix)]
+
+    def outcomes(self) -> list[str]:
+        if not self.ledger.is_file():
+            return []
+        return [json.loads(line)["outcome"] for line in self.ledger.read_text().splitlines()]
+
+    def assert_skipped(self, proc) -> None:
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("skipped", proc.stdout)
+        self.assertEqual(self.outcomes(), ["skipped:idle"])
+        for prefix in ("census", "render", "task-queue publish", "git commit", "git push", "gate"):
+            self.assertEqual(self.call_lines(prefix), [], f"{prefix} ran on an idle fleet")
+
+    def test_no_session_and_no_change_skips_without_touching_anything(self):
+        before = self.board.read_bytes()
+        self.assert_skipped(self.run_tick())
+        self.assertEqual(self.board.read_bytes(), before)
+
+    def test_a_declared_window_runs_the_tick(self):
+        self.window.write_text("window-end = 2099-01-01T00:00:00Z\n")
+        proc = self.run_tick()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("session: declared window", proc.stdout)
+        self.assertEqual(self.call_lines("census"), ["census"])
+        self.assertNotIn("skipped:idle", self.outcomes())
+
+    def test_a_live_lease_runs_the_tick(self):
+        (self.root / ".local" / "fleet-leases.json").write_text(json.dumps(
+            {"version": 1, "leases": [{"id": "x", "holder": "session:peer",
+                                       "expires_at": 4102444800}]}) + "\n")
+        proc = self.run_tick()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("live lease held by session:peer", proc.stdout)
+        self.assertEqual(self.call_lines("census"), ["census"])
+
+    def test_a_relevant_change_runs_the_tick(self):
+        proc = self.run_tick(CHANGED="mad-science/queue.json")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("changed: mad-science/queue.json", proc.stdout)
+        self.assertEqual(self.call_lines("census"), ["census"])
+
+    def test_an_irrelevant_change_skips(self):
+        # `.idea/` and an unrelated doc are not board inputs: the pathspec filter hides them.
+        self.assert_skipped(self.run_tick(CHANGED=".idea/modules.xml\nmad-science/TODO.md"))
+
+    def test_force_runs_an_idle_fleet(self):
+        proc = self.run_tick("--force")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("forced", proc.stdout)
+        self.assertEqual(self.call_lines("census"), ["census"])
 
 
 if __name__ == "__main__":

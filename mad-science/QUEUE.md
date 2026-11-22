@@ -211,6 +211,16 @@ Rules that follow:
   register row whose `summary` is missing or stale; it writes those with `task-queue.py summarize`
   and re-runs the tick. The ledger `.local/board-tick.jsonl` records each invocation's outcome and
   `model_calls`; `render` (no flag) still emits the weighted ordering table for a human.
+  **The tick has a durable scheduler and a gate (owner direction 2026-11-22).** The scheduler is the
+  user timer `tools/systemd/sparkrun-board-tick.timer` (twelve minutes, `Persistent=true`), not a
+  session: the omp extension's timer dies with the session, which is why the board went stale from
+  07:02 ET on 2026-11-22 with no timer left to fire it. A fire does work only when a Mad Science
+  session is running (a declared `.local/fleet-window.lock`, or a live lease in
+  `.local/fleet-leases.json`) or a board input changed since the last board commit (`recipes/`,
+  `mods/`, `tools/`, `benchmarking/`, `campaign/`, `mad-science/queue.json`); otherwise it writes
+  `{"outcome": "skipped:idle"}` and exits 0 without a census, a render, a publish or a commit.
+  `--force` refreshes deliberately, `--dry-run` renders only, and the flock still serialises a timer
+  fire against a session's manual tick (`skipped:busy`).
 - **A publish is not complete until the worktree copy is written.** After `publish` and the push,
   refresh this clone's worktree from `origin/main` — content only, never a checkout, reset or branch
   change — because peer sessions and humans read the worktree file and this clone's `main` cannot

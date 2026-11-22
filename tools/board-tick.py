@@ -17,8 +17,14 @@ retries for a bounded time instead of killing it.
 Usage:
     tools/board-tick.py                 # full tick: publish, commit, gate, push
     tools/board-tick.py --no-push       # stop after the commit
-    tools/board-tick.py --dry-run       # render only, print the would-be board path
+    tools/board-tick.py --dry-run       # render only, print the would-be board path (bypasses the gate)
     tools/board-tick.py --needs-summary # print the count of stale row summaries; no lock, no tick
+    tools/board-tick.py --force         # run even when the gate says the fleet is idle
+
+The gate (owner direction 2026-11-22) is what makes a short timer affordable: the tick runs only
+when a Mad Science session is running (a declared window, or a live lease in the fleet ledger) or
+when a path that feeds a board cell changed since the last board commit. Otherwise it writes
+`skipped:idle` to the ledger and exits 0 without a census, a render, a publish or a commit.
 
 Every invocation except `--needs-summary` appends one JSON line to `.local/board-tick.jsonl`:
 `{at, pid, outcome, model_calls, summaries_written, rows_changed, census_stamp, board_sha}`.
@@ -54,6 +60,16 @@ REGISTER = "mad-science/queue.json"
 #: A publish refusal that means a peer moved the board, not that the render is defective.
 PEER_MARKERS = ("carries board sha256", "on disk is sha256", "on disk carries",
                 "peer wrote after read", "peer published")
+
+#: The tracked paths whose change feeds a board cell: the lanes' recipes and docs, the mods, the
+#: tools that derive every cell, the benchmark profiles, the campaign, and the register. A commit
+#: touching only `.idea/` or an unrelated doc changes nothing the board says, so it earns no tick.
+BOARD_INPUTS = ("recipes", "mods", "tools", "benchmarking", "campaign", REGISTER)
+
+#: A Mad Science session's own marks, both already read by the campaign and `queue-drip.py`: a
+#: declared window, or a live lease in the fleet ledger. No new marker is invented here.
+WINDOW_LOCKS = (REPO / ".local" / "fleet-window.lock", REPO / ".scratch" / "fleet-window.lock")
+LEASES = REPO / ".local" / "fleet-leases.json"
 
 
 def iso_now() -> str:
@@ -101,6 +117,74 @@ def previous_evidence() -> Path | None:
     return EVIDENCE / names[-1] if names else None
 
 
+def live_lease(now: float | None = None) -> str:
+    """The holder of the first unexpired lease in the fleet ledger, or "" (read-only)."""
+    try:
+        data = json.loads(LEASES.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    stamp = time.time() if now is None else now
+    for lease in data.get("leases") or []:
+        try:
+            if float(lease.get("expires_at") or 0) > stamp:
+                return str(lease.get("holder") or lease.get("id") or "an unnamed holder")
+        except (AttributeError, TypeError, ValueError):
+            continue
+    return ""
+
+
+def session_mark() -> str:
+    """Why a Mad Science session counts as running, or "" — a declared window or a live lease.
+
+    Both are the repo's own mechanisms (`campaign/sparkrun_campaign/leases.py`): a window lock is
+    a session's hands-off declaration and a live lease is a boot it holds. Nothing new is invented.
+    """
+    for path in WINDOW_LOCKS:
+        if path.is_file():
+            return f"declared window {path.relative_to(REPO)}"
+    holder = live_lease()
+    return f"live lease held by {holder}" if holder else ""
+
+
+def last_board_commit() -> str:
+    """The commit that last wrote the board — this tick's own capture point."""
+    proc = git("log", "-1", "--format=%H", "--", str(BOARD.relative_to(REPO)))
+    out = proc.stdout.decode(errors="replace").strip()
+    return out if proc.returncode == 0 and out else ""
+
+
+def relevant_change() -> str:
+    """The first board-input path changed since the last board commit, or ""."""
+    base = last_board_commit()
+    if not base:
+        return "no board commit yet"
+    proc = git("diff", "--name-only", f"{base}..HEAD", "--", *BOARD_INPUTS)
+    if proc.returncode != 0:
+        return ""           # a git failure is not a change; the tick's own gates still apply
+    for line in proc.stdout.decode(errors="replace").splitlines():
+        if line.strip():
+            return line.strip()
+    return ""
+
+
+def gate() -> str:
+    """Why this tick should run, or "" when it should not (pure decision, no side effects).
+
+    Owner direction 2026-11-22: the board updates and ships a commit only when a Mad Science
+    session is running **or** something that feeds a board cell changed since the last tick. A
+    fleet whose session has closed and whose lanes are untouched earns no census, no publish and
+    no commit — the timer fires, the ledger says `skipped:idle`, and nothing moves. `--force`
+    overrides it for a deliberate refresh.
+    """
+    mark = session_mark()
+    if mark:
+        return f"session: {mark}"
+    change = relevant_change()
+    if change:
+        return f"changed: {change}"
+    return ""
+
+
 def remote_board_sha() -> str:
     """sha256 of the board at origin/main, or `(absent)` — the value publish compares against."""
     git("fetch", "--quiet", "origin", "main")
@@ -140,6 +224,12 @@ def fail(step: str, proc: subprocess.CompletedProcess, rows: int,
 
 
 def tick(args) -> int:
+    why = "forced" if (args.force or args.dry_run) else gate()
+    if not why:
+        ledger("skipped:idle", rows=0, census_stamp=None)
+        print("board-tick: skipped — no session mark and no board input changed since the last tick")
+        return 0
+    print(f"board-tick: running ({why})")
     rows = len(stale_ids())
     census_stamp: str | None = None
     previous = previous_evidence()  # before the census writes this tick's file
@@ -228,6 +318,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="render only and print the would-be board path")
     parser.add_argument("--needs-summary", action="store_true",
                         help="print the count of stale row summaries; take no lock, do nothing else")
+    parser.add_argument("--force", action="store_true",
+                        help="run even when no session mark exists and no board input changed")
     args = parser.parse_args(argv)
 
     if args.needs_summary:

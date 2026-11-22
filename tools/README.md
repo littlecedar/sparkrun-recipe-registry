@@ -1862,3 +1862,46 @@ Guard: `tests/test_task_queue_tool.py` (stdlib only) — weight arithmetic simpl
 transitive, the owner's 48/24 example, done-releases-credit, the three-tier override with both
 tag spellings, the 2-cycle negative control (library and CLI exit code), dangling ref, missing
 and non-numeric estimates, and `check`/`queue` exiting 0 on the tracked seed.
+
+## board-tick.py
+
+One tick is `lock -> census -> render -> publish -> commit -> gate -> push`, and the board has one
+**durable scheduler** plus one **gate**.
+
+**The scheduler is a user timer, not a session.** The omp extension's per-session timer dies with
+its session and needs a restart to come back; measured 2026-11-22 its log stopped at 04:50Z and the
+board went stale from 07:02 ET with nothing left to fire it. The unit files are tracked:
+
+```sh
+# from the registry checkout
+cp tools/systemd/sparkrun-board-tick.{service,timer} ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now sparkrun-board-tick.timer
+systemctl --user list-timers sparkrun-board-tick.timer    # NEXT / LAST / PASSED
+systemctl --user start sparkrun-board-tick.service        # one tick now
+journalctl --user -u sparkrun-board-tick.service -n 40 --no-pager
+```
+
+`OnCalendar=*:0/12` fires every twelve minutes and `Persistent=true` catches up one missed fire.
+The service is `Type=oneshot`, `WorkingDirectory` the checkout, with `PATH`/`HOME` set explicitly so
+`uv`, `gh` and `git` resolve, and `TimeoutStartSec=900` so a wedged tick cannot block the next.
+
+**The gate makes that cadence free.** A fire does work only when one of these holds:
+
+1. **a Mad Science session is running** — a declared window (`.local/fleet-window.lock`, or its
+   legacy `.scratch/` twin) or a live lease in `.local/fleet-leases.json`. Both are the repo's own
+   mechanisms; the tick invents no new marker.
+2. **a board input changed** since the last board commit (`git log -1 -- mad-science/STATUS.md`):
+   `recipes/`, `mods/`, `tools/`, `benchmarking/`, `campaign/`, or `mad-science/queue.json`. A commit
+   touching only `.idea/` or an unrelated doc is not a board input.
+
+Otherwise the tick appends `{"outcome": "skipped:idle"}` to `.local/board-tick.jsonl` and exits 0
+with no census, render, publish or commit. `--force` runs a deliberate refresh; `--dry-run` renders
+only and bypasses the gate. The flock is unchanged, so a timer fire and a session's manual tick
+serialise: the loser writes `skipped:busy` and exits 0.
+
+Guard: `tests/test_board_tick.py` — one publishes and the loser says busy (plus the no-flock
+negative control), a peer-moved board is `refused:peer` with no commit or push, `--dry-run` commits
+nothing, `--needs-summary` takes no lock, and the gate's five cases: idle skips without touching the
+board, a declared window runs, a live lease runs, a relevant change runs, an irrelevant change
+skips, and `--force` runs an idle fleet.

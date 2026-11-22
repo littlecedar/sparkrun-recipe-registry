@@ -1438,6 +1438,25 @@ class BoardStampConvention(unittest.TestCase):
         stamp, zone = tq.board_stamp(board_text("2026-11-06 16:02:09"))
         self.assertEqual((stamp, zone), (dt.datetime(2026, 11, 6, 16, 2, 9), "ET"))
 
+    def test_a_plain_title_with_the_stamp_in_a_subtitle_still_parses(self):
+        """The renderer's cosmetic title change must not switch the guards off.
+
+        `lint` gates the In-flight row-set rule on `board_title()` being non-None and the freshness
+        check compares the stamp against the committed board, so a board that renders
+        `# Board` + `_Generated … ET_` would silently lose both if only the old spelling parsed.
+        """
+        text = board_text("2026-11-06 16:02:09").replace(
+            "# Board — generated 2026-11-06 16:02 ET", "# Board\n_Generated 2026-11-06 16:02 ET_")
+        self.assertEqual(tq.board_title(text), "2026-11-06 16:02")
+        self.assertEqual(tq.board_stamp(text)[0], dt.datetime(2026, 11, 6, 16, 2, 9))
+
+    def test_the_inflight_guard_still_applies_to_the_subtitle_spelling(self):
+        text = board_text("2026-11-06 16:02:09").replace(
+            "# Board — generated 2026-11-06 16:02 ET", "# Board\n_Generated 2026-11-06 16:02 ET_")
+        text = text.replace("| queue | — | 0 open |\n", "")
+        self.assertEqual([rule for _l, rule, _d in tq.inflight_problems(text)],
+                         ["inflight-row-missing"])
+
 
 class BoardPublish(unittest.TestCase):
     """`publish`: a board older than the one on disk is refused, never written.

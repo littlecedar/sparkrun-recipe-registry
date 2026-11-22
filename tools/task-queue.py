@@ -988,7 +988,13 @@ def _emit(lines: list[str], what: str) -> None:
     print("\n".join(lines))
 
 
-BOARD_TITLE = re.compile(r"^#\s+Board\s+—\s+generated\s+(\d{4}-\d\d-\d\d \d\d:\d\d) ET", re.M)
+#: The board's own generation stamp. Two spellings carry it: the one-line title the renderer used
+#: to emit (`# Board — generated 2026-11-06 13:56 ET`) and the italic subtitle it emits under a
+#: plain `# Board` heading. `lint` gates the In-flight row-set rule on this being non-None and the
+#: freshness check compares it against the committed board, so a cosmetic title change must not
+#: silently switch either guard off.
+BOARD_TITLE = re.compile(
+    r"^(?:#\s+Board\s+—\s+generated|_Generated)\s+(\d{4}-\d\d-\d\d \d\d:\d\d) ET", re.M)
 
 
 def board_title(text: str) -> str | None:
