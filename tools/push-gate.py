@@ -26,6 +26,7 @@ Exit: 0 clean, 1 the committed tree is red, 2 the gate could not run.
 from __future__ import annotations
 
 import io
+import json
 import os
 import shutil
 import subprocess
@@ -100,7 +101,53 @@ def run(name: str, argv: list[str], cwd: Path, env: dict[str, str]) -> subproces
     return out
 
 
+
+def register_ids(text: str) -> list[str]:
+    """The register's row ids, in file order; `[]` for text that is not a register."""
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return []
+    if not isinstance(data, dict):
+        return []
+    return [str(task.get("id")) for task in data.get("tasks", []) if isinstance(task, dict)]
+
+
+def dropped_rows(tree: Path, base: str | None) -> list[str]:
+    """Ids present on the upstream register but absent from the committed one.
+
+    The tool's compare-and-swap cannot see a stale clone's *base*: a commit built on an old
+    snapshot silently drops every row a peer added since, and `check` stays green because what is
+    left is still a valid register. Measured 2026-11-22 — `4d22dbb3` deleted three ask rows that
+    way. Rows are never deleted and ids are never reused, so a missing id is a defect, full stop.
+    """
+    if not base:
+        return []
+    upstream_show = git("show", f"{base}:mad-science/queue.json")
+    local = tree / "mad-science" / "queue.json"
+    if upstream_show.returncode != 0 or not local.is_file():
+        return []
+    upstream = register_ids(upstream_show.stdout.decode())
+    present = set(register_ids(local.read_text(encoding="utf-8")))
+    return [row for row in upstream if row not in present]
+
+
 def checks(tree: Path, gitdir: str, base: str | None) -> bool:
+    # Cheapest first, and the one no other check can see: a row that existed upstream and not in
+    # this commit was dropped by a stale base, which every other check reads as a valid register.
+    gone = dropped_rows(tree, base)
+    if gone:
+        sys.stderr.write(f"\npush-gate: FAILED -- register rows dropped\n"
+                         f"  {len(gone)} id(s) on {base} are absent from HEAD's "
+                         f"mad-science/queue.json: {', '.join(gone)}\n"
+                         "  Rows are never deleted and ids are never reused, so this commit was "
+                         "built on a stale register.\n"
+                         "  repair: re-read the register, re-apply the missing rows through "
+                         "tools/task-queue.py, and re-commit\n")
+        ok_rows = False
+    else:
+        print("push-gate: register rows (none dropped from upstream)", flush=True)
+        ok_rows = True
     # Cheapest first: a text scan for bash-isms behind a `#!/bin/sh` shebang. This host's
     # /bin/sh is bash, so no local run can find them; on 2026-11-08 one such stub reddened
     # seven consecutive CI runs (CI's /bin/sh is dash).
@@ -116,7 +163,7 @@ def checks(tree: Path, gitdir: str, base: str | None) -> bool:
     doc = run("stated counts and suite total (test_doc_hygiene)",
               [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests",
                "-p", "test_doc_hygiene.py"], tree, ENV)
-    ok = lint.returncode == 0 and doc.returncode == 0
+    ok = ok_rows and lint.returncode == 0 and doc.returncode == 0
     if "discovery finds" in doc.stdout + doc.stderr:
         sys.stderr.write("push-gate: repair: uv run python -B tools/doc-census.py --fix"
                          " (derives the count and rewrites both statements)\n")
