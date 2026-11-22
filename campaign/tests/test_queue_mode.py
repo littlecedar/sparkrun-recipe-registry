@@ -416,6 +416,16 @@ class Claims(QueueCase):
         self.assertEqual(leader.handle(protocol.report(lease["id"], 0, "log run.log"))["status"],
                          "blocked")
         self.assertEqual(flag(self.shell.last_update("task-one"), "--state"), "blocked")
+        # `blocked` must name its blocker, so the hold is the human-intervention row, written first.
+        asks = [call for call in self.shell.calls
+                if "add" in call and flag(call, "--state") == "ask"]
+        self.assertEqual(len(asks), 1, "one ask, not one per settle")
+        self.assertEqual(flag(asks[0], "--id"), "ask-campaign-task-one")
+        self.assertEqual(flag(asks[0], "--blocks"), "task-one")
+        self.assertIn("human intervention for one", flag(asks[0], "--title"))
+        self.assertLess(self.shell.calls.index(asks[0]),
+                        self.shell.calls.index(self.shell.last_update("task-one")),
+                        "the ask exists before the row that names it")
 
     def test_a_refused_claim_blocks_the_arm_instead_of_booting_it(self) -> None:
         self.shell.refuse_writes = True
@@ -908,11 +918,17 @@ class RealRegister(unittest.TestCase):
                          "why campaign-arm exists \u2014 campaign: ladder failed")
 
         self.register.update("campaign-arm", state="running", claimed_by=SESSION)
+        ask = self.register.ask("campaign-arm", "arm", "campaign: leftover", "~/benchmarks/tp12-x/arm")
+        self.assertEqual(ask, "ask-campaign-campaign-arm")
         self.register.update("campaign-arm", state="blocked",
                              notes=self.register.note("campaign-arm", "campaign: leftover"))
         self.assertEqual((self.task()["state"], self.task()["claimed_by"],
                           self.task()["claimed_at"]), ("blocked", "", ""))
         self.assertIn("campaign: leftover", self.task()["notes"])
+        self.assertEqual(self.task()["blocked_by"], [ask], "the hold names the human's row")
+        self.assertEqual(self.register.state(ask), "ask")
+        # A second settle of the same row reuses the open question instead of splitting the answer.
+        self.assertEqual(self.register.ask("campaign-arm", "arm", "campaign: leftover again"), ask)
 
     def test_an_untracked_recipe_is_refused_by_the_real_tool(self) -> None:
         subprocess.run(["git", "-C", str(self.repo), "rm", "--cached", "-q",

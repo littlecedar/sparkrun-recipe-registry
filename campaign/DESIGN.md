@@ -205,7 +205,7 @@ lease/reap path, not the register. At the end of the arm:
 |---|---|
 | measured (from receipt fields, never the rc) | `--state done --evidence <measurement dir>` |
 | failed | `--state queued` when the row carries no hold, `--notes` appended with `campaign: <reason>` — the row keeps its own justification text and no evidence pointer is invented; the transition clears `claimed_by`/`claimed_at`, so the row cannot be mistaken for a live claim. A `blocked` or `done` state that landed while the arm ran keeps its state and only gains the note: a human's hold outranks the campaign's wish to retry, and requeueing over it is what resurrected the SM121 rows three times on 2026-11-08 |
-| blocked (leftover survivor, unverifiable host) | `--state blocked` plus the same note, because a human must look — unless a `done` state already answers the row, which is preserved; the claim is cleared the same way |
+| blocked (leftover survivor, unverifiable host) | `--state blocked` plus the same note, because a human must look — and a blocked row must name its blocker, so the director first creates the human-intervention row (`add --state ask --id ask-campaign-<row> --title "Ask: human intervention for <arm> — <reason>" --blocks <row>`) and reuses the open one on a second settle instead of splitting the answer across two rows; a `done` ask is already answered, so the next block gets a numbered one. A `done` state already on the row is preserved, and the claim is cleared the same way |
 | recorded negative | `--state done --evidence "<doc>:<line> (measured-rejected)"` — a recorded negative is an answer, and the citation is its evidence |
 | claim refused by the tool | the arm is blocked in the campaign and no lease is issued; the row is left alone |
 

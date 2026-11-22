@@ -524,6 +524,8 @@ class Director:
             elif status == FAILED:
                 self.register.update(task, state="queued", notes=note)
             else:
+                # `blocked` must name its blocker: the human who has to look is the row.
+                self.register.ask(task, arm, why, mdir)
                 self.register.update(task, state="blocked", notes=note)
         except plan.RegisterError as exc:
             print(f"register: {arm} not updated ({exc}); its row may still read running",
