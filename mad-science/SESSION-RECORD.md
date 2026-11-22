@@ -17180,3 +17180,30 @@ Edge0-145B-NVFP4 105.96 — each `stat -L` verified, 0 broken links).
   `sparkrun status`; the watchdog refused to arm (no such container on `.30`), so nothing was touched,
   but the rule is now explicit: resolve the task id only from the launch's own output.
 - **Register.** `check` ok, **228 tasks: 197 done, 29 queued, 2 blocked, 0 running**.
+
+### 2026-11-22 04:15 ET — drain, fourth batch: the voice isolator, and a LoRA that changes nothing
+
+- **Row closed: `inworld-voice-isolator-first-boot` (done) — the isolation server works.** Boot
+  `528419911f17a8a2_4abda6196abf` on `.30` port 8891; `/health` ok (`mode offline`, `device cuda`,
+  48 kHz), `/v1/models` 200. One `POST /v1/audio/isolate` on the mod's own tracked 1.0 s 48 kHz
+  fixture returned **HTTP 200, 192,080 B = 1.0 s of 48 kHz mono float32** (`audio_format 3`, parsed
+  from the RIFF header because stdlib `wave` cannot read float), wall **0.255 s**, server counters
+  `requests 1, failed 0, last_rtf 0.2314`. Isolation quality was not scored — no clean reference.
+  Receipt `head:~/benchmarks/campaign-20261122/inworld-voice-isolator-first-boot/run.md`.
+- **`qwen38-27b-pi-lora-probe-boot` back to `queued`, acceptance not met, and the finding is the
+  interesting part.** Boot `ebae5e6d554c7d86_824be5c309bb`, watchdog `verdict=healthy` at t=628 s
+  (the drain's slowest load — 50 prefill CUDA-graph shapes). One serve advertises **both**
+  `Qwen/Qwen3.8-27B` and `qwen38-pi-adapted`, and the log shows the LoRA kernels built
+  (`expand/shrink K=5120/14336/6144, R=32`). Yet the same prompt at `temperature 0` returns
+  **byte-identical** output from both ids: 160 tokens twice (757/757 and 625/625 reasoning chars) and
+  again at **512 tokens** (2075/2075 reasoning chars, **0 content**). Either the adapter is not
+  applied despite the kernels or its delta is nil — this cell cannot separate those, so the row does
+  not close. It also shows why: this model spends its whole budget thinking, so any retry needs
+  `max_tokens >= 2048` (~8 min/cell at 4.4 t/s) and must diff the **content**, plus a per-request
+  `lora` line or a known-answer prompt to prove application.
+- **Not started, no state changed:** `webai-twil-8b-eval-only-arm`,
+  `edge0-145b-latentmoe-strata-first-boot` and the pair `laguna-m1-vllm-v032-reboot` were left for
+  the next window — the turn's budget went to the four boots above plus two triages. No container and
+  no claim is outstanding: `.30` reads 0 containers at 116.7 GiB free, and every row is either `done`
+  or `queued` with no `claimed_by`.
+- **Register.** `check` ok, **228 tasks: 198 done, 28 queued, 2 blocked, 0 running**.
