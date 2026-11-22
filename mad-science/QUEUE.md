@@ -205,7 +205,7 @@ Rules that follow:
   `TODO.md` §"Settled questions" and `# DECISIONS` keep the answered ones — they are read by a human
   chasing a citation, not by a tick, so they are correctly outside the JSON.
 - **The board is rendered by script; a model only writes summaries.** `tools/board-tick.py` takes a
-  flock, censuses the fleet, renders every cell through `board-render.py` (the `## Work queue` table
+  flock, censuses the fleet, renders every cell through `board-render.py` (the `## Work Queue` table
   comes from `task-queue.py render --board`), publishes through `task-queue.py publish`, then
   commits, gates and pushes. A model is invoked only when `board-tick.py --needs-summary` reports a
   register row whose `summary` is missing or stale; it writes those with `task-queue.py summarize`

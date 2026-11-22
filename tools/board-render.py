@@ -6,8 +6,8 @@ Why this exists.  Half the board was already deterministic (`task-queue.py rende
 the other half was re-derived by a model every hour from a 382 KB base: ~100 k tokens of existing
 text to emit ~10 KB of cells, with the arithmetic done by hand (a hardcoded direction word came
 out inverted against its own parsed deltas, 2026-11-17).  This tool derives every cell: the
-`## In flight` rows from one census evidence document, the `## Work queue` block from the
-register through `task-queue.py`'s own `board_rows`/`graph_body`, and the `## Landed session`
+`## In flight` rows from one census evidence document, the `## Work Queue` block from the
+register through `task-queue.py`'s own `board_rows`/`graph_body`, and the `## Completed Work`
 rows from `git log`, filtered to the rolling window the section states.
 
 Landed is a rolling day, not history: the window starts at

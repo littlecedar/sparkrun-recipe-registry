@@ -156,6 +156,16 @@ def checks(tree: Path, gitdir: str, base: str | None) -> bool:
         ok &= run("campaign driver suite",
                   [sys.executable, "-B", "-m", "unittest", "discover",
                    "-s", "campaign/tests", "-t", "campaign"], tree, ENV).returncode == 0
+
+    # The board body is derived by `board-render.py` and pinned byte-for-byte by its golden
+    # fixture, so a commit touching either must prove the body still renders. Measured 2026-11-22:
+    # the 17:00 tick shipped a red board commit because this gate ran no renderer test, and the
+    # subset it does run (doc counts, addresses, modes) cannot see a heading or a golden mismatch.
+    if changed(base, "tools/board-*.py", "tests/test_board_*.py",
+               "tests/fixtures/board/", "mad-science/STATUS.md"):
+        ok &= run("board renderer, census and tick (test_board_*.py)",
+                  [sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests",
+                   "-p", "test_board_*.py"], tree, ENV).returncode == 0
     return ok
 
 

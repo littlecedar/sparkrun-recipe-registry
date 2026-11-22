@@ -1,4 +1,5 @@
-# Board — generated 2026-11-21 20:12 ET
+# Board
+_Generated 2026-11-21 20:12 ET_
 
 ## In flight
 | where | owner | what |
@@ -18,7 +19,7 @@
 | .35 | **nothing live (no reservation)** — idle | `2026-11-22T01:12:37Z` (`node-thirty-five`): `docker ps -aq` **0**, running **0**, volumes **0**, `:8000` listeners **0**<br>root **1,112,209,510,400 B avail** (no base, unmeasured) · **2,714,821,308,416 B used** (no base, unmeasured)<br>boot **`2026-11-19T20:07:56Z`** (`btime`), `uptime` **191,080 s**<br>`MemTotal` **127,598,700 kB** (no base), `MemAvailable` **123,088,408 kB** (no base), `Cached` **6,041,560 kB** (no base), `AnonPages` **253,996 kB** (no base)<br>ring **256** events all-types (no base), **0** in-window lifecycle and **0** in-window `exec`, oldest `2026-11-20T19:46:09.290987692-05:00 container exec_die 2f39b`, newest `2026-11-20T20:56:32.651557975-05:00 container destroy 26b0f5` |
 | `lease-1` | campaign | `.30` leased for `tp1-window`; expires `2026-11-22T03:00:00Z` |
 
-## Work queue
+## Work Queue
 ```mermaid
 flowchart LR
   %% 1 blocked, 1 edges, 0 prose-gated, 0 question-gated, 0 question
@@ -33,7 +34,7 @@ flowchart LR
 | `board-census-tool` — Consolidate the per-tick census probe into one stdlib tool | single | — | board-render-tool | queued | — The probe script and its parser were rewritten every tick; a transcription slip shipped a 60 000 B phantom delta on 2026-11-09. |
 | `board-render-tool` — Render STATUS.md from the evidence document and the register | — | board-census-tool | — | blocked | — |
 
-## Landed session
+## Completed Work
 Window: commits since `2026-11-22T00:13:43Z` — the base census stamp, later than the 24 h start `2026-11-21T01:12:37Z`; older rows are not shown.
 
 | time ET | commit | one clause |
