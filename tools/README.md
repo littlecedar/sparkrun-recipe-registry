@@ -1467,6 +1467,16 @@ shapes, the merge rule, and the 72 h gate; `tests/test_cache_audit.py` re-runs t
 repo's gate. Policy, budget derivation, and the reclaim list live in
 `mad-science/STORAGE-POLICY.md`.
 
+**The HF cache gets a pool verdict, not a node one.** Every node reports the same HF-cache usage
+through the shared hub, so a per-node cap cannot be measured at all — the policy restates that rule at
+pool level (2026-11-09). `--pool-usage-gb` plus `--pool-capacity-gb` prints the pool's usage, the cap
+(90 % of capacity) and one PASS/OVER line, and exits 1 when over; either number absent is an error
+rather than a default, because a guessed capacity would read as measured. It runs without a census:
+
+```sh
+uv run python -B tools/cache-audit.py --pool-usage-gb 13400 --pool-capacity-gb 24786
+```
+
 ## refresh-sweep.py
 
 `sparkrun` records pins in six places and nothing reads them back: the recipe's `model:` +

@@ -39,6 +39,14 @@ Stdlib only, no network, no cluster access.  Input is a read-only census:
         --all --dry-run > census.txt
     uv run python -B tools/cache-audit.py --census census.txt --budget-gb 2000
 
+The HF cache is **one pool, not six copies**, so its rule is a single pool-level
+verdict that no per-node figure can answer (STORAGE-POLICY §"The budget",
+restated 2026-11-09): `--pool-usage-gb` is the cache's size on the shared hub,
+`--pool-capacity-gb` the BeeGFS pool's capacity, and the cap is 90 % of it.
+Either number absent is an error, never a default:
+
+    uv run python -B tools/cache-audit.py --pool-usage-gb 13400 --pool-capacity-gb 24786
+
 Any line carrying ``<host>:/absolute/path`` is parsed; an optional size beside
 it (``94.8 GB`` or ``49980704K``) and an optional ``YYYY-MM-DD[ _]HH:MM``
 timestamp are used when present and ignored when not — so the ``--all
@@ -292,13 +300,54 @@ def human(n: int | None) -> str:
     return f"{n} B"
 
 
-def report(trees: list[Tree], keys: dict[str, list[str]], budget_gb: float) -> int:
+#: STORAGE-POLICY §"The budget": the HF cache is one pool, and its cap is a fraction
+#: of that pool's capacity — never a per-node figure (restated pool-level 2026-11-09,
+#: QUESTIONS.md #75, because all six nodes report the same usage through the hub).
+POOL_CAP_FRACTION = 0.9
+
+
+def pool_verdict(usage_gb: float, capacity_gb: float,
+                 fraction: float = POOL_CAP_FRACTION) -> tuple[str, bool]:
+    """One HF-pool verdict block and whether it passes (pure).
+
+    Both figures are pool-level and are given, never inferred: `usage` is the HF
+    cache's size on the shared hub and `capacity` is the BeeGFS pool's. The
+    runtime-cache `--budget-gb` rule below is per node and cannot answer this one.
+    """
+    cap_gb = capacity_gb * fraction
+    pct = 100.0 * usage_gb / capacity_gb if capacity_gb else float("nan")
+    headroom = cap_gb - usage_gb
+    verdict_word = "PASS" if headroom >= 0 else "OVER BUDGET"
+    detail = (f"{human(int(headroom * 1024**3))} under the cap" if headroom >= 0
+              else f"{human(int(-headroom * 1024**3))} over the cap")
+    return (
+        "== HF pool (one cache, one cap) ==\n"
+        f"  used {human(int(usage_gb * 1024**3))} of {human(int(capacity_gb * 1024**3))} "
+        f"capacity = {pct:.1f} %\n"
+        f"  cap {fraction:.0%} of capacity = {human(int(cap_gb * 1024**3))}   "
+        f"{verdict_word} ({detail})",
+        headroom >= 0,
+    )
+
+
+def report(trees: list[Tree], keys: dict[str, list[str]], budget_gb: float,
+           pool: tuple[float, float, float] | None = None) -> int:
     now = dt.datetime.now()
     by_host: dict[str, list[Tree]] = {}
     for tree in trees:
         by_host.setdefault(tree.host, []).append(tree)
 
-    print(f"cache-audit — {len(trees)} tree(s) across {len(by_host)} host(s); budget {budget_gb:.0f} GB of cache per node\n")
+    if trees:
+        print(f"cache-audit — {len(trees)} tree(s) across {len(by_host)} host(s); "
+              f"budget {budget_gb:.0f} GB of cache per node\n")
+
+    if pool is not None:
+        text, pool_ok = pool_verdict(*pool)
+        print(text + "\n")
+        if not trees:
+            return 0 if pool_ok else 1
+    else:
+        pool_ok = True
 
     print("== per node ==")
     over_budget = 0
@@ -346,7 +395,7 @@ def report(trees: list[Tree], keys: dict[str, list[str]], budget_gb: float) -> i
         f"\nSTALE = no shipped recipe and no attic arm produces this key.  Measure the marker age "
         f"before\nreclaiming: a tree touched inside {IN_USE_HOURS} h is in use by the hygiene rule."
     )
-    return 1 if over_budget else 0
+    return 0 if (pool_ok and not over_budget) else 1
 
 
 # ---------------------------------------------------------------------------
@@ -470,19 +519,33 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--census", action="append", type=Path, default=[], help="census receipt; repeatable")
     parser.add_argument("--budget-gb", type=float, default=2000.0, help="per-node runtime-cache budget (default 2000)")
+    parser.add_argument("--pool-usage-gb", type=float, default=None,
+                        help="HF-cache size on the shared hub, for the one pool-level verdict "
+                             "(STORAGE-POLICY §The budget); needs --pool-capacity-gb")
+    parser.add_argument("--pool-capacity-gb", type=float, default=None,
+                        help="BeeGFS pool capacity; the cap is this times --pool-fraction")
+    parser.add_argument("--pool-fraction", type=float, default=POOL_CAP_FRACTION,
+                        help=f"cap as a fraction of pool capacity (default {POOL_CAP_FRACTION})")
     parser.add_argument("--selftest", action="store_true", help="offline self-check; no census needed")
     args = parser.parse_args(argv)
 
     if args.selftest:
         return selftest()
-    if not args.census:
-        parser.error("give at least one --census file, or --selftest")
+    pool = None
+    if args.pool_usage_gb is not None or args.pool_capacity_gb is not None:
+        if args.pool_usage_gb is None or args.pool_capacity_gb is None:
+            parser.error("--pool-usage-gb and --pool-capacity-gb go together: a pool verdict needs "
+                         "both the usage and the capacity, and neither has a default")
+        pool = (args.pool_usage_gb, args.pool_capacity_gb, args.pool_fraction)
+    if not args.census and pool is None:
+        parser.error("give at least one --census file, the --pool-usage-gb/--pool-capacity-gb pair, "
+                     "or --selftest")
 
-    trees = parse_census(args.census)
-    if not trees:
+    trees = parse_census(args.census) if args.census else []
+    if args.census and not trees:
         print("no `<host>:/path` lines found in " + ", ".join(str(p) for p in args.census), file=sys.stderr)
         return 2
-    return report(trees, recipe_keys(REPO_ROOT), args.budget_gb)
+    return report(trees, recipe_keys(REPO_ROOT), args.budget_gb, pool)
 
 
 if __name__ == "__main__":

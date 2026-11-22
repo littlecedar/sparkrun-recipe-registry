@@ -335,5 +335,46 @@ class PolicyCrossReference(unittest.TestCase):
         self.assertEqual(found, [], f"address-shaped token(s) in a tracked doc: {found}")
 
 
+class PoolBudget(unittest.TestCase):
+    """The HF cache is one pool, so its verdict is one line and one exit code.
+
+    STORAGE-POLICY §"The budget" restates the rule at pool level (2026-11-09,
+    QUESTIONS.md #75): all six nodes report the same usage through the shared hub,
+    so the per-node `--budget-gb` rule cannot answer it at all.
+    """
+
+    #: The pool's own numbers as the 2026-11-10 receipt read them.
+    CAPACITY_GB = 24786.0
+
+    def test_a_pool_under_the_cap_passes(self):
+        text, ok = audit.pool_verdict(13400.0, self.CAPACITY_GB)
+        self.assertTrue(ok)
+        self.assertIn("PASS", text)
+        self.assertIn("under the cap", text)
+        self.assertIn("cap 90% of capacity", text)
+
+    def test_a_pool_over_the_cap_fails(self):
+        text, ok = audit.pool_verdict(self.CAPACITY_GB * 0.95, self.CAPACITY_GB)
+        self.assertFalse(ok)
+        self.assertIn("OVER BUDGET", text)
+        self.assertIn("over the cap", text)
+
+    def test_the_cap_is_a_fraction_of_capacity_not_a_node_budget(self):
+        # 90 % of 24786 GB, not the per-node 2000 GB runtime-cache budget.
+        self.assertAlmostEqual(self.CAPACITY_GB * audit.POOL_CAP_FRACTION, 22307.4, places=1)
+
+    def test_the_pool_pair_is_required_together(self):
+        for argv in (["--pool-usage-gb", "100"], ["--pool-capacity-gb", "200"]):
+            with self.assertRaises(SystemExit) as ctx:
+                audit.main(argv)
+            self.assertEqual(ctx.exception.code, 2, argv)
+
+    def test_pool_mode_alone_needs_no_census(self):
+        self.assertEqual(audit.main(["--pool-usage-gb", "13400",
+                                     "--pool-capacity-gb", str(self.CAPACITY_GB)]), 0)
+        self.assertEqual(audit.main(["--pool-usage-gb", "24000",
+                                     "--pool-capacity-gb", str(self.CAPACITY_GB)]), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
