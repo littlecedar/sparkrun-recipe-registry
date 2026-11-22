@@ -17485,9 +17485,9 @@ verdict read directly.
   arm has no chat surface, so the ladder is not a valid cell and the guard lifecycle is the subject.
   (1) **PASS** — after boot A's own stop (task `7102a666beb48dcc_234cd465b76d`) guard pid `2111347`
   is gone and `pgrep -f 'mem-guard.sh <tid>'` is empty. (2) **PASS** — sampler pid `2111948` gone,
-  path `pgrep` empty, and `mem-series-10.0.4.30.csv` stops at the stop. (3) **PASS** —
+  path `pgrep` empty, and `mem-series-<lease-host>.csv` stops at the stop. (3) **PASS** —
   `guard-armed.txt` reads `state=armed`, `tid=<task id>`, `pid=2111347`,
-  `samplers=10.0.4.30 pid=2111948`, and `guard_line=… guard start tid=7102a666beb48dcc_234cd465b76d
+  `samplers=.30 pid=2111948`, and `guard_line=… guard start tid=7102a666beb48dcc_234cd465b76d
   start_epoch=1795382876`. (4) **PASS, negative control** — boot C (task
   `7102a666beb48dcc_9debfdd86fd9`, guard `2162429`, sampler `2162881`) with the stop issued **out of
   band** from a plain shell: both ALIVE before it, both gone within **32 s** after, `pgrep` empty,
