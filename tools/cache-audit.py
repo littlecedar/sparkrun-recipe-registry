@@ -377,8 +377,9 @@ KNOWN_KEYS = [
 #: thinks it is.
 SHIPPED_KEYS = [k for _, _, k in KNOWN_KEYS if k.endswith(("10a02831", "b9f737e7"))] + [
     # Produced by a recipe that is not one of the KNOWN_KEYS rows above: the ds4
-    # TP=2 arm's 1017 EXL3 pack and the combined pack the cybersec arm pins.
-    "LibertAIDAI__DeepSeek-V4.1-Flash-1017-EXL3-2.9bp-f236b776",
+    # TP=2 arm's 1017 EXL3 pack (its post-2026-10-22 pin, `0be63c33…`; the pre-re-pin
+    # `f236b776` leaf is the STALE_LEAVES row) and the combined pack the cybersec arm pins.
+    "LibertAIDAI__DeepSeek-V4.1-Flash-1017-EXL3-2.9bp-55410efc",
     "littlecedar__DeepSeek-V4.1-Flash-EXL3-2.9bpw-wit-4e17d34c",
 ]
 
