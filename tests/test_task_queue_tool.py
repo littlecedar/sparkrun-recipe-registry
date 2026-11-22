@@ -204,6 +204,33 @@ class FailClosed(unittest.TestCase):
             self.assertEqual(tq.main(["--file", str(REPO_ROOT / "mad-science" / "queue.json"), "queue"]), 0)
         self.assertEqual(stderr.getvalue(), "")
 
+    def test_a_summary_without_its_source_hash_is_refused(self):
+        """The defect the field exists to prevent: a hand-written cell that never invalidates."""
+        bad = task("p", 1.0)
+        bad["summary"] = "a cell nobody will ever refresh"
+        with self.assertRaises(tq.QueueError) as ctx:
+            tq.validate(data([bad], priority_models=["x"]))
+        self.assertIn("summary_src", str(ctx.exception))
+
+    def test_a_malformed_summary_source_hash_is_refused(self):
+        # Negative control for the shape rule: truncated, uppercase, non-hex, and non-string.
+        for bad_src in ("a" * 63, "A" * 64, "g" * 64, 64):
+            with self.subTest(src=bad_src):
+                bad = task("p", 1.0)
+                bad.update({"summary": "x", "summary_src": bad_src, "summary_at": "2026-11-21T00:00:00Z"})
+                with self.assertRaises(tq.QueueError):
+                    tq.validate(data([bad], priority_models=["x"]))
+
+    def test_a_summary_over_the_budget_is_refused(self):
+        # 240 is the board cell budget; one char over must fail `check`, not truncate silently.
+        bad = task("p", 1.0)
+        bad["summary"] = "x" * (tq.SUMMARY_MAX + 1)
+        bad["summary_src"] = tq.summary_source(bad)
+        bad["summary_at"] = "2026-11-21T00:00:00Z"
+        with self.assertRaises(tq.QueueError) as ctx:
+            tq.validate(data([bad], priority_models=["x"]))
+        self.assertIn("240", str(ctx.exception))
+
 
 class PlacementClassification(unittest.TestCase):
     """`memory_risky` / `exclude_hosts` must be WRITABLE, and a malformed value must be refused.
@@ -598,6 +625,87 @@ class BoardAndArchive(unittest.TestCase):
         payload["tasks"][0]["evidence"] = ["a", "list"]
         with self.assertRaises(tq.QueueError):
             tq.validate(payload)
+
+    def _summarized(self, text="the board cell"):
+        t = task("a", 1.0)
+        tq._set_summary(t, text)
+        return t
+
+    def test_a_fresh_summary_is_the_board_cell(self):
+        """The whole point of the field: the tick writes one sentence, the board shows it."""
+        t = task("a", 1.0)
+        t["notes"] = "a long note the summary replaces"
+        t["evidence"] = "~/benchmarks/lane-20261121/REPORT.md"
+        tq._set_summary(t, "the arm is ready to boot")
+        row = tq.board_rows(data([t]))[2]
+        self.assertIn("the arm is ready to boot", row)
+        self.assertNotIn("a long note", row)
+        self.assertNotIn("evidence:", row, "a fresh summary is the whole state cell")
+
+    def test_editing_notes_invalidates_the_summary(self):
+        t = self._summarized()
+        self.assertIn("the board cell", tq.board_rows(data([t]))[2])
+        t["notes"] = "a new finding"
+        row = tq.board_rows(data([t]))[2]
+        self.assertNotIn("the board cell", row)
+        self.assertIn("queued — a new finding", row, "falls back to today's note prefix")
+        self.assertFalse(tq.summary_fresh(t))
+
+    def test_editing_state_or_evidence_invalidates_the_summary(self):
+        for field, value in (("state", "running"), ("evidence", "receipts/x.md")):
+            with self.subTest(field=field):
+                t = self._summarized()
+                t[field] = value
+                self.assertFalse(tq.summary_fresh(t))
+
+    def test_title_and_estimate_edits_leave_the_summary_fresh(self):
+        """Title and estimate_h render elsewhere (or not at all), so they cannot invalidate."""
+        t = self._summarized()
+        t["title"] = "a better title"
+        t["estimate_h"] = 9.0
+        self.assertTrue(tq.summary_fresh(t))
+        self.assertIn("the board cell", tq.board_rows(data([t]))[2])
+
+    def test_summarize_writes_a_matching_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "queue.json"
+            path.write_text(json.dumps(data([task("arm", 1.0)], priority_models=["x"])))
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                self.assertEqual(tq.main(["--file", str(path), "summarize", "--id", "arm",
+                                          "--summary", "one sentence"]), 0)
+            row = json.loads(path.read_text())["tasks"][0]
+            self.assertEqual(row["summary"], "one sentence")
+            self.assertEqual(row["summary_src"], tq.summary_source(row))
+            self.assertTrue(row["summary_at"].endswith("Z"))
+            self.assertIn(row["summary_src"][:12], printed.getvalue())
+            self.assertIn("arm", printed.getvalue())
+            # `--summary -` reads stdin; newlines collapse so the cell stays one line.
+            saved, sys.stdin = sys.stdin, io.StringIO("two\nlines\n")
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(tq.main(["--file", str(path), "summarize", "--id", "arm",
+                                              "--summary", "-"]), 0)
+            finally:
+                sys.stdin = saved
+            self.assertEqual(json.loads(path.read_text())["tasks"][0]["summary"], "two lines")
+
+    def test_render_board_stale_lists_exactly_the_stale_ids(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "queue.json"
+            fresh = task("fresh", 1.0)
+            tq._set_summary(fresh, "fresh cell")
+            stale = task("stale", 2.0)
+            tq._set_summary(stale, "old cell")
+            stale["notes"] = "edited after summarizing"
+            missing = task("missing", 3.0)
+            done = task("done-row", 4.0, state="done")
+            path.write_text(json.dumps(data([fresh, stale, missing, done], priority_models=["x"])))
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                self.assertEqual(tq.main(["--file", str(path), "render", "--board", "--stale"]), 0)
+            self.assertEqual(printed.getvalue().split(), ["stale", "missing"],
+                             "done rows never render, so they never need a summary")
 
     def test_orphans_flags_an_unmarked_item(self):
         text = "## lane\n- [ ] **Fix the thing** — detail\n"

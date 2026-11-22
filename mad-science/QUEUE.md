@@ -53,6 +53,7 @@ every row a scheduler may not boot:
 | `recipe` | string, optional | **Machine-runnable rows only**: the arm's recipe, relative to the repo root (`recipes/<lane>/<arm>.yaml`). Must be a *tracked* file in the register's checkout and present in the worktree — a row naming a recipe a clone cannot resolve is a defect, never a row a scheduler skips in silence. |
 | `tp` | integer, optional | Machine-runnable rows only, required once `recipe` is given: nodes the arm takes, one of `1`/`2`/`4`, equal to `node_cost`'s count (`single`=1, `pair`=2, `quartet`=4). A mismatch is refused: the row would disagree with itself about how much fleet it holds. |
 | `env` | object of strings, optional | Machine-runnable rows only: environment overrides for the launch (`ARM_OPTS`, `ARM_TAG`, …). Absent means none. |
+| `summary`, `summary_src`, `summary_at` | strings, optional | The board cell written once by `summarize --id X --summary …` (or `add --summary`): `summary` is one sentence ≤240 chars, `summary_src` is sha256 over `state`+`\x1f`+`notes`+`\x1f`+`evidence` (UTF-8), `summary_at` the UTC stamp. A row with no `summary` renders its state and truncated note as before. Editing `state`, `notes` or `evidence` makes `summary_src` stale — `render --board --stale` lists those ids and the board falls back to the note — while `title`, `estimate_h`, `model`, `node_cost` and `provenance` do not enter the hash. `summary` without `summary_src` is refused: a hand-written cell that never invalidates is the defect the pair prevents. |
 
 ### Machine-runnable rows
 

@@ -53,6 +53,8 @@ Stdlib only.  Usage:
     uv run python -B tools/task-queue.py weight --id X         # one task's arithmetic
     uv run python -B tools/task-queue.py render                # markdown table for TODO/STATUS
     uv run python -B tools/task-queue.py render --board        # the STATUS.md `## Work queue` table
+    uv run python -B tools/task-queue.py render --board --stale # ids whose summary is missing/stale
+    uv run python -B tools/task-queue.py summarize --id X --summary "one sentence"  # or --summary -
     uv run python -B tools/task-queue.py graph                 # fenced mermaid: the connected rows
     #   only rows taking part in an edge (plus the questions they reach); `--all` draws every
     #   open row
@@ -99,6 +101,10 @@ REQUIRED_STR = ("id", "title", "model", "node_cost", "notes", "provenance")
 #: (`env` defaults to empty), and `tp` must agree with `node_cost`.
 COST_NODES = {"single": 1, "pair": 2, "quartet": 4}
 TP_VALUES = (1, 2, 4)
+#: A row summary is the board cell, so it is one short sentence, not prose.
+SUMMARY_MAX = 240
+#: Unit separator: cannot occur in JSON string data, so the three fields cannot run together.
+SUMMARY_SEP = "\x1f"
 #: `load` stamps the bytes it read here; `_save` compares it with the file before replacing it.
 SNAPSHOT = "_loaded_sha256"
 #: Named in a stale-write refusal: with a syncthing-shared tree, "which host read this" is the clue.
@@ -282,6 +288,25 @@ def validate(data: dict, path: Path | None = None) -> list[dict]:
         evidence = task.get("evidence")
         if evidence is not None and not isinstance(evidence, str):
             raise QueueError(f"{tid}: 'evidence' must be a receipt path (string) when present")
+        summary = task.get("summary")
+        if summary is not None:
+            if not isinstance(summary, str) or not summary.strip():
+                raise QueueError(f"{tid}: 'summary' must be a non-empty string when present")
+            if len(summary) > SUMMARY_MAX:
+                raise QueueError(f"{tid}: 'summary' must be at most {SUMMARY_MAX} chars, "
+                                 f"got {len(summary)}")
+        src, at = task.get("summary_src"), task.get("summary_at")
+        if (src is None) != (at is None):
+            raise QueueError(f"{tid}: 'summary_src' and 'summary_at' are written together")
+        if src is not None and (not isinstance(src, str) or not re.fullmatch(r"[0-9a-f]{64}", src)):
+            raise QueueError(f"{tid}: 'summary_src' must be a sha256 hex digest, got {src!r}")
+        if at is not None and (not isinstance(at, str) or not at.strip()):
+            raise QueueError(f"{tid}: 'summary_at' must be an ISO-8601 UTC timestamp")
+        if summary is not None and src is None:
+            # A hand-written summary with no source hash never invalidates: the board would keep
+            # showing prose the row has outgrown. Only `summarize` (or `add --summary`) writes both.
+            raise QueueError(f"{tid}: a 'summary' without 'summary_src' never invalidates — "
+                             f"write it with `summarize --id {tid} --summary …`")
         for field in ("blocks", "blocked_by"):
             value = task.get(field)
             if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
@@ -454,6 +479,38 @@ def _find(tasks: list[dict], task_id: str) -> dict:
     raise QueueError(f"{task_id}: no such task")
 
 
+# ---------------------------------------------------------------- row summaries
+
+def summary_source(task: dict) -> str:
+    """sha256 over the fields a summary narrates: `state`, `notes`, `evidence`, in that order.
+
+    These are the row's substantive changes (a transition, a new finding, a receipt). Title,
+    node_cost and blocked_by render into their own columns, and estimate_h/model/provenance never
+    appear in the cell, so editing them must not invalidate the summary. UTF-8, `\\x1f`-joined.
+    """
+    body = SUMMARY_SEP.join(str(task.get(key) or "") for key in ("state", "notes", "evidence"))
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
+def summary_fresh(task: dict) -> bool:
+    """True when the row's summary still describes its current state/notes/evidence."""
+    return (isinstance(task.get("summary"), str) and bool(task["summary"])
+            and task.get("summary_src") == summary_source(task))
+
+
+def _set_summary(task: dict, text: str) -> None:
+    """Store one line of summary plus the source hash that invalidates it; never trust the caller."""
+    text = " ".join(text.split())
+    if not text:
+        raise QueueError(f"{task['id']}: a summary must not be empty")
+    if len(text) > SUMMARY_MAX:
+        raise QueueError(f"{task['id']}: a summary must be at most {SUMMARY_MAX} chars, "
+                         f"got {len(text)}")
+    task["summary"] = text
+    task["summary_src"] = summary_source(task)
+    task["summary_at"] = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def cmd_add(args, path: Path) -> None:
     data = load(path)
     tasks = validate(data, path)
@@ -480,11 +537,24 @@ def cmd_add(args, path: Path) -> None:
         task["exclude_hosts"] = parse_hosts(args.exclude_hosts)
     for b in (args.blocked_by.split(",") if args.blocked_by else []):
         _find(tasks, b)["blocks"].append(args.id)
+    if getattr(args, "summary", None) is not None:
+        _set_summary(task, args.summary)
     tasks.append(task)
     _relink(tasks)
     validate({"tasks": tasks, "priority_models": data["priority_models"]}, path)
     _save(path, data, tasks, row=args.id)
     print(f"added {args.id} (weight recomputed on next `queue`)")
+
+
+def cmd_summarize(args, path: Path) -> None:
+    """Write a row's board summary and the source hash that will invalidate it."""
+    data = load(path)
+    tasks = validate(data, path)
+    task = _find(tasks, args.id)
+    _set_summary(task, sys.stdin.read() if args.summary == "-" else args.summary)
+    validate(data, path)
+    _save(path, data, tasks, row=args.id)
+    print(f"summarized {args.id}: summary_src={task['summary_src'][:12]}")
 
 
 def _relink(tasks: list[dict]) -> None:
@@ -1056,6 +1126,13 @@ def cmd_publish(args, path: Path) -> None:
 def cmd_render(args, path: Path) -> None:
     data = load(path)
     if getattr(args, "board", False):
+        if getattr(args, "stale", False):
+            # The tick's model-call gate: one id per line, exit 0 either way. Only rows the board
+            # renders (ordering drops `done`), because a done row's summary is never shown.
+            for task in ordering(data, path):
+                if not summary_fresh(task):
+                    print(task["id"])
+            return
         _emit(board_rows(data, path), "board table")
         return
     ordered = ordering(data, path)
@@ -1091,17 +1168,20 @@ def board_rows(data: dict, path: Path | None = None) -> list[str]:
     tiers = _tiers(data["priority_models"])
     lines = ["| job | node cost | holds | state |", "|---|---|---|---|"]
     for _tier, task in enumerate_tasks_with_tier(ordered, tiers):
-        state = task["state"]
-        if task.get("notes"):
-            note = task["notes"]
-            if len(note) > NOTE_BUDGET:
-                note = note[:NOTE_BUDGET]
-                if note.count("`") % 2:  # cut inside a code span: drop the stub, not the pair count
-                    note = note[:note.rindex("`")]
-                note += "… (full note: queue.json)"
-            state = f"{state} — {note}"
-        if task.get("evidence"):
-            state = f"{state} — evidence: `{task['evidence']}`"
+        if summary_fresh(task):
+            state = task["summary"]
+        else:
+            state = task["state"]
+            if task.get("notes"):
+                note = task["notes"]
+                if len(note) > NOTE_BUDGET:
+                    note = note[:NOTE_BUDGET]
+                    if note.count("`") % 2:  # cut inside a code span: drop the stub, not the pair count
+                        note = note[:note.rindex("`")]
+                    note += "… (full note: queue.json)"
+                state = f"{state} — {note}"
+            if task.get("evidence"):
+                state = f"{state} — evidence: `{task['evidence']}`"
         lines.append(f"| `{task['id']}` — {_cell(task['title'])} | {task['node_cost'] or '—'} "
                      f"| {_cell(', '.join(task['blocked_by']) or '—')} | {_cell(state)} |")
     return lines
@@ -1392,6 +1472,7 @@ def main(argv: list[str] | None = None) -> int:
                        help="placement: nodes a lease must not use")
     p_add.add_argument("--env", action="append", metavar="KEY=VALUE",
                        help="bootable row: environment override for the launch (repeatable)")
+    p_add.add_argument("--summary", help="the board cell for this row (fresh until state/notes/evidence change)")
     p_add.set_defaults(fn=cmd_add)
     p_upd = sub.add_parser("update", help="update fields / claim (--claimed-by stamps claimed_at)")
     p_upd.add_argument("--id", required=True)
@@ -1434,6 +1515,13 @@ def main(argv: list[str] | None = None) -> int:
     p_board = sub.choices["render"]
     p_board.add_argument("--board", action="store_true",
                          help="emit the STATUS.md `## Work queue` table instead of the weighted one")
+    p_board.add_argument("--stale", action="store_true",
+                         help="with --board: print one id per line for rows whose summary is missing "
+                              "or no longer matches their state/notes/evidence (exit 0 either way)")
+    p_sum = sub.add_parser("summarize", help="write a row's board summary and its source hash")
+    p_sum.add_argument("--id", required=True)
+    p_sum.add_argument("--summary", required=True, help="the cell text; `-` reads stdin")
+    p_sum.set_defaults(fn=cmd_summarize)
     p_graph = sub.add_parser("graph", help="fenced mermaid diagram of the open work, from the register")
     # SUPPRESS, not None: the subparser parses into the same namespace, so a plain default
     # here overwrites the value the parent already parsed from `--file X graph` -- measured
