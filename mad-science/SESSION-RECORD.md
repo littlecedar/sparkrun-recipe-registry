@@ -17173,7 +17173,7 @@ Edge0-145B-NVFP4 105.96 — each `stat -L` verified, 0 broken links).
   the cache instead of the API. Watchdog `dead_candidate, serve_pid=gone`.
 - **Harness fixes made while draining.** `.local/sparkrun-home`'s `littlecedar` registry pointed at
   `file:///home/siv/src/sparkrun-recipe-registry` (a workstation-only path), so any recipe using
-  `@littlecedar/mods/…` failed with `Failed to ensure registry 'littlecedar' on 10.0.4.30`; repointed
+  `@littlecedar/mods/…` failed with `Failed to ensure registry 'littlecedar' on `.30`; repointed
   at the GitHub URL and the DaisyRose boot then passed (registry is `trusted: false`, so it ran with
   `--trust`). And a launch-failure fallback in my boot helper once armed a watchdog against the
   **fenced production serve's** id (`58cddf1c62ba6578_b8865cad5863`) after reading the wrong job from
