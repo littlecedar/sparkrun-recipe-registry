@@ -165,7 +165,7 @@ class BoardRender(unittest.TestCase):
         text = self.render()
         self.assertEqual(skeleton(text), [
             "## In flight", "| where | owner | what |",
-            "## Work queue", "| job | node cost | holds | state |",
+            "## Work queue", "| job | node cost | blockers | holds | status | summary |",
             "## Landed session", "| time ET | commit | one clause |"])
         self.assertEqual(inflight_order(text)[:13],
                          ["census", "pool", "queue", "window", "campaign", "lease",

@@ -28,10 +28,10 @@ flowchart LR
   classDef no-recorded-edge stroke-dasharray: 4 3
 ```
 
-| job | node cost | holds | state |
-|---|---|---|---|
-| `board-census-tool` — Consolidate the per-tick census probe into one stdlib tool | single | — | queued — The probe script and its parser were rewritten every tick; a transcription slip shipped a 60 000 B phantom delta on 2026-11-09. |
-| `board-render-tool` — Render STATUS.md from the evidence document and the register | — | board-census-tool | blocked |
+| job | node cost | blockers | holds | status | summary |
+|---|---|---|---|---|---|
+| `board-census-tool` — Consolidate the per-tick census probe into one stdlib tool | single | — | board-render-tool | queued | — The probe script and its parser were rewritten every tick; a transcription slip shipped a 60 000 B phantom delta on 2026-11-09. |
+| `board-render-tool` — Render STATUS.md from the evidence document and the register | — | board-census-tool | — | blocked | — |
 
 ## Landed session
 Window: commits since `2026-11-22T00:13:43Z` — the base census stamp, later than the 24 h start `2026-11-21T01:12:37Z`; older rows are not shown.
