@@ -8,7 +8,12 @@ text to emit ~10 KB of cells, with the arithmetic done by hand (a hardcoded dire
 out inverted against its own parsed deltas, 2026-11-17).  This tool derives every cell: the
 `## In flight` rows from one census evidence document, the `## Work queue` block from the
 register through `task-queue.py`'s own `board_rows`/`graph_body`, and the `## Landed session`
-rows from `git log --since=<base census stamp>`.
+rows from `git log`, filtered to the rolling window the section states.
+
+Landed is a rolling day, not history: the window starts at
+`max(base census stamp, census − 24 h)`, so an hourly tick shows its own interval, a tick after a
+gap shows the last day rather than replaying the gap, and the table's first line names the start
+it used.  Older rows live in git and `SESSION-RECORD.md`.
 
 Usage:
     tools/board-render.py --evidence .local/board-evidence/<ISO>.json \
@@ -343,13 +348,42 @@ def live_lease_rows(evidence: dict) -> list[str]:
 
 # ---------------------------------------------------------------- Work queue / Landed
 
-def landed_rows(repo: Path, base: str | None) -> list[str]:
-    if not base:
-        return []
+#: The Landed table is a rolling day, not history: a tick after a long gap must not replay a week
+#: of commits, and a normal hourly tick already covers the last hour.  The window starts at the
+#: base census stamp when that is later, so an ordinary tick still shows exactly its own interval.
+LANDED_WINDOW = timedelta(hours=24)
+
+
+def landed_window(evidence: dict) -> tuple[datetime, str, datetime]:
+    """(start, which rule won, the rolling start) for the Landed table.
+
+    `max(base census stamp, census − 24 h)`: the base wins on a normal tick (it is the newer
+    measurement), the rolling day wins after a gap or on a first run with no base.
+    """
+    at = _parse(evidence["at"])
+    rolling = at - LANDED_WINDOW
+    base = evidence.get("base")
+    if base and _parse(base) > rolling:
+        return _parse(base), "base", rolling
+    return rolling, "24h", rolling
+
+
+def landed_window_line(evidence: dict) -> str:
+    """One derived line naming the window, so a reader can tell why older rows are absent."""
+    start, rule, rolling = landed_window(evidence)
+    stamp = start.strftime("%Y-%m-%dT%H:%M:%SZ")
+    if rule == "base":
+        return (f"Window: commits since `{stamp}` — the base census stamp, later than the "
+                f"24 h start `{rolling.strftime('%Y-%m-%dT%H:%M:%SZ')}`; older rows are not shown.")
+    return f"Window: commits since `{stamp}` — the 24 h before this census."
+
+
+def landed_rows(repo: Path, since: datetime) -> list[str]:
+    """Rows for commits authored at or after `since`; the filter is on the date each row shows."""
     try:
         proc = subprocess.run(
-            ["git", "-C", str(repo), "log", f"--since={base}",
-             "--format=%h %at %s"], capture_output=True, text=True)
+            ["git", "-C", str(repo), "log", "--format=%h %at %s"],
+            capture_output=True, text=True)
     except OSError as exc:
         return [f"| — | — | `git log` unavailable: {_cell(exc)} |"]
     if proc.returncode != 0:
@@ -361,6 +395,8 @@ def landed_rows(repo: Path, base: str | None) -> list[str]:
         if len(fields) != 3:
             continue
         sha, epoch, subject = fields
+        if int(epoch) < since.timestamp():
+            continue
         when = datetime.fromtimestamp(int(epoch), timezone.utc).astimezone(_ET)
         rows.append(f"| {when.strftime('%m-%d %H:%M')} | `{sha}` | {_cell(subject)} |")
     return list(reversed(rows))
@@ -391,8 +427,9 @@ def render(evidence: dict, prev: dict | None, register: Path, repo: Path,
     lines = [title, "", "## In flight", "| where | owner | what |", "|---|---|---|", *inflight,
              "", "## Work queue", "```mermaid", *graph, "```", "",
              *tq.board_rows(data, register),
-             "", "## Landed session", "| time ET | commit | one clause |", "|---|---|---|",
-             *landed_rows(repo, evidence.get("base"))]
+             "", "## Landed session", landed_window_line(evidence), "",
+             "| time ET | commit | one clause |", "|---|---|---|",
+             *landed_rows(repo, landed_window(evidence)[0])]
     return "\n".join(lines) + "\n"
 
 

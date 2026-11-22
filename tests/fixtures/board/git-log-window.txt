@@ -1,0 +1,4 @@
+w30aaaa 1795201957 Thirty hours before the census
+w02bbbb 1795302757 Two hours before the census
+w09cccc 1795304557 Ninety minutes before the census
+w03dddd 1795308157 Thirty minutes before the census

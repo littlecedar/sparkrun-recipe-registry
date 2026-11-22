@@ -34,6 +34,8 @@ flowchart LR
 | `board-render-tool` — Render STATUS.md from the evidence document and the register | — | board-census-tool | blocked |
 
 ## Landed session
+Window: commits since `2026-11-22T00:13:43Z` — the base census stamp, later than the 24 h start `2026-11-21T01:12:37Z`; older rows are not shown.
+
 | time ET | commit | one clause |
 |---|---|---|
 | 11-21 19:40 | `e4f5a6b` | Add the census evidence schema |

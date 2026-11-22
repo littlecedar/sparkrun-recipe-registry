@@ -16,17 +16,22 @@ What is pinned:
 * the shape: section order, the three table headers, and the In flight key order — the renderer
   reproduces the board's skeleton even where a cell's contents differ;
 * the arithmetic: a delta's sign becomes its direction word, the base interval is computed, and a
-  node absent from the base says so instead of inventing a number.
+  node absent from the base says so instead of inventing a number;
+* the Landed window: `max(base census stamp, census − 24 h)`, with a 30 h commit excluded and a
+  2 h one kept, a 90 min base winning over the rolling day, and the section's first line naming
+  the computed start.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -35,9 +40,10 @@ TASK_QUEUE = REPO_ROOT / "tools" / "task-queue.py"
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "board"
 EXPECTED = FIXTURES / "expected-STATUS.md"
 
-#: `git -C <repo> log --since=<base> --format=%h %at %s` -> the checked-in log, newest first.
+#: `git -C <repo> log --format=%h %at %s` -> the checked-in log, newest first; the tool filters
+#: the rows itself, so a window test only has to choose the log.
 GIT_STUB = """#!/bin/sh
-cat "$FIXTURES/git-log.txt"
+cat "$FIXTURES/${GIT_LOG_FIXTURE:-git-log.txt}"
 """
 
 
@@ -105,6 +111,44 @@ class BoardRender(unittest.TestCase):
             capture_output=True, text=True, env=self.env)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         return self.out.read_text(encoding="utf-8")
+
+    def render_with(self, evidence: dict, log_fixture: str) -> str:
+        path = self.root / "evidence-window.json"
+        path.write_text(json.dumps(evidence), encoding="utf-8")
+        out = self.root / "board-window.md"
+        proc = subprocess.run(
+            [sys.executable, "-B", str(TOOL), "--evidence", str(path),
+             "--register", str(FIXTURES / "register.json"),
+             "--repo", str(self.root), "--out", str(out)],
+            capture_output=True, text=True,
+            env=dict(self.env, GIT_LOG_FIXTURE=log_fixture))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return out.read_text(encoding="utf-8")
+
+    def test_landed_without_a_base_is_the_last_24_hours(self):
+        """A 30 h commit is out, a 2 h one is in, and the section names the start it computed."""
+        evidence = json.loads((FIXTURES / "evidence-next.json").read_text(encoding="utf-8"))
+        evidence["base"] = None
+        at = datetime.fromisoformat(evidence["at"].replace("Z", "+00:00"))
+        start = (at - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        text = self.render_with(evidence, "git-log-window.txt")
+        self.assertIn(f"Window: commits since `{start}` — the 24 h before this census.", text)
+        self.assertIn("Two hours before the census", text)
+        self.assertNotIn("Thirty hours before the census", text)
+
+    def test_a_ninety_minute_base_beats_the_24_hour_window(self):
+        evidence = json.loads((FIXTURES / "evidence-next.json").read_text(encoding="utf-8"))
+        at = datetime.fromisoformat(evidence["at"].replace("Z", "+00:00"))
+        base = (at - timedelta(minutes=90)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        rolling = (at - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        evidence["base"] = base
+        text = self.render_with(evidence, "git-log-window.txt")
+        self.assertIn(
+            f"Window: commits since `{base}` — the base census stamp, later than the 24 h "
+            f"start `{rolling}`; older rows are not shown.", text)
+        self.assertIn("Thirty minutes before the census", text)
+        self.assertIn("Ninety minutes before the census", text)  # the boundary is included
+        self.assertNotIn("Two hours before the census", text)
 
     def test_renders_the_checked_in_board_byte_for_byte(self):
         text = self.render()
