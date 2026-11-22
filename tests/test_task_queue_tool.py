@@ -561,8 +561,8 @@ class BoardAndArchive(unittest.TestCase):
     def test_board_emits_the_status_columns(self):
         payload = data([task("b", 1.0), task("a", 2.0, ["b"])])
         rows = tq.board_rows(payload)
-        self.assertEqual(rows[0], "| job | node cost | holds | state |")
-        self.assertTrue(all(r.count("|") == 5 for r in rows), "four columns, as the board has")
+        self.assertEqual(rows[0], "| job | node cost | blockers | holds | status | summary |")
+        self.assertTrue(all(r.count("|") == 7 for r in rows), "six columns, as the board has")
         body = "\n".join(rows[2:])
         self.assertIn("`a`", body)
         self.assertIn("`b`", body)
@@ -582,7 +582,7 @@ class BoardAndArchive(unittest.TestCase):
         t["notes"] = "first line\n\nFraming: `p50` vs NVMe | staging withdrawn"
         rows = tq.board_rows(data([t]))
         self.assertEqual(len(rows), 3, "one row per task, never a wrapped line")
-        self.assertTrue(all(len(re.split(r"(?<!\\)\|", r)) == 6 for r in rows), "four cells per row")
+        self.assertTrue(all(len(re.split(r"(?<!\\)\|", r)) == 8 for r in rows), "six cells per row")
         self.assertIn(r"vs NVMe \| staging", rows[2])
         self.assertIn("first line Framing:", rows[2])
 
@@ -631,25 +631,54 @@ class BoardAndArchive(unittest.TestCase):
         tq._set_summary(t, text)
         return t
 
+    def _cells(self, row):
+        """One row's cells, in header order: job, node cost, blockers, holds, status, summary."""
+        return [c.strip() for c in re.split(r"(?<!\\)\|", row)[1:-1]]
+
     def test_a_fresh_summary_is_the_board_cell(self):
         """The whole point of the field: the tick writes one sentence, the board shows it."""
         t = task("a", 1.0)
         t["notes"] = "a long note the summary replaces"
         t["evidence"] = "~/benchmarks/lane-20261121/REPORT.md"
         tq._set_summary(t, "the arm is ready to boot")
-        row = tq.board_rows(data([t]))[2]
-        self.assertIn("the arm is ready to boot", row)
-        self.assertNotIn("a long note", row)
-        self.assertNotIn("evidence:", row, "a fresh summary is the whole state cell")
+        cells = self._cells(tq.board_rows(data([t]))[2])
+        self.assertEqual(cells[4], "queued", "the status column carries the state word verbatim")
+        self.assertEqual(cells[5], "the arm is ready to boot")
+        self.assertNotIn("a long note", cells[5])
+        self.assertNotIn("evidence:", cells[5], "a fresh summary is the whole summary cell")
 
     def test_editing_notes_invalidates_the_summary(self):
         t = self._summarized()
         self.assertIn("the board cell", tq.board_rows(data([t]))[2])
         t["notes"] = "a new finding"
-        row = tq.board_rows(data([t]))[2]
-        self.assertNotIn("the board cell", row)
-        self.assertIn("queued — a new finding", row, "falls back to today's note prefix")
+        cells = self._cells(tq.board_rows(data([t]))[2])
+        self.assertEqual(cells[4], "queued")
+        self.assertEqual(cells[5], "— a new finding",
+                         "the fallback keeps the note prefix but not a duplicated state word")
         self.assertFalse(tq.summary_fresh(t))
+
+    def test_a_stale_row_keeps_the_state_word_out_of_the_summary(self):
+        """Negative control on the pre-change layout: the state word lived inside this cell."""
+        t = task("a", 1.0)
+        t["notes"] = "a finding"
+        cells = self._cells(tq.board_rows(data([t]))[2])
+        self.assertEqual(cells[4], "queued")
+        self.assertEqual(cells[5], "— a finding")
+        self.assertNotIn("queued", cells[5], "the status column is the only place the state appears")
+
+    def test_both_edges_render_in_their_own_columns(self):
+        """`blockers` is blocked_by and `holds` is blocks; the old single column conflated them."""
+        tasks = [task("c", 1.0, ["a"]), task("a", 2.0, ["b"]), task("b", 3.0)]
+        rows = tq.board_rows(data(tasks))
+        cells = {row.split("`")[1]: self._cells(row) for row in rows[2:]}
+        self.assertEqual((cells["a"][2], cells["a"][3]), ("c", "b"),
+                         "blocked_by in blockers, blocks in holds")
+        self.assertNotEqual(cells["a"][2], cells["a"][3],
+                            "the old mislabelled column put one edge in one cell and nothing in the other")
+
+    def test_a_row_with_no_edges_renders_dashes_in_both_columns(self):
+        cells = self._cells(tq.board_rows(data([task("a", 1.0)]))[2])
+        self.assertEqual((cells[2], cells[3]), ("—", "—"))
 
     def test_editing_state_or_evidence_invalidates_the_summary(self):
         for field, value in (("state", "running"), ("evidence", "receipts/x.md")):
@@ -1215,7 +1244,8 @@ def board_text(census, title=None):
             f"| census | this tick | **{census} ET** measured |\n"
             "| pool | — | serving |\n| queue | — | 0 open |\n| window | — | none |\n"
             "| campaign | — | idle |\n| publication | tick | base sha |\n\n"
-            "## Work queue\n\n| job | node cost | holds | state |\n|---|---|---|---|\n\n"
+            "## Work queue\n\n| job | node cost | blockers | holds | status | summary |\n"
+            "|---|---|---|---|---|---|\n\n"
             "## Landed session\n\n| time ET | commit | one clause |\n|---|---|---|\n")
 
 

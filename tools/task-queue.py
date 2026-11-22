@@ -1159,19 +1159,22 @@ NOTE_BUDGET = 240
 def board_rows(data: dict, path: Path | None = None) -> list[str]:
     """The STATUS.md `## Work queue` table, derived from the register.
 
-    Columns are the board's own: job, node cost, holds, state.  `holds` is the task's
-    `blocked_by` (what must clear first), and the state cell carries the note's opening —
-    `NOTE_BUDGET` characters, then a pointer to `queue.json` — because the note lives in exactly
-    one place and a second whole copy is what made the board 82 KB.
+    Columns are the board's own: job, node cost, blockers, holds, status, summary.  `blockers` is
+    the task's `blocked_by` (what must clear first) and `holds` its `blocks` (what waits on it);
+    `status` is the register's `state` verbatim; and the summary cell carries the row's stored
+    `summary` when fresh, else the note's opening — `NOTE_BUDGET` characters, then a pointer to
+    `queue.json` — because the note lives in exactly one place and a second whole copy is what
+    made the board 82 KB.
     """
     ordered = ordering(data, path)
     tiers = _tiers(data["priority_models"])
-    lines = ["| job | node cost | holds | state |", "|---|---|---|---|"]
+    lines = ["| job | node cost | blockers | holds | status | summary |",
+             "|---|---|---|---|---|---|"]
     for _tier, task in enumerate_tasks_with_tier(ordered, tiers):
         if summary_fresh(task):
-            state = task["summary"]
+            summary = task["summary"]
         else:
-            state = task["state"]
+            summary = ""
             if task.get("notes"):
                 note = task["notes"]
                 if len(note) > NOTE_BUDGET:
@@ -1179,11 +1182,13 @@ def board_rows(data: dict, path: Path | None = None) -> list[str]:
                     if note.count("`") % 2:  # cut inside a code span: drop the stub, not the pair count
                         note = note[:note.rindex("`")]
                     note += "… (full note: queue.json)"
-                state = f"{state} — {note}"
+                summary = f"— {note}"
             if task.get("evidence"):
-                state = f"{state} — evidence: `{task['evidence']}`"
+                summary = f"{summary} — evidence: `{task['evidence']}`"
         lines.append(f"| `{task['id']}` — {_cell(task['title'])} | {task['node_cost'] or '—'} "
-                     f"| {_cell(', '.join(task['blocked_by']) or '—')} | {_cell(state)} |")
+                     f"| {_cell(', '.join(task['blocked_by']) or '—')} "
+                     f"| {_cell(', '.join(task['blocks']) or '—')} "
+                     f"| {_cell(task['state'])} | {_cell(summary) or '—'} |")
     return lines
 
 
