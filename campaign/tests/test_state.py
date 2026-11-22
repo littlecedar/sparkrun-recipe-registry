@@ -173,5 +173,26 @@ class Reconciliation(unittest.TestCase):
         self.assertFalse(self.campaign.refresh("one", path="x", tp=1, env={}, task="t1"))
 
 
+class RecordStaysAtTheRoot(unittest.TestCase):
+    """`--root` is the only place `state.json` is written; nothing copies it into a receipt dir.
+
+    The 2026-11-11 campaign root carried 40 byte-identical copies, one level deeper per run under
+    a `tp12-window` receipt dir. No director code copies the record, so the nesting came from
+    pointing `--root` inside the receipts tree; this pins that a second run writes one file.
+    """
+
+    def test_a_second_run_does_not_nest_the_record(self) -> None:
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        for index in range(2):
+            campaign = state.Campaign.open(root / "state.json", campaign="test")
+            if index == 0:
+                campaign.add("one", "recipes/lane/one.yaml")
+            campaign.save()
+            campaign.close()
+        found = sorted(p.relative_to(root).as_posix() for p in root.rglob("state.json"))
+        self.assertEqual(found, ["state.json"])
+
+
 if __name__ == "__main__":
     unittest.main()

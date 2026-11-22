@@ -160,6 +160,14 @@ refuses the same way, and a `--root` on a mount served by a rank is **not** dete
 knows the record host as the host running the director, and a real out-of-band record host is a
 recorded gap, not built.
 
+**The record is written at `--root` and nowhere else.** Nothing in the director copies `state.json`
+into a receipt dir — `Campaign.save()` writes `self.path` — so a nested copy is an operator error,
+not a code path: a run whose `--root` sits inside a receipts tree (or inside a previous window's
+receipt dir) puts the record there and the next run nests one level deeper, which is how one
+campaign root came to carry 40 byte-identical copies (2026-11-11). Keep `--root` outside
+`--receipts-root`; `campaign/tests/test_state.py::RecordStaysAtTheRoot` pins that a second run over
+the same root writes one file.
+
 The owner's `.30` conditions are a **memory** guardrail (earlyoom, negative `OOMScoreAdjust`, the
 window's guard script) and say nothing about record survival. A six-node boot on `.30` needs
 both: the declared memory window with its lease-time proof, and this record-risk declaration.
