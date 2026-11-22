@@ -3515,7 +3515,7 @@
         "ds4-fp4-kv-layout-sm121-port"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "scheduled",
       "model": "deepseek-v4.1-flash-1017",
       "node_cost": "single",
       "notes": "ENGINE WORK on the dev host, not a fleet boot: the quartet boot that proves it is the parent row's, which this row unblocks. UPSTREAM ALREADY HAS THE LAYOUT: vllm/config/cache.py:47-48 lists fp8_ds_mla and nvfp4_ds_mla, vllm/_custom_ops.py:3060 ships cp_gather_and_upconvert_nvfp4_kv_cache (an NVFP4 cache [num_blocks, block_size, 352] uint8 gathered into a BF16 [tokens, 576] workspace -- the same 576-wide MLA head as this checkpoint), and the validator admits nvfp4 only 'with a sparse MLA backend' (vllm/config/vllm.py:3234-3245). THE GAP IS BACKEND SELECTION ON GB10: the SM120 sparse-MLA backend forces fp8_ds_mla, nvfp4_ds_mla selects no backend, and FLASHINFER_MLA_SPARSE is unsupported on GB10 (glm53 receipt ~/benchmarks/glm53-flash-20261013/; mad-science/SESSION-RECORD.md:69-71). So the deliverable is the layout's page geometry plus the backend's acceptance in our fork local-inference-lab/vllm dsv41-feat @ e47aa780b, mounted as a patch overlay exactly as the SM12x page and top-k fixes already are (.scratch/ds4/tonyd2wild-vllm/patch/README.md, sm12x-pages/, sm12x-indexer-topk/RESULTS.md; verify_diffs.sh proves the mounted files byte-for-byte). ACCEPTANCE: --kv-cache-dtype nvfp4_ds_mla boots the sparse backend on GB10 and the engine's own GPU KV cache size line reports the nvfp4 bytes/token (352 against the fp8 packed 976), with a needle cell passing and the layout's diff test green before the serve boot. estimate: provisional -- the parent's 6 h split 4/2 with the SGLang row; 2 h assumes the upstream upconvert path is reused rather than a native nvfp4 MLA kernel written.\n\nOWNER DECISION 2026-11-22: the SGLang port goes first and this row waits for it, so it stays queued behind ds4-fp4-kv-layout-sm121-port-sglang. Scope is unchanged; only the ordering is stated.",
@@ -3525,7 +3525,9 @@
       "claimed_at": "",
       "summary": "Queued engine work: upstream vLLM already ships nvfp4_ds_mla at 352 B/token against fp8 packed 976; the gap is the SM120 sparse-MLA backend selecting it on GB10, patched in the fork overlay, then the parent TP4 boot.",
       "summary_src": "97d7c21e46c39f846ade75b2ad7e9db7bcb538380d373cc6ec2d4f550d7aeab5",
-      "summary_at": "2026-11-22T07:02:18Z"
+      "summary_at": "2026-11-22T07:02:18Z",
+      "scheduled_by": "session-director:sglang-fp4-kv-port",
+      "scheduled_at": "2026-11-22T22:57:33Z"
     },
     {
       "id": "laguna-m1-vllm-v032-reboot",
