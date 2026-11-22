@@ -199,9 +199,13 @@ Rules that follow:
 - **A settled question or decision stays prose.** `QUESTIONS.md` keeps the unresolved rows,
   `TODO.md` §"Settled questions" and `# DECISIONS` keep the answered ones — they are read by a human
   chasing a citation, not by a tick, so they are correctly outside the JSON.
-- **The board is derived.** `task-queue.py render --board` emits the `## Work queue` table that
-  `STATUS.md` carries; a tick copies it instead of re-typing it, and `render` (no flag) still emits
-  the weighted ordering table for a human.
+- **The board is rendered by script; a model only writes summaries.** `tools/board-tick.py` takes a
+  flock, censuses the fleet, renders every cell through `board-render.py` (the `## Work queue` table
+  comes from `task-queue.py render --board`), publishes through `task-queue.py publish`, then
+  commits, gates and pushes. A model is invoked only when `board-tick.py --needs-summary` reports a
+  register row whose `summary` is missing or stale; it writes those with `task-queue.py summarize`
+  and re-runs the tick. The ledger `.local/board-tick.jsonl` records each invocation's outcome and
+  `model_calls`; `render` (no flag) still emits the weighted ordering table for a human.
 - **A publish is not complete until the worktree copy is written.** After `publish` and the push,
   refresh this clone's worktree from `origin/main` — content only, never a checkout, reset or branch
   change — because peer sessions and humans read the worktree file and this clone's `main` cannot

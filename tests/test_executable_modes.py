@@ -30,6 +30,10 @@ DIRECTLY_INVOKED = {
         "[executor, recipe, hosts]) and tools/README.md tells operators to run it",
     "tools/queue-drip.py":
         "tools/README.md and its own usage run it directly (`tools/queue-drip.py --once`)",
+    "tools/board-tick.py":
+        "tools/README.md documents it as the hourly entry point (`tools/board-tick.py`), so the "
+        "shebang and the committed bit are part of its contract (the omp extension calls it "
+        "through `python3`)",
 }
 
 
