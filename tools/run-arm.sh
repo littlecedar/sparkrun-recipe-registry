@@ -163,6 +163,39 @@ print("\n".join(r.get("owner","") for r in rows if not r.get("alive", True) and 
   sparkrun daemon resources reconcile "$owner" --acknowledge-effects 2>&1 | tail -1
 done
 
+# claim-release: start
+# `sparkrun daemon resources list` is the fleet's one record of who holds a host, and a claim is
+# released by the owning PROCESS exiting -- not by the executor that gave up on it. Measured
+# 2026-11-08 04:09-04:14 ET: a quartet launcher held four ranks through its own failed registry
+# distribution, run-arm.sh declared the arm failed and moved on, and the next three arms were
+# refused on "Execution resources are busy ... held by running pid". Waiting for the record to
+# clear is what makes the next arm's launch honest; the claim's holder is never touched.
+claim_held() { sparkrun daemon resources list 2>/dev/null | grep -q '"resource": "\*"'; }
+
+# The refused-claim signature in the launcher's own log: a terminal refusal, not a dead engine.
+claim_busy() { grep -q "Execution resources are busy" "$L/launch.log" 2>/dev/null; }
+
+release_claim() {
+  # Kill the launcher if it is still alive (the ceiling path), then wait for the daemon's record.
+  [ -n "${LAUNCH:-}" ] && kill "$LAUNCH" 2>/dev/null
+  claim_poll=${ARM_CLAIM_RELEASE_POLL:-5}
+  claim_waited=0
+  while claim_held && [ "$claim_waited" -lt "${ARM_CLAIM_RELEASE_WAIT:-120}" ]; do
+    sleep "$claim_poll"
+    claim_waited=$((claim_waited + claim_poll))
+  done
+  if claim_held; then
+    { echo "claim still held after ${claim_waited}s: the next arm must not launch on it"
+      sparkrun daemon resources list 2>/dev/null | head -20; } > "$L/claim-release.txt"
+    echo "claim: STILL HELD after ${claim_waited}s (evidence $L/claim-release.txt)"
+    return 1
+  fi
+  printf 'claim released after %ss\n' "$claim_waited" > "$L/claim-release.txt"
+  echo "claim: released after ${claim_waited}s"
+  return 0
+}
+# claim-release: end
+
 # ARM_OPTS carries `-o key=value` overrides for one-off knobs (a sweep leg, a different
 # draft-token count). Without it every setting needs its own recipe file. A campaign row's `env`
 # reaches this script as environment, so `ARM_OPTS` is the row's launch-override field: no
@@ -721,6 +754,17 @@ while :; do
       | tr -d '\r' || true)
   [ -n "$N" ] && break
   waited=$((SECONDS - appear_start))
+  # A refused claim is not a dead engine: sparkrun exits without creating a container and names the
+  # holder. It gets its own code so a driver retries later instead of recording a failed
+  # measurement (measured 2026-11-08: three arms read as failed boots on a live peer claim).
+  if ! kill -0 "$LAUNCH" 2>/dev/null && claim_busy; then
+    { echo "# claim refusal: a sparkrun holder still owns a host; nothing was armed or retried"
+      grep -m3 "Execution resources are busy" "$L/launch.log"; } > "$L/claim-busy.txt"
+    echo "ARM BUSY $NAME: sparkrun refused the claim; a holder still owns a host."
+    echo "  Nothing armed, nothing retried. Evidence: $L/claim-busy.txt"
+    OOM_DONE=1   # nothing ran, so there is no OOM window to attribute
+    exit 18
+  fi
   # A sparkrun placement refusal is terminal and is not a boot: the launcher exits non-zero
   # without creating a container for this launch. Record the refusal and its tail, arm nothing
   # (no watchdog, no sampler, no guard), retry nothing, and exit on its own code. Measured
@@ -746,6 +790,7 @@ while :; do
     # This is exactly the marlin shape: an engine killed during init leaves no container, so
     # its 137/143 is attributable only from here.
     oom_watchdog_check
+    release_claim
     exit 5
   fi
   # At the ceiling the launcher is still alive, so it is killed first and the failure is then
@@ -756,6 +801,7 @@ while :; do
     tail -5 "$L/launch.log"
     kill "$LAUNCH" 2>/dev/null
     oom_watchdog_check
+    release_claim
     exit 1
   fi
   sleep "$APPEAR_POLL"

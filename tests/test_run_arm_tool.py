@@ -520,6 +520,106 @@ class ScopedInferenceWatchdog(unittest.TestCase):
                          "the case survived the mutation; the picom guard is void")
 
 
+def claim_block(text: str) -> str:
+    """The claim-release helpers verbatim, so a harness can drive the real control flow."""
+    start = text.index("# claim-release: start")
+    end = text.index("# claim-release: end", start) + len("# claim-release: end")
+    return text[start:end]
+
+
+class ClaimRelease(unittest.TestCase):
+    """A launch that produced no container releases its host claim before the next arm.
+
+    Measured 2026-11-08 04:09-04:14 ET: a quartet launcher held four ranks through its own failed
+    registry distribution while run-arm.sh declared the arm failed and moved on, and the next three
+    arms were refused on `Execution resources are busy ... held by running pid`. A claim is released
+    by the owning process exiting, so the release is waited for and recorded, never assumed.
+    """
+
+    HELD = '[{"owner": "pid-1883449", "resource": "*", "alive": true}]'
+
+    def run_block(self, listing: list[str], launch_log: str | None = None,
+                  wait: str = "0") -> tuple[int, str, str]:
+        """Drive `release_claim` then `claim_busy` against a stub `sparkrun` listing `listing`.
+
+        The stub answers with `listing[call]` and repeats the last entry once exhausted, so one
+        line is a claim that never clears and two are a claim that clears on the second look.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            receipt = tmp / "receipt"
+            receipt.mkdir()
+            bins = tmp / "bin"
+            bins.mkdir()
+            stub = bins / "sparkrun"
+            stub.write_text(
+                "#!/usr/bin/env bash\n"
+                f'count={str(tmp / "count")!r}\n'
+                f'listing={str(tmp / "listing")!r}\n'
+                'n=$(cat "$count" 2>/dev/null || echo 0)\n'
+                'n=$((n + 1)); printf "%s\\n" "$n" > "$count"\n'
+                'line=$(sed -n "${n}p" "$listing")\n'
+                '[ -n "$line" ] || line=$(tail -1 "$listing")\n'
+                'printf "%s\\n" "$line"\n'
+            )
+            stub.chmod(0o755)
+            (tmp / "listing").write_text("\n".join(listing) + "\n")
+            if launch_log is not None:
+                (receipt / "launch.log").write_text(launch_log)
+            script = tmp / "claim.sh"
+            script.write_text(
+                "#!/usr/bin/env bash\n"
+                "set -uo pipefail\n"
+                f"L={str(receipt)!r}\n"
+                + claim_block(read_tool())
+                + "\nrelease_claim\n"
+                'echo "release_rc=$?"\n'
+                'claim_busy && echo "busy=yes" || echo "busy=no"\n'
+            )
+            env = {**os.environ, "PATH": f"{bins}:{os.environ['PATH']}",
+                   "ARM_CLAIM_RELEASE_WAIT": wait, "ARM_CLAIM_RELEASE_POLL": "1"}
+            out = subprocess.run(["bash", str(script)], capture_output=True, text=True,
+                                 check=False, env=env, timeout=60)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            recorded = receipt / "claim-release.txt"
+            text = recorded.read_text() if recorded.is_file() else "<absent>"
+            return 0, out.stdout + out.stderr, text
+
+    def test_a_claim_that_never_clears_is_reported_not_assumed_released(self):
+        _rc, out, recorded = self.run_block([self.HELD])
+        self.assertIn("release_rc=1", out)
+        self.assertIn("STILL HELD", out)
+        self.assertIn("still held", recorded)
+        self.assertIn("pid-1883449", recorded, "the holder was not named in the evidence")
+
+    def test_a_claim_that_clears_is_recorded_as_released(self):
+        _rc, out, recorded = self.run_block([self.HELD, "[]"], wait="5")
+        self.assertIn("release_rc=0", out)
+        self.assertIn("claim: released", out)
+        self.assertIn("released", recorded)
+
+    def test_a_refused_claim_is_told_apart_from_a_dead_engine(self):
+        busy = "Error: Execution resources are busy: * held by running pid 1883449\n"
+        _rc, out, _recorded = self.run_block(["[]"], launch_log=busy)
+        self.assertIn("busy=yes", out)
+        _rc, out, _recorded = self.run_block(["[]"], launch_log="engine died at init\n")
+        self.assertIn("busy=no", out)
+
+    def test_the_no_container_exits_release_the_claim_first(self):
+        """Static: both prompt failure paths call `release_claim` before exiting."""
+        text = read_tool()
+        for anchor, code in (("ARM FAIL $NAME: launcher exited with no container", "exit 5"),
+                             ("ARM FAIL $NAME: no container appeared after", "exit 1")):
+            at = text.index(code, text.index(anchor))
+            self.assertIn("release_claim", text[at - 80: at], f"{code} does not release the claim")
+
+    def test_a_refused_claim_has_its_own_exit_code(self):
+        text = read_tool()
+        at = text.index("ARM BUSY $NAME")
+        self.assertIn("exit 18", text[at: at + 400], "a refused claim reads as a failed boot")
+        self.assertIn("claim-busy.txt", text[at: at + 400])
+
+
 class OverrideEvidence(unittest.TestCase):
     """A row-env ARM_OPTS reaches `sparkrun run` with its values whole and is recorded verbatim.
 
