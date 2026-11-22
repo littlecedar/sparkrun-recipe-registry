@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 Little Cedar Group
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Local-only SM121 image: the DS4 lane's FlashInfer-0.7.3 base
+# (`dsv41-sm121-dg:0.2.1-fi073e`, itself the c3-reconciled tree + the arm-5
+# 0.7.x deltas) plus the V4.1 KV-layout port from queue row
+# `ds4-fp4-kv-layout-sm121-port-sglang`: the capability gate, the fp4 pool
+# sizing term, and the SM120 inline reader wiring in `patch_dsv41_fp4kv.py`.
+#
+# Nothing is pushed and no recipe pins it: the parent's quartet boot carries
+# this digest with `docker save | ssh … docker load`, like the DeepGEMM SM121
+# backport. Build it on the head host from the register's checkout:
+#
+#   docker build -f recipes/ds4/Dockerfile.dsv41-fp4kv \
+#       -t dsv41-sm121-dg:0.2.1-fp4kv .
+#
+# The build gates on the patcher (every anchor exactly once, every
+# post-condition asserted) and on the three modules importing, so a base-tree
+# move fails the build instead of shipping a half-patched image.
+FROM dsv41-sm121-dg:0.2.1-fi073e
+
+COPY recipes/ds4/patch_dsv41_fp4kv.py recipes/ds4/fp4kv_kv_format.py /tmp/fp4kv/
+RUN cp /tmp/fp4kv/fp4kv_kv_format.py \
+        /sgl-workspace/sglang/python/sglang/kernels/ops/attention/dsv4/ \
+ && python3 /tmp/fp4kv/patch_dsv41_fp4kv.py \
+ && python3 -c "import sglang.srt.mem_cache.deepseek_v4_memory_pool, \
+sglang.srt.model_executor.pool_configurator, \
+sglang.kernels.ops.attention.flash_mla_sm120; print('import ok')" \
+ && rm -rf /tmp/fp4kv
