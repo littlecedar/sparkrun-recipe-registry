@@ -17474,3 +17474,35 @@ verdict read directly.
   consequence (the head sees a peer's commit only after a fetch there) and the rollback (delete the
   line and rescan).
 - **Register.** `check` ok, **228 tasks: 218 done, 5 queued, 4 blocked, 1 running**.
+
+### 2026-11-22 16:40 ET — the window guard provably exits with its task
+
+- **Row closed: `mem-guard-teardown-live-proof` (done) — all four acceptance points pass, live.**
+  Three boots through `tools/run-arm.sh` with `ARM_WINDOW=mem-guard-20261122` on `.30` (the head is
+  the only legal driver: `run-arm.sh` resolves `$HOME/src/…` and puts the guard and the per-rank
+  samplers at `$HOME/benchmarks/<window>/`, so driver and lease host must share that path). Arm:
+  the audio8 TTS recipe, chosen because it readies in ~50 s; `ARM_ALLOW_FEW_SLOTS=1` because a TTS
+  arm has no chat surface, so the ladder is not a valid cell and the guard lifecycle is the subject.
+  (1) **PASS** — after boot A's own stop (task `7102a666beb48dcc_234cd465b76d`) guard pid `2111347`
+  is gone and `pgrep -f 'mem-guard.sh <tid>'` is empty. (2) **PASS** — sampler pid `2111948` gone,
+  path `pgrep` empty, and `mem-series-10.0.4.30.csv` stops at the stop. (3) **PASS** —
+  `guard-armed.txt` reads `state=armed`, `tid=<task id>`, `pid=2111347`,
+  `samplers=10.0.4.30 pid=2111948`, and `guard_line=… guard start tid=7102a666beb48dcc_234cd465b76d
+  start_epoch=1795382876`. (4) **PASS, negative control** — boot C (task
+  `7102a666beb48dcc_9debfdd86fd9`, guard `2162429`, sampler `2162881`) with the stop issued **out of
+  band** from a plain shell: both ALIVE before it, both gone within **32 s** after, `pgrep` empty,
+  `run-arm.sh` at `rc=4` with engine exit 137 and its trap fired. Receipt
+  `head:~/benchmarks/mem-guard-20261122/run.md`.
+- **The caveat is in the receipt, not buried:** the window scripts are **contract-shaped adaptations**
+  of the fleet's `fit-ds4-*-20261110` pair — the originals take positional arguments (and would die
+  under `set -u`) and are absent from the driver entirely, and no `mem-guard.sh` is tracked in git.
+  So this proves `run-arm.sh`'s arming and EXIT trap reap a guard and its samplers; it does **not**
+  exercise the 2026-11-10 script bodies.
+- **Two harness gaps fixed locally on the way in.** `.local/sparkrun-home`'s `WOPR.yaml` had no
+  `hf_cache` key, which `run-arm.sh`'s model preflight reads — it refused with "the model path could
+  not be resolved"; the key was added with the same value as `cache_dir`. And `run-arm.sh` hardcodes
+  `$HOME/src/sparkrun-recipe-registry`, so an override HOME needs a symlink at that path — which is
+  why the proof ran on the head with the real HOME rather than from the workstation.
+- **`mem-guard-outlives-its-task` stays `blocked`** — it is the row this proof was gating, and its own
+  note names a separate owner decision, so closing this one did not unblock it.
+- **Register.** `check` ok, **233 tasks: 218 done, 3 queued, 8 blocked, 4 ask, 0 running**.
