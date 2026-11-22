@@ -311,12 +311,14 @@ def node_row(evidence: dict, label: str, delta: dict) -> str:
     ring = node.get("ring") or {}
     window = ring.get("window") or {}
     ring_delta = delta.get("ring") or {}
+    # Only the ring's size is comparable tick to tick: each tick's in-window count is taken over
+    # its own window (this census's base to this read), so subtracting the previous document's
+    # count compares two different intervals and would read as a fall that never happened.
     segments.append(
         f"ring **{_f(ring.get('all'))}** events all-types "
         f"({_delta(ring_delta.get('all'))}), **{_f(window.get('lifecycle'))}** in-window "
-        f"lifecycle and **{_f(window.get('exec'))}** in-window `exec` "
-        f"({_delta(ring_delta.get('window_exec'))}), oldest `{ring.get('oldest')}`, newest "
-        f"`{ring.get('newest')}`")
+        f"lifecycle and **{_f(window.get('exec'))}** in-window `exec`, oldest "
+        f"`{ring.get('oldest')}`, newest `{ring.get('newest')}`")
     return f"| {label} | {role} | {_cell('<br>'.join(segments))} |"
 
 

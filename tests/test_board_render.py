@@ -136,6 +136,8 @@ class BoardRender(unittest.TestCase):
         self.assertIn("**1,649,791,016,960 B avail** (-979,200, fell)", text)
         # A node the base never saw states that instead of inventing a delta.
         self.assertIn("(no base, unmeasured)", text)
+        # A tick's in-window ring count is measured over its own window, so it carries no delta.
+        self.assertNotIn("in-window `exec` (", text)
         # The head's recorded delta becomes the pool row's restart arithmetic.
         self.assertIn("NRestarts 36,536, **+6** on the base", text)
         # Interval from the base census read (00:13:43Z) to the first node read (01:12:34Z).
