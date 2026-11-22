@@ -81,6 +81,11 @@ through the tool (`update --state running --claimed-by sparkrun-campaign:<campai
 with `--state done --evidence <measurement dir>` or, for a recorded negative,
 `--evidence "<doc>:<line> (measured-rejected)"`; the tool stays the register's only writer.
 
+**Retiring an arm is `update --unset recipe,tp`** (add `--id a,b` to repair several rows in one
+write): `attic/` is not a legal `recipe` path, so a row that keeps pointing at a retired arm reddens
+`check` for every writer. `--unset` deletes the named optional keys before validation runs — that
+ordering is what makes a red register repairable — and refuses any required field by name.
+
 ## Weight
 
 ```

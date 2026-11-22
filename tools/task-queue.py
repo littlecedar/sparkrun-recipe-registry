@@ -95,6 +95,10 @@ DEFAULT_BOARD = Path("mad-science/STATUS.md")
 STATES = ("queued", "running", "blocked", "done")
 NODE_COSTS = ("", "single", "pair", "quartet")
 REQUIRED_STR = ("id", "title", "model", "node_cost", "notes", "provenance")
+#: Every field a row must keep. `update --unset` refuses these by name: a repair may clear an
+#: optional key (a retired `recipe`, a stale `evidence`), never hollow out the row.
+REQUIRED_FIELDS = ("id", "title", "estimate_h", "state", "node_cost", "model", "notes",
+                   "provenance", "blocks", "blocked_by")
 #: The optional machine-runnable fields: a row that names a recipe and its node count can be
 #: launched by a scheduler (a campaign reads `queue --json`); a row without them is authoring,
 #: docs or analysis work that no scheduler may boot. Present means all of `recipe`/`tp`
@@ -563,6 +567,33 @@ def _relink(tasks: list[dict]) -> None:
         t["blocked_by"] = sorted(mirror.get(t["id"], set()))
 
 
+def _field_list(values: list[str] | None) -> list[str]:
+    """`["recipe,tp", "env"]` -> `["recipe", "tp", "env"]`: repeats and comma lists both work."""
+    return [field for value in (values or [])
+            for field in (part.strip() for part in value.split(",")) if field]
+
+
+def _unset(tasks: list[dict], task_id: str, fields: list[str]) -> list[str]:
+    """Delete optional keys from one row BEFORE validation, so a red register is repairable.
+
+    The third instance of the repair-before-validate defect: `check` refuses a `recipe` whose arm
+    was retired to `attic/`, and `update` validated on the line before it could clear the field, so
+    every write to a red register died on the row that needed the repair. An absent optional field
+    is a no-op, and a required one is refused by name rather than silently dropped.
+    """
+    task = next((t for t in tasks if isinstance(t, dict) and t.get("id") == task_id), None)
+    if task is None:
+        raise QueueError(f"{task_id}: no such task")
+    dropped = []
+    for field in fields:
+        if field in REQUIRED_FIELDS:
+            raise QueueError(f"{task_id}: '{field}' is a required field and cannot be unset")
+        if field in task:
+            del task[field]
+            dropped.append(field)
+    return dropped
+
+
 def _release_stale_claim(tasks: list[dict], task_id: str) -> None:
     """Clear a claim a non-running *target* row still carries, so `update` can repair it.
 
@@ -578,14 +609,45 @@ def _release_stale_claim(tasks: list[dict], task_id: str) -> None:
 
 def cmd_update(args, path: Path) -> None:
     data = load(path)
+    ids = _field_list([args.id])
+    if not ids:
+        raise QueueError("--id must name at least one task")
+    unset = _field_list(getattr(args, "unset", None))
+    if len(ids) > 1:
+        # A batch is the repair form a red register needs: validation is whole-file, so repairing a
+        # retired-recipe row one at a time can never save -- the next red row refuses the write.
+        # Only `--unset` means the same thing for every named row, so anything else is refused
+        # rather than applied to an arbitrary one.
+        single = [name for name, value in (
+            ("--state", args.state), ("--title", args.title), ("--model", args.model),
+            ("--node-cost", args.node_cost), ("--notes", args.notes),
+            ("--provenance", args.provenance), ("--evidence", getattr(args, "evidence", None)),
+            ("--recipe", getattr(args, "recipe", None)), ("--tp", getattr(args, "tp", None)),
+            ("--estimate-h", args.estimate_h), ("--blocks", args.blocks),
+            ("--claimed-by", args.claimed_by), ("--env", getattr(args, "env", None)),
+            ("--memory-risky", getattr(args, "memory_risky", None)),
+            ("--exclude-hosts", getattr(args, "exclude_hosts", None)),
+        ) if value is not None]
+        if single or not unset:
+            raise QueueError(f"--id {args.id}: several ids only support --unset "
+                             f"({', '.join(single) or 'no --unset'} given)")
     # Relink BEFORE validating: `blocked_by` is derived from `blocks`, so a register whose mirror
     # drifted (the state `check` reports as "rerun update") failed validation on the very line
     # before the repair, and every rerun died identically. Measured 2026-10-30: three attempts.
     tasks = data.get("tasks")
     if isinstance(tasks, list):
         _relink(tasks)
-        _release_stale_claim(tasks, args.id)
+        for task_id in ids:
+            _release_stale_claim(tasks, task_id)
+            # Same reason as the relink above, for the optional keys: a row whose `recipe` was
+            # retired to `attic/` fails validation, so the delete has to run before it or the
+            # repair is unreachable (measured 2026-11-22: `check` red, every write refused).
+            _unset(tasks, task_id, unset)
     tasks = validate(data, path)
+    if len(ids) > 1:
+        _save(path, data, tasks, row=args.id)
+        print(f"updated {args.id}: unset {','.join(unset)}")
+        return
     task = _find(tasks, args.id)
     flips = {"state": args.state, "title": args.title, "model": args.model,
              "node_cost": args.node_cost, "notes": args.notes, "provenance": args.provenance,
@@ -1501,6 +1563,9 @@ def main(argv: list[str] | None = None) -> int:
     p_upd.add_argument("--exclude-hosts", metavar="HOST[,HOST]",
                        help="placement: replace the row's excluded-host list")
     p_upd.add_argument("--state", choices=STATES)
+    p_upd.add_argument("--unset", action="append", metavar="FIELD[,FIELD]",
+                       help="delete optional keys from the row before validation, so a red register "
+                            "can be repaired (repeatable; required fields are refused)")
     p_upd.set_defaults(fn=cmd_update)
     for name, state in (("done", "done"), ("block", "blocked"), ("unblock", "queued")):
         p = sub.add_parser(name, help={"done": "mark done (drops out of the ordering)",

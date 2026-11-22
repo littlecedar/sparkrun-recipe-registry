@@ -17100,3 +17100,32 @@ id. Receipts are on the head under `~/benchmarks/campaign-20261122/<row>/`.
   (`--Edge0--Edge0-145B-NVFP4` absent, and `.35` was never used).
 - **Register.** `check` ok, **228 tasks: 192 done, 34 queued, 2 blocked, 0 running**. `mad-science/queue.json`
   and this file only.
+
+## 2026-11-22 — the red register: `update --unset`, and the three retired-recipe rows
+
+- **The register was red, and the writer could not fix it.** `e5f65650` retired three Ornith recipes
+  to `attic/` while their done rows still named `recipes/ornith/…`, and `attic/` is not a legal
+  `recipe` path, so `check` failed and every write — including the three window closures — was
+  refused. Verified on a throwaway copy before touching the tool: `load()` parsed all 228 tasks and
+  `validate()` raised, so the failure is at validate, not load. `update` validated *before* it could
+  clear the field, which is the third instance of the repair-before-validate class, after the
+  `blocked_by` mirror and the stale claim.
+- **`update --unset FIELD[,FIELD]`** (repeatable) deletes optional keys before validation runs,
+  refuses a required field by name, and treats an absent optional field as a no-op. `--id a,b` with
+  `--unset` repairs several rows in one write, because validation is whole-file: one row at a time
+  can never save, since the next red row refuses that write. That batch form is the minimum that
+  makes the documented repair reachable, not a convenience.
+- **Six tests** in `tests/test_task_queue_tool.py` (`UnsetOptionalFields`) pin the retired-recipe
+  repair, the half-pair refusal (unsetting `recipe` alone still trips the pair rule, naming the row),
+  the required-field refusal, the absent-field no-op, the batch repair, and the batch's
+  `--unset`-only rule. The module runs 137 tests, green.
+- **Repaired the three rows** with `--unset recipe,tp`, state `done` and `evidence` kept, each notes
+  line naming its attic filename and the campaign receipt.
+- **Then the window closures ran as-is** (`.scratch/boot-window-20261122/queue-closures.sh`):
+  `metrics-instrument-confound`, `hf-cache-20261110-template-ab-ifm-k2` and
+  `wopr-cache-dir-runtime-regression` are done on `.scratch/boot-window-20261122/run-20261122/RECEIPT.md`.
+- **Docs:** `tools/README.md` §task-queue.py and `mad-science/QUEUE.md` §Machine-runnable rows both
+  name `update --unset recipe,tp` as the legal retirement path, so the next retirement does not
+  redden the register.
+- **Register.** `check` ok, **228 tasks: 195 done, 31 queued, 2 blocked, 0 running**. `mad-science/queue.json`
+  and this file only.

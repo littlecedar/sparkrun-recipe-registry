@@ -317,6 +317,104 @@ class UpdateRepairsDrift(unittest.TestCase):
         self.assertIn("pair", tq.NODE_COSTS)
 
 
+class UnsetOptionalFields(unittest.TestCase):
+    """`update --unset` is the legal path out of a red register.
+
+    Measured 2026-11-22: commit e5f65650 retired three Ornith recipes to `attic/` while their done
+    rows still named `recipes/ornith/...`, so `check` failed at validate and every write was
+    refused — including the repair, because `update` validated before it could clear the field.
+    A field the writer cannot delete is a register nobody can fix.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = git_repo(Path(self.tmp.name), "recipes/lane/arm.yaml")
+        self.queue = self.root / "mad-science" / "queue.json"
+        self.queue.parent.mkdir()
+
+    def write(self, *rows) -> None:
+        self.queue.write_text(json.dumps(data(list(rows))), encoding="utf-8")
+
+    def bootable(self, tid="a", **fields) -> dict:
+        row = task(tid, 1.0, state="done")
+        row["node_cost"] = "single"
+        row.update(fields)
+        return row
+
+    def retire(self, name="recipes/lane/arm.yaml") -> None:
+        """The retirement that reddens the register: the path stops being tracked."""
+        subprocess.run(["git", "-C", str(self.root), "rm", "-q", "--cached", name], check=True)
+
+    def row(self, tid="a") -> dict:
+        return next(t for t in json.loads(self.queue.read_text())["tasks"] if t["id"] == tid)
+
+    def check(self) -> int:
+        with contextlib.redirect_stderr(io.StringIO()):
+            return tq.main(["--file", str(self.queue), "check"])
+
+    def test_unset_recipe_and_tp_repairs_a_retired_row(self):
+        self.write(self.bootable(recipe="recipes/lane/arm.yaml", tp=1))
+        self.assertEqual(self.check(), 0)
+        self.retire()
+        self.assertNotEqual(self.check(), 0, "the retirement must redden the register first")
+        self.assertEqual(tq.main(["--file", str(self.queue), "update", "--id", "a",
+                                  "--unset", "recipe,tp"]), 0)
+        row = self.row()
+        self.assertNotIn("recipe", row)
+        self.assertNotIn("tp", row)
+        self.assertEqual(row["state"], "done", "the repair clears fields, it does not re-open the row")
+        self.assertEqual(self.check(), 0)
+
+    def test_unsetting_only_recipe_leaves_the_pair_rule_to_refuse_it(self):
+        self.write(self.bootable(recipe="recipes/lane/arm.yaml", tp=1))
+        self.retire()
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            self.assertNotEqual(tq.main(["--file", str(self.queue), "update", "--id", "a",
+                                         "--unset", "recipe"]), 0)
+        self.assertIn("'tp'/'env' without 'recipe'", stderr.getvalue())
+        self.assertIn("a:", stderr.getvalue())
+        self.assertIn("recipe", self.row(), "a refused repair writes nothing")
+
+    def test_a_required_field_is_refused(self):
+        self.write(self.bootable())
+        for field in ("id", "estimate_h", "state", "blocks", "blocked_by", "notes"):
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                self.assertNotEqual(tq.main(["--file", str(self.queue), "update", "--id", "a",
+                                             "--unset", field]), 0, field)
+            self.assertIn("required field", stderr.getvalue(), field)
+        self.assertIn("notes", self.row())
+
+    def test_an_absent_optional_field_is_a_no_op(self):
+        self.write(self.bootable())
+        self.assertEqual(tq.main(["--file", str(self.queue), "update", "--id", "a",
+                                  "--unset", "recipe,tp,env"]), 0)
+        self.assertEqual(self.check(), 0)
+        self.assertEqual(self.row()["id"], "a")
+
+    def test_a_batch_unset_repairs_every_named_row_in_one_pass(self):
+        """Whole-file validation is why one row at a time can never save: the next red row refuses."""
+        self.write(self.bootable("a", recipe="recipes/lane/arm.yaml", tp=1),
+                   self.bootable("b", recipe="recipes/lane/arm.yaml", tp=1))
+        self.retire()
+        self.assertNotEqual(self.check(), 0)
+        self.assertEqual(tq.main(["--file", str(self.queue), "update", "--id", "a,b",
+                                  "--unset", "recipe,tp"]), 0)
+        self.assertEqual(self.check(), 0)
+        for tid in ("a", "b"):
+            self.assertNotIn("recipe", self.row(tid))
+
+    def test_a_batch_accepts_only_unset(self):
+        self.write(self.bootable("a"), self.bootable("b"))
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            self.assertNotEqual(tq.main(["--file", str(self.queue), "update", "--id", "a,b",
+                                         "--state", "queued"]), 0)
+        self.assertIn("several ids only support --unset", stderr.getvalue())
+
+
 class QuestionsAndCommitBound(unittest.TestCase):
     """The two schema additions chosen 2026-11-03: a questions register, and a commit-bounded
     archive scan (the count bound netted out when one item was removed as another arrived)."""

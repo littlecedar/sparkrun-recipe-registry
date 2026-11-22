@@ -1803,6 +1803,9 @@ uv run python -B tools/task-queue.py add --id X --title "…" --estimate-h 2 \
     # `(none)` when unset.
 uv run python -B tools/task-queue.py update --id X --state running --claimed-by <session>
  # claiming stamps claimed_at (UTC); --estimate-h/--title/--notes/--blocks/--model also update
+ # --unset FIELD[,FIELD] (repeatable) deletes optional keys before validation, so a red register
+ # can be repaired (a retired recipe): required fields are refused; --id a,b with --unset repairs
+ # several rows in one write, which whole-file validation otherwise makes impossible one at a time
 uv run python -B tools/task-queue.py done --id X      # state=done, claim fields cleared
 uv run python -B tools/task-queue.py block --id X     # manual external gate (state flip, not an edge)
 uv run python -B tools/task-queue.py unblock --id X   # back to queued
