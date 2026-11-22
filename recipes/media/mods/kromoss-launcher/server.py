@@ -62,6 +62,7 @@ STATE: dict = {
     "pipe": None,
     "model_id": None,
     "sample_dir": None,
+    "sample_prefix": "kromoss",
     "requests": 0,
     "attempts": 0,
     "failed": 0,
@@ -223,8 +224,8 @@ def run_generate(req: dict) -> dict:
         raise RuntimeError("pipeline returned no image")
     sample_dir = STATE["sample_dir"]
     os.makedirs(sample_dir, exist_ok=True)
-    name = "kromoss-%dx%d-s%d-steps%d-cfg%s-%d.png" % (
-        width, height, seed, steps, guidance, int(time.time() * 1000))
+    name = "%s-%dx%d-s%d-steps%d-cfg%s-%d.png" % (
+        STATE["sample_prefix"], width, height, seed, steps, guidance, int(time.time() * 1000))
     path = os.path.join(sample_dir, name)
     image.save(path)
     alloc = torch.cuda.max_memory_allocated() / (2 ** 30)
@@ -307,11 +308,14 @@ def main():
     p.add_argument("--host", default="0.0.0.0")
     p.add_argument("--port", type=int, default=8000)
     p.add_argument("--sample-dir", required=True)
+    p.add_argument("--sample-prefix", default="kromoss",
+                   help="PNG filename stem, so a second recipe on this launcher names its own samples")
     p.add_argument("--lora", default=None, help="path to a kohya-key LoRA .safetensors (applied unmerged)")
     p.add_argument("--lora-strength", type=float, default=1.0)
     args = p.parse_args()
 
     STATE["sample_dir"] = args.sample_dir
+    STATE["sample_prefix"] = args.sample_prefix
     STATE["model_id"] = args.served_model_name
     # `--lora none` (the recipe default) means no LoRA; a real path applies it unmerged.
     STATE["lora"] = None if (args.lora or "").strip().lower() in ("", "none") else args.lora

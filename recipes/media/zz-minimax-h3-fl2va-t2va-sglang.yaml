@@ -17,7 +17,10 @@
 # so the run is inside the Applicable Territory and the condition is met BY THE
 # DEPLOYMENT LOCATION. A boot is permitted at a non-US site and NOT permitted
 # at a US site; the node that runs this recipe must therefore be a non-US one.
-# Do not re-litigate the license — enforce the location.
+# SETTLED 2026-11-22: recipe authoring and R&D about the model do not trigger
+# the territorial exclusion — recipes are allowed (owner, relaying MiniMax's
+# lawyers; TODO.md #89). The condition binds the serve, not the authoring.
+# Do not re-open it without a new legal opinion; enforce the location.
 #
 # Obligations that still bind on any use, US or not:
 #   IV.1  separate written authorization (api@minimax.io) above 20M USD/yr

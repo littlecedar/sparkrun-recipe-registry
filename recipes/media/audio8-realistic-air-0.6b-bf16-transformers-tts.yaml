@@ -1,0 +1,58 @@
+recipe_version: "2"
+model: Edge0/Audio8-TTS-Realistic-Air
+model_revision: 6bf7a980759d8022a66922ee975dab99229a2dd9
+# No engine serves this checkpoint: `ArkttsModel` ships in the repo and loads
+# through `auto_map` + `trust_remote_code`, and the card's SGLang Omni adapter
+# is not in the fleet pins. `runtime: vllm` is only the launcher/distribution
+# contract (the kromoss/idol precedent); the engine is the staged Transformers
+# venv the mod builds.
+container: vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34
+runtime: vllm
+min_nodes: 1
+max_nodes: 1
+
+description: >-
+  Edge0/Audio8-TTS-Realistic-Air — a 0.6B DualAR (slow semantic AR + fast AR)
+  multilingual TTS with a bundled 44.1 kHz codec: 1.20 GB of bf16 weights plus
+  a 1.35 GB `codec.pth`, 2.39 GiB in the repo, one node. The engine is the
+  repo's own custom Transformers code under a staged venv (transformers
+  4.57.x, the card's ceiling is <5); the card's SGLang Omni adapter is not in
+  the fleet pins, and the `llama-cpp/` F32 bundle needs a patched native
+  runtime, so neither is taken. The mod serves the lane's TTS contract:
+  POST /v1/audio/speech, WAV out, optional zero-shot cloning from a reference
+  clip plus its transcript. NOT booted: every cell is unmeasured. Apache-2.0.
+metadata:
+  model_url: https://huggingface.co/Edge0/Audio8-TTS-Realistic-Air
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "0.6B"
+  model_dtype: bf16
+  tags: media, tts, audio, single_user
+
+mods:
+  - mods/audio8-tts-server
+
+executor_config:
+  # vllm/vllm-openai declares ENTRYPOINT ["vllm","serve"]; clear it so the
+  # recipe's own server line runs instead of being parsed as vLLM flags.
+  entrypoint: ""
+
+# No chat surface: readiness is the port plus the server's own /health.
+readiness:
+  inference: false
+  port_timeout_s: 1800
+  health_timeout_s: 900
+
+defaults:
+  port: 8900
+  host: 0.0.0.0
+  # Advertised id (never {model}, which renders the snapshot path on a launch).
+  served_model_name: Edge0/Audio8-TTS-Realistic-Air
+
+command: >
+  /cache/runtime/audio8/venv/bin/python
+  /workspace/mods/audio8-tts-server/server.py
+  --model {model}
+  --served-model-name {served_model_name}
+  --revision {model_revision}
+  --host {host}
+  --port {port}

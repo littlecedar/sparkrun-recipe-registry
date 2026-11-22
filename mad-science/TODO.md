@@ -1122,6 +1122,35 @@ Hy4 arm still needs a declared four-node window before it can boot at all.
   provenance: owner 2026-11-20 (oversight thread), quoted verbatim above; moved here from
   `mad-science/QUESTIONS.md` `#87`.
 
+## Owner ruling 2026-11-22 — MiniMax-H3's territorial license does not reach recipe authoring or R&D
+
+The owner relayed MiniMax's lawyers' ruling on 2026-11-22: **writing a recipe for
+`MiniMaxAI/MiniMax-H3`, and R&D about the model, do not trigger the MiniMax H3 Community License
+Agreement's territorial exclusion — recipes are allowed.** What the license reaches is *use of the
+Works, their Outputs and results outside the Applicable Territory* (`LICENSE:42`), which is a
+condition on serving, not on authoring. This settles the question for good: **do not re-open it
+without a new legal opinion.**
+
+- **#89 — Does authoring a recipe for `MiniMaxAI/MiniMax-H3`, or doing R&D about the model, trigger
+  the MiniMax H3 Community License Agreement's territorial exclusion?** *Answered 2026-11-22:* **no
+  — recipes are allowed.** The exclusion is territorial and attaches to **use of the Works, their
+  Outputs and results outside the Applicable Territory** — `LICENSE:3` and `:5` define the Applicable
+  Territory as worldwide minus the EU, the UK, the Republic of Korea and the USA, and `LICENSE:42`
+  bars use outside it — so a recipe (a repo id, a revision and a command line) is not a use the
+  exclusion reaches, and neither is R&D about the model. **What does not change:** serving the model
+  still has to happen at a non-US site, and the obligations the agreement carries on any use stay —
+  §IV.1 separate written authorization (api@minimax.io) above 20M USD/yr of commercial revenue,
+  §IV.2 prominent "MiniMax H3" display on any commercial UI, §III.4 NOTICE carriage, §V.3 no use of
+  the Works or their Outputs to improve any other AI model; governing law Hong Kong. The two
+  `zz-minimax-h3` arms and the Viggle-Remake Model Derivative arm ship under this ruling. —
+  provenance: owner relay of MiniMax's lawyers, 2026-11-22 (this session); `MiniMaxAI/MiniMax-H3`
+  `LICENSE:3`, `:5`, `:42`; `recipes/media/README.md` §zz-minimax-h3-fl2va-t2va-sglang and
+  §viggle-remake-h3-lora-v2v-comfyui-script; the banner in
+  `recipes/media/zz-minimax-h3-fl2va-t2va-sglang.yaml`. No row was ever opened in `QUESTIONS.md` for
+  this question — the location condition shipped as an operating rule, not as an owner question — so
+  this row is authored from the ruling and carries the register's next free number (`#88` is the open
+  Muse-Glimmer license class).
+
 # TODO list
 
 **Standing rules (owner decisions 2026-10-15/18/19, condensed 2026-10-24 — the full original

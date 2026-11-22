@@ -6,13 +6,14 @@ directive): Explore keeps the language and agentic arms, and every arm whose pro
 or whose job is to transform text rather than answer — lives here. Everything in this lane is
 1 node, and the CPU serves cost no GPU.
 
-The lane ships **fifteen recipes**: eight measured arms (drama TTS, Kokoro TTS, phonon TTS,
+The lane ships **seventeen recipes**: eight measured arms (drama TTS, Kokoro TTS, phonon TTS,
 Qwen-Image on both routes, LTX-2.5, humanizer Q6_K, Kromoss image), five probe/draft arms
 (`zz-minimax-h3` in its TP=1 and TP=4 shapes, `zz-qwen-image-…-4step`, `zz-pyannote-…`,
-`zz-inworld-voice-isolator-gpu-script`), and two
-eval-only, authored-not-booted arms (`idol-1.8b-bf16-3dgs-script`, image to 3D Gaussian splats,
-2026-11-08 — see its prerequisites; and `viggle-remake-h3-lora-v2v-comfyui-script`, MiniMax-H3 video
-remake through ComfyUI, 2026-11-16).
+`zz-inworld-voice-isolator-gpu-script`), and four authored-not-booted arms — two eval-only
+(`idol-1.8b-bf16-3dgs-script`, image to 3D Gaussian splats, 2026-11-08 — see its prerequisites; and
+`viggle-remake-h3-lora-v2v-comfyui-script`, MiniMax-H3 video remake through ComfyUI, 2026-11-16) and
+two license-clean (`moss-image-sft-5b-bf16-diffusers-script`, the vendor MOSS-Image pair's serving
+half, and `audio8-realistic-air-0.6b-bf16-transformers-tts`, a 0.6B DualAR TTS — both 2026-11-22).
 Design and bring-up
 history lives in [`attic/explore/`](../../attic/explore/), written while these arms were in that
 lane; the recipe YAML keeps only the crucial operational notes.
@@ -42,6 +43,8 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
 - [qwen-image-2.1-turbo-7b-bf16-diffusers-script](#qwen-image-21-turbo-7b-bf16-diffusers-script)
 - [qwen-image-2.1-turbo-7b-bf16-vllm-omni](#qwen-image-21-turbo-7b-bf16-vllm-omni)
 - [kromoss-mossimage-5b-bf16-diffusers-script](#kromoss-mossimage-5b-bf16-diffusers-script)
+- [moss-image-sft-5b-bf16-diffusers-script](#moss-image-sft-5b-bf16-diffusers-script)
+- [audio8-realistic-air-0.6b-bf16-transformers-tts](#audio8-realistic-air-06b-bf16-transformers-tts)
 - [idol-1.8b-bf16-3dgs-script](#idol-18b-bf16-3dgs-script)
 - [viggle-remake-h3-lora-v2v-comfyui-script](#viggle-remake-h3-lora-v2v-comfyui-script)
 - [zz-qwen-image-2.1-turbo-4step-diffusers-script](#zz-qwen-image-21-turbo-4step-diffusers-script)
@@ -112,6 +115,8 @@ below are by design, not missing measurements.
 | `qwen-image-2.1-turbo-7b-bf16-diffusers-script` | **0.088 img/s** (11.33–11.41 s @1024²; **53.24 s @2048²**) | 32.5 GB · peak 36.85/37.68 GiB @1024², **56.51/59.78 GiB @2048²** | single denoise lock, one request at a time | `~/benchmarks/qwen-image-20261014/`, `~/benchmarks/media-gen-20261018/REPORT.md` |
 | `qwen-image-2.1-turbo-7b-bf16-vllm-omni` | **8.610–8.704 s warm** (11.0 s first request of a boot) @1024² 8-step; **10/10 PNGs byte-identical** | same checkpoint · engine peak **34.91 GiB** (`peak_memory_mb` 35,748) · TTR **251 s cold / 209 s warm** | seeded renders deterministic across boots; **two-ink prompt violated** (6 hue families); 4/8/12 steps byte-identical; stopped, node back to 0 containers | `~/benchmarks/omni-qwen-image-20261022/` |
 | `kromoss-mossimage-5b-bf16-diffusers-script` | **143.884 s/img** control (50-step CFG-3); **18.341 s/img** with the 8-step dmd2 LoRA | ≈27.2 GiB resident (bf16 10.16 GB + TE 16.79 GB + VAE 0.25 GB) · peak alloc 28.19 GiB control / 26.44 GiB LoRA | seeded renders; **step knob proven live** (8- vs 12-step) | `head:~/benchmarks/tp4-lane-20261024/kromoss/` |
+| `moss-image-sft-5b-bf16-diffusers-script` | **never booted** (authored 2026-11-22) | 27.23 GB of weights · ~30–36 GiB peak expected | none — the card's 50-step CFG-3 control, ~100 DiT forwards/image | — |
+| `audio8-realistic-air-0.6b-bf16-transformers-tts` | **never booted** (authored 2026-11-22) | 2.39 GiB repo (1.20 GB bf16 weights + 1.35 GB codec) | none — no RTF, no wav round-trip, no WER | — |
 | `ltx-2.5-22b-nvfp4-t2v-comfyui-script` | **78.1 s/clip warm** (100.13 s cold) @1344×768, 121 f, 24 fps | 36.9 GB · peak **83.45–84.00 GiB** | ffprobe (h264 + AAC) and a decoded frame | `~/benchmarks/ltx25-recipe-20261021/` |
 | `humanizer-12b-q6k-llamacpp` | **C1 17.92 ± 0.04 t/s** @ d0 (`/v1/completions`) | 10.03 GB · TTR 10.8 s | 40-rewrite fact-fidelity instrument: **0 genuine fact errors** (bf16 baseline 1) | `~/benchmarks/humanizer-20261022-q6k/` |
 | `zz-minimax-h3-fl2va-t2va-sglang` | **never booted** (draft) | 39.54 GiB / ~42.5 GB resident plan | none — task `t2va`/`fl2va`, territorial license | — |
@@ -122,8 +127,9 @@ below are by design, not missing measurements.
 | `phonon-31m-tts-cpu` (probe, no recipe yet) | **RTF ~0.17** (4.56 s audio / 0.755 s wall, q8, CPU); **WER 0.000** through the whistle instrument on all four renders | 64.5 MB q8 gguf + tokenizer, ~1 ptts wheel install | `ptts` aarch64 wheel exists (0.4.1, no source fallback); **not byte-deterministic per invocation** (same seed/text/threads differs in PCM) | `~/benchmarks/tp4-lane-20261024/phonon/` |
 
 **What is not here.** indra-ocr remains a research-only entry in `mad-science/TODO.md`
-(no recipe, no download, no boot). MOSS-Image ships above as
-`kromoss-mossimage-5b-bf16-diffusers-script`; Timestral, the time-series forecaster, ships in the
+(no recipe, no download, no boot). MOSS-Image ships twice: `kromoss-mossimage-5b-bf16-diffusers-script`
+is the `lodestones` fine-tune, and `moss-image-sft-5b-bf16-diffusers-script` is the vendor pair's
+serving half; Timestral, the time-series forecaster, ships in the
 [decision lane](../decision/README.md#timestral-209m-forecast-cpu).
 A recipe appears in this lane only once it is authored.
 
@@ -508,6 +514,54 @@ diffusers' custom `MOSSImagePipeline` + [`recipes/media/mods/kromoss-launcher`](
   int8_convrot single-file route — expected kernel-dead on sm_121 (same ConvRot-W8A8 class
   MiniMax-H3's INT8 boot verified as rejected), so it is not staged.
 
+## [moss-image-sft-5b-bf16-diffusers-script](moss-image-sft-5b-bf16-diffusers-script.yaml)
+
+diffusers' custom `MOSSImagePipeline` + [`recipes/media/mods/kromoss-launcher`](mods/kromoss-launcher) ·
+**1 node** · **authored 2026-11-22, NOT booted**.
+
+- **Model:** `OpenMOSS-Team/MOSS-Image-SFT` (pinned `f972bd4b…`), the vendor's own 5.08B-param
+  MOSS-Image text-to-image checkpoint — Qwen3.5-9B text encoder + FLUX.2-small VAE decoder, 1024 px,
+  **Apache-2.0** with no banner, no revenue threshold and no non-commercial clause. This is the
+  checkpoint the §media probe names as the serving half of the vendor pair
+  (`mad-science/TODO.md` §media); `kromoss-mossimage-5b-bf16-diffusers-script` above is
+  `lodestones/Kromoss`, a fine-tune of the pair's Base checkpoint, so the two are different weights
+  on the same pipeline.
+- **Weights:** 27.23 GB — transformer 10.16 + text encoder 16.79 + VAE 0.25; the text encoder is the
+  larger half. ~30–36 GiB peak expected [INFERENCE, scaled from the Qwen-Image arm's 36.85 GiB at
+  32.5 GB of weights]; nothing is memory-blocked on one node.
+- **Sampling is the card's control, not a distilled path:** flow-matching Euler, shift 5.0,
+  **50 steps at CFG 3.0 with `uncond_skip_layers=[22]`** — two transformer forwards per step, ~100
+  DiT forwards per image — so the step count is this arm's latency lever, not quantisation. A DMD or
+  turbo LoRA is a later cell: `-o lora=<path>` applies one unmerged through the launcher's
+  forward-hook recipe (unverified against this checkpoint's LoRA keys).
+- **Engine:** the Kromoss launcher unchanged — its venv already clears the card's floors
+  (diffusers 0.41 / transformers 5.19 / torch 2.13.0+cu130), so this arm costs a recipe, not a new
+  mod. The server's `--sample-prefix` names this arm's PNGs `moss-image-sft-*` so a shared sample
+  dir cannot mix the two arms' receipts.
+- **Not measured:** every cell — TTR, s/image, peak and the step-knob hash.
+
+## [audio8-realistic-air-0.6b-bf16-transformers-tts](audio8-realistic-air-0.6b-bf16-transformers-tts.yaml)
+
+the repo's custom Transformers code + [`recipes/media/mods/audio8-tts-server`](mods/audio8-tts-server) ·
+**1 node** · **authored 2026-11-22, NOT booted**.
+
+- **Model:** `Edge0/Audio8-TTS-Realistic-Air` (pinned `6bf7a980…`), **Apache-2.0, ungated** — 0.6B
+  DualAR TTS (slow semantic AR + fast AR, after Fish-Audio S2 Pro) with a bundled 44.1 kHz codec:
+  1.20 GB bf16 `model.safetensors` + 1.35 GB `codec.pth`, 2.39 GiB in the repo, 23 languages,
+  zero-shot cloning from a reference clip plus its exact transcript, or no reference at all.
+- **Engine — the route the survey left open, decided by the card's own ceiling.** The engine is the
+  repo's custom Transformers code (`auto_map` → `ArkttsModel`, `trust_remote_code` required) under a
+  staged venv, and the venv pins **transformers 4.57.x** because the card's floor is
+  `>=4.57.0,<5` — the sibling diffusers arms' 5.x venv cannot serve it. The card's SGLang Omni
+  adapter is not in the fleet pins (the survey's finding) and the `llama-cpp/` F32 bundle needs a
+  patched native runtime built from the vendor's GitHub source, so neither is taken.
+- **Surface:** the lane's TTS contract, `POST /v1/audio/speech` → 44.1 kHz mono 16-bit WAV, with
+  optional `reference_audio` + `reference_text` for cloning. A reference clip must be 44.1 kHz mono:
+  the repo's processor reaches for torchaudio only to resample, and this venv deliberately does not
+  install it (it would pull its own torch over the image's cu130 build).
+- **Not measured:** every cell — no RTF, no wav round-trip, no whistle WER. The card's Seed-TTS
+  1.25 % EN/ZH error is the vendor's number, not this lane's.
+
 ## [idol-1.8b-bf16-3dgs-script](idol-1.8b-bf16-3dgs-script.yaml)
 
 idol SDK (`python -m idol.sample`; no serving engine) + [`recipes/media/mods/idol-3dgs-launcher`](mods/idol-3dgs-launcher) ·
@@ -698,7 +752,11 @@ SGLang diffusion · **1 node** · **DRAFT, never booted**.
 > United States of America (`LICENSE:3`, `:5`), and use outside the Applicable Territory is
 > prohibited (`LICENSE:42`). **The owner's decision is that this arm runs at a non-US site, where
 > the condition is met by the deployment location** — a boot is permitted at a non-US site and NOT
-> permitted at a US site. Do not re-litigate the license; enforce the location. Obligations that
+> permitted at a US site. **SETTLED 2026-11-22: authoring a recipe and R&D about the model do not
+> trigger the territorial exclusion — recipes are allowed** (the owner relayed MiniMax's lawyers'
+> ruling; `TODO.md` `#89`). What the license reaches is *use of the Works, their Outputs and
+> results outside the Applicable Territory*, so the condition binds the serve, not the authoring.
+> **Do not re-open this question without a new legal opinion.** Obligations that
 > still bind: separate written authorization above 20M USD/yr (IV.1), prominent "MiniMax H3"
 > display on any commercial UI (IV.2), NOTICE carriage (III.4), and no use of the Works or Outputs
 > to improve another AI model (V.3). Governing law: Hong Kong. The Qwen3-VL-32B text encoder is
@@ -971,7 +1029,10 @@ Q6_K 16.38, Q8_0 20.72 GiB each of swap+edit) belong to a llama.cpp route this a
 Derivative distributed under the **MiniMax H3 Community License Agreement** — the same licence the
 two `zz-minimax-h3` arms ship under, including the exclusion of the EU, UK, Republic of Korea and the
 USA. This lane's arms are deployed outside the United States by owner decision, which is what makes
-the run inside the Applicable Territory; do not re-litigate the licence, enforce the location. The
+the run inside the Applicable Territory; enforce the location. **Authoring this recipe is not a use
+the exclusion reaches: the owner's 2026-11-22 ruling (relaying MiniMax's lawyers) settles that
+recipe authoring and R&D about the model are allowed anywhere — do not re-open it without a new
+legal opinion** (`TODO.md` `#89`). The
 notice obligations (Agreement copy to third parties, NOTICE carriage, "Powered by Viggle Remake"
 credit, no use of the Works to improve another model) are in the recipe banner.
 
@@ -1000,6 +1061,8 @@ to the recipe (`core/mods.py` rule 2):
 | [`viggle-remake-launcher`](mods/viggle-remake-launcher) | the Viggle-Remake v2v recipe (ComfyUI stage + the `/health`, `/v1/models`, `/generate` shim) |
 | [`qwen-image-2.1-turbo-launcher`](mods/qwen-image-2.1-turbo-launcher) | the shipped Qwen-Image recipe and its 4-step probe |
 | [`qwen-image-sigmas`](mods/qwen-image-sigmas) | no recipe reference — the prior 4-step server, kept with the arm it was written for |
+| [`kromoss-launcher`](mods/kromoss-launcher) | the Kromoss image recipe and the MOSS-Image-SFT arm (diffusers custom-pipeline venv + the `/health`, `/v1/models`, `/generate` server) |
+| [`audio8-tts-server`](mods/audio8-tts-server) | the Audio8 TTS recipe (transformers 4.57 venv + the `/health`, `/v1/models`, `/v1/audio/speech` server) |
 | [`pyannote-diarize-server`](mods/pyannote-diarize-server) | the pyannote diarization recipe |
 | [`voice-isolator-server`](mods/voice-isolator-server) | the `zz-inworld-voice-isolator-gpu-script` arm (SDK venv + the tracked fixture) |
 | [`vllm-omni-metrics-bridge`](mods/vllm-omni-metrics-bridge) | the Qwen-Image vLLM-OMNI recipe (the wrapper its `command:` runs through) |
