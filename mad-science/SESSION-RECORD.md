@@ -17251,3 +17251,41 @@ Edge0-145B-NVFP4 105.96 — each `stat -L` verified, 0 broken links).
   verified for when it unblocks: 129.75 GiB at `e4f3ba80` in the pool, `vllm/vllm-openai:v0.32.0`
   digest `befccf0e` on both `.30` and `.35`.
 - **Register.** `check` ok, **228 tasks: 200 done, 26 queued, 2 blocked, 0 running**.
+
+### 2026-11-22 05:40 ET — drain, sixth batch: the media fixes land, and a watchdog reaps a build
+
+- **Row closed: `moss-image-sft-5b-first-boot` (done) — the arm serves, and the step knob is live.**
+  Boot `ebaffd485861f751_3caacda77acb` on `.30` under launcher fix `afeea5d2`; load 272.6 s at
+  **25.33 GiB peak alloc** (`MemAvailable` 116.1 → 89.8). One `POST /generate` at 1024×1024, seed 42,
+  CFG 3.0, `uncond_skip_layers [22]`: **50 steps → 136.166 s / 1,106,736 B PNG**, **25 steps →
+  68.333 s / 1,057,341 B**, outputs **differ** and wall scales 2.0× — the step knob is **live**, so the
+  lane's inert-scheduler trap does not apply here. Both earlier blockers are gone: no flashinfer
+  `PermissionError` (the JIT dir is repaired around the engine gate) and no duplicate-class pipeline
+  error (single module identity). Prompt adherence and image quality were not scored.
+- **Row closed: `viggle-remake-h3-lora-v2v-first-boot` (done) — stages, serves and renders.** Boot
+  `4771d4a4264ff841_d4ad6f71ce28` on `.30`; stage `ok` at 10:07:03 (**54 GB**), `/health` +
+  `/v1/models` 200 at 10:09:47 (TTR 8 min 26 s), watchdog `verdict=healthy` at t=330 s. One
+  `POST /generate task=swap` on a staged 226-frame clip completed in **550.4 s** and produced
+  `swap_00001_.mp4` **908,419 B = h264 832×480, 226 frames, 9.417 s, plus AAC audio**. The
+  `HF_HUB_OFFLINE` fix works (the previous attempt died at 81 s on `offline mode is enabled`). **Two
+  operational facts for the next runner:** the vendor graph needs **exactly 226 frames** (a 16-frame
+  clip is refused with `the source has 16 frames, 226 needed`), and `/generate` is synchronous — a
+  client timeout loses the response but **not** the render, so poll the output dir instead of
+  re-POSTing (a second POST queues a second render).
+- **`edge0-145b-latentmoe-strata-first-boot` back to `queued` — the root-stage fix ran, and three
+  operational walls stopped the boot, none of them the arm.** (1) A foreground launch killed at a
+  tool timeout **interrupts sparkrun mid `pre_exec`**, leaving a container with a finished build and
+  no serve (`98577d6426e2881f_a85d7776d379`, stopped by id). (2) That surviving sparkrun process kept a
+  real host claim, so the next launch was refused with `Execution resources are busy:
+  host:10.0.4.35: held by running pid 1965030` until the claim was reconciled. (3) The launch that
+  did run (`98577d6426e2881f_a117734764a3`) was **reaped by the boot watchdog, exit 3**
+  (`dead_candidate` → `sparkrun stop`), because this arm's serve process **does not exist until its
+  in-container build finishes** — the never-seen-alive clock has to outlast the build, or the watchdog
+  must be armed only once the serve log appears. The build itself re-ran as root under `84390c76`
+  (tree recreated root-owned at 10:28) and was still compiling when the reap landed; nothing about the
+  arm is refuted. Nothing left behind: `.35` at 0 containers / 117.5 GiB, no resource claims.
+- **The pair is now gated on ONE row.** `laguna-m1-vllm-v032-reboot`'s only unfinished blocker is
+  `edge0-145b-latentmoe-strata-first-boot` (`moss` and `viggle` closed here). Its body (129.75 GiB at
+  `e4f3ba80`) and image (`vllm/vllm-openai:v0.32.0` digest `befccf0e` on `.30` and `.35`) are already
+  verified, and both hosts are idle.
+- **Register.** `check` ok, **228 tasks: 202 done, 24 queued, 2 blocked, 0 running**.
