@@ -17289,3 +17289,26 @@ Edge0-145B-NVFP4 105.96 — each `stat -L` verified, 0 broken links).
   `e4f3ba80`) and image (`vllm/vllm-openai:v0.32.0` digest `befccf0e` on `.30` and `.35`) are already
   verified, and both hosts are idle.
 - **Register.** `check` ok, **228 tasks: 202 done, 24 queued, 2 blocked, 0 running**.
+
+### 2026-11-22 06:00 ET — Edge0 reaches the serve, and the model path is the blocker
+
+- **The cached build works, and the retry proved it.** Boot `98577d6426e2881f_2cd1230ddede` on `.35`
+  got through `[5/6]` to `Step 3/3: Executing serve command` in **181.3 s** — no apt, no compile —
+  because the 640 MB red-owned build tree with its `.built` marker from the previous attempt was
+  reused. The root-stage fix `84390c76` plus that cache turn this arm's boot from a 30-min build into
+  a load.
+- **The new blocker is arm wiring, not the host, body or build.** The serve died at once with
+  `edge0-launch: FATAL: model folder Edge0/Edge0-145B-NVFP4 does not exist`. The mod's `launch.sh`
+  requires `--model` to be a **directory** (`[[ -d ]]`, then `model.json`, the pack files,
+  `tokenizer/chat_template.jinja`, `mtp/experts.bin`), but the recipe's command passes `{model}`,
+  which renders the repo id, so the launcher looks for a folder literally named
+  `Edge0/Edge0-145B-NVFP4`. It is the same class as the `unpinned-model-revision` warning the launch
+  prints: nothing maps the pin to a path. Fix is a recipe/mod edit (pass the prepared snapshot path,
+  or write `refs/main` so the id resolves) and therefore **not** done under a register-only mandate.
+- **Two watchdog lessons from this arm, both now recorded on the row.** (1) The 120 s `--dead-grace`
+  default reaped the previous attempt mid-build: a build-only `pre_exec` has no serve process, so
+  "never seen alive" is true and its clock expires — arm this arm with a grace longer than the build.
+  (2) This attempt's watchdog **refused to arm (exit 4)** because it resolved the container as
+  `…_node_0` while a solo launch names it `…_solo`; pass `--container` explicitly here.
+- **Nothing left behind:** `.35` at 0 containers / 117.5 GiB, no resource claims.
+- **Register.** `check` ok, **228 tasks: 202 done, 24 queued, 2 blocked, 0 running**.
