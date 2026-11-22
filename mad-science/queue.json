@@ -3423,6 +3423,19 @@
       "summary": "Campaign refreshes only when drained; a pending memory-risky TP4 arm that cannot fit .30/.35 with .31-.34 fenced holds drained() false, so rows queued after 00:12 were never ingested; fix: idle-poll refresh or unplaceable state.",
       "summary_src": "fe9832af912a661335cd88f36e41f71cc478d9d91c9073f81d854c4ea1036073",
       "summary_at": "2026-11-22T04:26:11Z"
+    },
+    {
+      "id": "head-clone-object-store-incomplete",
+      "title": "The head clone loses loose objects without a named cause (healed 2026-11-21, recurrence unproven), so `git ls-tree HEAD` and any `git pull` fail there until it is re-healed",
+      "estimate_h": 0.5,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "Measured read-only 2026-11-21 22:35-23:45 ET on the head at `/home/red/src/sparkrun-recipe-registry`: `git ls-tree HEAD` failed `not a tree object`, `git show HEAD:mad-science/queue.json` failed `exists on disk, but not in HEAD`, `git log` reached `fatal: bad object HEAD`, and `git fsck --no-progress` grew from **73** to **95** missing/invalid entries over 40 min (including `invalid reflog entry` for `63cbf46a`, `871215c2`, `dd73b3c2`). Loose objects read **448** on the head against **524** here while `in-pack` was **22558** on both, so the packs agree and only loose objects go missing. No `.stignore` exists in either clone, and the ten `.sync-conflict` copies under `.git` are seven `index` copies dated 11-12 to 11-20 plus one reflog, all predating the window, so they are noise, not the cause. **Healed** with skill `heal-syncthing-shared-git-objects`: **76** objects restored by `hash-object -w` from this clone over five passes (35, 17, 17, 6, 1 — each pass reveals deeper missing trees), after which `ls-tree HEAD`, `git log`, `git show HEAD:<path>` and `git rev-list --objects main` (20924 objects) all succeed and fsck reports only dangling objects plus one stale reflog sha. **The cause is unnamed**, so the row stays open: name why loose objects disappear on the head (syncthing conflict churn is the LIKELY class) and add a detector, since the next loss silently breaks git reads there again. Never `gc`/`prune`/`reset` on the shared clone.",
+      "provenance": "board tick 2026-11-21 23:14 ET; mad-science/SESSION-RECORD.md §2026-11-21 22:39 ET (head clone's refs outran its objects)",
+      "evidence": "head `git fsck --no-progress` 2026-11-21T23:26Z (95 entries) and 23:45Z (dangling only); `git count-objects -v` head 448 loose vs 524 here, in-pack 22558 both; 76 objects restored with `hash-object -w`; `git rev-list --objects main` completes on the head"
     }
   ],
   "questions": []
