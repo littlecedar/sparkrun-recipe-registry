@@ -1,0 +1,52 @@
+{
+ "version": 1,
+ "at": "2026-11-22T00:13:43Z",
+ "base": null,
+ "nodes": {
+  ".30": {
+   "read": "2026-11-22T00:13:43Z",
+   "host": "node-thirty",
+   "containers_all": 0,
+   "containers_running": 0,
+   "volumes": 0,
+   "listeners_8000": 0,
+   "root": {"size": 4031871553536, "used": 2660770817024, "avail": 1371100736512},
+   "mem": {"MemTotal": 127598704, "MemAvailable": 121141572, "Cached": 24514776, "AnonPages": 1126852},
+   "btime": 1795118800,
+   "uptime_s": 189806,
+   "ring": {"all": 250, "oldest": "2026-11-21T00:06:26.326203501-05:00 container destroy 4db0fd", "newest": "2026-11-21T03:05:54.712690080-05:00 image delete sha256:5c2b", "window": {"lifecycle": 0, "exec": 0}},
+   "serve": null,
+   "delta": null
+  },
+  ".31": {
+   "read": "2026-11-22T00:13:44Z",
+   "host": "node-thirty-one",
+   "containers_all": 1,
+   "containers_running": 1,
+   "volumes": 0,
+   "listeners_8000": 2,
+   "root": {"size": 4031871553536, "used": 2382079557376, "avail": 1649791996160},
+   "mem": {"MemTotal": 127598700, "MemAvailable": 7829084, "Cached": 2577388, "AnonPages": 7518192},
+   "btime": 1795119075,
+   "uptime_s": 189531,
+   "ring": {"all": 256, "oldest": "2026-11-21T19:31:50.184285308-05:00 container exec_create: t", "newest": "2026-11-21T20:12:20.333797911-05:00 container exec_die d9d79", "window": {"lifecycle": 0, "exec": 80}},
+   "serve": {"models": 200, "health": 200},
+   "delta": null
+  }
+ },
+ "head": {
+  "read": "2026-11-22T00:13:43Z",
+  "units": {
+   "beegfs-mgmtd": {"active": "active", "result": "success", "restarts": 0},
+   "beegfs-meta": {"active": "activating", "result": "exit-code", "restarts": 36530},
+   "beegfs-storage": {"active": "active", "result": "success", "restarts": 0}
+  },
+  "campaign": {"active": "active", "sub": "running", "pid": 3930275, "restarts": 0},
+  "window_lock": {"present": false},
+  "lease_ledger": {"sha256": "ec09509d1c8b1e4b5f0a4d9d2b3c1f0e5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d", "size": 389, "mtime": "2026-11-21 03:04:12.000000000 -0500", "leases": [], "fenced": [{"fenced_by": "tp-le2-20261120", "fenced_at": "2026-11-20T07:25:27Z", "reason": "owner directive 2026-11-20: production serve protected", "hosts": [".31", ".32", ".33", ".34"], "serve": {"task_id": "58cddf1c62ba6578_b8865cad5863", "image_id": "986795bcd7f4"}}]},
+  "register_sha256": "55ea2a142b868f08444f2141cae6721ea972541a40d1ac527f41f955f6c2d74c",
+  "delta": null
+ },
+ "register": {"path": "mad-science/queue.json", "sha256": "55ea2a142b868f08444f2141cae6721ea972541a40d1ac527f41f955f6c2d74c", "tasks": 213, "done": 181, "queued": 31, "blocked": 1, "running": 0},
+ "notes": []
+}

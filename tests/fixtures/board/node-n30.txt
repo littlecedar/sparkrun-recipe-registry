@@ -1,0 +1,18 @@
+node|n30|ts=2026-11-22T01:12:34Z
+host|n30|node-thirty
+uptime|n30|191154
+btime|n30|1795118800
+mem|n30|MemTotal=127598704
+mem|n30|MemAvailable=121141800
+mem|n30|Cached=24799356
+mem|n30|AnonPages=1089548
+psaq|n30|0
+psrun|n30|0
+vols|n30|0
+listeners|n30|0
+root|n30|4031871553536,2660770533376,1371101020160
+ring|n30|total=256
+ring|n30|oldest=2026-11-21T01:06:26.326203501-05:00 container destroy 4db0fd
+ring|n30|newest=2026-11-21T03:05:54.712690080-05:00 image delete sha256:5c2b
+win|n30|lifecycle=0
+win|n30|exec=0

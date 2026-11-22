@@ -1,0 +1,42 @@
+{
+ "priority_models": ["dsv4.1-1017"],
+ "tasks": [
+  {
+   "id": "board-census-tool",
+   "title": "Consolidate the per-tick census probe into one stdlib tool",
+   "estimate_h": 3.0,
+   "blocks": ["board-render-tool"],
+   "blocked_by": [],
+   "state": "queued",
+   "model": "",
+   "node_cost": "single",
+   "notes": "The probe script and its parser were rewritten every tick; a transcription slip shipped a 60 000 B phantom delta on 2026-11-09.",
+   "provenance": "plan section 4"
+  },
+  {
+   "id": "board-render-tool",
+   "title": "Render STATUS.md from the evidence document and the register",
+   "estimate_h": 4.0,
+   "blocks": [],
+   "blocked_by": ["board-census-tool"],
+   "state": "blocked",
+   "model": "",
+   "node_cost": "",
+   "notes": "",
+   "provenance": "plan section 4"
+  },
+  {
+   "id": "landed-row",
+   "title": "A done row, drawn by neither block",
+   "estimate_h": 1.0,
+   "blocks": [],
+   "blocked_by": [],
+   "state": "done",
+   "model": "",
+   "node_cost": "",
+   "notes": "",
+   "provenance": "test"
+  }
+ ],
+ "questions": []
+}

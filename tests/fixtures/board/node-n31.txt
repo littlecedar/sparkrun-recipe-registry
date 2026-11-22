@@ -1,0 +1,20 @@
+node|n31|ts=2026-11-22T01:12:35Z
+host|n31|node-thirty-one
+uptime|n31|190879
+btime|n31|1795119075
+mem|n31|MemTotal=127598700
+mem|n31|MemAvailable=7890732
+mem|n31|Cached=2591124
+mem|n31|AnonPages=7553776
+psaq|n31|1
+psrun|n31|1
+vols|n31|0
+listeners|n31|2
+root|n31|4031871553536,2382080536576,1649791016960
+ring|n31|total=256
+ring|n31|oldest=2026-11-21T19:31:50.184285308-05:00 container exec_create: t
+ring|n31|newest=2026-11-21T20:12:20.333797911-05:00 container exec_die d9d79
+win|n31|lifecycle=0
+win|n31|exec=80
+serve|n31|models=200
+serve|n31|health=200
