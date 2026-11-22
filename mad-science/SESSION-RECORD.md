@@ -17007,3 +17007,43 @@ single-writer pass over `mad-science/queue.json`, and no boot ran from it.
 - **Register.** `check` ok, **228 tasks: 186 done, 40 queued, 2 blocked, 0 running**. `mad-science/queue.json`
   and this file only; `.idea/modules.xml`, `TODO.md`, `QUESTIONS.md` and the `recipes/media/` edits in
   the worktree are a peer's.
+
+## 2026-11-22 01:47 ET — campaign drain of the single-node boot rows: the 122B export is the defect
+
+Drain of the queued machine-runnable `single` rows, in the register's own order, one boot at a time,
+launched from this clone against real IPs with `--cluster WOPR` and the recipe file path. Hosts
+`.31`–`.34` stayed fenced (the production serve `58cddf1c62ba6578_b8865cad5863` was never touched);
+every boot ran on `.30` and every boot carried `tools/boot-watchdog.py` armed with the literal task
+id. Receipts are on the head under `~/benchmarks/campaign-20261122/<row>/`.
+
+- **Row closed: `ornith-122b-nospec-rawchat-boot` (done) — probe A is SALAD.** Boot
+  `f9ad4d811367b4be_ec128fa4b0b3` on `.30`, watchdog pid 1790897 `verdict=healthy` at t=610 s,
+  `/health` + `/v1/models` 200 at 06:42:55Z; weight load 512.22 s (`quant=modelopt_mixed`, 79.53 GB),
+  KV fp8_e4m3 456,144 tokens, `available_gpu_mem` 20.01 GB, `mem_avail` 15.6 % at healthy. Four
+  `/v1/completions` probes at `max_tokens 64, temperature 0` — all HTTP 200 in 4.5–4.6 s and all
+  **incoherent mixed-script text**, none a sentence and none a valid `def fibonacci(n):` body. Per the
+  lane's own triage table that is hypothesis 1: **the export is the defect**, and no drafter, template
+  or parser change rescues it. Stopped by task id, `docker ps` clean, `mem_avail` back to 116.5 GiB.
+  Receipt `head:~/benchmarks/campaign-20261122/ornith-122b-nospec-rawchat-boot/run.md`.
+- **Two rows closed on the cache-cleanup worker's evidence, notes verbatim** (the worker does not write
+  the register; the director forwarded the receipt and its `queue-closures.sh`, run as-is):
+  `hf-cache-20261110-cache-consistency-defects` — `hub/mellum-mtp-head` 15,147,640,477 B deleted,
+  `dsv41-engram` kept because a shipped mod reads it, the ~7 GB "orphan blob" held because
+  `hf cache prune` would drop 53 detached revisions / 1.3 TB of pins;
+  `runtime-cache-stale-tree-gc` — 13 trees / 102,995 MB deleted by absolute path, 99.8 GiB of it one
+  retired revision on `.34`, node root `df` down 107,987,386,368 B total. Both cite
+  `.scratch/cache-cleanup-20261122/RECEIPT.md`.
+- **The Ornith 122B boots pruned two stale runtime trees on `.30` themselves.** sparkrun's launch-time
+  30-day prune removed `sglang/TensorFold__Qwen3.8-27B-MLX-4bit-93d35945` (43 MB) and
+  `sglang/ornith-ai__Ornith-1.5-9B-NVFP4-16c2dcb4` (296 MB), both last used 2026-10-14. Launcher
+  behaviour, not a manual deletion; the cleanup receipt attributes the same event to boot
+  `f9ad4d811367b4be_ec128fa4b0b3`.
+- **Six rows are not bootable and stay `queued` with the reason in their notes**: `daisyrose-27b`,
+  `inworld-voice-isolator`, `qwen38-27b-pi-lora`, `webai-twil-8b`, `moss-image-sft-5b` and
+  `edge0-145b-latentmoe-strata` all name a model body absent from the shared pool
+  (`/mnt/beegfs/huggingface/hub` has no `models--RadixArk--DaisyRose-27B`, `--inworld--voice-isolator`,
+  `--Qwen--Qwen3.8-27B`, `--webAI-Official--TwIL-8B`, `--OpenMOSS-Team--MOSS-Image-SFT`,
+  `--Edge0--Edge0-145B-NVFP4`). `viggle-remake-h3-lora-v2v` is skipped while its 156 GiB staging lands
+  (121.15 GiB in the pool at 06:38Z, and a peer is transferring into the same pool now).
+- **Register.** `check` ok, 228 tasks. `mad-science/queue.json` and this file only; `.idea/modules.xml`,
+  `AGENTS.md`, `README.md` and `TODO.md` in the worktree are peers'.
