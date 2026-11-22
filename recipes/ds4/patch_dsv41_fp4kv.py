@@ -16,7 +16,7 @@ from being usable on GB10, and this script closes exactly those:
    writes the same 528/288-byte records, and the store kernels are software
    e2m1 -- but the *reader* is not: SM100/103 reads them through
    ``sgl_kernel.flash_mla``, SM12x through FlashInfer's SM120 sparse route,
-   which advertises the inline-scale records only from 0.7
+   which carries the V4.1 route only from 0.7
    (``DSV41_INLINE_ROW_BYTES``). So the gate admits major 12 only when the
    installed reader says it can read them; a 0.6 wheel keeps V4 instead of
    raising inside the first decode.
@@ -29,11 +29,15 @@ from being usable on GB10, and this script closes exactly those:
    The V4 numbers are unchanged: ``KVLayout.V4.bytes_per_token`` is 584.
 
 3. **SM120 reader wiring** (``flash_mla_sm120``): the FlashInfer call is the
-   0.6-era footer-format one. For inline records it must skip the
-   256->64 footer page-split and pass ``kv_scale_format="ue8m0_g32_inline"``,
-   plus ``extra_fp4=True`` for a 288-byte compressed cache
-   (``_sparse_mla_sm120/_api.py``). The V4 path passes no format argument and
-   is byte-identical to before.
+   0.6-era V4 one. A V4.1 cache must skip the 256->64 footer page-split (its
+   constants are the 576/8-byte V4 rows) and pass ``kv_scale_format`` plus
+   ``extra_fp4=True`` for a 288-byte compressed cache
+   (``_sparse_mla_sm120/_api.py``). The format is ``ue8m0_g32``, the *footer*
+   family: ``quantize_k_cache_v41`` writes ``page_size * 512`` data bytes then
+   ``page_size * 16`` scales, and the ``ue8m0_g32_inline`` family (each token's
+   data followed by its own scales) reads that page as zeros -- measured on a
+   GB10 2026-11-22. The V4 path passes no format argument and is
+   byte-identical to before.
 
 Every anchor must match exactly once and every post-condition is asserted, so a
 base-tree move fails the build instead of shipping a half-patched image.
@@ -71,21 +75,21 @@ def edit(key: str, old: str, new: str) -> None:
 edit(
     "pool",
     "def select_dsv4_kv_layout() -> Tuple[KVLayout, Optional[str]]:\n",
-    '''def _sm120_inline_reader() -> bool:
-    """Whether the installed FlashInfer reads the 528-byte inline V4.1 records.
+    '''def _sm120_v41_reader() -> bool:
+    """Whether the installed FlashInfer reads the 528-byte V4.1 footer pages.
 
     SM100/103 reads the V4.1 layouts through FlashMLA and needs no probe; on
-    SM12x the reader is FlashInfer's SM120 sparse route, whose inline format
+    SM12x the reader is FlashInfer's SM120 sparse route, whose V4.1 format
     arrives with 0.7. A 0.6 wheel has neither the format nor the argument, so
-    the pool must stay V4 there rather than fail in the first decode.
+    the pool must stay V4 there rather than write nothing in the first decode.
     """
     try:
         from sglang.kernels.ops.attention.dsv4.fp4kv_kv_format import (
-            sm120_reader_has_inline_route,
+            sm120_reader_has_v41_route,
         )
     except ImportError:
         return False
-    return sm120_reader_has_inline_route()
+    return sm120_reader_has_v41_route()
 
 
 def select_dsv4_kv_layout() -> Tuple[KVLayout, Optional[str]]:
@@ -107,9 +111,9 @@ edit(
     )
     # SM121 (GB10) is capability 12.1: the layout is the same, but the reader
     # is FlashInfer's SM120 sparse route, so admit it only where that route
-    # advertises the inline-scale records.
+    # carries the V4.1 format.
     if is_v41_arch and torch.cuda.get_device_capability()[0] == 12:
-        is_v41_arch = _sm120_inline_reader()
+        is_v41_arch = _sm120_v41_reader()
 """,
 )
 
@@ -124,7 +128,7 @@ edit(
         return KVLayout.V4, None
     assert is_v41_arch, (
         "the V4.1 KV cache layouts need an SM100 / SM103 GPU, or an SM12x GPU "
-        "with a FlashInfer build that reads the inline-scale records"
+        "with a FlashInfer build that reads the V4.1 format"
     )
     return KVLayout.V41, option
 """,
@@ -392,10 +396,10 @@ def apply(root: pathlib.Path = ROOT, check_only: bool = False) -> None:
 
 POST = {
     "pool": [
-        "def _sm120_inline_reader() -> bool:",
+        "def _sm120_v41_reader() -> bool:",
         "capability()[0] in (10, 12)",
-        "is_v41_arch = _sm120_inline_reader()",
-        "with a FlashInfer build that reads the inline-scale records",
+        "is_v41_arch = _sm120_v41_reader()",
+        "with a FlashInfer build that reads the V4.1 format",
     ],
     "configurator": [
         "select_dsv4_kv_layout,\n        )",
