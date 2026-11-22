@@ -218,7 +218,7 @@ follow-up, not the arm.
 | adapter | [harness-hub/Qwen3.8-27B-pi-adapted] — PEFT LoRA, r=32 alpha=64, 637.6 MB, revision `80d05c90…`, apache-2.0, ungated. GRPO/async-GRPO for agent harnesses (pi/harbor/openenv) |
 | adapter coverage | MLP gate/up/down in all 64 layers + q/k/v/o in the 16 full-attention layers. The 48 GDN layers carry no adapter weights (`linear_attn.*` is absent from the file) |
 | size / mem / TP | 51.75 GiB weights + ~16 GiB KV at 262,144 + ~2.5 GiB GDN state at 32 slots + ~1.3 GiB LoRA pool ≈ 72 GiB of a 0.85 × 128 GiB budget; TP=1; plain decode, no speculative draft |
-| served ids | base `Qwen/Qwen3.8-27B`; adapter `qwen38-pi-adapted` — a request naming the base id is served unadapted |
+| served id & adapter selector | base `Qwen/Qwen3.8-27B`; the adapter is advertised as `qwen38-pi-adapted` in `/v1/models` but a bare name does not select it — use `model: "Qwen/Qwen3.8-27B:qwen38-pi-adapted"` or the request body's `lora_path`, or the request is served 200 on base weights |
 | flags | none yet (probe) |
 | license | Apache-2.0 (base and adapter) |
 
