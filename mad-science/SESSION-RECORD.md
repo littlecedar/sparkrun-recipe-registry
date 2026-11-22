@@ -16806,6 +16806,7 @@ supersedes it.
 - **Two commits are unfolded and belong to the next tick.** `c198569f` (`18:31`, "Record an arm the campaign cannot hold instead of leaving it pending") and `4e4590ba` (`18:35`) both landed after the `18:28` board, and neither appears in its landed table (`awk` over `## Landed session` finds neither SHA).
 - **Disposition.** Nothing published; no fleet write beyond the read-only census and the paired `stat`/`df` sample, and no container, volume or lease touched.
 - **Correction (18:54 ET).** This section landed under the peer's subject: `d70f25b2` ("Record the stood-down board tick and narrow the by-name mesh to five of six") swept its 12 lines in before this tick built its own commit, so a commit built from the re-read `HEAD` re-added them and was dropped as a duplicate (`update-ref` back to `d70f25b2`; never pushed, never on `origin/main`). The bytes are intact and committed; the subject is the peer's, recorded here rather than amended, per the shared-head rule.
+- **Correction (19:07 ET).** The unfolded-commit bullet above is half-superseded: the `18:42` board (`47f5d753`, census `23:08:31Z`) folded `c198569f` at its own `18:31` row before this section landed, so only `4e4590ba` (`18:35`) remains unfolded for the next tick.
 
 ### 2026-11-21 18:57 ET — sixth duplicate tick stood down: a 23:12Z census corroborates the 18:42 board, and two probe traps it hit in its own instrument
 
