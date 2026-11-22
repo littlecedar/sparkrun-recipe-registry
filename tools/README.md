@@ -1825,6 +1825,15 @@ uv run python -B tools/task-queue.py update --id X --state running --claimed-by 
  # --unset FIELD[,FIELD] (repeatable) deletes optional keys before validation, so a red register
  # can be repaired (a retired recipe): required fields are refused; --id a,b with --unset repairs
  # several rows in one write, which whole-file validation otherwise makes impossible one at a time
+uv run python -B tools/task-queue.py update --id X --state scheduled --scheduled-by <dispatcher>
+ # the dispatcher's assignment, released by any exit from `scheduled`; a worker then claims it
+ # with --state running --claimed-by <worker>
+uv run python -B tools/task-queue.py add --state ask --id ask-X --title "Ask: …" --blocks X
+ # an owner question as its own root row: no blocked_by, no recipe/tp/env. The rows that need the
+ # answer are `blocked` with an edge to it, so the graph shows the chain to empty
+uv run python -B tools/task-queue.py update --id a,b,c --state blocked
+ # several ids with --state (and/or --unset) is the repair form: whole-file validation means a red
+ # register can only be fixed in one write
 uv run python -B tools/task-queue.py done --id X      # state=done, claim fields cleared
 uv run python -B tools/task-queue.py block --id X     # manual external gate (state flip, not an edge)
 uv run python -B tools/task-queue.py unblock --id X   # back to queued
@@ -1834,7 +1843,9 @@ Exit codes: 0 ok, 1 data/validation error (message on stderr), 2 usage error (ar
 fails closed — duplicate ids, a dangling `blocks`/`blocked_by` ref, a cycle (message prints the
 cycle path), a missing/non-numeric/negative `estimate_h`, a bad `state`/`node_cost`, a stored
 `blocked_by` drifted from its derived mirror, any non-`running` task still carrying claim fields
-(repair with `update --id <id>`, which clears them before validating), or an
+(repair with `update --id <id>`, which clears them before validating), a `blocked` row naming no
+blocker, an `ask` row with a blocker or with `recipe`/`tp`/`env`, a `scheduled` row with no
+`scheduled_by`, or an
 unresolvable/untracked `recipe`, a bad `tp`, a `tp`/`node_cost` disagreement, a non-string
 `env`, or a register that changed on disk between this command's read and its write (a peer
 writer — the message names the row and nothing is written) all exit 1 naming the offending id.

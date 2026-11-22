@@ -44,11 +44,12 @@ every row a scheduler may not boot:
 | `estimate_h` | number ≥ 0 | The task's own cost in hours. Uncertain estimates carry `estimate: provisional` in `notes`. A missing or non-numeric estimate is a validation error — the tool never guesses. |
 | `blocks` | list of ids | Tasks this task blocks (its dependents). Edges point task → dependent. |
 | `blocked_by` | list of ids | The stored mirror: every task whose `blocks` names this one. Maintained by the tool on every mutation; `check` fails if it drifts from the derived mirror. Structural only — a task whose blockers are all `done` is runnable even if `blocked_by` is non-empty. |
-| `state` | `queued` / `running` / `blocked` / `done` | `blocked` is a manual annotation for an *external* gate (an owner decision, a missing authorization) — it is not the same as having entries in `blocked_by`. |
+| `state` | `queued` / `scheduled` / `running` / `blocked` / `ask` / `done` | The state machine below. `blocked` is the only state that carries live blockers, and it must name at least one; `ask` is an owner question as its own root row; `scheduled` is a dispatcher's assignment and `running` a worker's claim. |
 | `model` | string, free tag | The model the task serves, e.g. `dsv4.1-1017`, `glm-5.3`, `glm-5.3-flash`, or empty. Drives tiering (below). |
 | `node_cost` | `` / `single` / `pair` / `quartet` | Fleet cost of the task's run; with a `recipe` it must equal the row's `tp` (1/2/4 nodes). |
 | `notes` | string | Caveats, claim stamps, `estimate: provisional` markers. |
 | `provenance` | string | Pointer into the work record (`TODO.md` §section, `DEEPSEEK.md` §…, `GUIDANCE.md` §…). A queued task with no provenance is a defect. |
+| `scheduled_by`, `scheduled_at` | strings, optional | Set by `update --state scheduled --scheduled-by <dispatcher>` (the tool stamps the UTC timestamp). The pair exists only on a `scheduled` row: any exit clears it, and a `scheduled` row with no dispatcher is refused. Who may schedule is defined in §States and transitions. |
 | `claimed_by`, `claimed_at` | strings, optional | Set by `update --claimed-by --state running` (the tool stamps the UTC timestamp). A claim exists only on a `running` row: the tool clears the pair on **every** transition out of `running` (back to `queued`, `blocked`, `done`), `--claimed-by` without `--state running` is refused, and `check` fails on any non-`running` row that still carries either field. The repair is `update --id <row>` on that row, which clears the pair before validating — `check`/`queue` still refuse the file, so a claim left by a peer's older tool version is repaired, not laundered. |
 | `recipe` | string, optional | **Machine-runnable rows only**: the arm's recipe, relative to the repo root (`recipes/<lane>/<arm>.yaml`). Must be a *tracked* file in the register's checkout and present in the worktree — a row naming a recipe a clone cannot resolve is a defect, never a row a scheduler skips in silence. |
 | `tp` | integer, optional | Machine-runnable rows only, required once `recipe` is given: nodes the arm takes, one of `1`/`2`/`4`, equal to `node_cost`'s count (`single`=1, `pair`=2, `quartet`=4). A mismatch is refused: the row would disagree with itself about how much fleet it holds. |
@@ -125,12 +126,53 @@ tags** — the registry spells the model both ways, so both tags share tier 0), 
 tier 2 = GLM-5.3-Flash, tier 3 = everything else. To change the policy, edit `priority_models` in
 `queue.json` — no tool change is needed; `check` validates the shape.
 
+## States and transitions
+
+Owner directive 2026-11-22, verbatim: *"Sounds like `scheduled` is a distinct status! Also sounds
+like there should be a campaign director for session or code work. Every row must show what it is
+`blocked` on. If a row is awaiting owner input, then it must get an `ask` row (another distinct
+status!) and show that it is being blocked by the new ask row. The graph must always show the full
+dependency chain to empty!"*
+
+| state | means | may carry |
+|---|---|---|
+| `queued` | ready, unassigned, no live blocker | nothing but its edges |
+| `scheduled` | a dispatcher handed it to a runner; not started | `scheduled_by`/`scheduled_at` (required) |
+| `running` | a worker claimed it and is executing | `claimed_by`/`claimed_at` (required) |
+| `blocked` | waiting on other rows — **the only state with live blockers** | a non-empty `blocked_by` (required) |
+| `ask` | an owner question, as its own row | `blocked_by: []` (it is a root); no `recipe`/`tp`/`env` |
+| `done` | finished, with its receipt in `evidence` | its historical edges |
+
+Transitions: `queued → scheduled → running → {done, queued, blocked}`. A worker may also claim a
+`queued` row directly (`queued → running`), which is the boot path the campaign has always used; the
+dispatcher path exists so that a session/code worker can be handed work without a claim race. Only a
+**dispatcher** may set `scheduled` (`--scheduled-by <name>`), only a **worker** may set `running`
+(`--claimed-by <name>`), and both records are released by the next exit from their state. Every
+state may be set back to `queued` (a failed attempt), and `done` is terminal.
+
+**`ask` rows.** An owner input is a row, not a prose marker. `add --state ask` creates a root row
+whose `title` is the question and whose `notes` carry the options and the answer procedure; the rows
+that need the answer are `blocked` with `blocked_by: [<ask id>]`, which the tool derives from the
+ask's `blocks`. Answering is `done --id <ask>` (the answer goes in `notes`/`evidence`) followed by
+returning each dependent to `queued` — `lint` names the dependents still sitting in `blocked` after
+the answer, because a hold whose blockers are all `done` is the one state that cannot clear itself.
+
+**The chain rule.** `blocked_by` is the derived mirror of `blocks`, so the graph is a DAG; `check`
+refuses a dangling id and a cycle, and refuses a `blocked` row that names no blocker. Every chain
+therefore ends at a row with `blocked_by: []` — an `ask` row or a row with no prerequisites — and
+`graph` renders that full path to empty. The *liveness* half (a `blocked` row whose blockers are all
+`done`, or a `queued`/`scheduled`/`running` row with a live blocker) is `lint`, not `check`: it is a
+reminder about a row that is one command from correct, and the intermediate state exists for the
+length of the two commands that answer an ask.
+
 ## Session protocol
 
 1. **At session start, read the queue**: `uv run python -B tools/task-queue.py queue`. Work the
    top of your tier; `weight --id X` shows any task's arithmetic if the order is not obvious.
 2. **Claim before you boot**: `update --id X --state running --claimed-by <session-name>` stamps
-   `claimed_at` (UTC). A task claimed `running` in the file is the claim — a message is not. Every
+   `claimed_at` (UTC), or `update --id X --state scheduled --scheduled-by <dispatcher>` when a
+   dispatcher is handing the row to a session/code worker. A task claimed `running` in the file is
+   the claim — a message is not. Every
    exit from `running` releases it: returning a failed arm to `queued`, `block`, `unblock` and
    `done` all clear `claimed_by`/`claimed_at`, because a queued row that still looked claimed
    would be read as somebody else's work and never run. A row left claimed by an older tool
@@ -146,8 +188,11 @@ tier 2 = GLM-5.3-Flash, tier 3 = everything else. To change the policy, edit `pr
    uncertain) and what the task blocks (`--blocks` for dependents, `--blocked-by` for blockers —
    the mirror is derived either way). Refuse to queue work whose estimate you cannot state; the
    whole mechanism runs on estimates.
-6. **External gates** use `block --id X` / `unblock --id X` (a state flip, not an edge) plus a
-   `notes` line naming the gate, e.g. an owner decision in `TODO.md` §"Retry queue — window 4".
+6. **Owner input is a row.** Create it with `add --state ask` (question in `title`, options and
+   provenance in `notes`) and let it block the work: `add --state ask --blocks X`. `block --id X`
+   without an edge is refused — a hold must name what holds it — and the prose markers
+   (`gate:`, `owner decision`, `decision:`) that used to excuse one are retired: they are not
+   grandfathered, because this migration converted every one of them.
 7. **Escalation**: when the queue and reality disagree — a task has been `running` with no
    heartbeat across sessions, a blocker turned out to be unmeasurable, or the ordering contradicts
    what actually ran — fix the queue first (`update` the state/estimate), then say so in the
@@ -165,7 +210,9 @@ is not a tracked `recipes/<lane>/<arm>.yaml` in the register's checkout (or is t
 the worktree), a `tp` outside 1/2/4, a `tp` that disagrees with `node_cost`, an `env` that is not an
 object of strings, or only half of `recipe`/`tp` — each exits non-zero naming the row. A register
 outside a git checkout cannot carry a `recipe` at all, because "tracked" would be unverifiable.
-There are no silent defaults anywhere in the tool.
+The state model is held the same way: a `blocked` row with no `blocked_by`, an `ask` row with a
+blocker or with `recipe`/`tp`/`env`, and a `scheduled` row with no `scheduled_by` each exit non-zero
+naming the row. There are no silent defaults anywhere in the tool.
 
 ## Deliberate omission: `decisions` is not a JSON array
 

@@ -316,6 +316,58 @@ uv run --frozen python -m sparkrun_campaign.director serve --queue --dry-run \
   --hosts "$CAMPAIGN_HOSTS" --root "$CAMPAIGN_ROOT"
 ```
 
+## Session/code director: the other half of queue mode
+
+Owner directive 2026-11-22: *"there should be a campaign director for session or code work."* Queue
+mode above dispatches **fleet** rows (`recipe` + `tp`). The register also carries rows a session can
+do with no fleet at all — a doc sweep, a tool change, a measurement from existing receipts — and
+those had no dispatcher, so they sat `queued` forever while a human read the board. This is that
+dispatcher. It is **designed here, not implemented in the 2026-11-22 pass**: the tool already
+supports every state it needs (`scheduled`, `running`, `blocked`, `ask`, `done`), and the design is
+written to be implemented as one module without touching the register's shape.
+
+**Selection.** Read `task-queue.py queue --json` (the weighted, tiered ordering — the director never
+re-derives it) and take rows that are: `state == "queued"`; no `recipe` and no `tp` (a fleet row is
+the campaign's, never this director's); `blocked_by` empty or every blocker `done`; not an `ask`
+row; and inside the dispatcher's declared scope (its `--lane` list and `--model` filter, if any).
+Order is the register's, so a light row that unblocks a chain floats up exactly as it does for a
+human.
+
+**Assignment.** For each row taken: `update --id X --state scheduled --scheduled-by
+session-director:<name>`. That write is the hand-off: the row is no longer `queued`, so a second
+dispatcher cannot take it, and `scheduled_by` names the only session that may claim it. The
+dispatcher also appends one line to its own log (`.local/session-director/<name>.jsonl`:
+`{row, worker, at, attempt}`) — the register is the queue, the log is the receipt of who was told.
+
+**Worker.** A worker session polls for rows whose `scheduled_by` names it and claims one with
+`update --id X --state running --claimed-by <session>` **before** doing any work. That claim is the
+same rule the fleet campaign follows: the state in the file is the claim, a message is not. The
+worker then reads the row's `notes`/`provenance` as its brief and writes its result where the row
+says (a receipt path, a commit, a doc line).
+
+**Return.** Three exits, and only the worker may take them: `done --id X --evidence <receipt>`; back
+to `queued` with a note saying why the attempt failed (the dispatcher may then hand it out again);
+or `blocked` with an edge to the row that is now the work — including an `ask` row when the worker
+discovers an owner input it cannot supply. A worker that cannot finish **must not** leave the row
+`running`: that is the stale claim the reconciliation pass reports.
+
+**Expiry.** A `scheduled` row is an assignment, not a lock. The dispatcher returns any `scheduled`
+row older than its `--assign-timeout` (default 30 min) to `queued` with
+`--notes "<old> … session-director: assignment expired after N min"`, so a worker that died between
+assignment and claim cannot park a row forever. `scheduled_at` is the only clock it needs.
+
+**What it never does.** It does not boot anything, hold a fleet lease, touch a `running` row, open a
+`blocked` row (that is the owner's or the blocker's), answer an `ask`, or edit a row's notes beyond
+its own stamp line. It never writes `done` for work it did not do.
+
+**Concurrency and failure.** The register's compare-and-swap already refuses a write built on a
+stale read, so two dispatchers racing on one row means one loses loudly and re-reads. The director is
+idempotent per tick: a row it already scheduled is skipped because it is no longer `queued`.
+
+**Why this is safe to add later.** The states are already enforced by `check` (a `scheduled` row
+must name its dispatcher; `blocked` must name a blocker; `ask` must be a root), so an implementation
+that follows the four steps above cannot invent a state the register rejects.
+
 ## Wire protocol
 
 A Unix stream socket at `<campaign-root>/director.sock`, one JSON object per line, one request per

@@ -406,13 +406,13 @@ class UnsetOptionalFields(unittest.TestCase):
         for tid in ("a", "b"):
             self.assertNotIn("recipe", self.row(tid))
 
-    def test_a_batch_accepts_only_unset(self):
+    def test_a_batch_accepts_only_unset_and_state(self):
         self.write(self.bootable("a"), self.bootable("b"))
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
             self.assertNotEqual(tq.main(["--file", str(self.queue), "update", "--id", "a,b",
-                                         "--state", "queued"]), 0)
-        self.assertIn("several ids only support --unset", stderr.getvalue())
+                                         "--notes", "one note cannot describe two rows"]), 0)
+        self.assertIn("several ids support only --unset and --state", stderr.getvalue())
 
 
 class QuestionsAndCommitBound(unittest.TestCase):
@@ -487,72 +487,148 @@ class Done(unittest.TestCase):
         self.assertEqual((weight, blocked), (2.0, {"b": 2.0}))
 
 
-class BlockedNeedsAGate(unittest.TestCase):
-    """A `blocked` row must name what holds it (owner correction 2026-11-22).
+class StateModel(unittest.TestCase):
+    """The 2026-11-22 state model (owner directive, verbatim in QUEUE.md).
 
-    `blocked` is the register's one annotation for an *external* gate, so a row that names only the
-    work left ("needs a live armed boot") hides runnable work behind an annotation no tick can
-    clear. The rule is in `lint`, not `check`: the JSON is valid, the annotation is wrong.
-
-    The marker is deliberately structured (`gate:`, `owner decision`, `decision:`, `fence:`,
-    `blocked on`, `authorised by`) rather than a bare word: "any gate that treats 'not failed' as
-    healthy" and "the sparkrun task owner" are prose that would pass a word test while naming no
-    gate at all — both rows existed on 2026-11-22 and both were legitimate holds for other reasons.
+    `queued` is ready and unassigned; `scheduled` is a dispatcher's assignment; `running` is a
+    worker's claim; `blocked` waits on other rows and is the ONLY state that carries live blockers;
+    `ask` is an owner question as its own root row; `done` is finished. The rules are split on
+    purpose: `check` refuses a blocked row that names no blocker (structural), while `lint` reports
+    a hold whose blockers are all done and a runnable state hiding a live blocker — because
+    answering an ask is `done` first and the dependents second, and that intermediate state is
+    exactly what the reminder names.
     """
 
-    def blocked(self, notes: str, blocked_by=()) -> dict:
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.queue = Path(self.tmp.name) / "queue.json"
+
+    def write(self, *rows) -> None:
+        self.queue.write_text(json.dumps(data(list(rows))), encoding="utf-8")
+
+    def cli(self, *argv) -> tuple[int, str]:
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = tq.main(["--file", str(self.queue), *argv])
+        return code, out.getvalue() + err.getvalue()
+
+    def row(self, tid: str) -> dict:
+        return next(t for t in json.loads(self.queue.read_text(encoding="utf-8"))["tasks"]
+                    if t["id"] == tid)
+
+    def test_all_six_states_validate(self) -> None:
+        rows = [task("q", 1.0), task("d", 1.0, state="done"), task("a", 0.5, ["w"], state="ask"),
+                task("w", 1.0, state="blocked"), task("s", 1.0), task("r", 1.0)]
+        rows[4].update(scheduled_by="dispatcher", scheduled_at="2026-11-22T00:00:00Z", state="scheduled")
+        rows[5].update(claimed_by="worker", claimed_at="2026-11-22T00:00:00Z", state="running")
+        self.assertEqual([t["state"] for t in tq.validate(data(rows), self.queue)],
+                         ["queued", "done", "ask", "blocked", "scheduled", "running"])
+
+    def test_a_blocked_row_must_name_its_blocker(self) -> None:
+        self.write(task("held", 1.0, state="blocked"))
+        code, text = self.cli("check")
+        self.assertEqual(code, 1)
+        self.assertIn("held", text)
+        self.assertIn("must name what blocks it", text)
+        self.assertIn("ask", text, "the message names the repair")
+
+    def test_a_work_row_blocked_on_an_ask_passes_both_gates(self) -> None:
+        self.write(task("q-1", 0.5, ["work"], state="ask"), task("work", 1.0, state="blocked"))
+        self.assertEqual(self.row("work")["blocked_by"], ["q-1"], "the fixture's edge did not derive")
+        self.assertEqual(self.cli("check")[0], 0)
+        self.assertEqual(self.cli("lint")[0], 0)
+
+    def test_an_ask_row_is_a_root(self) -> None:
+        # `relink` derives the mirror, so the edge is built the way the tool builds it.
+        with self.assertRaises(tq.QueueError) as ctx:
+            tq.validate(data([task("q-1", 0.5, state="ask"), task("other", 1.0, ["q-1"])]),
+                        self.queue)
+        self.assertIn("ask` row is a root", str(ctx.exception))
+
+    def test_an_ask_row_cannot_carry_a_recipe(self) -> None:
+        row = task("q-1", 0.5, state="ask")
+        row.update(recipe="recipes/lane/arm.yaml", tp=1, node_cost="single")
+        with self.assertRaises(tq.QueueError) as ctx:
+            tq.validate(data([row]), self.queue)
+        self.assertIn("question, not work", str(ctx.exception))
+
+    def test_a_chain_ending_at_a_root_passes(self) -> None:
+        self.write(task("q-1", 0.5, ["b"], state="ask"), task("b", 1.0, ["c"], state="blocked"),
+                   task("c", 1.0, state="blocked"))
+        self.assertEqual(self.row("c")["blocked_by"], ["b"])
+        self.assertEqual(self.cli("check")[0], 0)
+        self.assertEqual(self.cli("lint")[0], 0)
+
+    def test_a_dangling_chain_fails(self) -> None:
+        row = task("c", 1.0, state="blocked")
+        row["blocked_by"] = ["ghost"]
+        with self.assertRaises(tq.QueueError) as ctx:
+            tq.validate({"priority_models": [], "tasks": [row]}, self.queue)
+        self.assertIn("dangling ref", str(ctx.exception))
+
+    def test_a_cyclic_chain_fails(self) -> None:
+        with self.assertRaises(tq.QueueError) as ctx:
+            tq.validate(data([task("a", 1.0, ["b"], state="blocked"),
+                              task("b", 1.0, ["a"], state="blocked")]), self.queue)
+        self.assertIn("cycle", str(ctx.exception))
+
+    def test_scheduled_records_its_dispatcher(self) -> None:
+        self.write(task("a", 1.0))
+        code, text = self.cli("update", "--id", "a", "--state", "scheduled")
+        self.assertEqual(code, 1, "an assignment with no dispatcher is not a state")
+        self.assertIn("scheduled-by", text)
+        self.assertEqual(self.cli("update", "--id", "a", "--state", "scheduled",
+                                  "--scheduled-by", "code-director")[0], 0)
+        row = self.row("a")
+        self.assertEqual((row["state"], row["scheduled_by"], bool(row["scheduled_at"])),
+                         ("scheduled", "code-director", True))
+        self.assertEqual(self.cli("check")[0], 0)
+
+    def test_a_worker_claims_a_scheduled_row_and_the_assignment_is_released(self) -> None:
+        self.write(task("a", 1.0))
+        self.assertEqual(self.cli("update", "--id", "a", "--state", "scheduled",
+                                  "--scheduled-by", "code-director")[0], 0)
+        self.assertEqual(self.cli("update", "--id", "a", "--state", "running",
+                                  "--claimed-by", "worker-1")[0], 0)
+        row = self.row("a")
+        self.assertEqual((row["state"], row["claimed_by"]), ("running", "worker-1"))
+        self.assertNotIn("scheduled_by", row, "leaving scheduled releases the assignment")
+        self.assertEqual(self.cli("done", "--id", "a")[0], 0)
+        self.assertEqual(self.row("a")["state"], "done")
+
+    def test_scheduled_by_needs_the_scheduled_state(self) -> None:
+        self.write(task("a", 1.0))
+        code, text = self.cli("update", "--id", "a", "--scheduled-by", "code-director")
+        self.assertEqual(code, 1)
+        self.assertIn("needs '--state scheduled'", text)
+
+    def test_a_stale_hold_is_flagged_by_lint(self) -> None:
+        self.write(task("q-1", 0.5, ["work"], state="done"), task("work", 1.0, state="blocked"))
+        code, text = self.cli("lint")
+        self.assertEqual(code, 1)
+        self.assertIn("work", text)
+        self.assertIn("every blocker done", text)
+
+    def test_a_hidden_live_blocker_is_flagged_by_lint(self) -> None:
+        self.write(task("q-1", 0.5, ["work"], state="ask"), task("work", 1.0))
+        code, text = self.cli("lint")
+        self.assertEqual(code, 1)
+        self.assertIn("work", text)
+        self.assertIn("only state that carries live blockers", text)
+
+    def test_negative_control_a_queued_row_with_done_blockers_passes(self) -> None:
+        self.write(task("q-1", 0.5, ["work"], state="done"), task("work", 1.0))
+        self.assertEqual(self.cli("check")[0], 0)
+        self.assertEqual(self.cli("lint")[0], 0)
+
+    def test_the_old_prose_marker_no_longer_excuses_a_hold(self) -> None:
+        # The escape this replaces: "OWNER DECISION 2026-11-22: ..." in notes used to pass a blocked
+        # row with no edge. Owner input is a row now, so the marker names nothing.
         row = task("held", 1.0, state="blocked")
-        row["notes"] = notes
-        row["blocked_by"] = list(blocked_by)
-        return row
-
-    def test_a_blocked_row_with_a_blocker_edge_passes(self):
-        # `relink` derives the mirror from `blocks`, so the edge is built the way the tool builds it.
-        held = self.blocked("needs the proof boot")
-        self.assertEqual(tq.lint_blocked(data([held, task("proof", 1.0, blocks=["held"])])), [])
-        self.assertEqual(held["blocked_by"], ["proof"], "the fixture's edge did not derive")
-
-    def test_a_named_owner_decision_passes(self):
-        held = self.blocked("OWNER DECISION 2026-11-22: this row runs in its own session")
-        self.assertEqual(tq.lint_blocked(data([held])), [])
-
-    def test_an_explicit_gate_marker_passes(self):
-        for notes in ("gate: the fenced serve's owner window",
-                      "decision: owner 2026-11-20",
-                      "fence: tp-le2-20261120",
-                      "blocked on the owner's window",
-                      "authorised by owner directive 2026-11-20"):
-            with self.subTest(notes=notes):
-                self.assertEqual(tq.lint_blocked(data([self.blocked(notes)])), [], notes)
-
-    def test_a_work_shaped_hold_is_flagged_by_name(self):
-        held = self.blocked("needs one live armed boot; the code already proves the teardown")
-        found = tq.lint_blocked(data([held]))
-        self.assertEqual(len(found), 1)
-        self.assertEqual(found[0][0], "held")
-        self.assertIn("no `blocked_by` edge", found[0][1])
-
-    def test_the_prose_that_used_to_pass_a_word_test_is_flagged(self):
-        # "gate" and "owner" as ordinary words named no gate; the structured marker is the rule.
-        for notes in ("any gate that treats 'not failed' as healthy now sees a unit that never served",
-                      "identify the session from its own evidence, the sparkrun task owner"):
-            with self.subTest(notes=notes):
-                self.assertEqual(len(tq.lint_blocked(data([self.blocked(notes)]))), 1, notes)
-
-    def test_negative_control_the_same_notes_on_a_queued_row_pass(self):
-        row = task("work", 1.0)
-        row["notes"] = "needs one live armed boot"
-        self.assertEqual(tq.lint_blocked(data([row])), [])
-
-    def test_lint_exits_non_zero_and_names_the_row(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            queue = Path(tmp) / "queue.json"
-            queue.write_text(json.dumps(data([self.blocked("needs a live boot")])), encoding="utf-8")
-            out = io.StringIO()
-            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-                rc = tq.main(["--file", str(queue), "lint"])
-            self.assertEqual(rc, 1)
-            self.assertIn("blocked: held", out.getvalue())
+        row["notes"] = "OWNER DECISION 2026-11-22: this row runs in its own session"
+        self.write(row)
+        self.assertEqual(self.cli("check")[0], 1)
 
 
 if __name__ == "__main__":
@@ -999,7 +1075,7 @@ class MarkdownLint(unittest.TestCase):
         self.assertEqual(rules, ["unclosed-fence"])
 
     def test_generated_board_lints_clean(self):
-        payload = data([task("a", 1.0, model="glm-5.3"),
+        payload = data([task("a", 1.0, ["b"], model="glm-5.3"),
                         task("b", 2.0, model="deepseek-v4.1-flash-1017", state="blocked")])
         t = payload["tasks"][0]
         t["notes"] = "a pipe | and a newline\ninside prose"
@@ -1925,7 +2001,10 @@ class ClaimLifecycle(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.queue = Path(self.tmp.name) / "queue.json"
-        self.queue.write_text(json.dumps(data([task("a", 1.0)])), encoding="utf-8")
+        # `blocked` now needs a blocker row (owner directive 2026-11-22), so the fixture carries the
+        # ask row that holds `a`; `row()` keeps returning tasks[0].
+        self.queue.write_text(json.dumps(data([task("a", 1.0), task("gate", 0.5, ["a"], state="ask")])),
+                              encoding="utf-8")
 
     def cli(self, *argv) -> tuple[int, str]:
         out, err = io.StringIO(), io.StringIO()

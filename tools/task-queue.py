@@ -92,7 +92,12 @@ from pathlib import Path
 
 DEFAULT_QUEUE = Path("mad-science/queue.json")
 DEFAULT_BOARD = Path("mad-science/STATUS.md")
-STATES = ("queued", "running", "blocked", "done")
+STATES = ("queued", "scheduled", "running", "blocked", "ask", "done")
+#: `ask` is a question, not work: it is a root row (no blockers) that names an owner input, and the
+#: rows waiting on it are `blocked` with an edge to it. `scheduled` is an assignment without a claim
+#: yet (a dispatcher put it in a worker's hands); `running` is the claim. `blocked` is the only state
+#: that carries *live* blockers — every other state's blockers are done (owner directive 2026-11-22).
+ASK_STATES = ("queued", "ask")
 NODE_COSTS = ("", "single", "pair", "quartet")
 REQUIRED_STR = ("id", "title", "model", "node_cost", "notes", "provenance")
 #: Every field a row must keep. `update --unset` refuses these by name: a repair may clear an
@@ -322,6 +327,29 @@ def validate(data: dict, path: Path | None = None) -> list[dict]:
             # hand-edited file that skipped that.
             raise QueueError(f"{tid}: a claim exists only on a running row; state={task['state']!r} "
                              f"still carries claimed_by/claimed_at — rerun update")
+        sby, sat = task.get("scheduled_by"), task.get("scheduled_at")
+        if task["state"] == "scheduled":
+            # The dispatcher's record, the same shape as a claim: an assignment with no name on it
+            # is indistinguishable from a queued row, which is the state the directive split out.
+            if not (isinstance(sby, str) and sby.strip() and isinstance(sat, str) and sat.strip()):
+                raise QueueError(f"{tid}: a scheduled row records its dispatcher — set it with "
+                                 f"`update --state scheduled --scheduled-by <dispatcher>`")
+        elif sby is not None or sat is not None:
+            raise QueueError(f"{tid}: scheduled_by/scheduled_at exist only on a scheduled row; "
+                             f"state={task['state']!r} still carries them — rerun update")
+        # Owner directive 2026-11-22: `blocked` is the only state that carries live blockers, so a
+        # blocked row must name one. The liveness half (a hold whose blockers are all done) is
+        # `lint`, because answering an ask is `done` first and the dependents second.
+        if task["state"] == "blocked" and not task.get("blocked_by"):
+            raise QueueError(f"{tid}: a blocked row must name what blocks it — link the task that is "
+                             f"the work, or create an `ask` row for the owner input and link it")
+        if task["state"] == "ask":
+            if task.get("blocked_by"):
+                raise QueueError(f"{tid}: an `ask` row is a root — it names an owner question, never "
+                                 f"a blocker (blocked_by={task['blocked_by']})")
+            if any(task.get(key) is not None for key in ("recipe", "tp", "env")):
+                raise QueueError(f"{tid}: an `ask` row is a question, not work — it cannot carry "
+                                 f"recipe/tp/env")
         if not resolved and any(task.get(key) is not None for key in ("recipe", "tp", "env")):
             resolved = True
             root = repo_root(path if path is not None else Path(__file__).resolve())
@@ -523,7 +551,7 @@ def cmd_add(args, path: Path) -> None:
     task = {
         "id": args.id, "title": args.title, "estimate_h": args.estimate_h,
         "blocks": args.blocks.split(",") if args.blocks else [],
-        "blocked_by": [], "state": "queued", "model": args.model or "",
+        "blocked_by": [], "state": getattr(args, "state", "queued"), "model": args.model or "",
         "node_cost": args.node_cost or "", "notes": args.notes or "",
         "provenance": args.provenance or "",
         "evidence": getattr(args, "evidence", "") or "",
@@ -619,18 +647,19 @@ def cmd_update(args, path: Path) -> None:
         # Only `--unset` means the same thing for every named row, so anything else is refused
         # rather than applied to an arbitrary one.
         single = [name for name, value in (
-            ("--state", args.state), ("--title", args.title), ("--model", args.model),
+            ("--title", args.title), ("--model", args.model),
             ("--node-cost", args.node_cost), ("--notes", args.notes),
             ("--provenance", args.provenance), ("--evidence", getattr(args, "evidence", None)),
             ("--recipe", getattr(args, "recipe", None)), ("--tp", getattr(args, "tp", None)),
             ("--estimate-h", args.estimate_h), ("--blocks", args.blocks),
-            ("--claimed-by", args.claimed_by), ("--env", getattr(args, "env", None)),
+            ("--claimed-by", args.claimed_by), ("--scheduled-by", getattr(args, "scheduled_by", None)),
+            ("--env", getattr(args, "env", None)),
             ("--memory-risky", getattr(args, "memory_risky", None)),
             ("--exclude-hosts", getattr(args, "exclude_hosts", None)),
         ) if value is not None]
-        if single or not unset:
-            raise QueueError(f"--id {args.id}: several ids only support --unset "
-                             f"({', '.join(single) or 'no --unset'} given)")
+        if single or not (unset or args.state):
+            raise QueueError(f"--id {args.id}: several ids support only --unset and --state "
+                             f"({', '.join(single) or 'neither given'})")
     # Relink BEFORE validating: `blocked_by` is derived from `blocks`, so a register whose mirror
     # drifted (the state `check` reports as "rerun update") failed validation on the very line
     # before the repair, and every rerun died identically. Measured 2026-10-30: three attempts.
@@ -643,10 +672,22 @@ def cmd_update(args, path: Path) -> None:
             # retired to `attic/` fails validation, so the delete has to run before it or the
             # repair is unreachable (measured 2026-11-22: `check` red, every write refused).
             _unset(tasks, task_id, unset)
+            if args.state and len(ids) > 1:
+                # The state flip is part of the repair, not only of the mutation: a register whose
+                # blocked rows name no blocker (or whose holds are all answered) is red, and the
+                # flip is what makes it valid again, so it has to land before the validation that
+                # gates the write -- the third instance of this ordering, measured 2026-11-22.
+                target = next(t for t in tasks if isinstance(t, dict) and t.get("id") == task_id)
+                target["state"] = args.state
+                if args.state != "running":
+                    target["claimed_by"] = target["claimed_at"] = ""
+                if args.state != "scheduled":
+                    target.pop("scheduled_by", None)
+                    target.pop("scheduled_at", None)
     tasks = validate(data, path)
     if len(ids) > 1:
         _save(path, data, tasks, row=args.id)
-        print(f"updated {args.id}: unset {','.join(unset)}")
+        print(f"updated {args.id}: state={args.state or '-'} unset {','.join(unset) or '-'}")
         return
     task = _find(tasks, args.id)
     flips = {"state": args.state, "title": args.title, "model": args.model,
@@ -674,6 +715,17 @@ def cmd_update(args, path: Path) -> None:
                              f"only on a running row")
         task["claimed_by"] = args.claimed_by
         task["claimed_at"] = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if getattr(args, "scheduled_by", None) is not None:
+        if task["state"] != "scheduled":
+            raise QueueError(f"{args.id}: '--scheduled-by' needs '--state scheduled' — an assignment "
+                             f"is a dispatcher's record, and a worker's is '--claimed-by'")
+        task["scheduled_by"] = args.scheduled_by
+        task["scheduled_at"] = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if task["state"] != "scheduled":
+        # Every exit from `scheduled` releases the assignment, the same way leaving `running`
+        # releases the claim: a queued row that still looked assigned would never be picked up.
+        task.pop("scheduled_by", None)
+        task.pop("scheduled_at", None)
     if task["state"] != "running":
         # Every exit from `running` releases the claim: a stale one on a queued/blocked/done row
         # is exactly the drift that makes a scheduler skip its own work.
@@ -1025,43 +1077,36 @@ def committed_text(path: Path) -> str | None:
     return ref_text(path, "HEAD")
 
 
-#: What a `blocked` row's notes must name. These are *structured* phrases, not words: "any gate that
-#: treats 'not failed' as healthy" and "the sparkrun task owner" are prose that would pass a bare
-#: `gate|owner` test while naming no gate at all (both did, measured 2026-11-22). Owner correction
-#: 2026-11-22: a row that says only what work remains ("needs a live armed boot") is not blocked, it
-#: is queued work wearing an annotation nothing can clear.
-GATE_MARKER = re.compile(
-    r"(?i)(?:"
-    r"\bgate\s*:"                       # an explicit `gate: <what holds it>` marker
-    r"|\bowner[-\s]decision\b"          # "OWNER DECISION 2026-11-22: ..."
-    r"|\bowner[-\s](?:ruling|directive)\b"
-    r"|\b(?:decision|ruling|fence)\s*:"
-    r"|\bblocked on\b"
-    r"|\bauthori[sz]ed by\b"
-    r")")
+#: Retired 2026-11-22: a `blocked` row used to name its gate in prose and this marker let it pass.
+#: The owner directive replaced that with rows: an owner input is an `ask` row and the waiting row is
+#: `blocked` on it, so the marker has nothing left to excuse. Kept only as the note of what was
+#: removed — `lint_blocked` below reads edges, never prose.
 
 
 def lint_blocked(data: dict) -> list[tuple[str, str]]:
-    """`(id, detail)` for every `blocked` row that names no blocker (pure).
+    """`(id, detail)` for every row whose state disagrees with its blockers (pure).
 
-    `blocked` is the register's one annotation for an *external* gate (`QUEUE.md` §Session
-    protocol step 6), so the row must name that gate: a `blocked_by` edge to the task that is the
-    work, or a notes line naming the decision/fence/authorisation with its provenance. Anything
-    else is work wearing a hold, and the cost is the one this rule was written for — runnable work
-    reads as waiting on somebody, and no tick can ever clear it.
+    `blocked` is the only state that carries *live* blockers (owner directive 2026-11-22), so the
+    two drifts are a hold nothing can clear (`blocked`, every blocker done) and a live blocker
+    hidden behind a runnable state. These are `lint`, not `check`: answering an ask is `done --id
+    <ask>` first and the dependents second, and the intermediate state is exactly what the
+    reminder names.
     """
+    by_id = {t.get("id"): t for t in data.get("tasks", [])}
     out: list[tuple[str, str]] = []
     for task in data.get("tasks", []):
-        if task.get("state") != "blocked":
+        state = task.get("state")
+        if state in ("done", "ask"):
             continue
-        if task.get("blocked_by"):
-            continue
-        if GATE_MARKER.search(str(task.get("notes", ""))):
-            continue
-        out.append((str(task.get("id", "?")),
-                    "blocked with no `blocked_by` edge and no gate/decision named in its notes — "
-                    "add the task that is the work and link it, name the owner decision with its "
-                    "provenance, or return the row to `queued`"))
+        live = sorted(b for b in task.get("blocked_by", [])
+                      if by_id.get(b, {}).get("state") != "done")
+        if state == "blocked" and not live:
+            out.append((str(task.get("id", "?")),
+                        "blocked with every blocker done — the hold is cleared; return it to `queued`"))
+        elif state != "blocked" and live:
+            out.append((str(task.get("id", "?")),
+                        f"{state} with live blocker(s) {', '.join(live)} — `blocked` is the only "
+                        f"state that carries live blockers"))
     return out
 
 
@@ -1627,6 +1672,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p_add = sub.add_parser("add", help="add a task")
     p_add.add_argument("--id", required=True)
+    p_add.add_argument("--state", choices=ASK_STATES, default="queued",
+                       help="queued (default) or ask: an owner question as its own root row")
     p_add.add_argument("--title", required=True)
     p_add.add_argument("--estimate-h", type=float, required=True)
     p_add.add_argument("--blocks", default="", help="comma-separated ids this task blocks")
@@ -1659,6 +1706,8 @@ def main(argv: list[str] | None = None) -> int:
     p_upd.add_argument("--provenance")
     p_upd.add_argument("--evidence", help="receipt path that proves the task landed")
     p_upd.add_argument("--claimed-by")
+    p_upd.add_argument("--scheduled-by",
+                       help="dispatcher identity: requires --state scheduled; cleared on any exit")
     p_upd.add_argument("--recipe")
     p_upd.add_argument("--tp", type=int)
     p_upd.add_argument("--env", action="append", metavar="KEY=VALUE",
