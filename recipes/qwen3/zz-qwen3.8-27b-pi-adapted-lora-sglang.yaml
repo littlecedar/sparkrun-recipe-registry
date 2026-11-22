@@ -6,9 +6,9 @@
 # arithmetic as a merge_and_unload, for 638 MB instead of a 56 GB staged checkpoint.
 # Shapes line up with SGLang's own stacking: q_proj B [12288, 32] (48 heads incl. the output
 # gate), o_proj A [32, 6144], k/v B [1024, 32], gate/up B [17408, 32], down B [5120, 32].
-# Route evidence: SGLang "LoRA support for qwen3.5" (c8c1c9261d, 2026-04-29) predates this
-# image pin; served-name contract is `--lora-paths <name>=<path>` and the adapter answers to
-# that name in the request `model` field (srt/arg_groups/lora_hook.py).
+# Route evidence: SGLang "LoRA support for qwen3.5" (c8c1c9261d, 2026-04-29) predates this image pin.
+# SELECTOR: `--lora-paths name=path` only enables LoRA; select with `model: "<base>:<name>"` or the
+# body's `lora_path` — a bare name is 200 on BASE weights (serving_base.py:40-72, serving_chat.py:1287).
 recipe_version: "2"
 model: Qwen/Qwen3.8-27B
 model_revision: 37561816e66b5b9153b1b64c10968c18c1e6f4a0

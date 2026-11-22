@@ -227,7 +227,10 @@ follow-up, not the arm.
 untouched by a merge either — so request-time LoRA is the same arithmetic for 638 MB instead of a
 56 GB staged checkpoint and a merge step. Route evidence: SGLang's qwen3.5 LoRA support landed
 2026-04-29 (`c8c1c9261d`), before this image pin; the adapter's B/A shapes match the engine's own
-`get_hidden_dim`; `--lora-paths name=path` sets the served name (`srt/arg_groups/lora_hook.py`).
+`get_hidden_dim`; `--lora-paths name=path` only **enables** LoRA — the adapter is selected by
+`model: "<base>:<name>"` or the request body's `lora_path`, and `/v1/models` advertising the bare
+name does not make it a selector, so a bare-name request is accepted 200 on **base** weights
+(`srt/entrypoints/openai/serving_base.py:40-72`, `serving_chat.py:1287`, `http_server.py:1939-1953`).
 **Prerequisite before a boot:** stage the adapter into the shared pool at `snapshots/80d05c90…`.
 
 ### Flags
