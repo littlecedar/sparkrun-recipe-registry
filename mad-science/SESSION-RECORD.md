@@ -16879,3 +16879,64 @@ This section homes the previous board's hand-written landed rows, which the firs
 - **Heal.** Skill `heal-syncthing-shared-git-objects`: every missing sha was restored by `hash-object -w` from this clone, content-addressed and additive, in five passes (**35, 17, 17, 6, 1** — each pass exposes deeper missing trees once its parents exist). After it, `ls-tree HEAD`, `git log`, `git show HEAD:<path>` and `git rev-list --objects main` (**20,924** objects) all succeed; fsck reports only dangling objects plus one stale reflog sha.
 - **Scope note.** The tick is read-only on *workloads*; this was an additive restore of the shared clone's own objects, with no ref, history, container, volume or lease touched, and a head clone that cannot read HEAD blocks the registry refresh a boot depends on.
 - **Register.** Row `head-clone-object-store-incomplete` stays **queued** for the unnamed cause and a detector, since the next loss breaks git reads there again silently.
+
+## 2026-11-22 00:36 ET — single-node infra chores: a beegfs-meta loop half-fixed by the fence, three cache refs repaired, and the 501 GB pool fall named
+
+Claimed as `infra-chores-20261122` and worked nine queued rows that take one node and no model boot
+(the cache/BeeGFS/pool/runtime-cache families). Read-only on `.31`–`.34` throughout; the only write
+on a node was `.35`'s unit mask. Nothing booted, no container stopped, no image or tree removed, no
+reboot. Receipts under `.scratch/infra-chores-20261122/`.
+
+- **`beegfs-meta` loop: fixed on `.35`, blocked on the fence.** The drop-in's `Restart=on-failure`
+  loops the unit every 5 s on every host whose `storeMetaDirectory` is empty; `NRestarts` read
+  39,314 / 39,279 / 39,297 / 39,345 / 39,361 on `.31`–`.35` at 05:14Z. `systemctl mask --now
+  beegfs-meta` on `.35` leaves `masked`/`inactive`/`dead`, `NRestarts` flat at **39,363 across 16
+  min**, `beegfs-storage` active and the mount serving; the `oom.conf` score stays. `.31`–`.34` are
+  inside the **2026-11-20** fence (`.local/fleet-leases.json`, serve `58cddf1c62ba6578_b8865cad5863`),
+  so the same mask needs a window — the row is `blocked`, not done. `.30` untouched (`active`,
+  `Result=success`, `NRestarts=0`).
+- **`beegfs-ctl` is not missing — BeeGFS 8.4 removed it.** `beegfs-tools 20:8.4.1` ships one binary,
+  `/usr/sbin/beegfs`; the probe is `beegfs target list --capacity` and it needs root because
+  `/etc/beegfs/conn.auth` is `0600`. Two reads 32 s apart plus a 93 s per-host window: pool `df -B1`
+  rose **2,621,440 B**, and `df -B1 /srv/beegfs/storage` attributed **1,777,664 B to `s:1`
+  (spark-41e1, ~68 %)** with 147–180 KB on each other target. Pool growth is now attributable per
+  target; row **done**.
+- **The 501 GB pool fall is the approved 2026-11-16 GC, net of one download.** Batch 1 ran
+  **16:33:28Z**, inside the 11:23:54Z–19:07:40Z window, deleting **554.54 GiB** on exactly the five
+  storage-target hosts `.30`–`.34` (`exec-safe.sh` divides MB by 1024, so the receipt's "GB" is
+  GiB = 595.4 GB). The hub simultaneously gained `unsloth/Qwen3.8-Flash-Next-GGUF` at **91.28 GB**
+  (85.00 GiB). 554.54 − 85.00 = **469.54 GiB** against a measured **466.88 GiB** — **0.56 %**
+  residual. `df` on `/mnt/beegfs` tracks the storage targets' device free space and
+  `/srv/beegfs/storage` shares `/`'s device on every host, so node-local deletions move it directly.
+  Row **done**; batch 2 (`.35` images) deleted 0.00 GB and is excluded.
+- **Three `refs/main` trailing-newline defects repaired, one byte each.** Kromoss `a4fe9744`,
+  Timestral-5M `bdd20cfc`, Timestral-209M `9874d252` went 41 → 40 bytes; `hf cache ls
+  --show-warnings` no longer prints any `refer missing commit hashes` warning and sees **104 repos /
+  151 revisions** (was 96). The 1017 GGUF absolute link is **left alone on purpose**: its
+  `IQ2_XXS/…-00006-of-00006.gguf` points at `/cache/huggingface/hub/…` and resolves to the
+  **Engram IQ4_NL** file, so relativising it would make a repo whose part 6 is not the IQ2_XXS shard
+  look valid. Stray hub-root trees (`dsv41-engram` 202.76 GB + `mellum-mtp-head` 15.15 GB), three
+  snapshotless entries and a 7 GB unreferenced blob are owner delete calls — row **blocked**.
+- **Pool fetch gaps closed: seven downloads, ~73 GB of new bytes.** `hf download` per repo on `.30`
+  (`~/.cache/huggingface -> /mnt/beegfs/huggingface`), all `rc=0`: Sage head `10b179b5` 22.61 GB,
+  kai `cd49ea38` 1.52 GB, sol `64235bef` 4.81 GB, laya `7b928d82` 2.37 GB, d3-edge `18d61df7`
+  1.22 GB, Nox-4B `25e8f67d` 9.72 GB, Ornith-1.5-122B-GGUF `UD-Q3_K_XL` `745bd742` 59.76 GB (3
+  shards). Every snapshot has 0 broken links and **0 `*.incomplete` files remain under `hub/`**.
+  Sage/kai/sol were instant because their blobs were already in the CAS. `refs/main` stays absent
+  for d3-edge/laya/Nox-4B because Hub `main` moved past the pins. The private
+  `littlecedar/LFM3-1.7B-Base-GGUF` is present (3.47 GB), so the 2026-11-10 404 gate is gone. Row
+  **done**.
+- **Three rows need a boot window and went back to `queued`.** The K2 template A/B: the template
+  half is measured — 0.9B head `c4f92a0d` adds a leading `bos_token`, accepts
+  `reasoning_content`/`reasoning`, raises when an assistant message has no thinking field and makes
+  `reasoning_effort` outside high/medium/low raise; 7B head `240f2de3` is an *older* file than the
+  pin and adds text-part normalization. The served-bytes + one-tool-call leg still needs a serve.
+  Same for the WOPR `cache_dir` SGLang/llama.cpp assertion and the `#68` metrics A/B.
+- **Runtime-cache GC stays blocked.** Batch 1 is done; the CHECK bucket needs per-item owner calls
+  and the `.31`–`.34` portion of the 2026-11-12 plan is now inside the fence. The unfenced
+  remainder named in that plan is `.30` 0.6 GB + `.35` 3.7 GB.
+- **Register.** `check` ok, **214 tasks: 184 done, 26 queued, 4 blocked, 0 running**. Nine rows
+  transitioned (3 done — pool-target, pool-content, pool-fetch — 3 blocked — beegfs-meta,
+  consistency, runtime-cache GC — and 3 returned to queued — K2 template, WOPR cache_dir, `#68`
+  metrics); no claim left behind. `mad-science/queue.json` only; `.idea/modules.xml` and `TODO.md` changes in
+  the worktree are a peer's.
