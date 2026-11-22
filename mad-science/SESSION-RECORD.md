@@ -17446,3 +17446,31 @@ verdict read directly.
   pass read — so each needs its sentence re-read before a range is chosen. That is the row's whole
   4 h, and this batch had no room for it after the three code rows.
 - **Register.** `check` ok, **228 tasks: 214 done, 7 queued, 7 blocked, 0 running**.
+
+## 2026-11-22 — the head's `.git` is unshared: one folder-ignore line, proved in both directions
+
+- **Owner decision 2026-11-22 closes the blocked choice** in `head-clone-object-store-incomplete`:
+  option (a), stop sharing the head's `.git` so it fetches from origin instead of receiving objects
+  from syncthing.
+- **The folder is `home-src`** (`weqnk-ngdac`, path `~/src`) on the head. Its folder-level
+  `.stignore` carried five patterns; **one line was added**: `sparkrun-recipe-registry/.git`.
+  `GET /rest/db/ignores` reports it active and expanded to `…/.git` and `…/.git/**`, so the ignore
+  is scoped to this repo's `.git` and nothing else.
+- **Rescan:** `POST /rest/db/scan` returned 200 after 232 s; the folder then read `idle`, `errors 0`,
+  `needFiles 0`. The head's local index holds **1,190,860** files against the global **1,192,042**,
+  and `/rest/db/file` for `.git/HEAD` reports `local.invalid: true` against `global.invalid: false` —
+  the path is in peers' copies and out of the head's own.
+- **Both directions proved with probe files, plus a control outside `.git`.** The peer's index
+  answers **404** for a file written under the head's `.git` while it holds the control written at
+  `~/src` (200): the head never advertises the path. The head's index holds the peer's write into
+  its `.git` (`modifiedBy` that peer) as `ignored: true`, `invalid: true`, and the file is never on
+  disk: it refuses to apply it. The control proves the folder was syncing during the test, so the
+  two absences are the ignore's doing rather than a stalled link.
+- **Head git is healthy:** `git log -1`, `git ls-tree HEAD` and `git status` all succeed; `git fsck`
+  exits **0** with **0** missing/broken objects. Its 270 `bad sha1 file` lines are the 2026-11-21
+  syncthing residue filenames (`.syncthing.*.tmp`, `*.sync-conflict-*`) inside `.git/objects/`, not
+  objects; they are now inert and removing them is a separate call.
+- **Documented** in AGENTS.md §"Git, secrets, and the second writer": the unshare, the mechanism, the
+  consequence (the head sees a peer's commit only after a fetch there) and the rollback (delete the
+  line and rescan).
+- **Register.** `check` ok, **228 tasks: 218 done, 5 queued, 4 blocked, 1 running**.

@@ -869,6 +869,16 @@ Syncthing file versioning is **off** in this tree (no `.stversions` anywhere), s
 uncommitted file is neither traceable nor recoverable: journal work under `.local/` or the
 `**/*-WORK.md` forms and commit real work promptly, rather than relying on file history to return it.
 
+**The head's `.git` is not synced** (owner decision 2026-11-22). The `home-src` folder
+(`weqnk-ngdac`, path `~/src`) carries this repo, and that folder's `.stignore` on the head now holds
+`sparkrun-recipe-registry/.git`: the head's local index marks every path under it ignored, so only
+git itself writes into the head's object store and the concurrent `.syncthing.*.tmp` /
+`*.sync-conflict-*` writes that kept losing loose objects are gone. The consequence is that the head
+sees a peer's commit only after `git fetch origin main` there (it makes no local commits,
+`git rev-list origin/main..HEAD` = 0), while the worktree keeps syncing. Ignore patterns are
+per-device, so a peer keeps syncing its own `.git` until the same line is added to that device's
+`~/src/.stignore`. Rollback: delete the line on the head and rescan the folder.
+
 **Never run `git worktree add` from the shared clone**: it writes `[core] worktree = …` into the
 shared `.git/config`, after which every git command in every session dies on `fatal: Invalid path …`
 until that line is deleted — use `git clone --no-hardlinks <repo> /tmp/<dir>` for a throwaway
