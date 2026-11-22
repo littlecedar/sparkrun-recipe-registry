@@ -735,9 +735,14 @@ arms. Cite it rather than this README for anything historical.
 | [`littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm-b12x.yaml`](../../attic/ornith/littlecedar-ornith-1.5-397b-nvfp4-mtp-graft-vllm-b12x.yaml) | Archived arm — an earlier `b12x` fork of the 397B vLLM recipe carrying `CUTE_DSL_ARCH` and other b12x env switches, tagged `broken` in its metadata. Provenance, not a benchmarked comparison; the b12x API surface it referenced is covered by no current guard. |
 | [`ornith-1.5-35b-a3b-nvfp4-vllm.yaml`](../../attic/ornith/ornith-1.5-35b-a3b-nvfp4-vllm.yaml) | Archived arm — a 35B vLLM recipe. The registry carries **no measured figure** for it, and the DFlash2 draft is an SGLang-targeted artifact, so the shipped 35B lane is the SGLang one; retained as provenance. |
 | [`ornith-1.5-35b-a3b-nvfp4-vllm-b12x.yaml`](../../attic/ornith/ornith-1.5-35b-a3b-nvfp4-vllm-b12x.yaml) | Archived arm — the `b12x` sibling of the 35B vLLM recipe; same status (no measured figure, retained as provenance). |
+| [`zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-dflash2-sglang.yaml`](../../attic/ornith/zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-dflash2-sglang.yaml) | Archived arm (retired 2026-11-22) — the eval-only uncensored NVFP4 target with its DFlash2 drafter. Booted once: the drafter loads and accepts nothing (accept len 1.00 / rate 0.00; C1 10.3 t/s from the engine log). Receipt `~/benchmarks/campaign-20261122/ornith-122b-nvfp4-uncensored-dflash2-first-boot/run.md`. |
+| [`zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-rawchat-sglang.yaml`](../../attic/ornith/zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-rawchat-sglang.yaml) | Archived arm (retired 2026-11-22) — probe A of the no-drafter A/B: **token salad 4/4** on `/v1/completions` with the template bypassed. Receipt `~/benchmarks/campaign-20261122/ornith-122b-nospec-rawchat-boot/run.md`. |
+| [`zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-noparsers-sglang.yaml`](../../attic/ornith/zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-noparsers-sglang.yaml) | Archived arm (retired 2026-11-22) — probe B: **token salad 4/4** on `/v1/chat/completions` with no parsers. Receipt `~/benchmarks/campaign-20261122/ornith-122b-nospec-noparsers-boot/run.md`. |
 
 The three archived recipes were moved to `attic/ornith/` (commit `9942a40`) and are **not** part of
-the shipped surface.
+the shipped surface. The three 122B survey arms joined them on 2026-11-22, measured-rejected; their
+verdicts stay in [Measured 2026-11-22](#measured-2026-11-22-the-export-is-the-defect), not in the
+frozen YAML.
 
 ## References
 
@@ -993,7 +998,7 @@ sparkrun benchmark performance recipes/ornith/<arm>.yaml -H .35 --fresh \
 
 | recipe | target pin | drafter | bytes | status |
 |---|---|---|---|---|
-| `zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-dflash2-sglang.yaml` | `e6a1c178…` | `incoai/…-DFlash2` `9baefc1b…`, 4 draft tokens | 75.65 GB | DRAFT, never booted, **eval-only** |
+| `zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-dflash2-sglang.yaml` | `e6a1c178…` | `incoai/…-DFlash2` `9baefc1b…`, 4 draft tokens | 75.65 GB | **booted 2026-11-22** — the drafter accepts nothing ([results](#measured-2026-11-22-the-export-is-the-defect)); **eval-only**, retired to `attic/ornith/` |
 | `recipes/cybersec/zz-devsecllm-ornith-1.5-122b-nvfp4-ablated-dflash2-sglang.yaml` | `e80d38d7…` | same | 77.61 GB | **moved to `recipes/cybersec/` 2026-11-04** — booted and measured, **eval-only** |
 | `zz-cyankiwi-ornith-1.5-122b-awq-int4-dflash2-sglang.yaml` | `f37c82fd…` | same | 85.29 GB | DRAFT, never booted |
 
@@ -1230,11 +1235,11 @@ is in the chat path, which is the cheapest outcome to fix — drop the parser or
 Both `sparkrun recipe validate`-clean, both no-drafter (speculative keys absent, not neutralised), both
 carrying the eval-only banner and pin from their parent arm:
 
-| recipe | drafter | template | parsers | probe |
-|---|---|---|---|---|
-| `zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-dflash2-sglang.yaml` | DFlash2, 4 tokens | on | both | failed: salad |
-| `zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-rawchat-sglang.yaml` | **none** | **bypassed** (raw completion) | both | A |
-| `zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-noparsers-sglang.yaml` | **none** | on | **none** | B |
+| recipe | drafter | template | parsers | probe | measured 2026-11-22 |
+|---|---|---|---|---|---|
+| `zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-dflash2-sglang.yaml` | DFlash2, 4 tokens | on | both | failed: salad | `/v1/models` 200; accept len **1.00** / rate **0.00**; C1 **10.3 t/s** from the engine log |
+| `zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-rawchat-sglang.yaml` | **none** | **bypassed** (raw completion) | both | A | **salad 4/4** on `/v1/completions` |
+| `zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-noparsers-sglang.yaml` | **none** | on | **none** | B | **salad 4/4** on `/v1/chat/completions` |
 
 There is no SGLang serve flag that turns the tokenizer's template off, so A's template knob is
 exercised at probe time: it is queried on `/v1/completions` with a literal prompt. Its parser flags
@@ -1242,7 +1247,7 @@ stay on the serve line only so the two arms differ in exactly one place.
 
 ```bash
 # probe A — one node, free and non-production (.31-.34 are serving)
-sparkrun run recipes/ornith/zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-rawchat-sglang.yaml -H .35
+sparkrun run attic/ornith/zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-rawchat-sglang.yaml -H .35
 # rendered serve line (validated, no spec flags):
 #   taskset -c 5-9,15-19 sglang serve --model-path dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4 \
 #     --served-model-name dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4 \
@@ -1256,7 +1261,7 @@ curl -sS localhost:8000/v1/completions -H 'content-type: application/json' -d '{
   "prompt": "The capital of France is", "max_tokens": 64, "temperature": 0 }'
 
 # probe B — same target and engine, no parser flags
-sparkrun run recipes/ornith/zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-noparsers-sglang.yaml -H .35
+sparkrun run attic/ornith/zz-dealignai-ornith-1.5-122b-nvfp4-uncensored-nospec-noparsers-sglang.yaml -H .35
 # rendered serve line: identical to A minus `--reasoning-parser qwen3 --tool-call-parser qwen3_coder`
 curl -sS localhost:8000/v1/chat/completions -H 'content-type: application/json' -d '{
   "model": "dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4",
@@ -1268,8 +1273,75 @@ sparkrun stop <cluster-id> -H .35   # and copy the serve log first: `sparkrun st
 ```
 
 Only two cells are needed: A's completion text and B's chat text. llama-benchy runs on one coherent
-arm afterwards, never on a salad one. Both arms are `zz-` drafts: not in the root README index, no
-decode number claimed, and neither is promoted by a coherence pass alone.
+arm afterwards, never on a salad one. Both arms were `zz-` drafts: not in the root README index, no
+decode number claimed, and neither is promoted by a coherence pass alone — both are now measured and
+retired to `attic/ornith/` (below).
+
+#### Measured 2026-11-22: the export is the defect
+
+Both probes ran on `.30` (idle, 116.2 and 116.6 GiB MemAvailable at preflight, the fenced serve on
+`.31`–`.34` untouched), one boot each, on `lmsysorg/sglang:v0.5.22@sha256:e3a4f060…`, target
+`dealignai/Ornith-1.5-122B-UNCENSORED-NVFP4` @ `e6a1c178…`. Receipts:
+`~/benchmarks/campaign-20261122/ornith-122b-nospec-rawchat-boot/run.md` (probe A),
+`~/benchmarks/campaign-20261122/ornith-122b-nospec-noparsers-boot/run.md` (probe B), and
+`~/benchmarks/campaign-20261122/ornith-122b-nvfp4-uncensored-dflash2-first-boot/run.md` with
+`c1-decode.json` (the drafter arm).
+
+Probe A — `/v1/completions`, template bypassed, `max_tokens 64`, `temperature 0`:
+
+| # | prompt | http | elapsed | completion tokens | coherence |
+|---|---|---|---|---|---|
+| 1 | `The capital of France is` | 200 | 4.60 s | 64 | salad |
+| 2 | `A list of three primary colours:` | 200 | 4.55 s | 64 | salad |
+| 3 | `def fibonacci(n):` | 200 | 4.53 s | 64 | salad |
+| 4 | `The year 1969 is remembered for` | 200 | 4.56 s | 64 | salad |
+
+Probe B — `/v1/chat/completions`, template applied, no parsers, `enable_thinking false`:
+
+| # | prompt | http | elapsed | completion tokens | reasoning chars | coherence |
+|---|---|---|---|---|---|---|
+| 1 | `The capital of France is` | 200 | 4.62 s | 64 | 0 | salad |
+| 2 | `A list of three primary colours:` | 200 | 4.57 s | 64 | 0 | salad |
+| 3 | `def fibonacci(n):` | 200 | 4.56 s | 64 | 0 | salad |
+| 4 | `The year 1969 is remembered for` | 200 | 4.58 s | 64 | 0 | salad |
+
+The receipts' own side-by-side, verbatim:
+
+| | probe A (raw completion) | probe B (chat path) |
+|---|---|---|
+| endpoint | `/v1/completions` | `/v1/chat/completions` |
+| template | bypassed | applied |
+| parsers | on (never fire) | none |
+| result | **salad, 4/4** | **salad, 4/4** |
+
+**Verdict: hypothesis 1 — the export — is the defect.** HTTP 200 on either endpoint proves only that
+the serve answered; the four replies are mixed-script fragments, and probe B's all open on the same
+token (`exotic`), which is the weights collapsing onto one attractor rather than following the
+prompt. That retires hypotheses 2–4 by measurement (drafter absent, template both on and bypassed,
+parsers none and never fired): no drafter, template or parser work can rescue this checkpoint. The
+survivors are an engine bump that implements `FP8_PER_CHANNEL_PER_TOKEN` for a mixed-precision head,
+or a re-export whose `quantization_config` uses only implemented algorithm names — neither is a
+recipe change.
+
+**The drafter arm measures the same defect from the other side.** It booted clean (target load
+517.33 s, drafter 16.83 s, `DFLASH draft runner ready`), `/v1/models` 200, and then: "C1 decode:
+10.3 t/s" — one `POST /v1/completions`, `max_tokens 256`, `temperature 0`, 256 tokens in 24.853 s
+wall — with "DFlash2 acceptance: accept len 1.00, accept rate 0.00 on every decode batch". That cell
+is the engine's own decode-batch log (`decode-batches.txt`, 10.29–10.37 t/s) plus wall clock, **not**
+a llama-benchy cell: the profile's coherence gate refuses the arm (`Coherence test FAILED: Expected
+'Paris'. Got: ...`), which is the instrument declining to publish a throughput number for an
+incoherent model. Against the shipped NVFP4 DFlash2 arm's 37.7 t/s with acceptance above 1, this arm
+is ~3.7× slower with the drafter contributing nothing.
+
+**The open knob for any future re-export** is the draft-token count, not the drafter: the engine
+printed `DFLASH block size mismatch: using speculative_num_draft_tokens=4 but draft config
+block_size=16.` The lane chose 4 from the shipped arm's own sweep, so the mismatch is between this
+drafter's config and the knob; `-o speculative_draft_tokens=15` is the first leg to run — after a
+re-export, never instead of one.
+
+No throughput cell is recordable on any of the three arms. They are retired to
+[`attic/ornith/`](../../attic/ornith/) (2026-11-22) as frozen provenance; the 10.3 t/s above is a
+diagnostic, not a benchmark.
 
 ### 2026-11-07 survey verdict — the non-abliterated arm already exists
 
