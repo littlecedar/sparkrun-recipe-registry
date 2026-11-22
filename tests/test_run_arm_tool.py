@@ -2432,8 +2432,11 @@ class DaemonPreflight(ExecutedBlock):
 class MetricsScrape(ExecutedBlock):
     """A /metrics body is captured before `sparkrun stop`, with four states, never an empty file.
 
-    `--rm` deletes the container ~26 ms after `die`, and sglang's /metrics binds on port_base+3
-    inside the container, so both the timing and the namespace are load-bearing.
+    `--rm` deletes the container ~26 ms after `die`, so the timing is load-bearing; the scrape
+    runs in the container's own namespace because a host-side curl depends on the rank's port
+    being published, which the instrument does not rely on. sglang serves /metrics on the served
+    app's port when the recipe sets `--enable-metrics` — not on `port_base + 3`, which is the
+    scheduler's ZMQ channel (recipes/MECHANICS.md:622-626).
     """
 
     def block(self):

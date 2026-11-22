@@ -1442,12 +1442,11 @@ fi
 
 # Per-cell /metrics scrape BEFORE the stop, from INSIDE the arm's own container. sparkrun
 # launches `--rm`, so the container and every socket in it are gone ~26 ms after `die` (the same
-# fact the exit capture exists for); and a host-side curl is on the wrong side of the namespace:
-# sglang serves /metrics on port_base + 3 *inside* the container (recipes/MECHANICS.md:603-605),
-# a port sparkrun never publishes, so a host-side probe would manufacture `absent` on an
-# instrumented arm -- the exact inversion this field exists to prevent. Every existing poller
-# already lives where the socket is: the omni bridge polls its own serve in-container
-# (recipes/media/mods/vllm-omni-metrics-bridge/launcher.py) and the GLM launchers poll
+# fact the exit capture exists for); and a host-side curl depends on the port being published for
+# that rank, which this instrument does not rely on: sglang serves /metrics on the SERVED app's
+# port, not on `port_base + 3` (recipes/MECHANICS.md:622-626) -- the inversion it exists to stop.
+# Every existing poller already lives where the socket is: the omni bridge polls its own serve
+# in-container (recipes/media/mods/vllm-omni-metrics-bridge/launcher.py) and the GLM launchers poll
 # 127.0.0.1 (recipes/glm/mods/tensorfold-glm-exl3-launcher/launcher.py:302). This block reuses
 # that placement without their republishing: it stores the raw body and classifies its shape,
 # so no per-lane mod change is needed and every runtime gets one uniform probe. curl exists in
