@@ -16959,3 +16959,49 @@ reboot. Receipts under `.scratch/infra-chores-20261122/`.
   content only and keeps no `finish_reason` — filed as `house-scores-reasoning-only-as-empty`.
 - **Cleanup.** `sparkrun stop 24b520a8bd0b2f06_f4c6a1813acd`, `docker ps -aq` empty on `.30`; nothing
   written outside the receipt. **Register.** `check` ok, 215 tasks.
+
+## 2026-11-22 — queue load-out: the two DS4 fp4-KV engine rows, a node_cost pass, and the vetted candidate list
+
+Written after the Sage trick-1 commit landed (`97d6d35c`), which is the serialization gate: this is a
+single-writer pass over `mad-science/queue.json`, and no boot ran from it.
+
+- **The parent row's engine work is now two rows, not one.** `ds4-fp4-kv-layout-sm121-port` stays
+  `blocked` and gains both in its derived `blocked_by`. `…-sglang` (4 h, single) is the three-site
+  SGLang port the parent's provenance names — the `is_sm100` gate at `deepseek_v4_memory_pool.py:197`,
+  the `V41`/`V41_FP4` layout from `kv_layout.cuh:38`, the fp4 branch and sizing term at
+  `pool_configurator.py:1024-1035`/`:1531`/`:1553-1568`. `…-vllm` (2 h, single) is backend selection:
+  upstream already carries `nvfp4_ds_mla` (`config/cache.py:47-48`) and a gather-and-upconvert op
+  (`_custom_ops.py:3060`, 352 B/token for the 576-wide MLA head), and only the SM12x sparse-MLA
+  backend refuses the layout. Both are `single` because the port is dev-host work with a numeric
+  gate, the shape the DeepGEMM SM121 backport proved (`arch-deepgemm-sm12x-paged-sparse`, single,
+  13 h, kernel gate 8/8 at `calc_diff` 1.3e-05); the quartet boot that proves fp4 KV is the parent's.
+  The settled findings (KV dtype is not a lever, `fp8_ds_mla` does not exist in this engine, nvfp4
+  sizing is unsafe as shipped) are restated in the rows only as do-not-re-open clauses.
+- **node_cost pass: 2 set, 18 refused.** `campaign-leases-tp4-onto-30` → `quartet` (its acceptance is
+  a TP4 quartet on `.30`) and `webai-twil-8b-eval-only-arm` → `single` (its recipe is now tracked, so
+  the authoring row became a first-boot row and was retitled and re-summarized). The other 18 rows
+  are tool, docs, director-logic and read-only measurement work whose text names no boot shape, so
+  they keep an empty cost rather than a guessed one.
+- **Ten candidate rows, one update.** Eight new single-node first-boot rows (Ornith-122B DFlash2,
+  DaisyRose-27B, inworld voice-isolator, qwen3.8-27B pi-LoRA probe, the two no-drafter Ornith probes,
+  Edge0-145B strata, MiniMax-H3 fl2va) plus the Laguna-M.1 pair re-boot; `webai-twil` updated in
+  place rather than twinned. The two Ornith probes carry no edge between them — the doc makes them
+  sequential on one host, not blocking. Every row's estimate is `provisional` with its basis stated.
+- **Owner decisions applied.** MiniMax-H3 and Viggle-Remake were split out of the conflated
+  `minimax-viggle-remake-eval-only-arm` (closed `done` with the split as evidence); the MiniMax-H3
+  row records the 2026-11-22 ruling (MiniMax's lawyers, relayed by the owner) that authoring and R&D
+  do not trigger the territorial exclusion while the run stays governed by deployment location, and
+  points at the `# DECISIONS` entry the media worker is adding. Viggle-Remake is queued with staging
+  in progress. Audio8 moved from surveyed-only to `single` with the owner direction recorded.
+  `beegfs-meta-restart-loop-non-meta-hosts` stays blocked as its own session; the two cache rows were
+  unblocked on the owner's approval including deletions, with the 1017 GGUF repo explicitly outside it.
+- **The Edge0 host pin is structural, not a note.** The row excludes `.30`–`.34`, so only `.35` can
+  place it. `tools/run-arm.sh` does read `ARM_NODE` (`:33`, `HOSTS=${2:-${ARM_NODE:-}}`), but the
+  campaign worker always passes the host list positionally (`worker.py:57`), so an `env` pin would
+  look like a pin and do nothing.
+- **Laguna sorts after the singles by edge, not by luck.** All ten single-node boot rows name it in
+  `blocks`, so its weight stays 2.00 while each of theirs drops by 2.00 — the only structural way to
+  express "runs after all single-node work concludes" in a weight-ordered register.
+- **Register.** `check` ok, **227 tasks: 186 done, 39 queued, 2 blocked, 0 running**. `mad-science/queue.json`
+  and this file only; `.idea/modules.xml`, `TODO.md`, `QUESTIONS.md` and the `recipes/media/` edits in
+  the worktree are a peer's.
