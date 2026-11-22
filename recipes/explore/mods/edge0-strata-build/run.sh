@@ -73,14 +73,57 @@ log() {
 step() {
   log "=== ${1} ==="
   shift
-  "$@" 2>&1 | log || die "step failed: ${*}"
+  local rc
+  set +e
+  # `log` prints its arguments and never reads stdin, so piping the command into
+  # it swallowed every line (the 2026-11-22 apt failure logged nothing at all).
+  # The pipeline runs as a background job so a TERM — the hook's deadline — is
+  # delivered to the traps while it runs; bash defers traps until a foreground
+  # pipeline exits, which left a killed build root-owned.
+  { "$@" 2>&1 | while IFS= read -r line; do log "  ${line}"; done; } &
+  wait $!
+  rc=$?
+  set -e
+  [[ "${rc}" -eq 0 ]] || die "step failed (rc=${rc}): ${*}"
 }
+
+# --- privilege gate ---------------------------------------------------------
+# This stage is root-only: the image ships no compiler toolchain (no git, curl,
+# cmake, ninja or python3) and no `sudo`, so the apt install below is the only
+# way to get one, and apt writes /var/lib/apt/lists. sparkrun runs pre_exec mods
+# with `docker exec --user root` (orchestration/hooks.py:971), so a stage that
+# arrives as the cache user cannot escalate here — the image's `ubuntu` user is
+# only in the sudo group, with no sudo binary — and apt dies 13 s later with
+#   E: List directory /var/lib/apt/lists/partial is missing. - Acquire (13: Permission denied)
+# (2026-11-22 receipt, `.35`). Try the one escalation a retained CAP_SETUID
+# allows, then name the cause in one line instead of an apt error.
+if [[ "$(id -u)" != "0" ]]; then
+  if command -v setpriv >/dev/null 2>&1 \
+     && setpriv --reuid=0 --regid=0 --clear-groups "${BASH_SOURCE[0]}" "$@" 2>/dev/null; then
+    exit 0
+  fi
+  printf '%s [%s] FATAL: build stage must run as root, got uid %s; sparkrun runs pre_exec mods as root and this image has no sudo\n' \
+    "$(date -Ins)" "${MOD_NAME}" "$(id -u)" >&2
+  exit 1
+fi
 
 if [[ ! -d "${LOGDIR}" ]]; then mkdir -p "${LOGDIR}"; fi
 if [[ -f "${LOGDIR}/${MOD_NAME}.log.gz" ]]; then rm -f "${LOGDIR}/${MOD_NAME}.log.gz"; fi
 if [[ -f "${LOGDIR}/${MOD_NAME}.log" ]]; then gzip "${LOGDIR}/${MOD_NAME}.log" || true; fi
 touch "${LOGDIR}/${MOD_NAME}.log"
 reown "${LOGDIR}"
+
+# The serve runs as the cache owner (uid 1000), so everything this mod creates
+# under /cache/runtime must be handed back — on the failure path too, or a
+# half-built tree stays root-owned and the next attempt has to chown by hand.
+reown_runtime() {
+  reown "${LOGDIR}" 2>/dev/null || true
+  if [[ -e "${RUNTIME_DIR}" ]]; then reown "${RUNTIME_DIR}" 2>/dev/null || true; fi
+}
+trap reown_runtime EXIT
+# A hook killed at its deadline is TERMed, and a bare TERM would skip the EXIT
+# trap; route it through `exit` so the tree is still handed back.
+trap 'exit 143' TERM INT
 
 log "${MOD_NAME} - ${MOD_DESCRIPTION}"
 log "edge0=${EDGE0_COMMIT} llama.cpp=${LLAMA_CPP_COMMIT} jobs=${JOBS}"
@@ -110,8 +153,14 @@ else
   # python; apt is idempotent, so it runs whenever the build runs.
   if ! command -v cmake >/dev/null 2>&1 || ! command -v ninja >/dev/null 2>&1 \
      || ! command -v python3 >/dev/null 2>&1; then
+    # This image ships /var/lib/apt/lists without `partial`; create it as root
+    # and keep apt's fetch sandbox as root, so the Acquire step cannot fail with
+    # "List directory .../partial is missing. - Acquire (13: Permission denied)"
+    # (the 2026-11-22 failure) on a root run.
+    mkdir -p /var/lib/apt/lists/partial
     step "apt: build toolchain" bash -c \
-      'apt-get update && apt-get install -y --no-install-recommends \
+      'apt-get -o APT::Sandbox::User=root update \
+       && apt-get -o APT::Sandbox::User=root install -y --no-install-recommends \
          git ca-certificates curl build-essential cmake ninja-build \
          python3 python3-venv python3-pip && rm -rf /var/lib/apt/lists/*'
   fi
