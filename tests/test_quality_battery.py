@@ -23,6 +23,7 @@ TOOL_PATH = REPO_ROOT / "tools" / "quality-battery.py"
 KEY = "s3cret-battery-key"
 
 SEEN: list[tuple[str, str, str | None]] = []
+BODIES: list[dict] = []
 
 
 def load_tool(path: Path = TOOL_PATH):
@@ -43,6 +44,7 @@ class _Stub(BaseHTTPRequestHandler):
 
     reject_all: bool = False
     open_access: bool = False
+    reasoning_only: bool = False
 
     def log_message(self, format: str, *args: object) -> None:
         pass
@@ -79,9 +81,15 @@ class _Stub(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length") or 0)
-        self.rfile.read(length)
+        BODIES.append(json.loads(self.rfile.read(length) or b"{}"))
         if not self._allowed():
             self._reply(401, {"error": "unauthorized"})
+            return
+        if self.reasoning_only:
+            self._reply(200, {"choices": [{"index": 0, "finish_reason": "length",
+                                           "message": {"role": "assistant", "content": "",
+                                                       "reasoning_content": "thinking " * 400}}],
+                              "usage": {"prompt_tokens": 1, "completion_tokens": 4096}})
             return
         self._reply(200, {"choices": [{"index": 0, "finish_reason": "stop",
                                        "message": {"role": "assistant", "content": "42"}}],
@@ -89,14 +97,17 @@ class _Stub(BaseHTTPRequestHandler):
 
 
 class StubServe:
-    def __init__(self, reject_all: bool = False, open_access: bool = False):
+    def __init__(self, reject_all: bool = False, open_access: bool = False,
+                 reasoning_only: bool = False):
         _Stub.reject_all = reject_all
         _Stub.open_access = open_access
+        _Stub.reasoning_only = reasoning_only
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), _Stub)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
 
     def __enter__(self) -> str:
         SEEN.clear()
+        BODIES.clear()
         self.thread.start()
         return f"http://127.0.0.1:{self.server.server_address[1]}"
 
@@ -189,6 +200,32 @@ class Score(unittest.TestCase):
 
     def test_decimal_does_not_match_its_integer_prefix(self):
         self.assertFalse(TOOL.score("num", "74", "74.5"))
+
+
+class Reasoning(unittest.TestCase):
+    """A budget spent in the reasoning channel is its own outcome, not a dead serve."""
+
+    TASK = [("trick-1", "reason", "Which weighs more?", "any", ["same"])]
+
+    def test_reasoning_only_reports_as_reasoning_not_empty(self):
+        with StubServe(reasoning_only=True) as url:
+            result = TOOL.run_tier("hard", self.TASK, url, "stub-model", 1, 8, None, KEY)
+        self.assertEqual(result["correct"], 0)
+        self.assertEqual(result["reasoning"], ["trick-1"])
+        self.assertEqual(result["outcomes"]["trick-1"],
+                         [{"outcome": "reasoning", "finish_reason": "length"}])
+
+    def test_case_pins_its_own_budget_and_thinking(self):
+        pinned = ("trick-1", "reason", "Which weighs more?", "any", ["42"],
+                  {"max_tokens": 8192, "thinking": "off"})
+        with StubServe() as url:
+            TOOL.run_tier("hard", [self.TASK[0], pinned], url, "stub-model", 1, 8,
+                          "on", KEY)
+        plain, own = BODIES
+        self.assertEqual(plain["max_tokens"], 8)
+        self.assertEqual(plain["chat_template_kwargs"], {"enable_thinking": True})
+        self.assertEqual(own["max_tokens"], 8192)
+        self.assertEqual(own["chat_template_kwargs"], {"enable_thinking": False})
 
 
 if __name__ == "__main__":

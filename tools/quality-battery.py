@@ -42,7 +42,10 @@ every reply so the flip is inspectable.
 
 Reply budget: `--max-tokens` defaults to 384 (unchanged semantics); raise it for
 models that think by default (Kolibri-1), whose answers otherwise truncate into
-`content: null` and score as empty replies.
+`content: null`. That outcome prints as `REASONING` and is summarised separately
+from `EMPTY`, so a thinking loop is never read as a dead serve. A single task
+tuple may carry a sixth element, `{"max_tokens": N, "thinking": "on"|"off"}`, to
+give one reasoning-heavy prompt its own budget instead of raising the whole tier.
 
 Usage
 -----
@@ -196,8 +199,15 @@ def chat(base: str, model: str, prompt: str, max_tokens: int = 384,
     t0 = time.time()
     with _open(req, 600) as r:
         out = json.load(r)
-    txt = out["choices"][0]["message"]["content"] or ""
-    return txt, {"elapsed_s": round(time.time() - t0, 2), "usage": out.get("usage", {})}
+    choice = out["choices"][0]
+    msg = choice.get("message") or {}
+    txt = msg.get("content") or ""
+    # A thinking model can spend the whole budget in the reasoning channel and
+    # return empty content at HTTP 200; without these two fields that reply is
+    # indistinguishable from a dead serve.
+    return txt, {"elapsed_s": round(time.time() - t0, 2), "usage": out.get("usage", {}),
+                 "finish_reason": choice.get("finish_reason"),
+                 "reasoning_chars": len(msg.get("reasoning_content") or "")}
 
 
 def score(kind: str, expect, reply: str) -> bool:
@@ -214,37 +224,64 @@ def score(kind: str, expect, reply: str) -> bool:
     raise ValueError(kind)
 
 
+def outcome(ok: bool, reply: str, meta: dict) -> str:
+    """`pass`, `reasoning` (budget spent thinking, no content), `empty`, or `fail`.
+
+    A reasoning-only reply is a 200 with a real completion, so it must not read
+    as a dead serve; `empty` keeps that meaning for a reply with neither channel.
+    """
+    if ok:
+        return "pass"
+    if not reply:
+        return "reasoning" if meta.get("reasoning_chars") else "empty"
+    return "fail"
+
+
 def run_tier(name, tasks, base, model, repeat, max_tokens=384, thinking=None,
              api_key=None):
     per_task: dict[str, list[bool]] = {}
     replies: dict[str, list[str]] = {}
+    outcomes: dict[str, list[dict]] = {}
     for rep in range(repeat):
-        for tid, cat, prompt, kind, expect in tasks:
+        for task in tasks:
+            # A sixth tuple element pins this case's own budget or thinking
+            # mode, so one reasoning-heavy prompt need not raise the whole tier.
+            tid, cat, prompt, kind, expect, *opts = task
+            case = opts[0] if opts else {}
             if prompt is None:
                 prompt = make_needle()
             try:
-                reply, meta = chat(base, model, prompt, max_tokens, thinking, api_key)
+                reply, meta = chat(base, model, prompt,
+                                   case.get("max_tokens", max_tokens),
+                                   case.get("thinking", thinking), api_key)
                 ok = score(kind, expect, reply)
             except CredentialRejected:
                 # A rejected key is not a zero score; stop rather than print one.
                 raise
             except Exception as e:
                 reply, meta, ok = f"<ERROR {type(e).__name__}: {e}>", {}, False
+            kind_of = outcome(ok, reply, meta)
             per_task.setdefault(tid, []).append(ok)
             replies.setdefault(tid, []).append(reply.strip()[:500])
-            print(f"[{name}] rep{rep} [{'PASS' if ok else 'FAIL'}] {tid:14s} ({cat:6s}) "
+            outcomes.setdefault(tid, []).append(
+                {"outcome": kind_of, "finish_reason": meta.get("finish_reason")})
+            print(f"[{name}] rep{rep} [{kind_of.upper()}] {tid:14s} ({cat:6s}) "
                   f"{reply.strip().replace(chr(10), ' ')[:80]!r}")
     stable_pass = sum(1 for v in per_task.values() if all(v))
     flaky = [t for t, v in per_task.items() if len(set(v)) > 1]
+    reasoning = [t for t, v in outcomes.items()
+                 if any(c["outcome"] == "reasoning" for c in v)]
     total = len(per_task) * repeat
     correct = sum(sum(v) for v in per_task.values())
     print(f"\n{name.upper()}: {correct}/{total} = {100.0*correct/total:.1f}% "
           f"over {repeat} repeat(s); stable-pass {stable_pass}/{len(per_task)} tasks"
+          + (f"; REASONING-TRUNCATED: {reasoning}" if reasoning else "")
           + (f"; FLAKY: {flaky}" if flaky else ""))
     return {"tier": name, "correct": correct, "total": total,
             "pct": 100.0 * correct / total if total else 0.0,
             "stable_pass": stable_pass, "tasks": len(per_task), "flaky": flaky,
-            "per_task": per_task, "replies": replies}
+            "reasoning": reasoning, "per_task": per_task, "replies": replies,
+            "outcomes": outcomes}
 
 
 def main() -> int:
@@ -256,6 +293,7 @@ def main() -> int:
     # Reply budget. 384 is the historical default and unchanged semantics for
     # every lane measured so far; models that think by default (Kolibri-1)
     # need a larger budget or the answer is truncated into `content: null`.
+    # A per-case {"max_tokens": N} on the task tuple overrides this.
     ap.add_argument("--max-tokens", type=int, default=384)
     # Reasoning toggle for templates that key on `enable_thinking`; unset sends
     # no chat_template_kwargs at all, so other lanes' request bytes are unchanged.
