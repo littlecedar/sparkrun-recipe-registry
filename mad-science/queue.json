@@ -3055,9 +3055,9 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": "",
-      "summary": "Recipe and both eval-only notices are tracked; the remaining work is the arm's first boot: /v1/models plus one C1 cell, recorded as a receipt, on the 17.58 GB BF16 body.",
-      "summary_src": "3284dc021542d7f63b880ebd1e02aedbc56002ac26ec6563ef0515355f021bb8",
-      "summary_at": "2026-11-22T06:15:24Z",
+      "summary": "Queued with authoring done and both eval-only notices tracked; the drain skipped it because the shared pool holds no webAI-Official/TwIL-8B body (17.58 GB) and no staging was directed.",
+      "summary_src": "e435cd93488dd37b7ad0f0d6ff06265a44d38f1b092ef0c1de114077c6199296",
+      "summary_at": "2026-11-22T09:01:17Z",
       "recipe": "recipes/explore/twil-8b-bf16-reasoning-sglang.yaml",
       "tp": 1
     },
@@ -3614,19 +3614,19 @@
         "laguna-m1-vllm-v032-reboot"
       ],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "",
       "node_cost": "single",
       "notes": "PROBE, non-shippable, authored-not-booted -- no receipt exists (recipes/qwen3/README.md:211). Qwen/Qwen3.8-27B on SGLang dev-cu13@sha256:0a1ba33a... (the sibling NVFP4 arm's digest), min_nodes 1, with the pi-adapted LoRA. ACCEPTANCE: the adapter loads and one C1 cell shows its effect against the same arm without it, recorded as a receipt; a boot that only reaches /v1/models does not close it. estimate: provisional -- no sizing in the lane doc.\n\nSKIPPED 2026-11-22 by campaign-runner-20261122 (drain): base body absent -- the pool has RadixArk/drowzeys/orcarouter Qwen3.8-27B variants but no models--Qwen--Qwen3.8-27B, which this arm's LoRA attaches to. Left queued.",
       "provenance": "recipes/qwen3/README.md:209-216; recipes/qwen3/zz-qwen3.8-27b-pi-adapted-lora-sglang.yaml:12-19",
       "evidence": "",
-      "claimed_by": "",
-      "claimed_at": "",
+      "claimed_by": "campaign-runner-20261122",
+      "claimed_at": "2026-11-22T08:53:37Z",
       "recipe": "recipes/qwen3/zz-qwen3.8-27b-pi-adapted-lora-sglang.yaml",
       "tp": 1,
-      "summary": "Queued probe, non-shippable, no receipt: acceptance is the pi-adapted LoRA loading and one C1 cell showing its effect against the same arm without it; reaching /v1/models does not close it.",
-      "summary_src": "3add41b1a44dc091502f512e155f586fbeacd8abadea6ef50da4c88fbe35632b",
-      "summary_at": "2026-11-22T07:02:19Z"
+      "summary": "Running under campaign-runner-20261122 but skipped for now: the pool carries other Qwen3.8-27B variants, not the Qwen/Qwen3.8-27B base the pi LoRA attaches to, so no adapter-effect cell can be measured yet.",
+      "summary_src": "41be631ac058ec023ca457b1281a44b783098512ca63fba91b1cecec6fc8f2e1",
+      "summary_at": "2026-11-22T09:01:17Z"
     },
     {
       "id": "ornith-122b-nospec-rawchat-boot",
@@ -3687,9 +3687,9 @@
         ".33",
         ".34"
       ],
-      "summary": "Queued first boot, pinned to .35 only via exclude_hosts: 106 GiB Edge0-145B NVFP4 whose strata engine is built from source inside the container, so the first boot is also the build; a build failure is the receipt.",
-      "summary_src": "dafcfa148aba6e60fc95198dafaf47146179e7f02ca53cd843fcedfad08b3b20",
-      "summary_at": "2026-11-22T07:02:19Z"
+      "summary": "Queued and pinned to .35 only; skipped because the pool holds no Edge0-145B-NVFP4 body, so the in-container strata source build that its first boot doubles as has nothing to build.",
+      "summary_src": "f6bbe21967ec1ce1a5783d0e8a91596eda5c182c898087360d1901b908fdbd31",
+      "summary_at": "2026-11-22T09:01:17Z"
     },
     {
       "id": "minimax-h3-fl2va-t2va-first-boot",
@@ -3732,9 +3732,9 @@
       "recipe": "recipes/media/viggle-remake-h3-lora-v2v-comfyui-script.yaml",
       "tp": 1,
       "memory_risky": true,
-      "summary": "Queued on staging: the 156.06 GiB Viggle-Remake body is transferring into the pool, so the boot is the test; ~110 GiB resident is memory-risky and needs a host off the production serve; EVAL-ONLY, territorial license met.",
-      "summary_src": "216cd6b4d57572b356ee540fb6a0f7e68363dc46bb2617888a74f9555e465632",
-      "summary_at": "2026-11-22T07:02:20Z"
+      "summary": "Queued after staging landed (156.06 GiB at 7e5be143): the boot died 81 s into the stage because the mod does not clear sparkrun HF_HUB_OFFLINE=1 for its own fetch, the LTX arm documented fix; nothing measured.",
+      "summary_src": "3d0c859d192d296ef97ac19b3a58c52d2a45ee8b9912900bf8050c6a7ec859af",
+      "summary_at": "2026-11-22T09:01:18Z"
     },
     {
       "id": "moss-image-sft-5b-first-boot",
@@ -3754,9 +3754,9 @@
       "claimed_at": "",
       "recipe": "recipes/media/moss-image-sft-5b-bf16-diffusers-script.yaml",
       "tp": 1,
-      "summary": "Queued first boot: authored 2026-11-22, never booted, 27.23 GB body still to stage; Kromoss launcher unchanged, the card 50-step CFG-3.0 control is the latency lever, acceptance one non-empty 1024 PNG with TTR.",
-      "summary_src": "6e26445f22afe4cf5398460138e1bd2c233426277f4eb91af1f501d263eec92f",
-      "summary_at": "2026-11-22T07:02:19Z"
+      "summary": "Queued after two 2026-11-22 failures: a root-owned flashinfer JIT dir (repaired on .30), then an arm-side duplicate-class isinstance error, the repo custom pipeline loaded twice under different module identities; nothing measured.",
+      "summary_src": "54139c529089988583a010f79523c34a217a547a63b6267534c32db3e2d0b142",
+      "summary_at": "2026-11-22T09:01:17Z"
     }
   ],
   "questions": []
