@@ -7,14 +7,14 @@ Every `file.py:line` cite is relative to that package tree, whose line numbers c
 between builds; re-derive a line before trusting it after an upgrade, and let
 `sparkrun --version` name the build you have.
 
-**Cite provenance.** Each pass names the build it read. The 2026-11-22 pass re-derived §Model and
-serving, §Runtimes, §Topology and §Container and lifecycle against **0.4.3-alpha+gd34eb23**, and
-re-checked the two sections below, correcting two anchors the moved build had invalidated. The
-2026-11-16 pass re-derived, against 0.4.3-alpha+g35b208a, every cite in
-§[The one rule](#the-one-rule-that-decides-whether-a-knob-works) and in §Key reference under
-*Format and identity*; the 0.4.2 pass (2026-10-21) covered *`model_revision`* under §Model and
-serving and all of §[Notes](#notes). **§Build, execution, placement, §Plugin-owned keys and §Notes
-still carry 0.4.0/0.4.2 numbering** — re-derive with `grep -n` on the named symbol first.
+**Cite provenance.** Each pass names the build it read. The 2026-11-22 pass re-derived every cite
+in §Model and serving, §Runtimes, §Topology, §Container and lifecycle, §Build, execution,
+placement, §Plugin-owned keys and §Notes against **0.4.3-alpha+gd34eb23**, and re-checked the two
+sections below against the same build (two anchors corrected for it). The 2026-11-16 pass
+re-derived those two — §[The one rule](#the-one-rule-that-decides-whether-a-knob-works) and §Key
+reference under *Format and identity* — against 0.4.3-alpha+g35b208a; the 0.4.2 pass (2026-10-21)
+covered *`model_revision`* under §Model and serving and all of §[Notes](#notes). A `.swival/` or
+`srt/` footnote is not a package-tree cite and is not re-derived against a build.
 
 The format is v2 and the authoritative key set is `_KNOWN_KEYS`
 (`core/recipe.py:81-123`): **41 keys**, counted from the literal set. A key outside
@@ -241,23 +241,23 @@ the runtime's own `known_config_keys()`: flag-map keys plus the keys it reads ou
 
 - **`builder`** — string, default `""`. Explicit value wins; otherwise v1 and eugr
   signals infer `eugr` from `runtime_config.build_args` or a `container:` starting with
-  `ghcr.io/spark-arena/dgx-vllm-eugr-nightly` (`core/recipe.py:76`, `617-642`, `732-763`).
+  `ghcr.io/spark-arena/dgx-vllm-eugr-nightly` (`core/recipe.py:79`, `705-711`, `749-773`).
   `mods:` is **not** a builder signal. A named builder that does not resolve is an error
-  (`core/validation.py:1670-1697`); a silent inference is only a suggestion
-  (`core/validation.py:1600-1668`).
+  (`core/validation.py:1680-1712`); a silent inference is only a suggestion
+  (`core/validation.py:1462-1474`).
 - **`builder_config`** — mapping, default `{}`, consumed by the builder by name
-  (`core/recipe.py:1304`).
+  (`core/recipe.py:1426`).
 - **`executor`** — string, default `""`: `""` selects the Docker executor, `"local"` the
-  native-subprocess executor with no container (`core/recipe.py:1310-1313`). An
-  unresolvable selector is an error (`core/validation.py:1705-1734`).
+  native-subprocess executor with no container (`core/recipe.py:1435`). An
+  unresolvable selector is an error (`core/validation.py:1715-1738`).
 - **`executor_config`** — mapping, default `{}` of container-engine settings such as
   `auto_remove`, `restart_policy`, `shm_size`, `entrypoint` and `memory_limit`
-  (`core/recipe.py:1306-1308`); resolved through the executor chain
-  `orchestration/executor.py:584-632`. It is an **executor** key, not a runtime one:
+  (`core/recipe.py:1430`); resolved through the executor chain
+  `orchestration/executor.py:568-659`. It is an **executor** key, not a runtime one:
   `defaults: memory_limit` is inert (warned as `unmapped-config-key`, or swept into
   `runtime_config`, where no runtime reads it).
 - **`executor_config.memory_limit`** — string (e.g. `"72G"`), emitted as `docker run --memory=`
-  (`orchestration/executors/docker.py:457-458`). **It bounds the container's host-side memory
+  (`orchestration/executors/docker.py:458-459`). **It bounds the container's host-side memory
   only** — anon RSS, pinned staging, page cache. On GB10 unified memory `cudaMalloc`/UVM is
   charged to the node, not to the container cgroup: 16 GiB of `torch.zeros(device="cuda")` inside
   an 8 GiB container left `memory.current` at 409 MiB with `oom_kill 0`, while host `used` rose
@@ -269,21 +269,21 @@ the runtime's own `known_config_keys()`: flag-map keys plus the keys it reads ou
   **Until sparkrun emits `--memory-swap` equal to `--memory`, a set limit lets a breach swap up to
   the limit** (`--memory` alone leaves `memory.swap.max = memory.max`, and the nodes have a swap
   file), so treat it as documentation-only; the upgrade is the one-liner at
-  `orchestration/executors/docker.py:457-458`.
+  `orchestration/executors/docker.py:458-459`.
 - **`scheduler`** — string, default `""`; `""` selects greedy placement, and
   `occupancy-sparse` or `occupancy-dense` opt into occupancy placement with fractional GPU
-  sharing (`core/recipe.py:1315-1319`). `--scheduler` overrides it.
+  sharing (`core/recipe.py:1441`). `--scheduler` overrides it.
 - **`layout`** — mapping or null, default unset: `requires: [{capability}]` and
   `placements: [{host, ranks, local_gpus}]`. Parsed permissively at load and validated by
-  the placement engine at apply time (`core/layout.py:22-40`, `86-140`;
-  `core/recipe.py:1324-1328`).
+  the placement engine at apply time (`core/layout.py:37-48`, `52-82`, `86-110`;
+  `core/recipe.py:1450`).
 - **`distribution_config`** — mapping or null. Default is one model entry `{model}` (with
   `model_revision` stamped on) and one container entry `{container}`. An omitted `models:`
   or `containers:` subkey keeps that default; a present subkey is honored literally,
   including `entries: []` and `enabled: false`. A model entry's `revision` is
-  authoritative and never falls back to the recipe pin (`core/recipe.py:124-160`,
-  `181-202`, `307-398`). Only a hand-written block is exported
-  (`core/recipe.py:2480-2484`). A cluster profile's `distribution:` block **overrides** the
+  authoritative and never falls back to the recipe pin (`core/recipe.py:127-167`,
+  `442-465`, `468-538`). Only a hand-written block is exported
+  (`core/recipe.py:2652-2655`). A cluster profile's `distribution:` block **overrides** the
   recipe, so a stale `{enabled: false, skip_fan_out: true}` on a cluster silently strands
   every worker with a bare `missing …/config.json`; omit the block and rely on the default
   (`models.enabled: true`, `containers.enabled: true`) — there is no CLI flag for
@@ -293,26 +293,26 @@ the runtime's own `known_config_keys()`: flag-map keys plus the keys it reads ou
 - **`cluster_config`** — mapping or null; internal, undocumented per-recipe launch
   overrides: `remote_cache_dir`, `local_cache_dir`, `resolved_model_path`. Applied only for
   trusted recipes, because it can expose host paths to the container
-  (`core/recipe.py:1023-1078`, `1331`).
+  (`core/recipe.py:1197-1221`, `1453`).
 - **`runtime_cache`** — boolean or mapping, default `{}`. `true` becomes `{enabled: true}`.
   Fields: `enabled`, `key_by_image`, `key_by_model`, `dir`, and `prune` (`enabled`,
   `max_age_days`). The recipe layer outranks CLI, cluster, and global config
-  (`core/recipe.py:1333-1338`; `core/runtime_cache.py:199-300`).
+  (`core/recipe.py:1460`; `core/runtime_cache.py:199-300`).
 - **`benchmark`** — embedded benchmark spec mapping, read from raw recipe data by
   `BenchmarkSpec.from_recipe`, never by the constructor
-  (`core/benchmark_profiles.py:262-293`). Recognized keys: `framework` (required),
+  (`core/benchmark_profiles.py:262-299`). Recognized keys: `framework` (required),
   `args`, `metadata`, `timeout`, `schedule`, `category`; extra keys are swept into `args`
   (`core/benchmark_profiles.py:13`, `266-276`).
 
 ### Plugin-owned keys
 
 A plugin can claim a top-level key through `register_recipe_item`
-(`core/recipe_items.py:69-139`). The key must not collide with `_KNOWN_KEYS`, uses
+(`core/recipe_items.py:69-127`). The key must not collide with `_KNOWN_KEYS`, uses
 lowercase letters, digits, `_`, and `-`, and the handler owns `parse`, `validate`, and
 `export`. Parsing happens before the unknown-key sweep, so a claimed key never lands in
-`runtime_config` (`core/recipe.py:1231-1249`). `affects_fingerprint` decides whether the
-item joins the workload identity (`core/recipe_items.py:85-113`;
-`orchestration/job_metadata.py:352-355`). The installed 0.4.0 registers **no** recipe
+`runtime_config` (`core/recipe.py:1361-1371`). `affects_fingerprint` decides whether the
+item joins the workload identity (`core/recipe_items.py:54-61`;
+`orchestration/job_metadata.py:431-437`). The installed 0.4.3 registers **no** recipe
 items (`registered_recipe_items()` is empty), so any such key in this registry today is an
 out-of-tree plugin contract, not a sparkrun field.
 
@@ -327,7 +327,7 @@ On a launch with a prepared model, `bind_runtime_models` writes operation-local 
 `model` → the prepared in-container snapshot path, `model_revision` →
 `_prepared_model_revision`, `revision` → the manifest revision for vLLM and sglang, and
 `_gguf_model_path` / `mmproj` when the artifact has them
-(`models/runtime.py:44-60`). So in 0.4.2:
+(`models/runtime.py:21-82`). So in 0.4.2:
 
 - `{model}` renders the **prepared path**, not the declared repo id. That is why
   `--served-model-name {model}` advertises
@@ -335,7 +335,7 @@ On a launch with a prepared model, `bind_runtime_models` writes operation-local 
   opposite before 2026-10-19; that note was wrong for 0.4.0.
 - `--revision` is **not** stripped from the template, and `{model_revision}` does resolve
   when the recipe pins one — to the prepared revision, because operation overrides outrank
-  `defaults` in the chain (`core/recipe.py:1674-1682`).
+  `defaults` in the chain (`core/recipe.py:1674`).
 - `validate_runtime_command` returns early when the prepared path appears as a token, or
   as `--flag=<path>` (`models/runtime.py:85-92`). Otherwise the command must name the
   declared repo id as a token and pass a revision flag with the **prepared** revision in
@@ -369,7 +369,7 @@ Both lines are required together: a declared key the command never references is
 dropped from the rendered command (`core/launcher.py:939-1029`; 0.4.2 reports it as the
 `unmapped-config-key` warning instead of dropping it silently), and the runtime's own append fires only when the flag is
 absent, with fill policy leaving an existing value untouched
-(`runtimes/base.py:925-981`; sglang call site `runtimes/sglang.py:370-374`). The two ds4
+(`runtimes/base.py:1150-1179`; sglang call site `runtimes/sglang.py:379-386`). The two ds4
 shim arms are the deliberate exception: their in-container launchers normalize the path
 back to the repo id, and `tests/test_ds4_recipes.py` guards it. A fix is not verified until
 a live boot's `GET /v1/models` returns the repo id.
@@ -380,7 +380,7 @@ a live boot's `GET /v1/models` returns the repo id.
 default whose value is itself a template (`base_url: "http://localhost:{port}"`) resolves
 too (`utils/text.py:186-229`). Literal braces are masked before substitution and restored
 after, and a `{placeholder}` nested inside a JSON blob does resolve — quoted or not
-(`core/recipe.py:1550-1582`). The `{{` / `}}` doubled-brace escape is the v1 spelling; in a
+(`core/recipe.py:693-701`). The `{{` / `}}` doubled-brace escape is the v1 spelling; in a
 v2 recipe the convention is detected from `{{` and collapsed, but it draws
 `deprecated-brace-escape` and is slated to stop working in v3
 (`core/validation.py:1464-1499`).
@@ -393,14 +393,14 @@ Traps that remain:
   resolvability, so `tests/test_recipe_placeholder_resolution.py` does.
 - vLLM's speculative-config field is **`model`**, not `draft_model`; sparkrun's draft
   detection reads `speculative_config.model` and adds that repo to the distribution set
-  with its **own** `revision` (`runtimes/_vllm_common.py:356-374`;
+  with its **own** `revision` (`runtimes/_vllm_common.py:374-395`;
   `runtimes/vllm_distributed.py:125-128`). An inline JSON literal in `command:` never
   reaches the config chain, so the drafter is neither bound nor distributed. Put the JSON
   in `defaults:` and reference it as `'{speculative_config}'`.
 - A leading `_`-prefixed key declared under `defaults:` warns `internal-config-key`: those
   names are injected mid-launch and the injection outranks the recipe, but it is skipped
   under `--dry-run`, for pre-placed weights, and when the model was not pre-synced
-  (`core/validation.py:722-770`).
+  (`core/validation.py:741-782`).
 - Comments never go inside a folded `command:` block: a `>` scalar keeps them as literal
   text and the shell then treats the rest of the line as its own.
 
