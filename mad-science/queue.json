@@ -1637,7 +1637,10 @@
       "provenance": "mad-science/STATUS.md 2026-11-08 04:13/04:19 ET rows; mad-science/SESSION-RECORD.md 2026-11-08 tick",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "A launcher that stops observing its boot still holds sparkrun host claims: pid 1883449 held .30-.33 after a 414.7 s registry failure, the next three arms refused rc=5; unfixed at 4927a7fe — nothing kills the launcher to drop the claim.",
+      "summary_src": "175a043bb43b2e86ea36c0b278f7e03974731ce75ecf4ecc5a15d71d50690424",
+      "summary_at": "2026-11-22T04:26:13Z"
     },
     {
       "id": "run-arm-conflates-stall-with-death",
@@ -1834,7 +1837,10 @@
       "provenance": "owner answer 2026-11-08, `mad-science/TODO.md` §\"Settled questions\" `#68`; `benchmarking/instr-cps4096-vs-2048-k16.yaml` header (the comparability constraint the answer generalizes); `tools/run-arm.sh` `# metrics-scrape` block",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "#68 must separate three instrument regimes — the free post-cell scrape, the recipe metrics flag mounted for the whole boot, and mid-run sampling — via one identical recipe off vs on; acceptance: no order-of-magnitude throughput difference.",
+      "summary_src": "a93fa6681a07212e5026562b680e1b9b8041d43adad19ef10e13f2a6d37f43db",
+      "summary_at": "2026-11-22T04:26:14Z"
     },
     {
       "id": "sm121-marlin-oom-diagnosis",
@@ -1864,7 +1870,10 @@
       "provenance": "`mad-science/QUESTIONS.md` `#75` and the owner answer 2026-11-09 (restate the storage budget at pool level); `mad-science/STORAGE-POLICY.md:401-407` §\"The budget\" (HF cache ≤ 90 % of the BeeGFS pool's capacity, ≈ 20.7 TiB of 23 TiB); `tools/cache-audit.py:471` `--budget-gb` (per-node runtime-cache budget, default 2000); `AGENTS.md` \"The HF cache is one pool, not six copies\"",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "cache-audit --budget-gb measures per node but the HF cache is one shared pool, so every node reads the same and the fleet flags at once; it needs a pool mode judging usage against 90% of capacity with one pass/fail. Not bootable.",
+      "summary_src": "332aa76b93bc82beb41804c0a8f6f328f08fcaa1968459449b5c198ab57e2eaf",
+      "summary_at": "2026-11-22T04:26:13Z"
     },
     {
       "id": "gate-validate-degrades-on-broken-install",
@@ -1894,7 +1903,10 @@
       "provenance": "probe /tmp/tick-pool-20261109-0700.sh on .30 and .31; board row 2026-11-09 07:0x",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "OOM drop-in's Restart=on-failure loops beegfs-meta every 5 s on .31-.35 (NRestarts 3431 on .31, 956.6 MB journal) while is-active reads activating; fix is masking the unit on role-gated hosts, .30 untouched, storage serving.",
+      "summary_src": "33b9bd1d8bcccc039011c1428a0f805b234295595eba4fb797985a14c515d79c",
+      "summary_at": "2026-11-22T04:26:10Z"
     },
     {
       "id": "head-mesh-cannot-reach-30",
@@ -2021,7 +2033,10 @@
       "provenance": "campaign/sparkrun_campaign/plan.py sibling_hold and queue_entries; mad-science/SESSION-RECORD.md 2026-11-10 00:16 ET; mad-science/queue.json row registers arm3-control-cell-canary-line (df9d40b)",
       "evidence": "mad-science/STATUS.md 2026-11-10 00:15 ET queue row; commit 52b99ef",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "Canary row (tp4 quartet recipe) never leases because plan.sibling_hold keys arms on the recipe stem and done sibling h2h-second-boot-ds4-1017 holds it, fleet idle meanwhile; open choice: close sibling, own recipe file, or change the hold.",
+      "summary_src": "c799cd672c6070d373507f87aa6cae017aaff18a116fed5c3bd9fafd774968dd",
+      "summary_at": "2026-11-22T04:26:11Z"
     },
     {
       "id": "ds4-1017-template-refresh-ab",
@@ -2113,7 +2128,10 @@
       "provenance": "HF API /api/models/Edge0/Audio8-TTS-Realistic-Air (+ /tree/main, config.json, README) read 2026-11-10",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "Edge0/Audio8-TTS survey: Apache-2.0, 0.6B DualAR TTS plus a 1.35 GB 44.1 kHz codec, trust_remote_code required, SGLang Omni adapter unverified; TP<4, so surveyed only with no recipe per the owner rule.",
+      "summary_src": "bca3fc6983264b4c5a3b9960ff5e50eb1c753a548cc12088e2cc6b040789b79c",
+      "summary_at": "2026-11-22T04:26:10Z"
     },
     {
       "id": "task-id-not-unique-across-recipes",
@@ -2188,7 +2206,10 @@
       "provenance": "head:~/benchmarks/hf-cache-update-20261110/RECEIPT.md §4 and §6 (class template-or-code, 3 single-node rows); table.json rows for IFM/K2-Horizon-0.9B and /K2-Horizon-7B-FP8",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "K2-Horizon drift A/B: both head snapshots are complete and differ from the pins in chat_template.jinja (0.9B also modeling code, two templates removed); a single-node template-bytes plus tool-call check decides re-pin, no throughput claim.",
+      "summary_src": "d8ea4e090343001f1db696800e1bf24013bccab25c244abe72f848fd0cd6a382",
+      "summary_at": "2026-11-22T04:26:12Z"
     },
     {
       "id": "hf-cache-20261110-pool-fetch-gaps",
@@ -2203,7 +2224,10 @@
       "provenance": "head:~/benchmarks/hf-cache-update-20261110/RECEIPT.md §4 (pool-missing-head / pool-absent / shape-unknown / unresolvable rows) and §5",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "Pool gaps: two heads and two pinned revisions missing, four repos absent so a shared-cache boot fails at load, one private repo 404ing for an org token; fix is hf download per repo (~130 GB); 1017's double-count is two revisions, one index.",
+      "summary_src": "dfc08b57c8226b6c0c3218cc19c6c1412a6a2e3cf25b322109de57dc04433aad",
+      "summary_at": "2026-11-22T04:26:12Z"
     },
     {
       "id": "hf-cache-20261110-orcacyber-new-quant",
@@ -2233,7 +2257,10 @@
       "provenance": "head:~/benchmarks/hf-cache-update-20261110/RECEIPT.md §4 (docs-only rows) and §2",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "Docs-only drift bundle over 14 live recipe rows (8 of the 22 retired to attic): only README/LICENSE/eval_results differ from the head, no pin bumped since the sweep, each lane moves its pin at its next boot and records it.",
+      "summary_src": "642a3e3cfa3279825d5e208ebab20f65da7d0b0d1d235096a438dddd80c17327",
+      "summary_at": "2026-11-22T04:26:10Z"
     },
     {
       "id": "hf-cache-20261110-cache-consistency-defects",
@@ -2248,7 +2275,10 @@
       "provenance": "head:~/benchmarks/hf-cache-update-20261110/RECEIPT.md §5; `hf cache ls --no-truncate --show-warnings` on .30 (2026-11-10T08:36Z); od -c on the four refs/main files; du -sh on hub/dsv41-engram, hub/mellum-mtp-head",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "Cache defects: three repos ignored on a trailing-newline refs/main (one-byte truncation fix), Sage Q4_K_M ref on an absent commit, 202.9 GiB non-cache trees invisible to hf, 32 incomplete files (19.27 GiB); nothing deleted pending say-so.",
+      "summary_src": "0257ba3d82ce1df1511bfa6014c24b89880b9699722034343dd76bc07feebf0e",
+      "summary_at": "2026-11-22T04:26:11Z"
     },
     {
       "id": "llamacpp-arms-declare-offload",
@@ -2293,7 +2323,10 @@
       "provenance": "",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "beegfs-ctl exits 127 on .30 though beegfs-utils 20:8.4.1 is installed, so the storage-target --space probe that would explain pool growth cannot run; the 15:03-15:06 series rose 10,485,760 B with no hub file newer than 12 min.",
+      "summary_src": "f187abaf217a06c272572323928b15b4e128fda4bd2d12227567d04693ba8c97",
+      "summary_at": "2026-11-22T04:26:12Z"
     },
     {
       "id": "ds4-malloc-pin-ab",
@@ -2377,7 +2410,10 @@
       "provenance": "",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "Corrected: a leaked guard is a stale no-op because mem-guard stops only its own task id; what accumulates is processes and ssh sessions — three guards alive on 2026-11-10 with one task container; fix is guard lifetime and harness refusal.",
+      "summary_src": "ae9cfd649a6feda2b1760114ab21c851b42aa216e0760dddac78b299746947c9",
+      "summary_at": "2026-11-22T04:26:12Z"
     },
     {
       "id": "ds4-marlin-serial-loader",
@@ -2492,7 +2528,10 @@
       "provenance": "image commit 103ad321 (zero `fp8_ds_mla` occurrences); deepseek_v4_memory_pool.py:197 (is_sm100 gate); kv_layout.cuh:38 (V41/V41_FP4); pool_configurator.py:1024-1035 (fp4 branch), :1531, :1553-1568 (1,670.75 B/token/rank)",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "Blocked on engine work: fp4 KV needs the is_sm100 gate relaxed, the V41/V41_FP4 layout ported and an fp4 branch in the pool configurator, and nvfp4 is unsafe today because sizing has no fp4 term; it buys 2-4x tokens per GiB but no floor.",
+      "summary_src": "bc41aff1b0eccc565c9d188f0a017790ebeb7da1c295696015612ff182273b69",
+      "summary_at": "2026-11-22T04:26:15Z"
     },
     {
       "id": "served-name-guard-derives-from-overlay-mount",
@@ -2522,7 +2561,10 @@
       "provenance": "journalctl --user -u sparkrun-campaign --since 2026-11-10T18:30Z (the two assign lines); ~/benchmarks/h2h-20261107/state.json hosts/order; AGENTS.md node-hygiene section, owner ruling 2026-11-08 #67; ~/benchmarks/tp4-20261110b/mem-guard.log",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "Lease ledger and holder/id claim identity landed offline (d0cf704, no live director-driven TP4 lease yet); .30 is waivable for a memory-heavy quartet only inside a declared window with the six guardrails, else refused. Row open.",
+      "summary_src": "a036adda9146a37fa236e27f3f6fbeeef4e48a0bc34f547ac0fcaf83a871db48",
+      "summary_at": "2026-11-22T04:26:11Z"
     },
     {
       "id": "container-memory-limit-bounds-host-side-only",
@@ -2691,7 +2733,10 @@
       "provenance": "tools/task-queue.py:821-833 dropped_peer_lines, :900-930 sha guards",
       "evidence": "mad-science/STATUS.md@e4bea70",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "Publish guards compare bytes, so a replacement with fewer facts passes: on 2026-11-11 a composition replaced the peer's 4 captures ending 01:16 with 3 ending 01:06; acceptance is a pre-publish check on capture count, state labels, teardown.",
+      "summary_src": "6d23993b79d9e2477929b89cd4c8fbd9c5317d3648bbae952c7fa8070cf5f727",
+      "summary_at": "2026-11-22T04:26:12Z"
     },
     {
       "id": "campaign-six-node-claim",
@@ -2792,7 +2837,10 @@
       "provenance": "measured boots 2-4 and the arm-3 control, `head:~/benchmarks/arm5-fi073c-20261111/`; `scripts/ib_detect.sh:44-45`; `infiniband.py:246,268`",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "Report-only sparkrun defect: one derived NCCL_IB_GID_INDEX is applied to both HCAs, and a 2026-11-11 carrier flap vacated plane A's index 3, failing ncclCommInitRank (ibv_modify_qp 61) on boot 2 and the control; fix per HCA or fail closed.",
+      "summary_src": "ab71812351647dc6dfa0d09b0abc041eb82e11416affb8d0bdb74670c4e7c8b5",
+      "summary_at": "2026-11-22T04:26:13Z"
     },
     {
       "id": "ds4-arm5-verify-route-batch-cap",
@@ -2822,7 +2870,10 @@
       "provenance": "Measured 2026-11-11 03:17-03:25 ET on mad-science/STATUS.md.",
       "evidence": "mad-science/STATUS.md at 8e160b2 / bc2cc38 / 9ae7cd4",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "A base missing an In-flight state row is indistinguishable from a good one: bc2cc38 published 0 queue rows and passed publish, lint and the gate; acceptance: refuse an In-flight lacking an expected row key or a strict subset of its base.",
+      "summary_src": "8d7fe1bf27dd3f6513a187701bb15c6b30943a348e005797d22a54b3f62775da",
+      "summary_at": "2026-11-22T04:26:13Z"
     },
     {
       "id": "watchdog-mistakes-a-mod-hook-for-the-serve",
@@ -2882,7 +2933,10 @@
       "provenance": "mad-science/STATUS.md In flight campaign cell, 2026-11-11 05:12 ET",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "One campaign holds 40 byte-identical nested state.json copies because --receipts-root equals --root, so each run under tp12-window re-nests; no stale state is read today, but a **/state.json census counted 49 files for 9 campaigns.",
+      "summary_src": "07e3d782a7fcb06630d0ee3d633e05e1a2ed0508bf1198195d857ddd75cf7d5f",
+      "summary_at": "2026-11-22T04:26:11Z"
     },
     {
       "id": "adopt-native-per-rank-log",
@@ -2973,7 +3027,10 @@
       "evidence": "",
       "claimed_by": "",
       "claimed_at": "",
-      "memory_risky": false
+      "memory_risky": false,
+      "summary": "Corrected: the unleased four-rank serve measured on 2026-11-11 is the shipped production arm (image digest and argv match), not a research quartet; open is whether a protected production boot must carry a lease under the S9 answer.",
+      "summary_src": "d2a9e44b2f80287fb3bcb595f3377af03e3a872ac04e4c3f9dd2c02616e6c408",
+      "summary_at": "2026-11-22T04:26:13Z"
     },
     {
       "id": "webai-twil-8b-eval-only-arm",
@@ -2988,7 +3045,10 @@
       "provenance": "`mad-science/TODO.md` §\"Owner ruling 2026-11-12 — DINOv3 accepted, two eval-only arms authorized\"; `mad-science/queue.json` row lane-survey-webai-official-twil-8b (survey read 2026-11-10); owner 2026-11-12 (oversight thread)",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "No recipe yet: webAI/TwIL-8B is webai-non-commercial, so the arm ships eval-only with license banner, description note and lane README notice; 8.79B BF16 in balanced and verbose variants plus GGUF quants; closes when both are tracked.",
+      "summary_src": "e1a4c5dc0df54c2880f81532c8f15d55f73789d309c04650da25b4b76fd16b5b",
+      "summary_at": "2026-11-22T04:26:14Z"
     },
     {
       "id": "minimax-viggle-remake-eval-only-arm",
@@ -3003,7 +3063,10 @@
       "provenance": "`mad-science/TODO.md` §\"Owner ruling 2026-11-12 — DINOv3 accepted, two eval-only arms authorized\"; `mad-science/queue.json` row lane-survey-viggle-viggle-remake (survey read 2026-11-10); owner 2026-11-12 (oversight thread)",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "No recipe yet: Viggle-Remake is under the minimax-h3 community license, so the ComfyUI-node arm ships eval-only with banner and README notice; tiers Q8_0 20.72 GiB to Q4_K_M 13.35 GiB, repo 156 GiB so staging is a pool transfer.",
+      "summary_src": "cc08281e1869d1571ed007f515a2ad7c6e23bac62f9f54b6774a475376ba15a8",
+      "summary_at": "2026-11-22T04:26:14Z"
     },
     {
       "id": "hermes-workstation-gc",
@@ -3048,7 +3111,10 @@
       "provenance": "AGENTS.md §Node hygiene (triage by provenance, 72 h rule, per-host allowlist); owner answers 2026-11-12 (oversight thread t8); '.scratch/cache-gc-20261112/audit-report.txt:1-8', 'delete-set.json', 'delete-paths.txt' (2026-11-12 10:40-10:54 ET); '.local/fleet-leases.json' fenced_at 2026-11-12T05:05:32Z",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "Batch 1 deleted 554.54 GB across .30-.34 on 2026-11-16; what stays open is the CHECK bucket, NEEDS-ROOT debris and the shared HF pool, with the on-disk 54-tree/732.1 GB plan blocked on .31-.34 being fenced for the production serve.",
+      "summary_src": "0e4fbe3a69461e87dc3f121f97ae0928a0f7c88141c35ce080c2d254287672bc",
+      "summary_at": "2026-11-22T04:26:13Z"
     },
     {
       "id": "n35-unreferenced-image-gc",
@@ -3078,7 +3144,10 @@
       "provenance": "recipes/MECHANICS.md:10-17 (cite-provenance line); commit d0d050f re-derived §The one rule and §Format and identity only",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "117 recipes/MECHANICS.md anchors still carry 0.4.2/0.4.0 numbering after d0d050f landed 27 plus 13 controls; not mechanically renumberable since core/recipe.py grew to 3080 lines, so each sentence is re-read and its claim re-located.",
+      "summary_src": "367ec820c7af4265daceacb20b524a51b9a7e4a4ca6411545e766395192ce6cb",
+      "summary_at": "2026-11-22T04:26:14Z"
     },
     {
       "id": "pool-content-fall-20261116",
@@ -3093,7 +3162,10 @@
       "provenance": "mad-science/STATUS.md 2026-11-16 14:59 ET pool row; tick captures /tmp/tick-1112-1834453/{census,probe}.txt",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "Pool used fell 501 GB in 6.5 h with every repo entry intact — ~501 GB of chunk content deleted, matching the two approved-but-unrun GC sets (498.3 GB) within 0.5%; naming the deletion is the work, and beegfs-ctl is absent.",
+      "summary_src": "6913b5b5dfdc931316245b54b4c53d96a94a07094dd0a42676489e4b807fe7ef",
+      "summary_at": "2026-11-22T04:26:13Z"
     },
     {
       "id": "picom-prefill16k-boot",
@@ -3187,7 +3259,10 @@
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/explore/zz-sage-a1.5-35b-a3b-q4km-llamacpp.yaml",
-      "tp": 1
+      "tp": 1,
+      "summary": "Sage Q4_K_M scored 36/37 on the 2026-11-20 house; the one miss is trick-1 returning empty content, a serving event, so repeat that cell n=3 on the same boot shape and open a llama.cpp pin row if it recurs.",
+      "summary_src": "70a2010842ac3338caa8b55af7b9edd2062c56adda15af64f2137304cf9e76b2",
+      "summary_at": "2026-11-22T04:26:11Z"
     },
     {
       "id": "house-num-scorer-trailing-period",
@@ -3202,7 +3277,10 @@
       "provenance": "2026-11-20 tp2-completion census; tools/quality-battery.py:203",
       "evidence": "head:~/benchmarks/tp2-completion-20261120/ripple-nvfp4-tp1/house.json",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "score() for kind=num keeps the sentence-final dot, so a correct 74 ending a sentence scores false (Ripple 2026-11-20 hard-arith-1); fix is stripping trailing punctuation plus a regression test over 74, 74. and 7.5.",
+      "summary_src": "413bb02a322c391d8cd72fd2d46d73f03d7da8eeb9e6dd7b7af6c6df9967fb55",
+      "summary_at": "2026-11-22T04:26:10Z"
     },
     {
       "id": "weightless-image-build-publish-pin",
@@ -3234,7 +3312,10 @@
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/ds4/zz-deepseek-v4.1-flash-1017-weightless-dsgb10-tp4.yaml",
-      "tp": 4
+      "tp": 4,
+      "summary": "Boot gate, weightless image: at α=0 output must be byte-identical to stock before any steered request is quoted, then a second-name request must project while a stock one keeps its text; four ranks, .31-.34 unfenced, --cluster WOPR.",
+      "summary_src": "9e5931308e1a0ddbce9bacfcb374ac510c464970245bec116fc08c2101948e9b",
+      "summary_at": "2026-11-22T04:26:15Z"
     },
     {
       "id": "inkling-tp4-first-boot",
@@ -3251,7 +3332,10 @@
       "claimed_by": "",
       "claimed_at": "",
       "recipe": "recipes/explore/zz-inkling-2-small-nvfp4-thinking-tools-tp4-vllm.yaml",
-      "tp": 4
+      "tp": 4,
+      "summary": "Inkling-2-Small TP4 first boot: nightly digest c17e9d88 is on no node so the boot includes the pull, and sm_121 runs the Hopper/Triton path (attention_sm90, Humming expert GEMMs) unproven here; needs an owner-declared window.",
+      "summary_src": "14855c07ae65d170f7e06e6c31e645ad48e5dd157567605435f09d022103ec8e",
+      "summary_at": "2026-11-22T04:26:14Z"
     },
     {
       "id": "watchdog-stall-mmap-flat-residual",
@@ -3266,7 +3350,10 @@
       "provenance": "tools/boot-watchdog.py:336-368 read 2026-11-20",
       "evidence": "tools/boot-watchdog.py:336-345 (progressed), 347-368 (group_stalled)",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "boot-watchdog counts memory as progress only past a 128 MiB floor, so an mmap load with flat io/log and smaller per-check deltas is still classified stalled at 600 s; fix is cumulative progress or a test plus a recorded risk.",
+      "summary_src": "a5ed917a0a76928b05caeda29335bc017d83d0a3147e4c72b162cc13b87fbff7",
+      "summary_at": "2026-11-22T04:26:12Z"
     },
     {
       "id": "wopr-cache-dir-runtime-regression",
@@ -3281,7 +3368,10 @@
       "provenance": "recipes/ds4/README.md section zz-deepseek-v4.1-flash-1017-weightless-tp4-1m (Hy4 launch facts); 2026-11-20 boot",
       "evidence": "recipes/ds4/README.md section zz-deepseek-v4.1-flash-1017-weightless-tp4-1m (cache_dir change, task 261430353ba2889a_9e41b9e252af)",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "WOPR's new cache_dir profile was proven only on vLLM: boot one SGLang arm and one llama.cpp arm with --cluster WOPR and assert the prepared model path resolves inside the cache mount; a bare -H anonymous cluster should refuse.",
+      "summary_src": "97b090c6ea31daa7f1d82150fdf02741daee43970f3c02d496de45dabb8b7188",
+      "summary_at": "2026-11-22T04:26:12Z"
     },
     {
       "id": "todo-int8-cite-moved",
@@ -3311,7 +3401,10 @@
       "provenance": "head:journalctl --user -u sparkrun-campaign.service 2026-11-21T01:04:17Z (six `lease-held: ... declared window ... until 2026-11-21T01:16:13Z`) vs head:`docker ps -a` at 01:05:07Z (`sparkrun_f5f1433d7dd0b74e_432d53da6120_solo`, host .35); head:~/src/sparkrun-recipe-registry/.local/fleet-leases.json `leases: []`; closed row `campaign-ignores-declared-window`",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "A declared window stops campaign placement and lease but not a direct sparkrun run: inside the 01:04-01:16 window a solo container started on .35 with no lease record and no assign line; decide whether direct boots consult the lock.",
+      "summary_src": "fc32c55ae178b13c64972c316ad808af2578cfd098e50db56c77eb6ba37daa49",
+      "summary_at": "2026-11-22T04:26:14Z"
     },
     {
       "id": "campaign-ingest-freezes-on-an-unplaceable-pending-arm",
@@ -3326,7 +3419,10 @@
       "provenance": "head:journalctl --user -u sparkrun-campaign.service 2026-11-21 (started 00:12:15 EST, NRestarts=0; no assign after 00:12:16); head:systemctl --user cat sparkrun-campaign.service vs pgrep -af sparkrun_campaign.director (retries 2 vs 9); head:~/benchmarks/h2h-20261107/state.json (zz-inkling pending tp4 nodes4 memory_risky true; zz-sage failures 11; retries 9); head:~/src/sparkrun-recipe-registry/.local/fleet-leases.json (leases []; .31-.34 fenced); campaign/sparkrun_campaign/director.py and plan.py",
       "evidence": "",
       "claimed_by": "",
-      "claimed_at": ""
+      "claimed_at": "",
+      "summary": "Campaign refreshes only when drained; a pending memory-risky TP4 arm that cannot fit .30/.35 with .31-.34 fenced holds drained() false, so rows queued after 00:12 were never ingested; fix: idle-poll refresh or unplaceable state.",
+      "summary_src": "fe9832af912a661335cd88f36e41f71cc478d9d91c9073f81d854c4ea1036073",
+      "summary_at": "2026-11-22T04:26:11Z"
     }
   ],
   "questions": []
