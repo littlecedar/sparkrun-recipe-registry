@@ -3424,7 +3424,7 @@
       "summary_src": "fe9832af912a661335cd88f36e41f71cc478d9d91c9073f81d854c4ea1036073",
       "summary_at": "2026-11-22T04:26:11Z"
     },
-        {
+    {
       "id": "head-clone-object-store-incomplete",
       "title": "The head clone loses git objects continuously (healed twice on 2026-11-21, gap reopens on every new commit), so `git ls-tree HEAD` and any `git pull` fail there until it is re-healed",
       "estimate_h": 0.5,
@@ -3436,9 +3436,9 @@
       "notes": "Measured read-only 2026-11-21 22:35-23:50 ET on the head at `/home/red/src/sparkrun-recipe-registry`: `git ls-tree HEAD` failed `not a tree object`, `git show HEAD:<path>` failed `exists on disk, but not in HEAD`, `git log` reached `fatal: bad object HEAD`, and `git fsck --no-progress` grew **73 → 95** missing/invalid entries in 40 min. Packs agree with this clone (**22558** `in-pack` on both) while loose objects read **448** against **524**, so only loose objects go missing. **Healed twice** by `hash-object -w` from this clone (76 objects in five passes, then 15 more in three), after which `ls-tree`, `git log`, `git show` and `git rev-list --objects main` succeed; fsck then reports only dangling objects plus one stale reflog sha. **The gap reopens on every new commit**: 20 min after the first heal, `5d3b761d` and `497ea4f8` trees were missing again, and the next peer board commit (`080e5346`) reopened it once more. **The mechanism is narrowed but unnamed**: a file written into `.git/objects/` on this clone appeared on the head within 20 s and a file written on the head appeared here, so syncthing syncs that directory both ways — yet one specific 743 B tree object (`e56ef6f7…`) never arrived, even after `touch`, with no `.stignore` in the repo, its parents, `.git/` or `.git/objects/`, no conflict copy and no syncthing log mention. Until it is named, the heal is a maintenance loop, not a repair: re-run the skill's restore after each commit, or re-establish the head's folder / stop sharing `.git` so the head fetches from origin instead. Never `gc`/`prune`/`reset` on the shared clone.",
       "provenance": "board tick 2026-11-21 23:14 ET; mad-science/SESSION-RECORD.md §2026-11-21 22:39 ET (head clone's refs outran its objects)",
       "evidence": "head `git fsck --no-progress` 2026-11-21T23:26Z (95 entries) and 23:50Z (dangling only); `git count-objects -v` head 448 loose vs 524 here, in-pack 22558 both; 91 objects restored across two heals; bidirectional `.git/objects` probes both delivered while tree `e56ef6f7…` never arrived; `git rev-list --objects main` completes on the head after each heal",
-      "summary": "Head clone loses loose objects (packs agree), so git reads and pulls fail there; healed 2026-11-21 by restoring 76 objects, but the cause is unnamed and a detector is still owed.",
-      "summary_src": "826e43c9a2332e31ec7ff997bbed95dd208c5f130358d10d88bed38b1bde887b",
-      "summary_at": "2026-11-22T04:43:53Z"
+      "summary": "Head clone loses loose objects (packs agree) so git reads fail there; healed twice on 2026-11-21 (91 objects), yet the gap reopens on every commit and one 743 B tree never syncs, so the mechanism is unnamed.",
+      "summary_src": "ed7a6641f03313622bc67ed34a54b8f9a5d49c81d9bcd3d5779e216d05c2bb6b",
+      "summary_at": "2026-11-22T04:59:13Z"
     }
   ],
   "questions": []
