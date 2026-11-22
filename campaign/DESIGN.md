@@ -321,10 +321,10 @@ uv run --frozen python -m sparkrun_campaign.director serve --queue --dry-run \
 Owner directive 2026-11-22: *"there should be a campaign director for session or code work."* Queue
 mode above dispatches **fleet** rows (`recipe` + `tp`). The register also carries rows a session can
 do with no fleet at all — a doc sweep, a tool change, a measurement from existing receipts — and
-those had no dispatcher, so they sat `queued` forever while a human read the board. This is that
-dispatcher. It is **designed here, not implemented in the 2026-11-22 pass**: the tool already
-supports every state it needs (`scheduled`, `running`, `blocked`, `ask`, `done`), and the design is
-written to be implemented as one module without touching the register's shape.
+those had no dispatcher, so they sat `queued` forever while a human read the board. **Implemented** as
+`tools/session-director.py` (stdlib, no campaign import): its whole interface is
+`tools/task-queue.py`, so a session-only dispatcher does not need the fleet campaign's package or its
+`uv --project campaign` environment.
 
 **Selection.** Read `task-queue.py queue --json` (the weighted, tiered ordering — the director never
 re-derives it) and take rows that are: `state == "queued"`; no `recipe` and no `tp` (a fleet row is
@@ -364,9 +364,43 @@ its own stamp line. It never writes `done` for work it did not do.
 stale read, so two dispatchers racing on one row means one loses loudly and re-reads. The director is
 idempotent per tick: a row it already scheduled is skipped because it is no longer `queued`.
 
-**Why this is safe to add later.** The states are already enforced by `check` (a `scheduled` row
-must name its dispatcher; `blocked` must name a blocker; `ask` must be a root), so an implementation
-that follows the four steps above cannot invent a state the register rejects.
+**Why this is safe.** The states are enforced by `check` (a `scheduled` row must name its
+dispatcher; `blocked` must name a blocker; `ask` must be a root), so the dispatcher cannot invent a
+state the register rejects.
+
+### Running it
+
+```sh
+# one tick, nothing written: what it would hand out, and to whom
+uv run python -B tools/session-director.py --once --dry-run
+
+# the live single-row path: ONE row, assigned to a named worker, logged, then exit
+uv run python -B tools/session-director.py --once --dispatcher-name worker-a --limit 1
+
+# the loop a dispatcher service would run
+uv run python -B tools/session-director.py --dispatcher-name worker-a --interval 60
+```
+
+`--limit` defaults to 1 on purpose: the live path hands out one row, so a dispatcher never
+mass-assigns work nobody is waiting for. `--dispatcher-name` is required for a real run (an
+anonymous assignment names no worker that may claim it); `--lane`/`--model` narrow the scope;
+`--assign-timeout` is minutes. Exit codes: 0 ok, 1 the register or a write failed (the message names
+the row), 2 usage. The JSONL log is `.local/session-director/<name>.jsonl`, one line per assignment:
+`{"row", "worker", "at", "attempt"}`.
+
+**The worker side, exactly.** A worker session polls for rows whose `scheduled_by` is
+`session-director:<its name>`, and claims one before doing anything:
+
+```sh
+uv run python -B tools/task-queue.py queue --json | jq -r '.[] | select(.state=="scheduled" and .scheduled_by=="session-director:worker-a") | .id'
+uv run python -B tools/task-queue.py update --id <row> --state running --claimed-by worker-a
+```
+
+Then it does the work and returns the row: `done --id <row> --evidence <receipt>`, or
+`update --id <row> --state queued --notes "<old> — <why it failed>"`, or `blocked` with an edge to
+the row that is now the work (an `ask` row when it needs an owner input). A worker that cannot
+finish must not leave the row `running`; the expiry sweep only returns `scheduled` rows, so a stale
+claim is the reconciliation pass's finding.
 
 ## Wire protocol
 

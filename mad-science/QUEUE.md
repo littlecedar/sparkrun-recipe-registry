@@ -150,6 +150,13 @@ dispatcher path exists so that a session/code worker can be handed work without 
 (`--claimed-by <name>`), and both records are released by the next exit from their state. Every
 state may be set back to `queued` (a failed attempt), and `done` is terminal.
 
+Two dispatchers exist: the **fleet campaign** (`campaign/`, rows with `recipe` + `tp`) and
+`tools/session-director.py` (rows without them — the session/code work). The session director takes
+the register's order, assigns one row per tick by default (`--limit 1`), logs the hand-off to
+`.local/session-director/<name>.jsonl`, and returns an unclaimed `scheduled` row to `queued` after
+`--assign-timeout` (default 30 min). A worker claims `running` before it starts; see
+`campaign/DESIGN.md` §"Session/code director" for the exact commands.
+
 **`ask` rows.** An owner input is a row, not a prose marker. `add --state ask` creates a root row
 whose `title` is the question and whose `notes` carry the options and the answer procedure; the rows
 that need the answer are `blocked` with `blocked_by: [<ask id>]`, which the tool derives from the

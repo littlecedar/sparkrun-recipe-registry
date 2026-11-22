@@ -1859,9 +1859,9 @@ Caveats:
   the file immediately before the atomic replace; when a peer rewrote the register in between, the
   command exits 1 naming the row and writes nothing, so the peer's new row and claim survive and the
   stale title/state is never applied. Rerun the command — it re-reads. A single writer is unaffected.
-- **`state: blocked` is an annotation, not a dependency.** It marks an external gate (an owner
-  decision, a missing authorization); structural blocking lives in `blocks`/`blocked_by`. A task
-  whose blockers are all `done` is runnable even with a non-empty `blocked_by`.
+- **`state: blocked` is the live-blocker state** (owner directive 2026-11-22). It must name at
+  least one `blocked_by`, and an owner input is a row of its own (`add --state ask`), not a prose
+  marker; `lint` reports a hold whose blockers are all `done` as stale.
 - **Estimates are hours and are the mechanism's fuel.** An uncertain estimate carries
   `estimate: provisional` in `notes`; refusing to queue work with no stateable estimate is the
   protocol, not a tool bug.
@@ -1873,6 +1873,35 @@ Guard: `tests/test_task_queue_tool.py` (stdlib only) — weight arithmetic simpl
 transitive, the owner's 48/24 example, done-releases-credit, the three-tier override with both
 tag spellings, the 2-cycle negative control (library and CLI exit code), dangling ref, missing
 and non-numeric estimates, and `check`/`queue` exiting 0 on the tracked seed.
+
+## session-director.py
+
+The dispatcher for register rows that need no fleet (`campaign/DESIGN.md` §"Session/code director"):
+a doc sweep, a tool change, a measurement from existing receipts. It never edits `queue.json`; every
+write is a `task-queue.py` call, so a register the tool refuses is never written here either.
+
+```sh
+uv run python -B tools/session-director.py --once --dry-run          # what it would hand out
+uv run python -B tools/session-director.py --once --dispatcher-name worker-a --limit 1
+uv run python -B tools/session-director.py --dispatcher-name worker-a --interval 60
+```
+
+It reads `queue --json` (the register's own weighted order, never re-derived) and takes rows that are
+`queued`, carry no `recipe`/`tp` (a fleet row is the campaign's), have no live blocker, are not an
+`ask`, and are inside `--lane`/`--model` if given. Assignment is
+`update --state scheduled --scheduled-by session-director:<name>` plus one JSONL line in
+`.local/session-director/<name>.jsonl` (`{row, worker, at, attempt}`). `--limit` defaults to 1, so
+the live path is one row; `--assign-timeout` (minutes, default 30) returns an unclaimed `scheduled`
+row to `queued` with a note naming the worker and the age. `--dispatcher-name` is required for a real
+run. Exit codes: 0 ok, 1 the register or a write failed (the message names the row), 2 usage.
+
+It never boots, leases, touches a `running` row, opens a `blocked` row, answers an `ask`, or writes
+`done`. The worker side is two commands: claim with `update --id X --state running --claimed-by
+<name>`, return with `done --evidence <receipt>` / `queued` / `blocked`.
+
+Guard: `tests/test_session_director.py` — selection and its excluded shapes, a real-tool assignment
+with its log line, idempotency, expiry, `--limit 1`, the never-list, a red register reported not
+written, and the CLI's dry-run and named-run paths.
 
 ## board-tick.py
 
