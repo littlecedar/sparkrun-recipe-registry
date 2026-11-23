@@ -1930,8 +1930,11 @@ written, and the CLI's dry-run and named-run paths.
 
 ## board-tick.py
 
-One tick is `lock -> census -> render -> publish -> commit -> gate -> push`, and the board has one
-**durable scheduler** plus one **gate**.
+One tick is `lock -> census -> render -> write -> commit -> gate -> push`. The tick reads the live
+register from the worktree (`mad-science/queue.json` on disk), not from `origin/main`. The worktree
+has the uncommitted claims and running tasks that are the correct state to render. Only
+`mad-science/STATUS.md` is committed; the register is never touched. There is no merge step — the
+tick never calls `git merge` or `git fetch`.
 
 **The scheduler is a user timer, not a session.** The omp extension's per-session timer dies with
 its session and needs a restart to come back; measured 2026-11-22 its log stopped at 04:50Z and the
@@ -1956,17 +1959,21 @@ The service is `Type=oneshot`, `WorkingDirectory` the checkout, with `PATH`/`HOM
 1. **a Mad Science session is running** — a declared window (`.local/fleet-window.lock`, or its
    legacy `.scratch/` twin) or a live lease in `.local/fleet-leases.json`. Both are the repo's own
    mechanisms; the tick invents no new marker.
-2. **a board input changed** since the last board commit (`git log -1 -- mad-science/STATUS.md`):
-   `recipes/`, `mods/`, `tools/`, `benchmarking/`, `campaign/`, or `mad-science/queue.json`. A commit
-   touching only `.idea/` or an unrelated doc is not a board input.
+2. **the worktree register changed** since the last evidence file — the tick compares the sha256
+   of the current `mad-science/queue.json` against the `register.sha256` stored in the most recent
+   `.local/board-evidence/<stamp>.json`. The comparison is entirely local — no `git log` on origin.
 
 Otherwise the tick appends `{"outcome": "skipped:idle"}` to `.local/board-tick.jsonl` and exits 0
-with no census, render, publish or commit. `--force` runs a deliberate refresh; `--dry-run` renders
+with no census, render, write or commit. `--force` runs a deliberate refresh; `--dry-run` renders
 only and bypasses the gate. The flock is unchanged, so a timer fire and a session's manual tick
 serialise: the loser writes `skipped:busy` and exits 0.
 
+**Push discipline:** the tick pushes `HEAD:main` after the commit. If the push is rejected as
+non-fast-forward (origin moved), the tick writes `failed:push` to the ledger and exits 0 — it never
+force-pushes. The next fire retries.
+
 Guard: `tests/test_board_tick.py` — one publishes and the loser says busy (plus the no-flock
-negative control), a peer-moved board is `refused:peer` with no commit or push, `--dry-run` commits
-nothing, `--needs-summary` takes no lock, and the gate's five cases: idle skips without touching the
-board, a declared window runs, a live lease runs, a relevant change runs, an irrelevant change
-skips, and `--force` runs an idle fleet.
+negative control), `--dry-run` commits nothing, `--needs-summary` takes no lock, only STATUS.md
+is committed (queue.json is never added), a dirty worktree does not block, the gate detects a
+register change from the worktree snapshot, and a non-fast-forward push is reported without
+crashing.

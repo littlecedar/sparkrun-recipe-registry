@@ -393,7 +393,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--prev", help="previous evidence file (default: newest older one)")
     parser.add_argument("--register", default=str(REGISTER),
                         help="register the board describes (default: the worktree copy; a tick "
-                             "passes the one origin/main has, because this clone is a replica)")
+                             "passes the worktree register for live state)")
     parser.add_argument("--node", action="append", help="fleet host, repeatable")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT,
                         help=f"per-hop ssh ceiling in seconds (default {DEFAULT_TIMEOUT})")
