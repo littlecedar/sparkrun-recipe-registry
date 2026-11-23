@@ -1896,7 +1896,8 @@
       "estimate_h": 0.5,
       "blocks": [],
       "blocked_by": [
-        "ask-beegfs-meta-window"
+        "ask-beegfs-meta-window",
+        "beegfs-meta-window-scheduling"
       ],
       "state": "blocked",
       "model": "",
@@ -3858,12 +3859,12 @@
         "beegfs-meta-restart-loop-non-meta-hosts"
       ],
       "blocked_by": [],
-      "state": "ask",
+      "state": "done",
       "model": "",
       "node_cost": "",
-      "notes": "QUESTION FOR THE OWNER: when may the beegfs-meta restart-loop fix run on .31-.35? The fix is known and its acceptance is stated in the dependent row (Restart=no or mask beegfs-meta where storeMetaDirectory is empty, NRestarts flat over 10 min, is-active failed-or-inactive, .30 untouched); it needs a window because it restarts a unit on five hosts. OPTIONS: (a) declare a window and its hosts; (b) leave it to its own session with no window yet. ANSWER: done --id ask-beegfs-meta-window, then return beegfs-meta-restart-loop-non-meta-hosts to queued.",
+      "notes": "QUESTION FOR THE OWNER: when may the beegfs-meta restart-loop fix run on .31-.35? The fix is known and its acceptance is stated in the dependent row (Restart=no or mask beegfs-meta where storeMetaDirectory is empty, NRestarts flat over 10 min, is-active failed-or-inactive, .30 untouched); it needs a window because it restarts a unit on five hosts. OPTIONS: (a) declare a window and its hosts; (b) leave it to its own session with no window yet. ANSWER: done --id ask-beegfs-meta-window, then return beegfs-meta-restart-loop-non-meta-hosts to queued.\n\nANSWERED 2026-11-22 (owner, ViBoard thread t22): DEFERRED — the fix is its own session and there is no window yet. Nothing is scheduled, and the fix does not become session work without one; beegfs-meta-window-scheduling is the row that proposes candidate windows and declares one when approved.",
       "provenance": "row beegfs-meta-restart-loop-non-meta-hosts (measurement and acceptance); owner directive 2026-11-22 (asks are rows)",
-      "evidence": "",
+      "evidence": "owner answer 2026-11-22, ViBoard thread t22: deferred — its own session, no window yet",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -4183,6 +4184,23 @@
       "claimed_at": "",
       "recipe": "recipes/media/zz-minimax-h3-fl2va-t2va-sglang.yaml",
       "tp": 1
+    },
+    {
+      "id": "beegfs-meta-window-scheduling",
+      "title": "Propose and declare the maintenance window for the beegfs-meta fix",
+      "estimate_h": 0.5,
+      "blocks": [
+        "beegfs-meta-restart-loop-non-meta-hosts"
+      ],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "OWNER ANSWER 2026-11-22 (ViBoard thread t22): the beegfs-meta restart-loop fix is deferred — its own session, no window yet. This row is the step that makes a window possible without pushing one: propose one or two candidate maintenance windows plus the host set the fix needs (the five role-gated hosts .31-.35, .30 untouched), put them to the owner as a single ask, and when one is approved declare it (the window record the campaign and director lease read) and return beegfs-meta-restart-loop-non-meta-hosts to queued. Do not start the fix from here and do not declare a window the owner has not approved. ACCEPTANCE: a proposal with dates, durations and the host set goes to the owner, and either a declared window plus the fix returned to queued, or a recorded hold if the owner declines. estimate: provisional.",
+      "provenance": "ask-beegfs-meta-window (answered 2026-11-22, ViBoard thread t22: deferred, no window yet); row beegfs-meta-restart-loop-non-meta-hosts (the fix and its acceptance); campaign/DESIGN.md section 'A declared window is hands off' (the window record a lease reads)",
+      "evidence": "",
+      "claimed_by": "",
+      "claimed_at": ""
     }
   ]
 }
