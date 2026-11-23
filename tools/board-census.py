@@ -367,9 +367,14 @@ def register_summary(path: Path) -> dict:
         shown = str(path.relative_to(REPO))
     except ValueError:
         shown = str(path)
+    if path.name == "board-register.json":
+        # The tick materialises `origin/main`'s register under `.local/`; the board names the
+        # provenance, not the temp file it happens to live in at render time.
+        shown = "origin/main:mad-science/queue.json"
     return {"path": shown, "sha256": hashlib.sha256(raw).hexdigest(), "tasks": len(tasks),
             "done": counts.get("done", 0), "queued": counts.get("queued", 0),
-            "blocked": counts.get("blocked", 0), "running": counts.get("running", 0)}
+            "blocked": counts.get("blocked", 0), "running": counts.get("running", 0),
+            "scheduled": counts.get("scheduled", 0), "ask": counts.get("ask", 0)}
 
 
 def newest_before(directory: Path, name: str) -> Path | None:

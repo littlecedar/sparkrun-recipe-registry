@@ -199,10 +199,16 @@ def queue_row(evidence: dict) -> tuple[str, str]:
     head_sha = (evidence.get("head") or {}).get("register_sha256")
     tasks = register.get("tasks") or 0
     done = register.get("done") or 0
+    # Every state the register can hold is named, so the breakdown sums to the total: a cell that
+    # printed four of six states read as two missing rows (owner directive 2026-11-22 added `ask`
+    # and `scheduled` after this line was written).
+    states = [f"{_f(register.get('done'))} done", f"{_f(register.get('queued'))} queued",
+              f"{_f(register.get('blocked'))} blocked", f"{_f(register.get('running'))} running"]
+    for key in ("scheduled", "ask"):
+        if register.get(key):
+            states.append(f"{_f(register.get(key))} {key}")
     what = (f"`{register.get('path') or 'mad-science/queue.json'}` sha256 **`{sha or 'unread'}`** "
-            f"read locally: **{_f(tasks)} tasks: {_f(done)} done, {_f(register.get('queued'))} "
-            f"queued, {_f(register.get('blocked'))} blocked, {_f(register.get('running'))} "
-            f"running — {_f(tasks - done)} open**")
+            f"read locally: **{_f(tasks)} tasks: {', '.join(states)} — {_f(tasks - done)} open**")
     if head_sha:
         same = "identical" if head_sha == sha else "**differs**"
         what += f"; the head clone reads **`{head_sha[:8]}…`**, {same}"
