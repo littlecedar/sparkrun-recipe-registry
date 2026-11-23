@@ -1,6 +1,6 @@
 recipe_version: "2"
 model: InternScience/Sage-A1.5-FP8
-model_revision: f92d59b1731d67836433e503d51c2f825ef9dad4
+model_revision: b442b0c6a66c8e845c5ded85bc129eb4a44f32fc
 # v0.5.22 ships srt/models/qwen3_5.py, whose EntryClass is the MoE VLM class this
 # checkpoint declares; the digest is the lane's published-index pin.
 container: lmsysorg/sglang:v0.5.22@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae

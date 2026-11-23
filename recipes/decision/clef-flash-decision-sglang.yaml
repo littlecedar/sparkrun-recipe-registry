@@ -1,6 +1,6 @@
 recipe_version: "2"
 model: Cloudflare/clef-flash
-model_revision: fb4417d31c1d0f9e7e77f1141b40aaede7491e00
+model_revision: 8b2e5fd17c09fd49bc2880b805d5323ec7ff4ff3
 container: lmsysorg/sglang:dev-clef@sha256:73a6d2c9ff5f3c2a67a1e9bd46f6407387fe62d75fad8c30d2ddfb4194374c1c
 runtime: sglang
 min_nodes: 1
