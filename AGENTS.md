@@ -21,7 +21,7 @@ still add no row, because an accuracy declaration belongs inside `metadata:` whe
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1959 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
+suite 1963 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -229,10 +229,8 @@ find mods recipes tools tests plugins campaign -name __pycache__ -type d -exec r
   Run `uv run python -B tools/push-gate.py` before any push: it extracts `git archive HEAD` (the committed
   tree, not this syncthing-shared clone's worktree, which carries a peer's uncommitted count edit), then runs
   `test_doc_hygiene` (both stated totals and the entry-point census), `test_tracked_address_hygiene`,
-  `bash -n` over shell files changed against `origin/main`, the campaign suite only when `campaign/`
-  changed, and its two **register guards** against `origin/main` — no row id dropped, and no `done`
-  row reverted (`done` is terminal; a stale replica can undo a close without dropping the row) — about
-  three seconds, and it quotes the exact assertion CI prints, plus
+  `bash -n` over shell files changed against `origin/main`, and the campaign suite only when `campaign/`
+  changed — about three seconds, and it quotes the exact assertion CI prints, plus
   `tools/doc-census.py --fix` when a stale total is the cause. A non-zero exit is a refusal to
   push, not a warning. It re-executes itself under `.venv/bin/python`, because a bare `python3` cannot import
   every test module (no `jinja2`) and would file a false red against a correct number.
@@ -1030,7 +1028,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1959 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1963 tests,
   3 skipped on 2026-11-08** in a clean checkout of the tracked tree, 4 in CI and 2 in this clone (it
   carries the untracked `.local/fleet.yaml`). The first three, by name and cause: `test_ifm_recipes`'
   research-doc case (the git-ignored K2-09B docs are absent on any fresh checkout);
