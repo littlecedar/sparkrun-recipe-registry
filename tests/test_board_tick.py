@@ -62,7 +62,9 @@ from pathlib import Path
 args = sys.argv[1:]
 with open(os.environ["CALLS"], "a") as handle:
     handle.write("task-queue " + " ".join(args) + "\\n")
-if args[:3] == ["render", "--board", "--stale"]:
+# The tick passes `--file <origin's register>` first, so the stale query is found anywhere.
+tail = args[args.index("render"):] if "render" in args else []
+if tail[:3] == ["render", "--board", "--stale"]:
     stale = os.environ.get("STALE_FILE")
     if stale and Path(stale).is_file():
         sys.stdout.write(Path(stale).read_text())
@@ -97,7 +99,18 @@ with open(os.environ["CALLS"], "a") as handle:
 cmd = args[0] if args else ""
 if cmd == "fetch":
     sys.exit(0)
+if cmd == "rev-parse":
+    # `origin/main` exists unless the fixture says it does not (a clone with no remote).
+    sys.exit(0 if os.environ.get("ORIGIN_REF", "origin/main") else 1)
 if cmd == "show":
+    # `<ref>:<path>` — the board and the register the tick reads from origin.
+    spec = args[1] if len(args) > 1 else ""
+    if spec.endswith("mad-science/queue.json"):
+        register = Path(os.environ.get("ORIGIN_REGISTER", os.environ["REMOTE_BOARD"]))
+        if register.is_file():
+            sys.stdout.buffer.write(register.read_bytes())
+            sys.exit(0)
+        sys.exit(128)
     remote = Path(os.environ["REMOTE_BOARD"])
     if remote.is_file():
         sys.stdout.buffer.write(remote.read_bytes())
@@ -105,10 +118,13 @@ if cmd == "show":
     sys.exit(128)
 if cmd == "diff":
     if "--name-only" in args:
-        # The gate asks which board inputs changed since the last board commit. Filter the canned
-        # CHANGED list by the pathspec the tool passed, so an irrelevant change really is invisible.
+        # The gate asks which board inputs changed since the last board commit *on the ref it
+        # named*: origin/main reads CHANGED, a local HEAD reads CHANGED_LOCAL. Filtering by the
+        # pathspec the tool passed keeps an irrelevant change genuinely invisible.
+        span = next((a for a in args[1:] if a != "--" and not a.startswith("--")), "")
+        key = "CHANGED" if span.endswith("origin/main") else "CHANGED_LOCAL"
         spec = args[args.index("--") + 1:] if "--" in args else []
-        for line in os.environ.get("CHANGED", "").splitlines():
+        for line in os.environ.get(key, "").splitlines():
             if not line:
                 continue
             if not spec or any(line == p or line.startswith(p.rstrip("/") + "/") for p in spec):
@@ -116,7 +132,11 @@ if cmd == "diff":
         sys.exit(0)
     sys.exit(int(os.environ.get("DIFF_RC", "1")))
 if cmd == "log":
-    print(os.environ.get("LOG_SHA", "abc1234"))
+    ref = next((a for a in args[1:] if not a.startswith("-") and a != "--"), "")
+    if ref.startswith("origin/"):
+        print(os.environ.get("LOG_SHA_ORIGIN", "beef5678"))
+    else:
+        print(os.environ.get("LOG_SHA", "abc1234"))
     sys.exit(0)
 if cmd == "commit":
     sys.exit(int(os.environ.get("COMMIT_RC", "0")))
@@ -224,7 +244,9 @@ class BoardTick(unittest.TestCase):
             proc = self.run_tick("--needs-summary", STALE_FILE=str(stale))
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(proc.stdout.strip(), "3")
-        self.assertEqual(self.call_lines("task-queue render"), ["task-queue render --board --stale"])
+        # Summary duty reads the worktree register (the copy a model can fill), named explicitly.
+        self.assertEqual(len(self.call_lines("task-queue --file")), 1)
+        self.assertIn("render --board --stale", self.call_lines("task-queue --file")[0])
         self.assertEqual(self.call_lines("census"), [])
         self.assertEqual(self.call_lines("render"), [])
         self.assertEqual(self.call_lines("task-queue publish"), [])
@@ -327,7 +349,7 @@ class Gate(unittest.TestCase):
     def test_a_relevant_change_runs_the_tick(self):
         proc = self.run_tick(CHANGED="mad-science/queue.json")
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertIn("changed: mad-science/queue.json", proc.stdout)
+        self.assertIn("changed on origin/main: mad-science/queue.json", proc.stdout)
         self.assertEqual(self.call_lines("census"), ["census"])
 
     def test_an_irrelevant_change_skips(self):
@@ -339,6 +361,81 @@ class Gate(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("forced", proc.stdout)
         self.assertEqual(self.call_lines("census"), ["census"])
+
+
+class OriginAhead(unittest.TestCase):
+    """The gate and the render read `origin/main`, not this clone (owner direction 2026-11-23).
+
+    This checkout is a syncthing replica: measured 2026-11-23 it sat 23 commits behind origin while
+    every fire compared the *local* board commit with the *local* HEAD and rendered the *worktree*
+    register, so it wrote `skipped:idle` for an hour and would have drawn a stale queue cell if it
+    had run. The gate therefore reads the last board commit and the change list on `origin/main`,
+    and the register the board describes is `git show origin/main:mad-science/queue.json`.
+    """
+
+    ORIGIN_REGISTER = '{"priority_models": [], "tasks": [], "origin_marker": "from-origin"}\n'
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.tool = build(self.root)
+        self.calls = self.root / "calls.log"
+        self.ledger = self.root / ".local" / "board-tick.jsonl"
+        self.board = self.root / "mad-science" / "STATUS.md"
+        (self.root / ".local" / "fleet-window.lock").unlink()   # no session mark
+        origin_register = self.root / "origin-register.json"
+        origin_register.write_text(self.ORIGIN_REGISTER)
+        self.env = dict(os.environ, PATH=f"{self.root / 'bin'}:{os.environ['PATH']}",
+                        CALLS=str(self.calls), REMOTE_BOARD=str(self.root / "remote-STATUS.md"),
+                        ORIGIN_REGISTER=str(origin_register), CHANGED="", CHANGED_LOCAL="")
+
+    def run_tick(self, *args, **env):
+        return subprocess.run([sys.executable, "-B", str(self.tool), *args],
+                              cwd=str(self.root), env=dict(self.env, **env),
+                              capture_output=True, text=True, check=False)
+
+    def call_lines(self, prefix: str = "") -> list[str]:
+        if not self.calls.is_file():
+            return []
+        return [line for line in self.calls.read_text().splitlines() if line.startswith(prefix)]
+
+    def outcomes(self) -> list[str]:
+        if not self.ledger.is_file():
+            return []
+        return [json.loads(line)["outcome"] for line in self.ledger.read_text().splitlines()]
+
+    def test_a_commit_on_origin_opens_the_gate_and_renders_origin_register(self):
+        proc = self.run_tick(CHANGED="mad-science/queue.json")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("changed on origin/main: mad-science/queue.json", proc.stdout)
+        self.assertEqual(self.call_lines("census"), ["census"])
+        self.assertNotIn("skipped:idle", self.outcomes())
+        rendered = self.root / ".local" / "board-register.json"
+        self.assertTrue(rendered.is_file(), "origin's register was never materialised")
+        self.assertIn("from-origin", rendered.read_text(),
+                      "the render read a register other than origin's")
+
+    def test_a_local_only_change_skips(self):
+        # The negative control for the defect: HEAD moved, origin did not. The old gate compared
+        # HEAD and would have run; reading origin/main, this must skip.
+        proc = self.run_tick(CHANGED_LOCAL="mad-science/queue.json")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("skipped", proc.stdout)
+        self.assertEqual(self.outcomes(), ["skipped:idle"])
+        self.assertEqual(self.call_lines("census"), [])
+
+    def test_an_idle_fleet_with_no_origin_change_skips(self):
+        proc = self.run_tick()
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(self.outcomes(), ["skipped:idle"])
+        self.assertEqual(self.call_lines("census"), [])
+        self.assertFalse((self.root / ".local" / "board-register.json").exists(),
+                         "a skipped tick must not materialise a register")
+
+    def test_the_fetch_is_attempted_before_the_gate(self):
+        self.run_tick()
+        self.assertEqual(self.call_lines("git fetch"), ["git fetch --quiet origin main"])
 
 
 if __name__ == "__main__":

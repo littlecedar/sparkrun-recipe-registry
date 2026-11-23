@@ -386,6 +386,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", default=str(REPO / ".local" / "board-evidence"),
                         help="evidence directory (default: .local/board-evidence)")
     parser.add_argument("--prev", help="previous evidence file (default: newest older one)")
+    parser.add_argument("--register", default=str(REGISTER),
+                        help="register the board describes (default: the worktree copy; a tick "
+                             "passes the one origin/main has, because this clone is a replica)")
     parser.add_argument("--node", action="append", help="fleet host, repeatable")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT,
                         help=f"per-hop ssh ceiling in seconds (default {DEFAULT_TIMEOUT})")
@@ -440,7 +443,7 @@ def main(argv: list[str] | None = None) -> int:
             head["delta"] = head_delta(head, prev.get("head") or {})
 
     document = {"version": VERSION, "at": at, "base": base, "nodes": nodes, "head": head,
-                "register": register_summary(REGISTER), "notes": notes}
+                "register": register_summary(Path(args.register)), "notes": notes}
     try:
         target.write_text(json.dumps(document, indent=1) + "\n", encoding="utf-8")
     except OSError as exc:

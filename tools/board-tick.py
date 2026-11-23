@@ -105,11 +105,51 @@ def ledger(outcome: str, *, rows: int, census_stamp: str | None) -> None:
         handle.write(json.dumps(record) + "\n")
 
 
-def stale_ids() -> list[str]:
-    proc = tool("task-queue.py", "render", "--board", "--stale")
+def stale_ids(register: Path) -> list[str]:
+    proc = tool("task-queue.py", "--file", str(register), "render", "--board", "--stale")
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.decode(errors="replace").strip() or "render --stale failed")
     return [line for line in proc.stdout.decode(errors="replace").splitlines() if line.strip()]
+
+
+#: Where the register `origin/main` has is materialised: `.local/` is git-ignored, so the board
+#: renders origin's rows without touching a tracked file.
+REGISTER_ORIGIN = REPO / ".local" / "board-register.json"
+
+
+def fetch_origin() -> str:
+    """Fetch `origin` and name the ref the gate and the render read: `origin/main`, else HEAD.
+
+    A syncthing checkout is routinely behind origin: on 2026-11-23 this clone sat 23 commits back
+    and every fire wrote `skipped:idle`, because the gate compared the last *local* board commit
+    with the *local* HEAD and the renderer read the *worktree* register — so commits that landed
+    on origin were invisible to both. A failed fetch is not fatal: the tick falls back to the ref
+    it already has and says so, because a network blip must not stop a board that is otherwise
+    publishable.
+    """
+    proc = git("fetch", "--quiet", "origin", "main")
+    if proc.returncode != 0:
+        sys.stderr.write("board-tick: git fetch origin main failed; using the last fetched "
+                         "origin/main\n")
+    if git("rev-parse", "--verify", "--quiet", "origin/main").returncode != 0:
+        return "HEAD"
+    return "origin/main"
+
+
+def materialize_register(ref: str) -> Path:
+    """The register as `ref` has it, written under `.local/`, so the board renders origin's rows.
+
+    `git show` is content-only: the worktree register is never read or written, so a stale shared
+    clone cannot describe itself as the fleet's register.
+    """
+    proc = git("show", f"{ref}:{REGISTER}")
+    if proc.returncode != 0 or not proc.stdout.strip():
+        sys.stderr.write(f"board-tick: {ref}:{REGISTER} unreadable; falling back to the worktree "
+                         f"register\n")
+        return REPO / REGISTER
+    REGISTER_ORIGIN.parent.mkdir(parents=True, exist_ok=True)
+    REGISTER_ORIGIN.write_bytes(proc.stdout)
+    return REGISTER_ORIGIN
 
 
 def previous_evidence() -> Path | None:
@@ -146,19 +186,19 @@ def session_mark() -> str:
     return f"live lease held by {holder}" if holder else ""
 
 
-def last_board_commit() -> str:
-    """The commit that last wrote the board — this tick's own capture point."""
-    proc = git("log", "-1", "--format=%H", "--", str(BOARD.relative_to(REPO)))
+def last_board_commit(ref: str = "HEAD") -> str:
+    """The commit that last wrote the board on `ref` — the tick's own capture point."""
+    proc = git("log", "-1", "--format=%H", ref, "--", str(BOARD.relative_to(REPO)))
     out = proc.stdout.decode(errors="replace").strip()
     return out if proc.returncode == 0 and out else ""
 
 
-def relevant_change() -> str:
-    """The first board-input path changed since the last board commit, or ""."""
-    base = last_board_commit()
+def relevant_change(ref: str = "HEAD") -> str:
+    """The first board-input path changed on `ref` since the last board commit there, or ""."""
+    base = last_board_commit(ref)
     if not base:
         return "no board commit yet"
-    proc = git("diff", "--name-only", f"{base}..HEAD", "--", *BOARD_INPUTS)
+    proc = git("diff", "--name-only", f"{base}..{ref}", "--", *BOARD_INPUTS)
     if proc.returncode != 0:
         return ""           # a git failure is not a change; the tick's own gates still apply
     for line in proc.stdout.decode(errors="replace").splitlines():
@@ -167,21 +207,21 @@ def relevant_change() -> str:
     return ""
 
 
-def gate() -> str:
+def gate(ref: str = "HEAD") -> str:
     """Why this tick should run, or "" when it should not (pure decision, no side effects).
 
     Owner direction 2026-11-22: the board updates and ships a commit only when a Mad Science
-    session is running **or** something that feeds a board cell changed since the last tick. A
-    fleet whose session has closed and whose lanes are untouched earns no census, no publish and
-    no commit — the timer fires, the ledger says `skipped:idle`, and nothing moves. `--force`
-    overrides it for a deliberate refresh.
+    session is running **or** something that feeds a board cell changed since the last tick. The
+    change half is read from `ref` — `origin/main` on a live fleet — because this clone is a
+    syncthing replica: measured 2026-11-23, 23 commits landed on origin while every fire compared
+    the local board commit with the local HEAD and wrote `skipped:idle`. `--force` overrides it.
     """
     mark = session_mark()
     if mark:
         return f"session: {mark}"
-    change = relevant_change()
+    change = relevant_change(ref)
     if change:
-        return f"changed: {change}"
+        return f"changed on {ref}: {change}"
     return ""
 
 
@@ -224,17 +264,20 @@ def fail(step: str, proc: subprocess.CompletedProcess, rows: int,
 
 
 def tick(args) -> int:
-    why = "forced" if (args.force or args.dry_run) else gate()
+    ref = fetch_origin()
+    why = "forced" if (args.force or args.dry_run) else gate(ref)
     if not why:
         ledger("skipped:idle", rows=0, census_stamp=None)
-        print("board-tick: skipped — no session mark and no board input changed since the last tick")
+        print("board-tick: skipped — no session mark and no board input changed on "
+              f"{ref} since the last board commit there")
         return 0
     print(f"board-tick: running ({why})")
-    rows = len(stale_ids())
+    register = materialize_register(ref)
+    rows = len(stale_ids(register))
     census_stamp: str | None = None
     previous = previous_evidence()  # before the census writes this tick's file
 
-    proc = tool("board-census.py", "--out", str(EVIDENCE))
+    proc = tool("board-census.py", "--out", str(EVIDENCE), "--register", str(register))
     if proc.returncode != 0:
         return fail("census", proc, rows, census_stamp)
     lines = proc.stdout.decode(errors="replace").split()
@@ -248,7 +291,7 @@ def tick(args) -> int:
     workdir = Path(tempfile.mkdtemp(prefix="board-tick-", dir=str(REPO / ".local")))
     try:
         rendered = workdir / "board.md"
-        render_args = ["--evidence", str(evidence), "--register", REGISTER,
+        render_args = ["--evidence", str(evidence), "--register", str(register),
                        "--repo", str(REPO), "--out", str(rendered)]
         if previous is not None:
             render_args[2:2] = ["--prev", str(previous)]
@@ -324,7 +367,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.needs_summary:
         try:
-            print(len(stale_ids()))
+            # Summary duty asks about the register this session can *write* (the worktree copy):
+            # the model fills it with `task-queue.py summarize`, and counting origin's copy would
+            # re-report the same rows every hour until someone pushed them. The render still
+            # describes origin, so a locally-written summary reaches the board when it is pushed.
+            print(len(stale_ids(REPO / REGISTER)))
         except RuntimeError as exc:
             print(f"board-tick: {exc}", file=sys.stderr)
             return 1
