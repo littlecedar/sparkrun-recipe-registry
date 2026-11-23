@@ -294,10 +294,25 @@ that dies, a sampler that does not start, or no line for *this* task id within `
 (default 10 s) stops `sparkrun stop <task-id>`, writes `state=not-armed` with the reason, and
 exits **15** (11–14 already name preflight verdicts) before any readiness or benchmark cell. The
 EXIT trap kills the guard pid after the task stop and reaps the samplers, so neither outlives its
-arm. The `mem-guard-outlives-its-task` row stays open with this evidence: `WindowGuard` in
-`tests/test_run_arm_tool.py` proves the teardown against a stub guard that sleeps (its pid is gone
-after the script), and closing the row needs a live armed boot whose stop leaves no guard process
-beside the stopped task.
+arm. The live half is closed: `mem-guard-teardown-live-proof` ran three armed boots on the head and
+its receipt (`~/benchmarks/mem-guard-20261122/run.md`) records the guard pid gone, no sampler left,
+`state=armed` naming the task id, and the same after a stop issued out of band. `WindowGuard` in
+`tests/test_run_arm_tool.py` pins the teardown against a stub guard that sleeps.
+
+**And arming first sweeps the window's stale guards (`mem-guard-sweep.log`).** An attempt that
+never reached its own stop leaves a guard and its samplers behind, and the next arm in the same
+window inherits them — measured 2026-11-10, three guards alive under one window while only one task
+had containers. A leaked guard cannot stop a future boot (it only ever stops the tid in its own
+argv), but the processes and their ssh sessions accumulate. So before it spawns its own, the
+executor looks for processes whose **argv carries this window's `mem-guard.sh` path as a whole
+field** — the exact command it issues itself — and takes the last field as the task id. It leaves
+alone: a guard whose task still has a `sparkrun_<tid>` container on any rank (a peer arm is
+running), a guard for the task id it is about to arm, and any process that merely mentions the path
+(`mem-guard.sh.bak`, another window's guard, a log tail). It kills only the rest, reads the process
+state (`Z` is a death `kill -0` cannot see) and reaps that tid's samplers per rank by `TP4_TID`.
+Every decision is appended to `<window>/mem-guard-sweep.log` as `swept guard pid=… tid=…` /
+`left guard pid=… tid=… (containers live|this task)` / `swept sampler pid=…`, so what was removed
+and what was spared is auditable after the fact.
 
 **Three consumers read this, and only one of them lives in the repo.** The tracked planner
 (`tools/next-arms.py`) reads the fields: `ladder: ok` beside a ladder that parses with cells counts

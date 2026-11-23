@@ -966,6 +966,78 @@ stop_samplers() {
   done
 }
 
+# An attempt that never reached its own stop leaves a guard and its samplers behind, and the next
+# arm in the same window inherits them: measured 2026-11-10, three guards alive under one window
+# while only one task had containers. A leaked guard cannot stop a future boot -- it only ever
+# stops the tid in its own argv -- but the processes and their ssh sessions accumulate, so the
+# arming path sweeps them before it spawns its own.
+#
+# Ownership is proved by the harness's own markers, never by a broad process pattern:
+#   * argv must carry THIS window's guard script path as a whole field, which is the exact command
+#     `arm_guard` issues (`bash $GUARD_DIR/mem-guard.sh <tid>`) -- so `mem-guard.sh.bak`, a peer
+#     window's guard, or any process that merely mentions the path is left alone;
+#   * the task id must be the last argv field and must look like one;
+#   * the task must have no container left on any rank (`sparkrun_<tid>` in `docker ps -a`), so a
+#     peer arm still running in this window keeps its stop rule;
+#   * a guard for THIS task id is left alone: it can only be a concurrent run of the same task.
+# A swept guard's samplers are then reaped per rank by TP4_TID, the marker `arm_guard` sets on
+# them. Everything swept and everything left is appended to <window>/mem-guard-sweep.log.
+sweep_stale_guards() {
+  local script="$GUARD_DIR/mem-guard.sh" log="$GUARD_DIR/mem-guard-sweep.log"
+  local pid args tid hn live state
+  [ -x "$script" ] || return 0
+  printf '%s sweep start tid=%s script=%s\n' "$(date -u +%FT%TZ)" "$TID" "$script" >> "$log"
+  for pid in $(pgrep -f -- "$script" 2>/dev/null || true); do
+    [ "$pid" = "$$" ] && continue
+    args=$(ps -o args= -p "$pid" 2>/dev/null || true)
+    case " $args " in *" $script "*) ;; *) continue ;; esac
+    tid=${args##* }
+    # The last argv field has to be a bare token, not a flag or a path: a real task id is
+    # lowercase hex plus an underscore, and the letters keep a hand-written id in a test working.
+    case "$tid" in ''|*[!A-Za-z0-9_]*) continue ;; esac
+    if [ "$tid" = "$TID" ]; then
+      printf '%s left guard pid=%s tid=%s (this task)\n' \
+        "$(date -u +%FT%TZ)" "$pid" "$tid" >> "$log"
+      continue
+    fi
+    live=no
+    for hn in $(echo "$HOSTS" | tr ',' ' '); do
+      if ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" \
+           "docker ps -a --format '{{.Names}}' --filter name=sparkrun_$tid" 2>/dev/null \
+           | grep -q "sparkrun_$tid"; then live=yes; break; fi
+    done
+    if [ "$live" = yes ]; then
+      printf '%s left guard pid=%s tid=%s (containers live)\n' \
+        "$(date -u +%FT%TZ)" "$pid" "$tid" >> "$log"
+      continue
+    fi
+    kill "$pid" 2>/dev/null
+    sleep 1
+    # `kill -0` cannot see a death: a reaped-pending child stays a zombie that answers it, the same
+    # trap `guard_alive` documents. The process state is the evidence.
+    state=$(ps -o stat= -p "$pid" 2>/dev/null || true)
+    case "$state" in
+      "" | Z*) printf '%s swept guard pid=%s tid=%s (no containers)\n' \
+                 "$(date -u +%FT%TZ)" "$pid" "$tid" >> "$log" ;;
+      *) printf '%s swept guard pid=%s tid=%s (still alive after SIGTERM, state=%s)\n' \
+           "$(date -u +%FT%TZ)" "$pid" "$tid" "$state" >> "$log" ;;
+    esac
+    for hn in $(echo "$HOSTS" | tr ',' ' '); do
+      ssh -o ConnectTimeout=5 -o BatchMode=yes "red@$hn" "bash -s -- '$tid'" \
+        >> "$log" 2>&1 <<'EOS' || true
+TID=$1
+for p in /proc/[0-9]*; do
+  n=${p#/proc/}
+  tr '\0' '\n' < "$p/environ" 2>/dev/null | grep -qx "TP4_TID=$TID" || continue
+  tr '\0' ' ' < "$p/cmdline" 2>/dev/null | grep -q "mem-sampler.sh" || continue
+  kill "$n" 2>/dev/null && echo "swept sampler pid=$n tid=$TID host=$(hostname)"
+done
+EOS
+    done
+  done
+  printf '%s sweep done tid=%s\n' "$(date -u +%FT%TZ)" "$TID" >> "$log"
+}
+
 arm_guard() {
   [ -n "${ARM_WINDOW:-}" ] || return 0
   GUARD_DIR="$HOME/benchmarks/$ARM_WINDOW"
@@ -973,6 +1045,7 @@ arm_guard() {
   if [ ! -x "$script" ]; then
     guard_fail "script missing or not executable: $script"
   fi
+  sweep_stale_guards
   ranks=$(echo "$HOSTS" | tr ',' ' ')
   # The guard runs on this host (the head), its own session so a later stop cannot reap it, and
   # reads every rank's trigger over ssh. TP4_DIR/TP4_RANKS are the names its own script requires.
