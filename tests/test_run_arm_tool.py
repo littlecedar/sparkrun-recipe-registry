@@ -3466,6 +3466,16 @@ STALE_GUARD = (
     'printf "%s\\n" "guard start tid=task_older start_epoch=$(date +%s)" >> "$TP4_DIR/mem-guard.log"\n'
     "exec sleep 30\n"
 )
+# A planted process only has to look like a guard to the sweep: `bash <path> <tid>`, alive, and
+# keeping its argv. It must NOT `exec` (an exec replaces the image and the argv with it, which is
+# what the sweep reads) and its file must not be rewritten after the spawn (bash re-reads a script
+# from its offset, so a shorter body overwritten by a longer one turns the loop into whatever the
+# tail says). The real guard is a loop for the same reason, so this is its shape.
+LOOP_GUARD = (
+    "#!/bin/sh\n"
+    'printf "%s\\n" "guard start tid=$1 start_epoch=$(date +%s)" >> "$TP4_DIR/mem-guard.log"\n'
+    "while :; do sleep 5; done\n"
+)
 
 
 class WindowGuard(unittest.TestCase):
@@ -3478,8 +3488,13 @@ class WindowGuard(unittest.TestCase):
 
     def run_guard(self, *, window: str = "win", body: str | None = GOOD_GUARD,
                   executable: bool = True, wait: str = "3",
-                  trailer: str = "stop_guard"):
-        """Execute the arming block with a fake window; return rc, output, receipt, logs."""
+                  trailer: str = "stop_guard", pre=None, ssh_out: str | None = None):
+        """Execute the arming block with a fake window; return rc, output, receipt, logs.
+
+        `pre(window_dir, home)` runs after the window exists and before the block, which is how a
+        test plants a process the sweep has to reason about. `ssh_out` is what the stub `ssh`
+        prints, so a liveness probe can be answered both ways.
+        """
         with tempfile.TemporaryDirectory() as tmpdir:
             tmp = Path(tmpdir)
             home = tmp / "home"
@@ -3499,9 +3514,11 @@ class WindowGuard(unittest.TestCase):
             ssh = bins / "ssh"
             ssh.write_text(
                 '#!/bin/sh\nprintf "%s\\n" "$*" >> "$SSH_LOG"\ncat >> "$SSH_STDIN"\n'
-                'printf "node pid=999 rows=0 last_avail_kB=100\\n"\n'
+                'printf "%s\\n" "node pid=999 rows=0 last_avail_kB=100"\n'
+                f'printf "%s\\n" "{ssh_out or ""}"\n'
             )
             ssh.chmod(0o755)
+            planted = pre(window_dir, home) if pre else None
             script = tmp / "guard.sh"
             script.write_text(
                 "#!/usr/bin/env bash\nset -uo pipefail\n"
@@ -3523,6 +3540,9 @@ class WindowGuard(unittest.TestCase):
             match = re.search(r"^guard_pid=(\d*)$", out.stdout, re.M)
             pid = int(match.group(1)) if match and match.group(1) else 0
             files = {path.name: path.read_text(errors="replace") for path in receipt.iterdir()}
+            sweep_log = window_dir / "mem-guard-sweep.log"
+            if sweep_log.exists():
+                files["mem-guard-sweep.log"] = sweep_log.read_text(errors="replace")
             logs = {}
             for key, name in (("guard_argv", "guard-argv"), ("ssh", "ssh.log"),
                               ("ssh_stdin", "ssh.stdin"), ("sparkrun", "sparkrun.log")):
@@ -3531,6 +3551,7 @@ class WindowGuard(unittest.TestCase):
         # The stub guard sleeps 30 s; a live pid after the script exited means teardown missed it.
         logs["pid"] = str(pid)
         logs["alive"] = str(bool(pid) and Path(f"/proc/{pid}").exists())
+        logs["planted"] = planted
         return out.returncode, out.stdout + out.stderr, files, logs
 
     def test_the_declared_window_arms_its_guard_with_the_resolved_task_id(self):
@@ -3574,6 +3595,102 @@ class WindowGuard(unittest.TestCase):
         rc, out, files, _ = self.run_guard(body="#!/bin/sh\nexit 1\n")
         self.assertEqual(rc, 15, out)
         self.assertIn("state=not-armed", files["guard-armed.txt"])
+
+    # --- stale-guard sweep: an attempt that never reached its own stop leaves a process behind ---
+    def _plant(self, path: Path, tid: str) -> "subprocess.Popen[bytes]":
+        """Start `bash <path> <tid>` and keep it alive; killed by cleanup whatever the test does."""
+        proc = subprocess.Popen(["bash", str(path), tid],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        def _reap() -> None:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=5)
+
+        self.addCleanup(_reap)
+        for _ in range(100):
+            if proc.poll() is not None:
+                self.fail(f"the planted process for {tid} exited before the arm ran")
+            if Path(f"/proc/{proc.pid}").is_dir():
+                break
+            time.sleep(0.02)
+        return proc
+
+    def _plant_guard(self, window_dir: Path, tid: str) -> "subprocess.Popen[bytes]":
+        """Plant a guard-shaped process at the window's own path.
+
+        The file is the one `run_guard` already wrote (`LOOP_GUARD`), and it is not touched again:
+        bash re-reads a running script from its offset, so rewriting it would replace the loop
+        mid-flight and the process would lose the argv the sweep matches on.
+        """
+        return self._plant(window_dir / "mem-guard.sh", tid)
+
+    def test_a_stale_guard_for_a_dead_task_is_swept_and_logged(self):
+        planted = {}
+
+        def pre(window_dir, _home):
+            planted["proc"] = self._plant_guard(window_dir, "task_older")
+            return planted["proc"]
+
+        rc, out, files, _logs = self.run_guard(body=LOOP_GUARD, pre=pre)
+        self.assertEqual(rc, 0, out)
+        self.assertIsNotNone(planted["proc"].poll(),
+                             "a guard for a task with no containers survived the arm")
+        sweep = files["mem-guard-sweep.log"]
+        self.assertIn("sweep start tid=task_123", sweep, "the sweep did not run at arm start")
+        self.assertIn("swept guard pid=", sweep)
+        self.assertIn("tid=task_older", sweep)
+        self.assertIn("(no containers)", sweep)
+        self.assertIn("tid=task_123", files["guard-armed.txt"],
+                      "the sweep must not disturb the arm's own arming")
+
+    def test_a_lookalike_process_is_untouched(self):
+        planted = {}
+
+        def pre(window_dir, _home):
+            # Same directory, name one character longer: a substring match would kill it, the
+            # whole-field check must not.
+            lookalike = window_dir / "mem-guard.sh.bak"
+            lookalike.write_text(LOOP_GUARD)
+            lookalike.chmod(0o755)
+            planted["proc"] = self._plant(lookalike, "task_older")
+            return planted["proc"]
+
+        rc, out, files, _logs = self.run_guard(body=LOOP_GUARD, pre=pre)
+        self.assertEqual(rc, 0, out)
+        self.assertIsNone(planted["proc"].poll(),
+                          "a lookalike script was killed: the sweep matched a substring, not a field")
+        self.assertNotIn("swept guard pid=", files["mem-guard-sweep.log"])
+
+    def test_a_live_task_keeps_its_guard(self):
+        planted = {}
+
+        def pre(window_dir, _home):
+            planted["proc"] = self._plant_guard(window_dir, "task_live")
+            return planted["proc"]
+
+        rc, out, files, logs = self.run_guard(
+            body=LOOP_GUARD, pre=pre, ssh_out="sparkrun_task_live_node_0")
+        self.assertEqual(rc, 0, out)
+        self.assertIsNone(planted["proc"].poll(),
+                          "a peer arm's guard was killed while its containers were up")
+        self.assertIn("left guard pid=", files["mem-guard-sweep.log"])
+        self.assertIn("tid=task_live (containers live)", files["mem-guard-sweep.log"])
+        self.assertIn("sparkrun_task_live", logs["ssh"],
+                      "liveness was not probed by the container name the harness itself writes")
+
+    def test_the_current_arms_guard_is_not_swept_before_it_arms(self):
+        planted = {}
+
+        def pre(window_dir, _home):
+            planted["proc"] = self._plant_guard(window_dir, "task_123")
+            return planted["proc"]
+
+        rc, out, files, _logs = self.run_guard(body=LOOP_GUARD, pre=pre)
+        self.assertEqual(rc, 0, out)
+        self.assertIsNone(planted["proc"].poll(),
+                          "the sweep killed a guard for the task id it was about to arm")
+        self.assertIn("left guard pid=", files["mem-guard-sweep.log"])
+        self.assertIn("tid=task_123 (this task)", files["mem-guard-sweep.log"])
 
     def test_an_arm_without_a_window_is_exactly_the_old_executor(self):
         rc, out, files, logs = self.run_guard(window="")
