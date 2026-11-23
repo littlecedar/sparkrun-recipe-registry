@@ -2532,13 +2532,14 @@
       "estimate_h": 6.0,
       "blocks": [],
       "blocked_by": [
+        "ask-tp4-window-declaration",
         "ds4-fp4-kv-layout-sm121-port-sglang",
         "ds4-fp4-kv-layout-sm121-port-vllm"
       ],
       "state": "blocked",
       "model": "",
       "node_cost": "quartet",
-      "notes": "RECIPE RETIRED 2026-11-18: the `zz-` arm this row booted is archived at `attic/ds4/zz-ds4-1017-sm121-indexer-scoring.yaml` (it was run or refused on record; see the lane attic index), so the row is no longer bootable. CORRECTION TO THE FP8-KV IDEA this lane carried: KV dtype is NOT a lever here. The line is already `kv_dtype: fp8_e4m3`, and `fp8_ds_mla` is not a value this engine knows — zero occurrences in image commit `103ad321`; it is vLLM's packed MLA row, a different engine. Nor would a narrower dtype move the floor: the pool fills every available byte, so halving bytes/token doubles tokens and leaves the memory pressure (and the floor) where it was. `nvfp4` KV is actively UNSAFE: the sizing path has no fp4 term, so it would print the same 1,670.75 B/token while asking kernels for fp4 rows — the engine would over-advertise budget it cannot back. WHAT WOULD ACTUALLY UNLOCK FP4 KV is engine work, and it is two sites plus a branch: relax the `is_sm100` gate at `deepseek_v4_memory_pool.py:197`, port the `V41`/`V41_FP4` layout from `kv_layout.cuh:38`, and add the fp4 branch in `pool_configurator.py:1024-1035`. That buys 2-4x tokens per GiB (a context win), zero floor — so it is a reason to rebuild, not a reason to expect a boot where none fit. Blocked: engine work, no boot can pass before the port exists.",
+      "notes": "RECIPE RETIRED 2026-11-18: the `zz-` arm this row booted is archived at `attic/ds4/zz-ds4-1017-sm121-indexer-scoring.yaml` (it was run or refused on record; see the lane attic index), so the row is no longer bootable. CORRECTION TO THE FP8-KV IDEA this lane carried: KV dtype is NOT a lever here. The line is already `kv_dtype: fp8_e4m3`, and `fp8_ds_mla` is not a value this engine knows — zero occurrences in image commit `103ad321`; it is vLLM's packed MLA row, a different engine. Nor would a narrower dtype move the floor: the pool fills every available byte, so halving bytes/token doubles tokens and leaves the memory pressure (and the floor) where it was. `nvfp4` KV is actively UNSAFE: the sizing path has no fp4 term, so it would print the same 1,670.75 B/token while asking kernels for fp4 rows — the engine would over-advertise budget it cannot back. WHAT WOULD ACTUALLY UNLOCK FP4 KV is engine work, and it is two sites plus a branch: relax the `is_sm100` gate at `deepseek_v4_memory_pool.py:197`, port the `V41`/`V41_FP4` layout from `kv_layout.cuh:38`, and add the fp4 branch in `pool_configurator.py:1024-1035`. That buys 2-4x tokens per GiB (a context win), zero floor — so it is a reason to rebuild, not a reason to expect a boot where none fit. Blocked: engine work, no boot can pass before the port exists.\n\nREMAINING WORK 2026-11-23: both children are done (the SGLang port and the vLLM 384-byte store), so the two child edges above are history and this row now waits on the four-rank window like the other TP4 rows. What is left is a fleet act: build the image carrying both ports, re-author the retired arm (the zz- arm is archived at attic/ds4/zz-ds4-1017-sm121-indexer-scoring.yaml), boot the quartet, and read the engine's own allocation line — 384 B/token for the vLLM nvfp4 path against fp8's 976 — plus one needle cell. No policy question remains.",
       "provenance": "image commit 103ad321 (zero `fp8_ds_mla` occurrences); deepseek_v4_memory_pool.py:197 (is_sm100 gate); kv_layout.cuh:38 (V41/V41_FP4); pool_configurator.py:1024-1035 (fp4 branch), :1531, :1553-1568 (1,670.75 B/token/rank)",
       "evidence": "",
       "claimed_by": "",
@@ -3806,7 +3807,8 @@
         "inkling-tp4-first-boot",
         "campaign-leases-tp4-onto-30",
         "repin-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang",
-        "repin-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2"
+        "repin-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2",
+        "ds4-fp4-kv-layout-sm121-port"
       ],
       "blocked_by": [],
       "state": "ask",
