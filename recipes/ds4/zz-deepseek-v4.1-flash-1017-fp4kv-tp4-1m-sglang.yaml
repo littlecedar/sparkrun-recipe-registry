@@ -8,7 +8,7 @@ runtime: sglang
 # inline route, the SM120 reader passes kv_scale_format="ue8m0_g32" and
 # extra_fp4=True, and the pool sizes at 528/288 instead of the hardcoded 584.
 # Built from recipes/ds4/Dockerfile.dsv41-fp4kv.
-container: ghcr.io/littlecedar/aneda@sha256:b5de5272edd983e41059154f10d862a44c25f8f5f403fafd48ad0778b95ceed6
+container: ghcr.io/littlecedar/aneda@sha256:886041fd76a2e781d7f0cc2fcaed79a5a42f3a125d6038c53a5fe5df92a07e8b
 min_nodes: 4
 description: >-
   FP4 KV survey arm (queue row ds4-fp4-kv-layout-sm121-port, unblocked by its
