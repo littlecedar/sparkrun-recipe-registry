@@ -28,7 +28,11 @@ by the worker's lease beat), so a director that dies stops holding ranks after o
 stale claim.
 
 A top-level `fenced` list holds a production serve's ranks permanently: every reader refuses them
-by name, `acquire` refuses them even with `takeover`, and only deleting the record opens the hosts.
+by name, `acquire` refuses them even with `takeover`, and only the supported removal (`unfence`,
+`director lease --unfence`) opens the hosts. A removal empties the live record and appends who,
+when and why to the append-only `fence_log`, so a fence that is gone still has its history. A manual
+edit of the file still bypasses that path and leaves no entry -- the ledger is a plain shared file,
+and this is the same direct-edit scope as the window lock, not a gap the code can close.
 """
 
 from __future__ import annotations
@@ -138,6 +142,8 @@ class Ledger:
             raise LeaseError(f"{self.path} is not a lease ledger (no `leases` list)")
         if not isinstance(data.get("fenced", []), list):
             raise LeaseError(f"{self.path}: `fenced` must be a list of fence records")
+        if not isinstance(data.get("fence_log", []), list):
+            raise LeaseError(f"{self.path}: `fence_log` must be a list of removal records")
         return data
 
     @staticmethod
@@ -148,6 +154,10 @@ class Ledger:
     def fences(self) -> list[dict[str, Any]]:
         """Every fence record, whatever the clock says: a fence has no expiry."""
         return [fence for fence in self._read().get("fenced") or [] if isinstance(fence, dict)]
+
+    def fence_log(self) -> list[dict[str, Any]]:
+        """Every recorded fence removal, oldest first: actor, time, reason and the record removed."""
+        return [entry for entry in self._read().get("fence_log") or [] if isinstance(entry, dict)]
 
     @staticmethod
     def _fence_holds(data: dict[str, Any], hosts: list[str] | tuple[str, ...]) -> dict[str, str]:
@@ -372,3 +382,52 @@ class Ledger:
             return bool(self._locked(change, self.clock()))
         except OSError:
             return False
+
+    def unfence(self, hosts: list[str] | tuple[str, ...], *, actor: str, reason: str,
+                now: float | None = None) -> list[dict[str, Any]]:
+        """Remove the fence record covering exactly `hosts`, recording who, when and why.
+
+        The live `fenced` list holds only fences that still hold; every removal is copied into the
+        append-only `fence_log`, so a fence that is gone still has its history. A removal names the
+        record's exact host set -- there is no partial removal -- and a missing record refuses,
+        naming the hosts asked for and what is fenced now. A direct edit of the ledger bypasses
+        this path and leaves no entry; that limitation is the file's, documented in DESIGN.md.
+        """
+        wanted = sorted(str(host) for host in hosts)
+        actor, reason = (actor or "").strip(), (reason or "").strip()
+        if not wanted:
+            raise LeaseError("a fence removal names the hosts it removes")
+        if not actor:
+            raise LeaseError("a fence removal records who removed it: --holder <session>")
+        if not reason:
+            raise LeaseError('a fence removal records why: --reason "<why>"')
+
+        def change(data: dict[str, Any], at: float) -> list[dict[str, Any]]:
+            def covers(fence: Any) -> bool:
+                return (isinstance(fence, dict)
+                        and sorted(str(host) for host in fence.get("hosts") or ()) == wanted)
+
+            removed = [fence for fence in data.get("fenced") or [] if covers(fence)]
+            if not removed:
+                present = "; ".join(
+                    ",".join(str(host) for host in fence.get("hosts") or ())
+                    for fence in data.get("fenced") or [] if isinstance(fence, dict))
+                raise LeaseError(
+                    f"no fence covers exactly {','.join(wanted)}"
+                    + (f"; fenced now: {present}" if present else "; nothing is fenced"))
+            data["fenced"] = [fence for fence in data.get("fenced") or [] if not covers(fence)]
+            log = data.setdefault("fence_log", [])
+            stamp = datetime.fromtimestamp(at, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            entries: list[dict[str, Any]] = []
+            for record in removed:
+                entry = {"actor": actor, "removed_at": stamp, "reason": reason,
+                         "hosts": [str(host) for host in record.get("hosts") or ()],
+                         "removed": record}
+                log.append(entry)
+                entries.append(entry)
+            return entries
+
+        try:
+            return list(self._locked(change, self.clock() if now is None else now))
+        except OSError as exc:
+            raise LeaseError(f"cannot write {self.path}: {exc}") from exc

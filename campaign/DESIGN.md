@@ -264,8 +264,15 @@ waits; a claim that appears between placement and the write refuses that arm's b
 ruling is about multi-machine boots — but they still do not land on a leased rank. A top-level
 `fenced` list in the same ledger holds ranks **permanently** — a live production serve, not a
 window — and is refused by every reader (`lease-held: <host> (fence: …)`) and by `acquire` even
-with `--takeover`; only deleting the record opens the hosts, so a lapsed TTL cannot un-fence
-production. The legacy
+with `--takeover`; only the supported removal opens the hosts, so a lapsed TTL cannot un-fence
+production. A removal is `lease --unfence <hosts> --holder <session> --reason "<why>"`: it removes
+the fence record whose host set is exactly `<hosts>` and appends one `fence_log` entry naming the
+actor, the time, the reason and the record it removed, so a fence that is gone still has its
+history (`lease --list` prints it as `fence-log removed=…`). The log is append-only: a removal
+without `--reason` or `--holder`, or one naming hosts no record covers, refuses and writes nothing.
+**A manual edit of `.local/fleet-leases.json` still bypasses the path and leaves no entry** — the
+ledger is a plain syncthing-shared file, so the record covers the supported path, not every
+byte-level edit (the same direct-edit scope the window lock has). The legacy
 `.local/fleet-window.lock` is still read, as a blanket hold for every declared host, because a
 session that wrote one has not moved to a lease yet; the lease command refuses while one exists,
 and the director never writes it. Only the canonical `.local/fleet-window.lock` and its legacy
@@ -854,13 +861,17 @@ uv run --frozen python -m sparkrun_campaign.director lease --list
 uv run --frozen python -m sparkrun_campaign.director lease --hosts "$NODES" \
   --holder <session> --ttl 14400 --window <window-name>
 uv run --frozen python -m sparkrun_campaign.director lease --release <id>
+uv run --frozen python -m sparkrun_campaign.director lease --unfence "$HOSTS" \
+  --holder <session> --reason "<why>"      # the removal is recorded in `fence_log`
 ```
 
 `.local/` is syncthing-shared, so a claim written on another checkout reaches the head on sync
 delay; claims and boots belong on the head, which is where every session reads them. The ledger is
 read by `tools/queue-drip.py` beside campaign `state.json` and the legacy lock, so a manual lease is
 seen by the drip without a lock; a `fenced` record in the same document holds a production serve's
-ranks permanently, and both the drip and every placement/proof path refuse them by name.
+ranks permanently, and both the drip and every placement/proof path refuse them by name. A fence is
+removed only through `lease --unfence`, which records who, when and why in `fence_log`; the live
+`fenced` list then no longer holds the ranks, but the removal stays in the ledger's history.
 
 Deliberately not done: a system-wide unit (needs root for no benefit), a timer (a campaign is
 started by a decision, not a schedule), and `Restart=always` (a finished campaign must not restart
