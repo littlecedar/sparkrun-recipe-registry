@@ -2518,8 +2518,10 @@
       "title": "DS4 1017 SM121: port the V41/V41_FP4 KV layout so fp4 KV is admissible — dtype is not a lever today, and sizing lies about fp4",
       "estimate_h": 6.0,
       "blocks": [],
-      "blocked_by": [],
-      "state": "queued",
+      "blocked_by": [
+        "ds4-fp4kv-engine-fix-non-c3"
+      ],
+      "state": "blocked",
       "model": "",
       "node_cost": "quartet",
       "notes": "FP4-KV image built and pushed. SGLang side: ghcr.io/littlecedar/aneda@sha256:b5de5272edd983e41059154f10d862a44c25f8f5f403fafd48ad0778b95ceed6 (the dsv41-sm121-dg:0.2.1-fi073e base + patch_dsv41_fp4kv.py + fp4kv_kv_format.py). Recipe at recipes/ds4/zz-deepseek-v4.1-flash-1017-fp4kv-tp4-1m-sglang.yaml sets SGLANG_DSV4_KV_LAYOUT=v41 and SGLANG_DSV4_COMPRESSED_KV_LAYOUT=auto. The quartet boot must validate the allocation line (528/288 B/token) and a needle cell. vLLM fork overlay at .scratch/ds4/tonyd2wild-vllm/patch/nvfp4-ds-mla/ (local commits abdc12b..f4a50d4, push 403) is a separate build path.",
@@ -4141,6 +4143,23 @@
       "notes": "OWNER ANSWER 2026-11-22 (ViBoard thread t22): the beegfs-meta restart-loop fix is deferred — its own session, no window yet. This row is the step that makes a window possible without pushing one: propose one or two candidate maintenance windows plus the host set the fix needs (the five role-gated hosts .31-.35, .30 untouched), put them to the owner as a single ask, and when one is approved declare it (the window record the campaign and director lease read) and return beegfs-meta-restart-loop-non-meta-hosts to queued. Do not start the fix from here and do not declare a window the owner has not approved. ACCEPTANCE: a proposal with dates, durations and the host set goes to the owner, and either a declared window plus the fix returned to queued, or a recorded hold if the owner declines. estimate: provisional.",
       "provenance": "ask-beegfs-meta-window (answered 2026-11-22, ViBoard thread t22: deferred, no window yet); row beegfs-meta-restart-loop-non-meta-hosts (the fix and its acceptance); campaign/DESIGN.md section 'A declared window is hands off' (the window record a lease reads)",
       "evidence": "Window declared (>=4 node, production serve down). Fix executed 2026-11-22: masked beegfs-meta on .31-.34, .35 already masked, .30 untouched. Receipt head:~/benchmarks/beegfs-fix-20261123/RECEIPT.md",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "ds4-fp4kv-engine-fix-non-c3",
+      "title": "Rebuild the FP4-KV image on a non-c3 base or adapt the recipe for the c3 tree",
+      "estimate_h": 4.0,
+      "blocks": [
+        "ds4-fp4-kv-layout-sm121-port"
+      ],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "THREE BOOT ATTEMPTS FAILED on the same wall (serve log: serve-reaped-*.log in the boot receipt). The c3-reconciled base has incompatible kernel modules: sglang.kernels.ops.attention.dsv4.wo_a_bf16 is missing (the c3 tree renamed it to wo_a). The model config class is also unrecognized: ValueError \"Unrecognized configuration class DeepseekV41Config for AutoModel\" — the SGLang custom config class is not a registered HF AutoModel class. Two options: (a) rebuild the FP4-KV image on a non-c3 base (e.g., the stock sglang image that carries wo_a_bf16 and the HF class registration), or (b) adapt the recipe to run with DSV41_C3_EXCLUDES=1 plus SGLang patches for the model loading path.",
+      "provenance": "ds4-fp4-kv-layout-sm121-port (parent row, queued→blocked); boot receipt head:~/benchmarks/fp4kv-parent-20261123/zz-deepseek-v4.1-flash-1017-fp4kv-tp4-1m-sglang/",
+      "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
     }
