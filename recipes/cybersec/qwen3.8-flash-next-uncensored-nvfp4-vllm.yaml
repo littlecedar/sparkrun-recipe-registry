@@ -1,6 +1,6 @@
 recipe_version: "2"
 model: orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4
-model_revision: cd56f6c148c6287cf26fa6618223ad046b9af27c
+model_revision: 9c6f1345b523a9d9d70b41542a63b39e3c9b7ca6
 runtime: vllm
 # b12x build, not the plain eugr nightly: the nightly's vLLM carries PR #59533 (merged 2026-10-05),
 # which fuses the QSA indexer into qkv_proj and makes compressed-tensors refuse an ignored shard.
