@@ -128,10 +128,14 @@ class PushGate(unittest.TestCase):
 
     # --- register rows: a stale base drops rows, and nothing else in the gate can see it ------
 
-    def register(self, *ids: str) -> None:
+    def register(self, *rows) -> None:
+        """`"id"` is a queued row; `("id", "state")` names the state."""
         path = self.root / "mad-science" / "queue.json"
         path.parent.mkdir(parents=True, exist_ok=True)
-        rows = [{"id": row, "title": row, "estimate_h": 1.0, "state": "queued"} for row in ids]
+        rows = [{"id": row, "title": row, "estimate_h": 1.0, "state": "queued"}
+                if isinstance(row, str) else
+                {"id": row[0], "title": row[0], "estimate_h": 1.0, "state": row[1]}
+                for row in rows]
         path.write_text(json.dumps({"priority_models": [], "tasks": rows}, indent=2) + "\n",
                         encoding="utf-8")
 
@@ -175,6 +179,44 @@ class PushGate(unittest.TestCase):
         out = self.gate()
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertIn("register rows (none dropped from upstream)", out.stdout)
+
+    # --- done is terminal: a stale replica can revert a close without dropping the row ---------
+
+    def test_a_done_row_reverted_to_queued_fails_naming_it(self):
+        (self.root / "AGENTS.md").write_text(agents(self.total), encoding="utf-8")
+        self.register(("closed", "done"), "open")
+        commit(self.root, "base")
+        self.base()
+        self.register(("closed", "queued"), "open")
+        commit(self.root, "a stale replica reverts the close")
+        out = self.gate()
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+        self.assertIn("done rows reverted", out.stderr)
+        self.assertIn("closed", out.stderr)
+        self.assertIn("`done` is terminal", out.stderr)
+
+    def test_negative_control_a_running_row_returned_to_queued_passes(self):
+        # A failed attempt is legitimately requeued; the guard is only for `done`.
+        (self.root / "AGENTS.md").write_text(agents(self.total), encoding="utf-8")
+        self.register(("attempted", "running"), "open")
+        commit(self.root, "base")
+        self.base()
+        self.register(("attempted", "queued"), "open")
+        commit(self.root, "the attempt failed and was requeued")
+        out = self.gate()
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("done rows (none reverted from upstream)", out.stdout)
+
+    def test_a_commit_that_adds_a_done_row_passes(self):
+        (self.root / "AGENTS.md").write_text(agents(self.total), encoding="utf-8")
+        self.register("open")
+        commit(self.root, "base")
+        self.base()
+        self.register(("closed", "done"), "open")
+        commit(self.root, "adds a row and closes it")
+        out = self.gate()
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("done rows (none reverted from upstream)", out.stdout)
 
 
 if __name__ == "__main__":

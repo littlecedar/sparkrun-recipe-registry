@@ -240,6 +240,14 @@ The state model is held the same way: a `blocked` row with no `blocked_by`, an `
 blocker or with `recipe`/`tp`/`env`, and a `scheduled` row with no `scheduled_by` each exit non-zero
 naming the row. There are no silent defaults anywhere in the tool.
 
+**`done` is terminal, and the push gate enforces it.** No legal transition leaves `done` — a retired
+arm keeps its row and its id is never reused — so `tools/push-gate.py` compares the committed
+register with `origin/main`'s and fails on two things the tool's own compare-and-swap cannot see: a
+row id present upstream and absent here, and a row `done` upstream that is not `done` here. Both mean
+the commit was built on a replica that had not seen a peer's write; the repair is to re-read origin,
+restore the rows, and re-commit. Measured 2026-11-23: a stale replica reverted every close and claim
+of the repin drain while every row was still present.
+
 ## Deliberate omission: `decisions` is not a JSON array
 
 The 2026-10-30 migration row named three schema additions. All three landed — `evidence` per task,
