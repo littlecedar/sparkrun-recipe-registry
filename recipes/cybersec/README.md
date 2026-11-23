@@ -751,3 +751,16 @@ mismatch** — a newer image could pass this validation and still not serve the 
 another boot to learn. Receipts `~/benchmarks/tp12-20261104/qwen3.8-flash-next-uncensored-nvfp4-sglang/`
 (launch + watchdog) and `~/benchmarks/tp12-20261104/qwen3.8-flash-next-uncensored-nvfp4-vllm/`
 (`serve-0.log` holds the traceback).
+
+
+---
+
+## Footnotes from root README
+
+_These footnotes were moved here from the root [README.md](../../README.md) to keep the main index concise. They document arm-specific measurement provenance._
+
+* _The AEON row's **C1 33.3** is its earlier single-point figure — **C2/C5/C10 are the 2026-10-17 ladder** (`bench_3ee8fda63ada`), the lane's first._
+* _The uncensored-27B row's **C1 10.2** is its earlier decode-triage C1 (`bench_edd91a07aee4`); **C2/C5/C10 are the 2026-10-18 ladder** (`bench_4c30a992c771`, receipt `~/benchmarks/ladders-solo-20261018/`), same-boot C1 9.75 — 4.4 % below the triage figure, outside that cell's ±0.24 but one boot. It climbs to c10 because 358,261 fp8 KV tokens carry ten concurrent 2048/128 requests with no queueing._
+* _The **NEXTN** row is the plain arm's checkpoint with SGLang spec decode on its own BF16 MTP head — one boot 2026-10-18, `~/benchmarks/cybersec-nextn-20261018/` (`cells.json` decode rows, `bench_cab845506821`). Its control is the same recipe without the speculative block (`bench_edd91a07aee4` / the 2026-10-14 arm-1 triage), so C1 is cross-boot; accept len 2.774 at c=1 (n=39 decode-batch lines, min 1.80). The one capability cost is the scheduler budget: `max_total_num_tokens` 167,985, i.e. the served context is **below** the advertised 262,144 — attributed to the draft pool only **unverified**, because the control's boot log was not retained. For scale, the DFlash2 sibling's ceiling is 30.2–33.8 t/s, so this arm reaches ~44–49 % of it on a different body._
+* _The **OrcaCyber** row is its first boot (2026-10-22, `.35`, task `f5f1433d7dd0b74e_a4bf874feb5a`), the lane's only llama.cpp arm, and the only arm here whose speed comes mostly from speculative decode: **25.62 ± 2.31 t/s** at C1 (d0, pp 2048, tg 128, n=5, `bench_2e3d1141622c`, ttfr 2,399 ms) while the serve log's own counters read MTP acceptance **0.40–0.86 / mean len 2.19–3.57** — a ~17 t/s weight-streaming roofline for 27.32B dense at 4.60 bpw, so the MTP head is what carries it past that. `Mem%` is `—` because llama.cpp sizes its own pool from `--ctx-size`/`--parallel`, and `Size` is the 15.7G GGUF tier plus its 0.93 GB F16 `mmproj`. **C2/C5/C10 and the 13G tier are unmeasured** — one warm cell was this boot's budget, and the 13G tier (`:Mix-13G`, 3.80 bpw) is that A/B control, never the default. TTR **30.29 s** warm (image pin and weights already resident). Receipt `~/benchmarks/orcacyber-nano-20261022/`; lane section [`recipes/cybersec/README.md`](recipes/cybersec/README.md#orcacyber-nano-10-157g-gguf-llamacpp)._
+

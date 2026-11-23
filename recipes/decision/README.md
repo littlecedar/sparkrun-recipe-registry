@@ -757,3 +757,14 @@ Files under [`attic/decision/`](../../attic/decision/):
 [kev]: https://huggingface.co/jaredpalmer/kev-0.8b
 [d3]: https://huggingface.co/vllm-sr/d3-edge
 [timestral]: https://huggingface.co/mistralai/Timestral-209M
+
+
+---
+
+## Footnotes from root README
+
+_These footnotes were moved here from the root [README.md](../../README.md) to keep the main index concise. They document arm-specific measurement provenance._
+
+* _The two `srun` arms are CPU-only (`--device cpu`), so no device cap applies._
+* _The **kev** and **laya** rows are CPU Python serves (`kev.serve`, `laya-serve`) whose rates are the lane's `tools/decision-ladder.py` cells: `kev` **0.234 / 0.235 req/s** at c1/c2 (flat throughput at doubled per-request latency, instrument p50 5,403 ms), `laya` **0.449 req/s** at c1 (instrument 36.1 % = 723/2000 at p50 4,290 ms). `kev`'s open item is sparkrun's launch gate, not the serve. Receipts `~/benchmarks/decision-arms2-20261018/`; lane sections [`recipes/decision/README.md`](recipes/decision/README.md#kev-08b-decision-serve)._
+
