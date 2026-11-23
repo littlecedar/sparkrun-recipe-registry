@@ -2413,14 +2413,14 @@
       "blocked_by": [
         "mem-guard-teardown-live-proof"
       ],
-      "state": "queued",
+      "state": "running",
       "model": "",
       "node_cost": "",
       "notes": "CORRECTED 2026-11-11: the premise that a leaked guard can stop a future boot is false. `mem-guard.sh` issues `sparkrun stop` only for the TID in its own argv, so a guard whose task is gone is a stale no-op and cannot touch the next boot. What accumulates is processes and ssh sessions, plus stop paths that no longer resolve to anything. Row stays open for the lifetime/accumulation fix; the measurement and acceptance follow.\n\nMEASURED 2026-11-10 17:24:30Z on the head, read-only: three `mem-guard.sh` processes were alive under `~/benchmarks/tp4-20261110b/` — pid 812563 for tid `b020d2dd178343a5_e71b756f3a6f` (that arm ended after its 12:07 ET cell; pid started 11:58:31 ET), pid 962497 for tid `1c0dffa45afa6e47_12bcc08db9da` (the attempt aborted during launch at 12:16-12:17 ET, its own launch.log ending at `launch 80.0s`), and pid 1005043 for the live tid `1c0dffa45afa6e47_be139521f1b7` (started 12:20:17 ET). Only one task had containers at that read (`docker ps -a` on .31 named only `sparkrun_1c0dffa45afa6e47_be139521f1b7_node_0`), so two of the three guards were guarding nothing. Each guard enforces a 6.0 GiB MemAvailable stop rule by issuing `sparkrun stop <literal tid>`, so a guard that outlives its task keeps sampling the fleet and keeps a stop path armed for a task id that no longer resolves; nothing in `arm1-boot.sh` (the window harness, which writes `mem-guard.pid` per arm) stops the previous arm's guard or checks it exited. Acceptance: the harness stops or refuses to start when a guard for a different tid is still alive, and a guard exits when its own tid's containers are gone; a test covers both. — BLOCKED 2026-11-22 chore-drain on a live armed boot, which is what the code and tools/README.md already name as the remaining proof: `WindowGuard` in tests/test_run_arm_tool.py proves the teardown against a stub guard, run-arm.sh arms the guard, checks the start line names this task id, kills the guard pid in its EXIT trap and reaps the samplers, and a failed arm exits 15 before readiness. Closing needs one boot whose stop leaves no guard process beside the stopped task; this workstream holds no boot.\n\nPROOF DONE 2026-11-22: mem-guard-teardown-live-proof closed with its receipt (head:~/benchmarks/mem-guard-20261122/run.md) — the guard does exit with its task. No owner input is outstanding, so the hold is cleared and the row returns to queued; what remains is the lifetime/accumulation fix this row was opened for (stale guards and their ssh sessions left by attempts that never reached a stop), which is code work, not a decision.",
       "provenance": "",
       "evidence": "",
-      "claimed_by": "",
-      "claimed_at": "",
+      "claimed_by": "mem-guard-lifetime-20261122",
+      "claimed_at": "2026-11-23T00:10:54Z",
       "summary": "Blocked on a live boot: a leaked guard is a stale no-op (stops only its own task id), the harness kill and stub test are proven, and closing needs one real stop that leaves no guard process behind.",
       "summary_src": "9a14f653b6cff382e19f2db0aebf7eb07a39eaf0be138534b2390ab818ddd1b6",
       "summary_at": "2026-11-22T12:01:55Z"
@@ -3937,14 +3937,14 @@
       "estimate_h": 2.0,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "",
       "node_cost": "",
       "notes": "OWNER REQUIREMENT 2026-11-22 (ViBoard thread t25): a fence removal must leave a record — who, when and why. It follows ask-fence-deletion-authorization: the 2026-11-17T08:06:52Z removal of the production fence over .31-.34 cannot be attributed because .local/fleet-leases.json records creation and correction but not deletion, so the ledger's own shape is the gap. SCOPE: campaign/sparkrun_campaign/leases.py — a supported removal path that appends who/when/why to the ledger (or an append-only fence history alongside the live record), with tests; the record must survive the removal, so a fence that is gone still has its history. A manual edit of the file still bypasses any in-process path, and that limitation is to be documented rather than papered over (the same shape as the window lock's direct-boot scope). ACCEPTANCE: removing a fence through the supported path leaves an entry naming the actor, the time and the reason, a test proves it, and the doc states the manual-edit bypass. Not a boot: no fleet, no node_cost.",
       "provenance": "ask-fence-deletion-authorization (answered 2026-11-22, ViBoard thread t25); .local/fleet-leases.json (the ledger that cannot attribute a deletion); campaign/sparkrun_campaign/leases.py",
       "evidence": "",
-      "claimed_by": "",
-      "claimed_at": ""
+      "claimed_by": "fence-log-20261122",
+      "claimed_at": "2026-11-23T00:10:53Z"
     }
   ]
 }
