@@ -132,6 +132,38 @@ def dropped_rows(tree: Path, base: str | None) -> list[str]:
     return [row for row in upstream if row not in present]
 
 
+def register_states(text: str) -> dict[str, str]:
+    """id -> state for every row, or `{}` for text that is not a register."""
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {str(task.get("id")): str(task.get("state"))
+            for task in data.get("tasks", []) if isinstance(task, dict)}
+
+
+def un_done_rows(tree: Path, base: str | None) -> list[str]:
+    """Ids that are `done` on the upstream register but not in the committed one.
+
+    `done` is terminal: a retired arm keeps its row, ids are never reused, and no legal transition
+    leaves it. So a done row that is not done here was reverted by a writer whose replica had not
+    seen the close. Measured 2026-11-23: a stale replica reverted every close and claim of the
+    repin drain (done -> queued, running -> queued); every row was still present, so the
+    dropped-row check above could not see it.
+    """
+    if not base:
+        return []
+    upstream_show = git("show", f"{base}:mad-science/queue.json")
+    local = tree / "mad-science" / "queue.json"
+    if upstream_show.returncode != 0 or not local.is_file():
+        return []
+    upstream = register_states(upstream_show.stdout.decode())
+    here = register_states(local.read_text(encoding="utf-8"))
+    return [row for row, state in upstream.items() if state == "done" and here.get(row) != "done"]
+
+
 def checks(tree: Path, gitdir: str, base: str | None) -> bool:
     # Cheapest first, and the one no other check can see: a row that existed upstream and not in
     # this commit was dropped by a stale base, which every other check reads as a valid register.
@@ -148,6 +180,17 @@ def checks(tree: Path, gitdir: str, base: str | None) -> bool:
     else:
         print("push-gate: register rows (none dropped from upstream)", flush=True)
         ok_rows = True
+    reverted = un_done_rows(tree, base)
+    if reverted:
+        sys.stderr.write(f"\npush-gate: FAILED -- done rows reverted\n"
+                         f"  {len(reverted)} id(s) are `done` on {base} but not in HEAD's "
+                         f"mad-science/queue.json: {', '.join(reverted)}\n"
+                         "  `done` is terminal — no legal transition leaves it, so this commit was "
+                         "built on a replica that had not seen the close.\n"
+                         "  repair: re-read origin, restore those rows to done, and re-commit\n")
+        ok_rows = False
+    else:
+        print("push-gate: done rows (none reverted from upstream)", flush=True)
     # Cheapest first: a text scan for bash-isms behind a `#!/bin/sh` shebang. This host's
     # /bin/sh is bash, so no local run can find them; on 2026-11-08 one such stub reddened
     # seven consecutive CI runs (CI's /bin/sh is dash).

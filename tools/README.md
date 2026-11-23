@@ -1889,6 +1889,16 @@ transitive, the owner's 48/24 example, done-releases-credit, the three-tier over
 tag spellings, the 2-cycle negative control (library and CLI exit code), dangling ref, missing
 and non-numeric estimates, and `check`/`queue` exiting 0 on the tracked seed.
 
+## task-queue.py graph
+
+`graph` prints one fenced mermaid block derived from the register (never from the board). Two edge
+tiers: `-->` for a blocker and `-.->` for the runner that drains a row, with one node per distinct
+drainer — a `running` row's `claimed_by`, a `scheduled` row's `scheduled_by`, the fleet campaign for
+a queued `recipe`+`tp` row, the session director for queued session work, the owner for an `ask`. A
+runner's label carries how many rows it owns. A row with neither a live blocker nor a runner is a
+defect: the block draws it dashed under `--all`, and the command exits non-zero naming it (the same
+finding `lint` reports). `done` rows are history and need `--all`.
+
 ## session-director.py
 
 The dispatcher for register rows that need no fleet (`campaign/DESIGN.md` §"Session/code director"):

@@ -1144,83 +1144,100 @@ class MarkdownLint(unittest.TestCase):
 
 
 class DependencyGraph(unittest.TestCase):
-    """`graph`: the register's *connected* open work as one mermaid block, no baked colours.
+    """`graph`: the register's open work as one mermaid block, with every row's holder or drainer.
 
-    A `blocked_by`-only graph would draw disconnected boxes and assert that nothing depends on
-    anything: measured 2026-11-08, every *open* blocked row stores `blocked_by: []` while its gate
-    is an owner-question citation. The default view therefore draws only rows that take part in an
-    edge, in either direction -- 9 nodes and 6 edges instead of 27 boxes, 18 of them isolated --
-    and the counts comment names what it left out. `--all` draws every open row.
+    Owner directive 2026-11-22: *"the graph must show every campaign runner and everything each
+    owns, and every row must show EITHER what blocks it or what drains it."* So there are two edge
+    tiers — blocker -> row, and runner -> row (dashed) — and one runner node per distinct drainer:
+    a `running` row's claimant, a `scheduled` row's dispatcher, the fleet campaign for a queued
+    machine-runnable row, the session director for queued session work, and the owner for an `ask`.
+    A row with neither is a defect the graph names and refuses, because a box that asserts nothing
+    reads as "nothing depends on anything" — the failure this drawing exists to prevent.
     """
 
-    def test_the_connected_view_draws_only_edge_participants(self):
-        rows = relink([task("a", 1.0, ["b"]), task("b", 1.0),
-                       task("c", 1.0, state="blocked"), task("d", 1.0)])
-        body, _ = tq.graph_body(qdata(rows))
-        text = "\n".join(body)
+    def body(self, rows, **kw):
+        return tq.graph_body(qdata(rows) if isinstance(rows, list) else rows, **kw)
+
+    def test_a_queued_session_row_is_drained_by_the_session_director(self):
+        text = "\n".join(self.body([task("a", 1.0)])[0])
+        self.assertIn('r1["session director · owns 1"]', text)
+        self.assertIn("r1 -.-> t1", text)
         self.assertIn('t1["a · queued"]', text)
-        self.assertIn('t2["b · queued"]', text)
-        self.assertNotIn("c · blocked", text, "a gated row with no edge is not drawn")
-        self.assertNotIn('d · queued', text)
-        self.assertIn("2 rows not drawn (--all)", text)
 
-    def test_all_draws_every_open_row(self):
-        rows = relink([task("a", 1.0, ["b"]), task("b", 1.0),
-                       task("c", 1.0, state="blocked"), task("d", 1.0)])
-        body, _ = tq.graph_body(qdata(rows), all_rows=True)
-        text = "\n".join(body)
-        for label in ("a · queued", "b · queued", "c · blocked · owner", "d · queued"):
-            self.assertIn(label, text)
-        self.assertNotIn("rows not drawn", text, "nothing is omitted in the --all view")
+    def test_a_queued_fleet_row_is_drained_by_the_campaign(self):
+        row = task("boot", 1.0)
+        row.update(recipe="recipes/lane/arm.yaml", tp=1, node_cost="single")
+        text = "\n".join(self.body([row])[0])
+        self.assertIn('r1["fleet campaign (queue mode) · owns 1"]', text)
+        self.assertIn("r1 -.-> t1", text)
 
-    def test_a_gated_row_is_drawn_dashed_only_in_the_all_view(self):
-        body, _ = tq.graph_body(qdata([task("lonely", 1.0, state="blocked")]))
-        self.assertIn("no edge recorded among the open rows", "\n".join(body))
-        self.assertNotIn("-->", "\n".join(body))
-        full, _ = tq.graph_body(qdata([task("lonely", 1.0, state="blocked")]),
-                                all_rows=True)
-        self.assertIn('· blocked · owner"]:::no-recorded-edge', "\n".join(full))
+    def test_a_running_row_names_its_claimant(self):
+        row = task("busy", 1.0, state="running")
+        row.update(claimed_by="worker-7", claimed_at="2026-11-23T00:00:00Z")
+        text = "\n".join(self.body([row])[0])
+        self.assertIn('r1["worker-7 · owns 1"]', text)
+        self.assertIn("r1 -.-> t1", text)
 
-    def test_a_prose_citation_of_a_question_draws_no_edge(self):
-        """The `q<n>` tier is gone (owner directive 2026-11-22).
+    def test_a_scheduled_row_names_its_dispatcher(self):
+        row = task("queued-up", 1.0, state="scheduled")
+        row.update(scheduled_by="session-director:w1", scheduled_at="2026-11-23T00:00:00Z")
+        text = "\n".join(self.body([row])[0])
+        self.assertIn('r1["session-director:w1 · owns 1"]', text)
+        self.assertIn("r1 -.-> t1", text)
 
-        It existed because a blocked row's gate used to be a `QUESTIONS.md` citation; an owner
-        question is an `ask` row now and the waiting row is `blocked` on it, so the `blocks` tier
-        draws that edge and a leftover `#67` in prose must draw nothing at all.
-        """
-        rows = [task("blocked-a", 1.0, state="blocked"), task("blocked-b", 1.0, state="blocked")]
-        rows[0]["notes"] = "waiting on host policy (QUESTIONS.md #67)"
-        rows[1]["notes"] = "gated by prose, no citation"
+    def test_an_ask_row_is_drained_by_the_owner(self):
+        text = "\n".join(self.body([task("q", 0.5, state="ask")])[0])
+        self.assertIn('r1["owner · owns 1"]', text)
+        self.assertIn("r1 -.-> t1", text)
+
+    def test_a_blocked_row_keeps_its_blocker_edge_and_gets_no_runner(self):
+        rows = relink([task("q", 0.5, ["work"], state="ask"), task("work", 1.0, state="blocked")])
         body, warnings = tq.graph_body(qdata(rows))
         text = "\n".join(body)
-        self.assertNotIn("Q67", text)
-        self.assertNotIn("q67", text)
-        self.assertNotIn("-->", text, "neither row has a recorded edge")
-        self.assertIn("2 blocked, 0 edges, 2 prose-gated", text)
+        self.assertIn("-->", text, "the blocker edge is still drawn")
+        self.assertEqual([l.strip() for l in body if "-.->" in l and "work" in l], [],
+                         "a row waiting on a blocker is not also drained")
+        self.assertIn('r1["owner · owns 1"]', text)
         self.assertEqual(warnings, [])
 
-    def test_an_ask_row_and_its_dependent_are_one_edge(self):
-        ask = task("ask-x", 0.5, ["blocked-a"], state="ask")
-        blocked = task("blocked-a", 1.0, state="blocked")
-        body, warnings = tq.graph_body(data([ask, blocked]))
-        text = "\n".join(body)
-        self.assertIn('t1["ask-x · ask"]', text)
-        self.assertIn("t1 --> t2", text)
-        self.assertIn("1 blocked, 1 edges, 0 prose-gated", text)
-        self.assertEqual(warnings, [])
+    def test_a_row_with_neither_blocks_the_graph_by_name(self):
+        # Negative control: `blocked` with every blocker done is the stale hold the lint reports,
+        # and the graph must refuse it rather than draw a box that asserts nothing.
+        rows = relink([task("q", 0.5, ["held"], state="done"), task("held", 1.0, state="blocked")])
+        self.assertEqual(tq.undrained_rows({"tasks": rows}), ["held"])
+        body, _ = tq.graph_body(qdata(rows), all_rows=True)
+        self.assertIn('· no blocker, no runner"]:::no-recorded-edge', "\n".join(body))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "queue.json"
+            path.write_text(json.dumps(qdata(rows)), encoding="utf-8")
+            err = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+                code = tq.main(["--file", str(path), "graph"])
+        self.assertEqual(code, 1)
+        self.assertIn("held", err.getvalue())
+        self.assertIn("no live blocker and no runner", err.getvalue())
 
-    def test_the_counts_comment_names_the_rows_not_drawn(self):
-        rows = relink([task("a", 1.0, ["b"]), task("b", 1.0), task("c", 1.0, state="blocked"),
-                       task("d", 1.0), task("e", 1.0)])
-        body, _ = tq.graph_body(qdata(rows))
-        omitted = sum(1 for t in rows if t["state"] != "done") - 2   # a, b participate
-        self.assertIn(f"{omitted} rows not drawn (--all)", "\n".join(body))
+    def test_negative_control_a_queued_row_is_never_undrained(self):
+        # The either/or rule would be useless if a runnerless queued row slipped through.
+        self.assertEqual(tq.undrained_rows({"tasks": [task("a", 1.0)]}), [])
 
-    def test_a_diamond_has_exactly_its_four_edges(self):
-        tasks = relink([task("a", 1.0, ["b", "c"]), task("b", 1.0, ["d"]),
-                        task("c", 1.0, ["d"]), task("d", 1.0)])
-        body, warnings = tq.graph_body({"priority_models": ["x"], "tasks": tasks})
-        self.assertEqual([l.strip() for l in body if "-->" in l],
+    def test_the_runner_node_carries_what_it_owns(self):
+        rows = [task("s1", 1.0), task("s2", 1.0),
+                task("q1", 0.5, state="ask"), task("q2", 0.5, state="ask")]
+        text = "\n".join(self.body(rows)[0])
+        self.assertIn('r1["owner · owns 2"]', text)
+        self.assertIn('r2["session director · owns 2"]', text)
+
+    def test_the_counts_comment_names_each_runner(self):
+        rows = [task("s1", 1.0), task("q1", 0.5, state="ask")]
+        text = "\n".join(self.body(rows)[0])
+        self.assertIn("drained by owner (1), session director (1)", text)
+
+    def test_a_diamond_keeps_its_four_blocker_edges(self):
+        rows = relink([task("a", 1.0, ["b", "c"]), task("b", 1.0, ["d"]),
+                       task("c", 1.0, ["d"]), task("d", 1.0, state="blocked")])
+        body, warnings = tq.graph_body({"priority_models": ["x"], "tasks": rows})
+        self.assertEqual([l.strip() for l in body if " --> " in l],
                          ["t1 --> t2", "t1 --> t3", "t2 --> t4", "t3 --> t4"])
         self.assertEqual(warnings, [])
 
@@ -1231,18 +1248,17 @@ class DependencyGraph(unittest.TestCase):
         b["blocked_by"] = ["cc"]          # a parent that does not name it back
         c = task("cc", 1.0)
         body, warnings = tq.graph_body({"priority_models": ["x"], "tasks": [a, b, c]})
-        self.assertIn("aa -> bb: in aa.blocks, but blocked_by does not name it", warnings)
         self.assertIn("cc -> bb: in blocked_by, but cc.blocks does not name it", warnings)
-        self.assertEqual([l.strip() for l in body if "-->" in l], ["t1 --> t2"],
+        self.assertIn("aa -> bb: in aa.blocks, but blocked_by does not name it", warnings)
+        self.assertEqual([l.strip() for l in body if " --> " in l], ["t1 --> t2"],
                          "only the authoritative `blocks` edge is drawn")
 
     def test_max_nodes_collapses_the_rest_into_one_node(self):
         rows = [task(f"row-{i:02d}", 1.0) for i in range(10)]
-        body, _ = tq.graph_body({"priority_models": ["x"], "tasks": rows},
-                                max_nodes=5, all_rows=True)
+        body, _ = self.body(rows, max_nodes=5, all_rows=True)
         text = "\n".join(body)
-        self.assertIn("%% truncated: 4 shown of 10", text)
-        self.assertIn('tn["… 6 more open rows (see the table)"]', text)
+        self.assertIn("%% truncated: 3 task node(s) shown of 10", text)
+        self.assertIn('tn["… 7 more open rows (see the table)"]', text)
 
     def test_output_is_byte_deterministic_and_sorted_by_id(self):
         rows = relink([task("z", 1.0), task("m", 1.0, ["z"]), task("a", 1.0)])
@@ -1250,7 +1266,8 @@ class DependencyGraph(unittest.TestCase):
         second, _ = tq.graph_body({"priority_models": ["x"], "tasks": [rows[2], rows[0], rows[1]]},
                                   all_rows=True)
         self.assertEqual(first, second, "dict order must not reach the output")
-        self.assertTrue(first[2].startswith('  t1["a · '), first[2])
+        self.assertTrue(first[2].startswith('  r1["'), first[2])
+        self.assertIn('t1["a · queued"]', "\n".join(first), "task nodes follow the runners, by id")
 
     def test_a_long_label_is_truncated_only_past_the_cap(self):
         forty = "a" * 40
@@ -1285,12 +1302,11 @@ class DependencyGraph(unittest.TestCase):
         return problems
 
     def test_the_block_carries_no_baked_colour_and_only_the_dashed_class(self):
-        rows = relink([task("a", 1.0, ["b"]), task("b", 1.0, state="blocked"),
-                       task("c", 1.0, state="blocked")])
+        rows = relink([task("a", 1.0), task("held", 1.0, state="blocked")])
         connected = "\n".join(tq.graph_body(qdata(rows))[0])
         everything = "\n".join(tq.graph_body(qdata(rows), all_rows=True)[0])
-        self.assertEqual(self.style_findings(connected, set()), [],
-                         "the theme styles ordinary nodes; they carry no class at all")
+        self.assertEqual(self.style_findings(connected, {"no-recorded-edge"}), [],
+                         "the defect row is dashed; ordinary nodes carry no class at all")
         self.assertEqual(self.style_findings(everything, {"no-recorded-edge"}), [],
                          "the only class a block may name is the dashed stroke rule")
         self.assertIn("classDef no-recorded-edge stroke-dasharray: 4 3", everything)
@@ -1301,8 +1317,8 @@ class DependencyGraph(unittest.TestCase):
         # Negative control (dead class): a colour-free `:::queued` must be caught too.
         planted_class = connected.replace('t1["a · queued"]', 't1["a · queued"]:::queued')
         self.assertNotEqual(planted_class, connected, "the mutation must change the block")
-        self.assertIn("class references ['queued'], expected []",
-                      self.style_findings(planted_class, set()))
+        self.assertTrue(any("'queued'" in problem
+                            for problem in self.style_findings(planted_class, {"no-recorded-edge"})))
 
     def test_an_empty_register_emits_a_block_that_says_so(self):
         body, warnings = tq.graph_body({"priority_models": [], "tasks": []})
@@ -1312,8 +1328,7 @@ class DependencyGraph(unittest.TestCase):
     def test_the_cli_prints_exactly_one_fence(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "queue.json"
-            path.write_text(json.dumps(qdata([task("a", 1.0, state="blocked")])),
-                            encoding="utf-8")
+            path.write_text(json.dumps(qdata([task("a", 1.0)])), encoding="utf-8")
             out = io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
                 tq.cmd_graph(types.SimpleNamespace(max_nodes=tq.GRAPH_BUDGET), path)
@@ -1354,7 +1369,7 @@ class GraphFileFlag(unittest.TestCase):
             other = self._graph(["graph", "--file", str(three)])
             self.assertNotEqual(pre, other)
             self.assertIn("one", other)
-            self.assertIn("2 edges", other)
+            self.assertIn("2 blocker edge(s)", other)
 
     def test_the_parent_flag_never_falls_back_to_the_default_register(self):
         """Negative control: a default register in cwd must not be read when `--file` was given."""

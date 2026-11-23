@@ -1,6 +1,6 @@
 recipe_version: "2"
 model: prism-ml/Ternary-Bonsai-2-9B-gguf:Q2_0
-model_revision: 5b2abb02362efbed46bbe204014b02837778b2c2
+model_revision: 82265ccc78ddaac4700286a35e9badcc32376dd9
 runtime: llama-cpp
 # The Hadamard loader is load-bearing: builds that predate the `prism.hadamard.*`
 # merge can load Q2_0 and produce gibberish by skipping the activation transform.
@@ -54,8 +54,8 @@ defaults:
   load_mode: none
 
 command: >
-  llama-server -m /cache/huggingface/hub/models--prism-ml--Ternary-Bonsai-2-9B-gguf/snapshots/5b2abb02362efbed46bbe204014b02837778b2c2/Ternary-Bonsai-2-9B-Q2_0.gguf
-  --mmproj /cache/huggingface/hub/models--prism-ml--Ternary-Bonsai-2-9B-gguf/snapshots/5b2abb02362efbed46bbe204014b02837778b2c2/Ternary-Bonsai-2-9B-mmproj-Q8_0.gguf
+  llama-server -m /cache/huggingface/hub/models--prism-ml--Ternary-Bonsai-2-9B-gguf/snapshots/82265ccc78ddaac4700286a35e9badcc32376dd9/Ternary-Bonsai-2-9B-Q2_0.gguf
+  --mmproj /cache/huggingface/hub/models--prism-ml--Ternary-Bonsai-2-9B-gguf/snapshots/82265ccc78ddaac4700286a35e9badcc32376dd9/Ternary-Bonsai-2-9B-mmproj-Q8_0.gguf
   --alias {served_model_name}
   --host {host}
   --port {port}

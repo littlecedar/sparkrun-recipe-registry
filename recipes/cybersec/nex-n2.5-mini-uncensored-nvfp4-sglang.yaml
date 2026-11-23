@@ -1,6 +1,6 @@
 recipe_version: "2"
 model: orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
-model_revision: 9f11be0e80ff4b7670c7dbaacb213e9ad10e32a4
+model_revision: a882e5378e2dbde18ab6a17c4e9082ee476550fa
 runtime: sglang
 container: lmsysorg/sglang:dev-cu13@sha256:0b3e39704480c423d8a00ca15ebee63154defc62944df2d4b11c594563bab457
 
