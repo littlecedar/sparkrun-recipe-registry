@@ -1,6 +1,6 @@
 recipe_version: "2"
 model: orcarouter/Nex-N2.5-mini-Uncensored-NVFP4
-model_revision: 9f11be0e80ff4b7670c7dbaacb213e9ad10e32a4
+model_revision: a882e5378e2dbde18ab6a17c4e9082ee476550fa
 runtime: vllm
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:7717585a874b07dcd9df9f5ea776985b591cb3c213abd0e8ebe4a680e3e07214
 
