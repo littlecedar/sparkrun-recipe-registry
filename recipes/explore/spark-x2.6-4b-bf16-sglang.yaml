@@ -1,6 +1,6 @@
 recipe_version: "2"
 model: XHToken/Spark-X2.6-4B
-model_revision: 66e3ae7bee54e0a523d692cb8ef841f35409807b
+model_revision: 64ca8f2a295b8ceb2757b9d4749a6558c4759e5b
   # Offline engine: --revision is required (a SHA-keyed download writes no refs/ entry).
 # v0.5.22, not the ornith arms' v0.5.21@b1259f3e: it is the fleet-resident digest of the
 # SGLang re-pin campaign (present on .30/.33/.35) and this recipe's arch module is verified
