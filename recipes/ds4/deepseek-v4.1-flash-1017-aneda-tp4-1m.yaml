@@ -1,0 +1,143 @@
+# ===========================================================================
+# Shipped production arm. The steering code is in the engine tree
+# (recipes/ds4/picom-weightless-steering.patch over the shipped pin); the image
+# below is that tree built by `Dockerfile.picom-ds41f`, published and pinned by
+# digest.
+#
+# The engine is the picom (dsgb10) TP=4 stack: Picom-code's from-scratch
+# DeepSeek-V4.1-Flash engine plus its Rust front-end (dsfront), one process per
+# node, four ranks over a switched RoCE ring. This arm adds GLP steering
+# (docs/glp.md in the engine tree): dsfront serves two names from one
+# deployment, and a request naming the second is projected out of the residual
+# stream — `h_j <- h_j - alpha * (h_j . d_L) d_L` on all four hc copies at
+# layer L's post-layer fold, pre-Engram — while a stock request in the same
+# batch keeps its own text. The weights are never modified.
+#
+# The runtime is `aneda` (plugins/aneda_runtime.py):
+# native distribution, no rendezvous gate, a GB10 requirement. The launcher,
+# the fabric resolution and the weight/Engram staging are the shipped arm's.
+# ===========================================================================
+recipe_version: "2"
+model: deepseek-ai/DeepSeek-V4.1-Flash-1017
+runtime: aneda
+# The revision the GLP-39 vector was derived against (the vector repo's own
+# base_model tag). Not the lane's 08c8657f: that pin differs only in
+# chat_template.jinja, which no engine here reads, but a steering vector is
+# checkpoint-bound and this arm must not be the test of that.
+model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
+# Built from Dockerfile.picom-ds41f at pin 7c123ad4 with the three-patch
+# series (the third is this arm's steering code).
+container: ghcr.io/littlecedar/aneda@sha256:305b6e5151a2cfd13b85f18c36bccf9062af83e28917fd11a0f151691c5e83df
+distribution_config:
+  models:
+    entries:
+      # The entry field is `name` — the loader reads `name`, and a `model:` key
+      # parses to an empty name and stages nothing.
+      - name: "{model}"
+        revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
+      # The steering vector rides the checkpoint's distribution path so every
+      # rank has it before the serve starts; the glp-vector-stage mod resolves
+      # it out of the hub cache and verifies its sha256 (no download at boot).
+      - name: msuiche/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75
+        revision: 2715ffd51f59899115853e1118db080536966c44
+min_nodes: 4
+max_nodes: 4
+description: >-
+  Shipped production arm: DeepSeek-V4.1-Flash-1017 at native weights served
+  under two names from one picom (dsgb10) TP=4 deployment —
+  `deepseek-v4.1-flash` (stock) and `deepseek-v4.1-flash-weightless`, which projects
+  msuiche's GLP-39 vector out of the residual stream for that request only.
+  The Aneda runtime, weightless-ablit variant alongside the full weight model.
+  Measured upstream on AdvBench's 520 prompts: 13 answered stock, 266 steered.
+lcg_favorite: true
+metadata:
+  model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: mxfp4
+  kv_dtype: fp8
+  tags: ds4, reasoning, agent, large_context, vision, tools, uncensored
+  caveats: >
+    GLP-39 is MIT, but its Hugging Face repository is access-gated: the gate was
+    accepted 2026-11-20 and the vector is staged in the shared pool at revision
+    `2715ffd5…` with its sha256 verified, so no per-node download is needed.
+    This is a cyber-refusal ablation, not a general uncensored model. Steering
+    is the patched engine's own reader (engine/model/glp.h); an image without
+    the patch loads no vector and would serve two aliases of the stock model,
+    which the engine refuses instead (WEIGHTLESS_STEER_PATH unset, caps bit 0).
+mods:
+  - "mods/picom-launcher"
+  - "mods/glp-vector-stage"
+executor_config:
+  # The image has no ENTRYPOINT; clear it so the recipe's command is the process.
+  entrypoint: ""
+  # The engine's ring links ibverbs and its collectives pin host memory.
+  devices:
+    - /dev/infiniband
+  cap_add:
+    - IPC_LOCK
+  ulimit:
+    - memlock=-1:-1
+env:
+  # Per-node, rendered by sparkrun from the launch host list:
+  # rank 0 runs the engine and dsfront; ranks 1-3 run the engine only.
+  PICOM_NODE_RANK: "{launch.node_rank}"
+  PICOM_NODE_HOST: "{launch.node_host}"
+  # REQUIRED at launch — no default is possible: cluster addresses are
+  # forbidden in tracked files (tests/test_tracked_address_hygiene.py).
+  #   -o env.PICOM_RANK_TAILS=30,31,32,33
+  PICOM_RANK_TAILS: ""
+# Fabric /24s, RDMA devices and the RoCE v2 GID index are not recipe facts: the
+# mod resolves them per node from sparkrun's injected NCCL_IB_HCA/NCCL_IB_GID_INDEX
+# and each device's own IPv4-mapped GID, and fails closed naming the knob it lacks.
+# `-o env.PICOM_DEV_A=…` (and the other four) still overrides it.
+  PICOM_RING_DIRECT: "2"
+  PICOM_ENGINE_ARGS: >-
+    --max-ctx 1048576 --slots 16 --big-slots 4
+    --setenv DSGB10_BUDGET=1
+    --setenv DSGB10_DRAFT1=6 --setenv DSGB10_WIDE=64
+    --setenv DSGB10_WIDE_COST=24,2.2,57,1.1
+    --draft-head4 --draft-markov8 --setenv DSGB10_HEAD4_C1=1
+    --setenv DSGB10_CF_ALPHA=1.0 --setenv DSGB10_CERT=1
+  PICOM_OEA: ""
+# Auth off: the fleet's API proxy sends no bearer, and dsfront serves keyless.
+# PICOM_AUTH=1 restores the mod's generated key and dsfront's `--api-key-file`.
+  PICOM_AUTH: "0"
+  PICOM_VISION: "1"
+  PICOM_VISION_PORT: "18950"
+  PICOM_STREAM_TOOL_ARGS: "1"
+  # The second served name. dsfront reads --steer-model-name and sends
+  # SubmitHeader::steer for the requests that name it; without this the second
+  # name would be a second alias of the stock model. The name is spelled here
+  # and in WEIGHTLESS_STEER_MODEL because sparkrun substitutes `{...}` in
+  # `command:` only — an env value keeps its braces literally — and
+  # AnedaContract asserts the two agree.
+  PICOM_FRONT_ARGS: "--steer-model-name deepseek-v4.1-flash-weightless"
+  # The engine's own reader: the staged file, its alpha and the layers the file
+  # steers. A file this runtime cannot apply exactly stops the boot.
+  WEIGHTLESS_STEER_PATH: /cache/runtime/glp/vector.gguf
+  WEIGHTLESS_STEER_ALPHA: "0.75"
+  WEIGHTLESS_STEER_LAYERS: "1-39"
+  WEIGHTLESS_STEER_MODEL: "deepseek-v4.1-flash-weightless"
+  # One `stats:` line a minute on each side (0 disables), for the receipt.
+  WEIGHTLESS_STATS_INTERVAL: "60"
+defaults:
+  port: 8000
+  # One GPU per node; the engine's TP=4 is its own four processes, not a torch
+  # world, so the runtime appends no rank flags and the launcher reads
+  # PICOM_NODE_RANK instead.
+  served_model_name: deepseek-v4.1-flash
+# The stock name is first on purpose: dsfront's second name must follow it.
+command: >
+  bash /workspace/mods/picom-launcher/launch.sh
+  --model {model}
+  --revision {model_revision}
+  --served-model-name {served_model_name}
+  --port {port}
+readiness:
+  # dsfront binds the port only after the engine is up, and a first boot also
+  # converts this rank's 72.38 GiB weight file and packs its 50.7 GB Engram
+  # shards, so the port budget is hours, not minutes.
+  inference: true
+  port_timeout_s: 10800
+  health_timeout_s: 3600
