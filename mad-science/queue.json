@@ -4002,14 +4002,14 @@
       "estimate_h": 0.5,
       "blocks": [],
       "blocked_by": [],
-      "state": "running",
+      "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "PIN MOVE 2026-11-22 (owner rule, ViBoard thread t24): updated pins are boot-tested as soon as a window of the correct size is free for them, and the pin moves in that boot's commit — no carrier-lane ride-along. This row boots recipes/cybersec/qwen3.8-27b-uncensored-nvfp4-sglang.yaml with model_revision moved f8489198f18fcd94b124541adaba3d9cb14a7ef4 -> d350e02d82203d5bf07a1e203c997581f235f407; the delta is docs-only (README/LICENSE/.eval_results/images), so the boot is the test and nothing beyond a healthy serve and one cell is expected. estimate: provisional.\n\nWORK ITEM (session work, corrected 2026-11-22): this row is NOT machine-runnable — the campaign boots the committed recipe and never moves a pin, so a queued recipe row would have booted the OLD pin, passed on a docs-only delta and tested nothing. One item, done by a session worker: move model_revision in recipes/cybersec/qwen3.8-27b-uncensored-nvfp4-sglang.yaml to the new head, commit that move, boot the arm with tools/run-arm.sh when a free slot of the declared size exists (check fleet availability first), verify the serve, and close this row citing the boot's receipt. The pin move and the boot are one item; the session director schedules it.",
+      "notes": "PIN MOVE 2026-11-22 (owner rule, ViBoard thread t24): updated pins are boot-tested as soon as a window of the correct size is free for them, and the pin moves in that boot's commit — no carrier-lane ride-along. This row boots recipes/cybersec/qwen3.8-27b-uncensored-nvfp4-sglang.yaml with model_revision moved f8489198f18fcd94b124541adaba3d9cb14a7ef4 -> d350e02d82203d5bf07a1e203c997581f235f407; the delta is docs-only (README/LICENSE/.eval_results/images), so the boot is the test and nothing beyond a healthy serve and one cell is expected. estimate: provisional.\n\nWORK ITEM (session work, corrected 2026-11-22): this row is NOT machine-runnable — the campaign boots the committed recipe and never moves a pin, so a queued recipe row would have booted the OLD pin, passed on a docs-only delta and tested nothing. One item, done by a session worker: move model_revision in recipes/cybersec/qwen3.8-27b-uncensored-nvfp4-sglang.yaml to the new head, commit that move, boot the arm with tools/run-arm.sh when a free slot of the declared size exists (check fleet availability first), verify the serve, and close this row citing the boot's receipt. The pin move and the boot are one item; the session director schedules it.\n\nBOOT 2026-11-23: pin moved f8489198f18fcd94b124541adaba3d9cb14a7ef4 -> d350e02d82203d5bf07a1e203c997581f235f407 in c2f4b68e and booted on .30 (task aefb625955c32638_684aab401e91, container gone after teardown). The engine's own launch log names snapshots/d350e02d..., so the pin reached the engine; readiness at t=224 s, ladder tg128 9.97 (c1) / 82.24 (c10) t/s, the 15-scenario tool suite passed all 15, arm rc=0. Receipt head:~/benchmarks/repin-20261123/qwen3.8-27b-uncensored-nvfp4-sglang.\n",
       "provenance": "row hf-cache-20261110-docs-only-repin-bundle (the sweep's 22 rows, 14 live); head:~/benchmarks/hf-cache-update-20261110/RECEIPT.md sections 2 and 4; owner rule 2026-11-22 (ViBoard thread t24)",
-      "evidence": "",
-      "claimed_by": "repin-drain-20261123",
-      "claimed_at": "2026-11-23T01:40:22Z"
+      "evidence": "head:~/benchmarks/repin-20261123/qwen3.8-27b-uncensored-nvfp4-sglang (rc=0; launch.log names snapshots/d350e02d82203d5bf07a1e203c997581f235f407; suite 15/15); commit c2f4b68e",
+      "claimed_by": "",
+      "claimed_at": ""
     },
     {
       "id": "repin-qwen3.8-flash-next-uncensored-nvfp4-sglang",
