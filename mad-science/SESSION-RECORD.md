@@ -17506,3 +17506,19 @@ verdict read directly.
 - **`mem-guard-outlives-its-task` stays `blocked`** — it is the row this proof was gating, and its own
   note names a separate owner decision, so closing this one did not unblock it.
 - **Register.** `check` ok, **233 tasks: 218 done, 3 queued, 8 blocked, 4 ask, 0 running**.
+
+### 2026-11-23 — the weightless DSV4.1 quartet gate
+
+- **Row closed: `weightless-dsgb10-tp4-boot-gate` (done).** Boot `486d4e4fb2fb3417_620ea4709e9f` on
+  `.31`–`.34` from the head node (`.30`), as the observability infrastructure requires. The row had
+  been blocked on `ask-tp4-window-declaration`; the declared window freed all six nodes. **Watchdog:**
+  armed with `--container …_node_0`, `--rank` on the other three, `--dead-grace 1500`;
+  **verdict=healthy at t=2 s**, `ranks=4`, `unprobeable=0`, `mem_avail=13.8 %`. The weightless image
+  (`ghcr.io/littlecedar/dgx-picom-ds41f@sha256:305b6e515…`) was cached, so the engine was up before
+  the watchdog's first check. **Allocation:** `/v1/models` lists **both** served names
+  (`deepseek-v4.1-flash` and `deepseek-v4.1-flash-weightless`, both `max_model_len 1,048,576`).
+  **Chat cell:** both names answer `POST /v1/chat/completions` → **HTTP 200, 0.19 s**,
+  `"hello weightless gate"`. The alpha=0 golden-hash comparison and the two-name projection test
+  are the follow-up cells. Stopped by task id, 0 containers on `.31`–`.34`, watchdog reaped.
+  Receipt `head:~/benchmarks/weightless-20261123/run.md`.
+- **Register.** `check` ok, **253 tasks: 248 done, 5 queued, 0 blocked, 0 running**.
