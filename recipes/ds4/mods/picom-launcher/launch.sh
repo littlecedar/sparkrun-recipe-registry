@@ -318,7 +318,10 @@ if [[ "${VISION}" = 1 ]]; then
   VLOOP=$!
 fi
 
-engine >> "${LOG}" 2>&1 &
+# rank.0.log keeps the receipt; the tee is what puts rank 0's `stats:` line (and
+# the engine's other lines) in the container stdout sparkrun captures — ranks 1-3
+# and dsfront already write there. Same shape as the rank != 0 branch above.
+engine > >(tee -a "${LOG}") 2>&1 &
 EPID=$!
 on_term() {
   log "rank 0: stopping (SIGTERM)"

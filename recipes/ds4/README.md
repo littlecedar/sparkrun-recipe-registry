@@ -2873,7 +2873,7 @@ exactly why that arm needs an image of its own.
 | Artifact | `msuiche/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75` at `2715ffd5`, one 803,392-byte GGUF, sha256 `9c66d477…f5cf`, 39 layers, α 0.75, MIT, access-gated; staged by `mods/glp-vector-stage` |
 | Topology | TP=4, four GB10 nodes, one process per node, switched RoCE ring |
 | Context | 1,048,576 tokens served (`--max-ctx 1048576`, 16 slots, 4 big) |
-| Image | `ghcr.io/littlecedar/aneda@sha256:305b6e51…` — public and digest-pinned (tag `aneda-7c123ad4-pr15-pr7-aneda`, built 2026-11-21 on `.30`) |
+| Image | `ghcr.io/littlecedar/aneda@sha256:aa0bf7bc…` — public and digest-pinned (tag `aneda:stats-20261123`, built 2026-11-23 on `.30`; its `stats:` line carries the cache counters) |
 | Status | **Shipped production arm.** The Aneda runtime, weightless-ablit variant alongside the full weight model. |
 
 **Arm framing.** The shipped picom arm borrows vLLM's distribution contract because the engine
@@ -2939,15 +2939,23 @@ stock graph. Front-end: `--steer-model-name`, the strict name selector, both nam
 (60 by default, `0` disables), best-effort and never fatal:
 
 ```
-stats: t=60 rank=0 tok_out=… tok_in=… kv_util=… draft_accept=… queue=… reqs_stock=… reqs_steered=…
+stats: t=60 rank=0 tok_out=… tok_in=… kv_util=… kv_hit=… draft_accept=… queue=… engram_hit=… engram_used=… reqs_stock=… reqs_steered=…
 stats: t=60 front queue=… reqs_stock=… reqs_steered=…
 ```
 
 `reqs_*` is what was actually sent per name, which is the number that tells a steered arm from two
 aliases; `kv_util` is slot occupancy, `draft_accept` the verify steps' accepted drafts, `queue` the
-requests waiting for a slot. **It omits `kv_hit` and `engram_hit`**: those counters live in the
-Engram store, which `main.cpp` owns and the server has no handle on, so the engine line does not
-claim them.
+requests waiting for a slot. `kv_hit` is the prompt tokens the sessions' KV already held (the
+engine's own `reused` count, `Flight::q`) over the prompt tokens asked for in the interval, so a
+cold start reads `0.000` and a continued conversation near `1.000`. `engram_hit` is the Engram
+store's hot-row cache hit rate over the interval, and `engram_used` the fraction of that cache's
+slots that hold a row now: the store's own counters, which the server reads through
+`Model::engram_store()` (`--no-engram` leaves both `0.000`).
+
+**The line reaches the sparkrun log.** Rank 0's engine writes through `tee` into `rank.0.log` (the
+receipt) and the container stdout sparkrun captures, as ranks 1-3's engines and dsfront already
+did; before, `>>` sent rank 0's engine output to `rank.0.log` alone, so the `rank=0` line never
+appeared in a captured log.
 
 **Adaptations to the plan (nine, each named in the code).**
 

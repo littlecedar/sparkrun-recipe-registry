@@ -27,8 +27,10 @@ runtime: aneda
 # checkpoint-bound and this arm must not be the test of that.
 model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
 # Built from Dockerfile.picom-ds41f at pin 7c123ad4 with the three-patch
-# series (the third is this arm's steering code).
-container: ghcr.io/littlecedar/aneda@sha256:305b6e5151a2cfd13b85f18c36bccf9062af83e28917fd11a0f151691c5e83df
+# series (the third is this arm's steering code; its `stats:` line now carries
+# kv_hit, engram_hit and engram_used, and rank 0's engine output reaches the
+# container stdout sparkrun captures).
+container: ghcr.io/littlecedar/aneda@sha256:aa0bf7bca28f345c762c826f108f7a795a85fda61f672a7f3b809c54893050cc
 distribution_config:
   models:
     entries:
