@@ -3905,12 +3905,12 @@
       "estimate_h": 0.5,
       "blocks": [],
       "blocked_by": [],
-      "state": "ask",
+      "state": "done",
       "model": "",
       "node_cost": "",
-      "notes": "QUESTION FOR THE OWNER (migrated from QUESTIONS.md #85, 2026-11-17). Between the 03:00 ET tick's head read (2,120 B, sha 44b4804b..., one `fenced` record naming task b020d2dd178343a5_510ded98367b) and the same file at 08:06:52Z (482 B, sha 45b625b4...) the record became `fenced: []` and one live lease appeared for session:picom-boot-20261117 over the same four hosts. The ledger records creation (`fenced_by`, `fenced_at`) and correction (`corrected_at`) but NOT deletion, so the removal is unattributed and cannot be recovered from the file. The serve the fence protected had itself been gone since 04:32:25Z, so this is authorization and register hygiene, not whether lifting it made operational sense. OPERATIONAL PREMISE SUPERSEDED: production is fenced again since 2026-11-20 (fenced_by tp-le2-20261120 on .31-.34), so nothing is unprotected today. WHAT THE OWNER CAN SETTLE: whether that deletion was authorized, and whether a fence deletion should leave a record (a `fenced_removed_by`/`fence_log` field) so this class of question is answerable from the file next time. No work is blocked on it.",
+      "notes": "QUESTION FOR THE OWNER (migrated from QUESTIONS.md #85, 2026-11-17). Between the 03:00 ET tick's head read (2,120 B, sha 44b4804b..., one `fenced` record naming task b020d2dd178343a5_510ded98367b) and the same file at 08:06:52Z (482 B, sha 45b625b4...) the record became `fenced: []` and one live lease appeared for session:picom-boot-20261117 over the same four hosts. The ledger records creation (`fenced_by`, `fenced_at`) and correction (`corrected_at`) but NOT deletion, so the removal is unattributed and cannot be recovered from the file. The serve the fence protected had itself been gone since 04:32:25Z, so this is authorization and register hygiene, not whether lifting it made operational sense. OPERATIONAL PREMISE SUPERSEDED: production is fenced again since 2026-11-20 (fenced_by tp-le2-20261120 on .31-.34), so nothing is unprotected today. WHAT THE OWNER CAN SETTLE: whether that deletion was authorized, and whether a fence deletion should leave a record (a `fenced_removed_by`/`fence_log` field) so this class of question is answerable from the file next time. No work is blocked on it.\n\nANSWERED 2026-11-22 (owner, ViBoard thread t25): the authorization is UNKNOWN — the ledger records creation and correction, not deletion, so the 2026-11-17T08:06:52Z removal cannot be attributed. Standing rule from now on: a fence removal must leave a record. The work that implements it is fence-removal-record.",
       "provenance": "mad-science/SESSION-RECORD.md:13482 (filed), :13399-13403 (the 44b4804b -> 45b625b4 transition); mad-science/QUESTIONS.md #85 (migrated 2026-11-22); .local/fleet-leases.json fenced_by tp-le2-20261120 (installed 2026-11-20); asked 2026-11-17",
-      "evidence": "",
+      "evidence": "owner answer 2026-11-22, ViBoard thread t25: authorization unknown (the ledger cannot attribute a deletion); a fence removal must leave a record from now on",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -3926,6 +3926,21 @@
       "notes": "QUESTION FOR THE OWNER (migrated from QUESTIONS.md #88, 2026-11-20). LICENSE (11,358 B) is the verbatim Apache License 2.0 and the card says license: apache-2.0, but the repo also ships USAGE_POLICY.md (5,230 B, added in the same commit f84ecc3a) whose Prohibited Uses list is not in Apache-2.0: military/warfare/nuclear/espionage/ITAR/bioweapons/CWC activities, 'not intended for individuals under the age of 18', and item 1.8 forbidding circumvention of Meta's safety measures. That is an activity reservation layered on a permissive grant — no revenue figure makes it stop applying, so it is closer in shape to #87's Edge0 section 4 than to #84's revenue ceiling or #86's MaaS/MAU prongs. EXPOSURE TODAY IS NIL: the arm (recipes/explore/zz-muse-glimmer-30b-q4km-thinking-tools-llamacpp.yaml) is authored-not-booted, no serve is exposed and nothing is sold. THREE OPTIONS: (1) ship it as a normal explore arm (treat the use policy as an obligation carried, like #84); (2) probe-only / eval-only banner; (3) do not ship it. Answer against the #86/#87 ruling (2026-11-20: the licence terms do not apply to our use case) and #84 (2026-11-11: obligations carried rather than waived).\n\nANSWERED 2026-11-22 (owner, ViBoard thread t26): ship it as a normal explore arm — no probe-only banner and no exclusion — with the Apache-2.0 grant and the separate USAGE_POLICY.md obligations carried, not waived (the #84 precedent). The arm is renamed recipes/explore/muse-glimmer-30b-q4km-thinking-tools-llamacpp.yaml (zz- dropped: it marks a non-shippable probe), its banner records the decision and keeps #88 as the citation, and it has a root README index row. Authored-not-booted is unchanged: this is a classification, not a boot.",
       "provenance": "meta-models/Muse-Glimmer-30B LICENSE (11,358 B) and USAGE_POLICY.md (5,230 B) at revision 1297fd7dfeac4598948a5d15886968435c81c2b7 (the GGUF sibling meta-models/Muse-Glimmer-30B-GGUF carries the same two files); recipes/explore/zz-muse-glimmer-30b-q4km-thinking-tools-llamacpp.yaml:29 (the arm citing #88); owner 2026-11-20 ruling on #86/#87; QUESTIONS.md #88 (migrated 2026-11-22); asked 2026-11-20",
       "evidence": "owner answer 2026-11-22, ViBoard thread t26: ship as a normal explore arm with the use-policy obligations carried; recipes/explore/muse-glimmer-30b-q4km-thinking-tools-llamacpp.yaml (renamed from zz-; banner cites #88) and its README index row",
+      "claimed_by": "",
+      "claimed_at": ""
+    },
+    {
+      "id": "fence-removal-record",
+      "title": "Record fence removals in the lease ledger (who, when, why)",
+      "estimate_h": 2.0,
+      "blocks": [],
+      "blocked_by": [],
+      "state": "queued",
+      "model": "",
+      "node_cost": "",
+      "notes": "OWNER REQUIREMENT 2026-11-22 (ViBoard thread t25): a fence removal must leave a record — who, when and why. It follows ask-fence-deletion-authorization: the 2026-11-17T08:06:52Z removal of the production fence over .31-.34 cannot be attributed because .local/fleet-leases.json records creation and correction but not deletion, so the ledger's own shape is the gap. SCOPE: campaign/sparkrun_campaign/leases.py — a supported removal path that appends who/when/why to the ledger (or an append-only fence history alongside the live record), with tests; the record must survive the removal, so a fence that is gone still has its history. A manual edit of the file still bypasses any in-process path, and that limitation is to be documented rather than papered over (the same shape as the window lock's direct-boot scope). ACCEPTANCE: removing a fence through the supported path leaves an entry naming the actor, the time and the reason, a test proves it, and the doc states the manual-edit bypass. Not a boot: no fleet, no node_cost.",
+      "provenance": "ask-fence-deletion-authorization (answered 2026-11-22, ViBoard thread t25); .local/fleet-leases.json (the ledger that cannot attribute a deletion); campaign/sparkrun_campaign/leases.py",
+      "evidence": "",
       "claimed_by": "",
       "claimed_at": ""
     }
