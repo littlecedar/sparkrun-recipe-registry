@@ -17522,3 +17522,18 @@ verdict read directly.
   are the follow-up cells. Stopped by task id, 0 containers on `.31`–`.34`, watchdog reaped.
   Receipt `head:~/benchmarks/weightless-20261123/run.md`.
 - **Register.** `check` ok, **253 tasks: 248 done, 5 queued, 0 blocked, 0 running**.
+
+### 2026-11-23 — inkling quartet skipped (body absent), weightless register repaired
+
+- **`inkling-tp4-first-boot` stays `queued` — the 363 GiB body is not in the pool.** The model
+  `thinkingmachines/Inkling-2-Small` at `4d564489…` has no `models--thinkingmachines--Inkling-2-Small`
+  in `/mnt/beegfs/huggingface/hub` at all, and the WOPR cluster profile skips model fan-out, so
+  sparkrun cannot stage it. The nightly vLLM image `c17e9d88…` is also absent from `.30`. Both need
+  a deliberate fetch, which the register's discipline does not place on a boot's critical path. The
+  daemon was started on `.31`–`.34` (it was needed for the preflight probe) and left running — it is
+  the fleet's normal service and was already expected there.
+- **`weightless-dsgb10-tp4-boot-gate` was repaired with `update --unset recipe,tp`.** The weightless
+  recipe was retired to attic after the row closed, so the register reddened on `check` and every
+  subsequent `update` was refused. `update --unset` cleared the bootable fields (the row stays
+  `done` with its evidence), which unblocked the inkling claim.
+- **Register.** `check` ok, **253 tasks: 248 done, 5 queued, 0 blocked, 0 running**.
