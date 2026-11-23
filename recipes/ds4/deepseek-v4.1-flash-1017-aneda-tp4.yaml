@@ -1,8 +1,8 @@
 # ===========================================================================
-# Trial arm (`zz-`) — NOT BOOTED. The steering code is in the engine tree
+# Shipped production arm. The steering code is in the engine tree
 # (recipes/ds4/picom-weightless-steering.patch over the shipped pin); the image
 # below is that tree built by `Dockerfile.picom-ds41f`, published and pinned by
-# digest. The 4-rank boot is the remaining gate.
+# digest.
 #
 # The engine is the picom (dsgb10) TP=4 stack: Picom-code's from-scratch
 # DeepSeek-V4.1-Flash engine plus its Rust front-end (dsfront), one process per
@@ -43,11 +43,12 @@ distribution_config:
 min_nodes: 4
 max_nodes: 4
 description: >-
-  TRIAL PROBE (zz-): DeepSeek-V4.1-Flash-1017 at native weights served under
-  two names from one picom (dsgb10) TP=4 deployment — `deepseek-v4.1-flash`
-  (stock) and `deepseek-v4.1-flash-aneda`, which projects msuiche's
-  GLP-39 vector out of the residual stream for that request only. Measured
-  upstream on AdvBench's 520 prompts: 13 answered stock, 266 steered.
+  Shipped production arm: DeepSeek-V4.1-Flash-1017 at native weights served
+  under two names from one picom (dsgb10) TP=4 deployment —
+  `deepseek-v4.1-flash` (stock) and `deepseek-v4.1-flash-aneda`, which projects
+  msuiche's GLP-39 vector out of the residual stream for that request only.
+  The Aneda runtime, weightless-ablit variant alongside the full weight model.
+  Measured upstream on AdvBench's 520 prompts: 13 answered stock, 266 steered.
 lcg_favorite: true
 metadata:
   model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017

@@ -3467,7 +3467,7 @@ if __name__ == "__main__":
 # names from one deployment, the second one steered, and must fail closed when
 # the vector or the patched engine is missing. Each of those is invisible in a
 # plain boot that answers 200, so each is checked here without a GPU.
-ANEDA_RECIPE = RECIPE_DIR / "zz-deepseek-v4.1-flash-1017-aneda-tp4.yaml"
+ANEDA_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-1017-aneda-tp4.yaml"
 ANEDA_RUNTIME_PLUGIN = REPO_ROOT / "plugins" / "aneda_runtime.py"
 WEIGHTLESS_PATCH = "picom-weightless-steering.patch"
 WEIGHTLESS_VECTOR = "/cache/runtime/glp/vector.gguf"

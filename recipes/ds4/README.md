@@ -49,7 +49,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
   - [Probe arms: prefill chunk budget, Engram read batch, output ceiling (authored 2026-11-17; all three booted in the 2026-11-18 production window)](#probe-arms-prefill-chunk-budget-engram-read-batch-output-ceiling-authored-2026-11-17-all-three-booted-in-the-2026-11-18-production-window)
   - [License](#license-2)
 - [zz-deepseek-v4.1-flash-1017-weightless-tp4-1m (authored 2026-11-20, never booted)](#zz-deepseek-v41-flash-1017-weightless-tp4-1m-authored-2026-11-20-never-booted)
-- [zz-deepseek-v4.1-flash-1017-aneda-tp4 (authored 2026-11-20, never booted)](#zz-deepseek-v41-flash-1017-aneda-tp4-authored-2026-11-20-never-booted)
+- [deepseek-v4.1-flash-1017-aneda-tp4 (shipped production arm)](#deepseek-v41-flash-1017-aneda-tp4-shipped-production-arm)
 - [picom vs knapcio: one model, two engines on four GB10s](#picom-vs-knapcio-one-model-two-engines-on-four-gb10s)
 - [External stack: spark-ds41f (survey, 2026-11-08)](#external-stack-spark-ds41f-survey-2026-11-08)
 - [Upgrade candidates (measured elsewhere, not queued)](#upgrade-candidates-measured-elsewhere-not-queued)
@@ -2855,17 +2855,17 @@ request's `model` (`PICOM-VS-KNAPCIO.md:161`, citing `server.rs:981`; the plan's
 two-name per-request steering is a vLLM capability, which is why this arm is a vLLM probe.
 Verdict at the time: build neither runtime now, and keep the arm blocked on the unpublished
 engine image. **Superseded 2026-11-20** by
-`zz-deepseek-v4.1-flash-1017-aneda-tp4` (above): the runtime is
+`deepseek-v4.1-flash-1017-aneda-tp4` (below): the runtime is
 `plugins/aneda_runtime.py` and the steering is this registry's own patch series
 over the picom pin, so the dual-name capability upstream `dsgb10` lacks now exists in the
 image this lane builds. The paragraph above still describes upstream at the pin, which is
 exactly why that arm needs an image of its own.
 
-## zz-deepseek-v4.1-flash-1017-aneda-tp4 (authored 2026-11-20, never booted)
+## deepseek-v4.1-flash-1017-aneda-tp4 (shipped production arm)
 
 | | |
 |:--|:--|
-| Recipe | `recipes/ds4/zz-deepseek-v4.1-flash-1017-aneda-tp4.yaml` |
+| Recipe | `recipes/ds4/deepseek-v4.1-flash-1017-aneda-tp4.yaml` |
 | Engine | the picom (`dsgb10`) TP=4 engine + its Rust front-end `dsfront`, **with this registry's GLP steering patch series** (`recipes/ds4/picom-weightless-steering.patch`, third in the series after PR #15 and PR #7) |
 | Runtime | `aneda` — `plugins/aneda_runtime.py`: native distribution, no rendezvous gate, GB10 only |
 | Model | [`deepseek-ai/DeepSeek-V4.1-Flash-1017`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017) at `1bae0e10` — the revision the steering vector was derived against |
@@ -2874,9 +2874,9 @@ exactly why that arm needs an image of its own.
 | Topology | TP=4, four GB10 nodes, one process per node, switched RoCE ring |
 | Context | 1,048,576 tokens served (`--max-ctx 1048576`, 16 slots, 4 big) |
 | Image | `ghcr.io/littlecedar/aneda@sha256:305b6e51…` — public and digest-pinned (tag `aneda-7c123ad4-pr15-pr7-aneda`, built 2026-11-21 on `.30`) |
-| Status | **Probe.** Nothing here has been booted; the engine is compiled in the published image (see "Built, not booted") |
+| Status | **Shipped production arm.** The Aneda runtime, weightless-ablit variant alongside the full weight model. |
 
-**Probe framing.** The shipped picom arm borrows vLLM's distribution contract because the engine
+**Arm framing.** The shipped picom arm borrows vLLM's distribution contract because the engine
 is not a vLLM server. This arm does not borrow it: a steered arm must refuse a host that is not a
 GB10 (the vector is sm_121-bound), must not wait out a native rendezvous gate nothing binds (the
 launcher meets its peers on 19110 itself), and carries its own image — declarations, not recipe
