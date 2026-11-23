@@ -45,7 +45,7 @@ max_nodes: 4
 description: >-
   Shipped production arm: DeepSeek-V4.1-Flash-1017 at native weights served
   under two names from one picom (dsgb10) TP=4 deployment —
-  `deepseek-v4.1-flash` (stock) and `deepseek-v4.1-flash-aneda`, which projects
+  `deepseek-v4.1-flash` (stock) and `deepseek-v4.1-flash-weightless`, which projects
   msuiche's GLP-39 vector out of the residual stream for that request only.
   The Aneda runtime, weightless-ablit variant alongside the full weight model.
   Measured upstream on AdvBench's 520 prompts: 13 answered stock, 266 steered.
@@ -110,13 +110,13 @@ env:
   # and in WEIGHTLESS_STEER_MODEL because sparkrun substitutes `{...}` in
   # `command:` only — an env value keeps its braces literally — and
   # AnedaContract asserts the two agree.
-  PICOM_FRONT_ARGS: "--steer-model-name deepseek-v4.1-flash-aneda"
+  PICOM_FRONT_ARGS: "--steer-model-name deepseek-v4.1-flash-weightless"
   # The engine's own reader: the staged file, its alpha and the layers the file
   # steers. A file this runtime cannot apply exactly stops the boot.
   WEIGHTLESS_STEER_PATH: /cache/runtime/glp/vector.gguf
   WEIGHTLESS_STEER_ALPHA: "0.75"
   WEIGHTLESS_STEER_LAYERS: "1-39"
-  WEIGHTLESS_STEER_MODEL: "deepseek-v4.1-flash-aneda"
+  WEIGHTLESS_STEER_MODEL: "deepseek-v4.1-flash-weightless"
   # One `stats:` line a minute on each side (0 disables), for the receipt.
   WEIGHTLESS_STATS_INTERVAL: "60"
 defaults:
