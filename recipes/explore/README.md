@@ -56,7 +56,7 @@ the pyannote diarizer. Explore keeps the language and agentic/RAG arms.
 - [twil-8b-bf16-reasoning-sglang](#twil-8b-bf16-reasoning-sglang)
 - [zz-hy4-flash-220b-nvfp4-tp2-vllm](#zz-hy4-flash-220b-nvfp4-tp2-vllm)
 - [zz-inkling-2-small-nvfp4-thinking-tools-tp4-vllm](#zz-inkling-2-small-nvfp4-thinking-tools-tp4-vllm)
-- [zz-muse-glimmer-30b-q4km-thinking-tools-llamacpp](#zz-muse-glimmer-30b-q4km-thinking-tools-llamacpp)
+- [muse-glimmer-30b-q4km-thinking-tools-llamacpp](#muse-glimmer-30b-q4km-thinking-tools-llamacpp)
 - [zz-haru-4b-bf16-duplex-s2s-vllm-omni](#zz-haru-4b-bf16-duplex-s2s-vllm-omni)
 - [Attic index](#attic-index)
 
@@ -1868,7 +1868,7 @@ The only two-node route is a third-party EXL3 pack, `kortexa-ai/Inkling-2-Small-
 needs an unproven custom runtime — not vLLM or SGLang, text-only, 8k validated — so it is not a
 fallback today.
 
-## [zz-muse-glimmer-30b-q4km-thinking-tools-llamacpp](zz-muse-glimmer-30b-q4km-thinking-tools-llamacpp.yaml)
+## [muse-glimmer-30b-q4km-thinking-tools-llamacpp](muse-glimmer-30b-q4km-thinking-tools-llamacpp.yaml)
 
 **Boot-verified 2026-11-20 (TP=1 on `.30`); receipt
 `head:~/benchmarks/tp2-completion-20261120/muse-glimmer-30b/`.** Ten slots (`n_slots = 10`,
@@ -1878,7 +1878,7 @@ t/s with ttfr 2136 / 4195 / 9680 / 15976 ms; one tool round trip returned
 `get_weather {"city":"Berlin"}`. Quality was **not** re-scored — the lane already rejected this
 checkpoint on quality, and this boot measures speed and the tool surface only.
 
-**Probe arm, authored 2026-11-20.** `meta-models/Muse-Glimmer-30B` (29.78B BF16) in the
+**Shipped 2026-11-22 (owner, ViBoard thread t26); authored 2026-11-20.** `meta-models/Muse-Glimmer-30B` (29.78B BF16) in the
 house 4-bit class, served from the **author org's own GGUF**: `meta-models/Muse-Glimmer-30B-GGUF` @
 `b44f1072`, `Muse-Glimmer-30B-KQuant-17GB-Q4_K_M.gguf`, **16,756,683,904 B**. Header read from the
 file: `general.architecture = muse-glimmer`, Q4_K_M (365 Q4_K, 52 Q6_K, 1 Q5_K, 313 F32 = 731
@@ -1899,10 +1899,12 @@ from `7af58019` through `1297fd7` (only the chat template moved), and the contro
 20.2 t/s for the NVFP4 pack. So the open questions are the 4-bit llama.cpp decode rate, the ATEM tool
 round trip through a second parser, and the vendor's per-slot context arithmetic — not quality.
 
-**Usage policy is a new class — register row `#88`.** `LICENSE` is verbatim Apache-2.0, and a separate
-`USAGE_POLICY.md` layers prohibited uses (military/warfare/nuclear/espionage, ITAR, biological and
-chemical weapons conventions, under-18) on top. None of it bites on an authored-not-booted probe that
-is neither sold nor exposed, but the class is the owner's call, not this lane's. Fit TP=1: 16.76 GB of
+**Usage policy: Apache-2.0 plus obligations carried, not a gate — `#88`, settled 2026-11-22.**
+`LICENSE` is verbatim Apache-2.0, and a separate `USAGE_POLICY.md` layers prohibited uses
+(military/warfare/nuclear/espionage, ITAR, biological and chemical weapons conventions, under-18) on
+top. Owner decision (ViBoard thread t26): ship it as a normal explore arm, with the policy's activity
+reservations carried as obligations on any use — the `#84` precedent, a permissive grant plus an
+obligation rather than a licence class. The obligations travel with the arm to whoever runs it. Fit TP=1: 16.76 GB of
 weights; 13,312 B/token on the 13 full layers with the 39 sliding layers capped at 2,048, so one
 131,072-token slot costs 1.74 GB and `-c 1310720 -np 10` is 17.4 GB of KV, ~34 GB plus buffers against
 ~119 GiB usable.
