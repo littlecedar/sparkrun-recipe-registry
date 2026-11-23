@@ -129,6 +129,12 @@ if cmd == "show":
         sys.exit(0)
     sys.exit(128)
 if cmd == "diff":
+    if "--diff-filter=U" in args:
+        # The conflicted paths a failed merge left behind.
+        for line in os.environ.get("CONFLICTS", "").splitlines():
+            if line:
+                print(line)
+        sys.exit(0)
     if "--name-only" in args:
         # The gate asks which board inputs changed since the last board commit *on the ref it
         # named*: origin/main reads CHANGED, a local HEAD reads CHANGED_LOCAL. Filtering by the
@@ -505,10 +511,32 @@ class Reconcile(unittest.TestCase):
 
     def test_a_conflicting_merge_fails_loudly_and_publishes_nothing(self):
         before = self.board.read_bytes()
-        proc = self.run_tick(ANCESTOR_RC="1", MERGE_RC="1")
+        proc = self.run_tick(ANCESTOR_RC="1", MERGE_RC="1", CONFLICTS="AGENTS.md")
         self.assertEqual(proc.returncode, 1, proc.stdout)
         self.assertIn("git merge --abort", self.call_lines("git merge"),
                       "a failed merge must leave the tree as it was")
+        self.assertEqual(self.outcomes(), ["failed:merge"])
+        self.assertEqual(self.board.read_bytes(), before)
+        self.assertEqual(self.call_lines("census"), [], "nothing is measured or published")
+
+    def test_a_conflict_confined_to_the_board_is_resolved_by_taking_origin(self):
+        """The board is the tick's own output, rewritten moments later; origin's copy is taken."""
+        proc = self.run_tick(ANCESTOR_RC="1", MERGE_RC="1", CONFLICTS="mad-science/STATUS.md")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("git checkout --theirs -- mad-science/STATUS.md", self.call_lines("git checkout"))
+        self.assertIn("git commit --no-edit", self.call_lines("git commit"))
+        self.assertEqual(self.call_lines("git merge --no-edit"), ["git merge --no-edit origin/main"])
+        self.assertEqual(self.call_lines("git merge --abort"), [],
+                         "a resolvable conflict is committed, not aborted")
+        self.assertEqual(self.outcomes(), ["published"])
+
+    def test_a_board_conflict_beside_another_path_still_aborts(self):
+        before = self.board.read_bytes()
+        proc = self.run_tick(ANCESTOR_RC="1", MERGE_RC="1",
+                             CONFLICTS="mad-science/STATUS.md\nAGENTS.md")
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("git merge --abort", self.call_lines("git merge"))
+        self.assertEqual(self.call_lines("git checkout"), [], "another path is somebody's work")
         self.assertEqual(self.outcomes(), ["failed:merge"])
         self.assertEqual(self.board.read_bytes(), before)
         for prefix in ("census", "task-queue publish", "git commit", "git push"):

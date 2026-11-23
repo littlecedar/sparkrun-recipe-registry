@@ -159,15 +159,31 @@ def reconcile() -> subprocess.CompletedProcess | None:
     the clone was 7 ahead / 35 behind, so every tick rendered a fresh board and then died at
     `push` — four `failed:push` ledger lines and a board that never moved, while the gate worked.
     The local-only commits are the tick's own board commits, so a merge is the honest join; it
-    never resets, rebases or forces, and a merge that cannot run (a peer's uncommitted change in a
-    path origin also changed, or a real conflict) is aborted so the tree is left exactly as it was.
+    never resets, rebases or forces.
+
+    A conflict confined to `mad-science/STATUS.md` is resolvable here: that file is the tick's own
+    output and is rewritten moments later, so origin's copy is taken and the merge committed. Any
+    other conflicted path is somebody's work — the merge is aborted and the failure reported with
+    the paths named.
     """
     if git("merge-base", "--is-ancestor", "origin/main", "HEAD").returncode == 0:
         return None
     proc = git("merge", "--no-edit", "origin/main")
-    if proc.returncode != 0:
-        git("merge", "--abort")     # leave the tree as it was; nothing half-merged
+    if proc.returncode == 0:
+        return proc
+    board = str(BOARD.relative_to(REPO))
+    conflicts = [line.strip() for line in
+                 git("diff", "--name-only", "--diff-filter=U").stdout.decode(errors="replace")
+                 .splitlines() if line.strip()]
+    if conflicts and set(conflicts) == {board}:
+        git("checkout", "--theirs", "--", board)
+        git("add", "--", board)
+        committed = git("commit", "--no-edit")
+        if committed.returncode == 0:
+            return committed
+    git("merge", "--abort")     # leave the tree as it was; nothing half-merged
     return proc
+
 
 
 def previous_evidence() -> Path | None:
