@@ -102,6 +102,18 @@ if cmd == "fetch":
 if cmd == "rev-parse":
     # `origin/main` exists unless the fixture says it does not (a clone with no remote).
     sys.exit(0 if os.environ.get("ORIGIN_REF", "origin/main") else 1)
+if cmd == "merge-base":
+    # 0 = origin/main is an ancestor of HEAD (up to date); 1 = the branch has diverged.
+    sys.exit(int(os.environ.get("ANCESTOR_RC", "0")))
+if cmd == "merge":
+    if args[1:2] == ["--abort"]:
+        sys.exit(0)
+    rc = int(os.environ.get("MERGE_RC", "0"))
+    if rc and os.environ.get("MERGE_DIRTY"):
+        sys.stderr.write("error: Your local changes to the following files would be overwritten "
+                         "by merge:\\n\\tmad-science/queue.json\\nPlease commit your changes or "
+                         "stash them before you merge.\\n")
+    sys.exit(rc)
 if cmd == "show":
     # `<ref>:<path>` — the board and the register the tick reads from origin.
     spec = args[1] if len(args) > 1 else ""
@@ -436,6 +448,81 @@ class OriginAhead(unittest.TestCase):
     def test_the_fetch_is_attempted_before_the_gate(self):
         self.run_tick()
         self.assertEqual(self.call_lines("git fetch"), ["git fetch --quiet origin main"])
+
+
+class Reconcile(unittest.TestCase):
+    """A diverged branch is merged before publishing, never reset or forced (owner direction 2026-11-23).
+
+    This replica accumulates its own board commits while peers push: measured 2026-11-23 it was
+    7 ahead / 35 behind and four consecutive fires rendered a fresh board and then died at `push`
+    (`failed:push` in the ledger) — the board stayed stale while the gate worked. The local-only
+    commits are the tick's own board commits, so a merge is the join; a merge that cannot run is
+    aborted and publishes nothing.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.tool = build(self.root)
+        self.calls = self.root / "calls.log"
+        self.ledger = self.root / ".local" / "board-tick.jsonl"
+        self.board = self.root / "mad-science" / "STATUS.md"
+        (self.root / ".local" / "fleet-window.lock").unlink()   # no session mark
+        self.env = dict(os.environ, PATH=f"{self.root / 'bin'}:{os.environ['PATH']}",
+                        CALLS=str(self.calls), REMOTE_BOARD=str(self.root / "remote-STATUS.md"),
+                        CHANGED="mad-science/queue.json")
+
+    def run_tick(self, *args, **env):
+        return subprocess.run([sys.executable, "-B", str(self.tool), *args],
+                              cwd=str(self.root), env=dict(self.env, **env),
+                              capture_output=True, text=True, check=False)
+
+    def call_lines(self, prefix: str = "") -> list[str]:
+        if not self.calls.is_file():
+            return []
+        return [line for line in self.calls.read_text().splitlines() if line.startswith(prefix)]
+
+    def outcomes(self) -> list[str]:
+        if not self.ledger.is_file():
+            return []
+        return [json.loads(line)["outcome"] for line in self.ledger.read_text().splitlines()]
+
+    def test_a_diverged_branch_is_merged_then_published(self):
+        proc = self.run_tick(ANCESTOR_RC="1", MERGE_RC="0")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("merged origin/main", proc.stdout)
+        self.assertIn("git merge --no-edit origin/main", self.call_lines("git merge"))
+        self.assertEqual(self.call_lines("census"), ["census"])
+        self.assertEqual(self.outcomes(), ["published"])
+        self.assertIn("git push", " ".join(self.call_lines("git push")))
+
+    def test_an_up_to_date_branch_is_not_merged(self):
+        proc = self.run_tick(ANCESTOR_RC="0")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(self.call_lines("git merge --no-edit"), [], "an ancestor needs no merge")
+        self.assertEqual(self.outcomes(), ["published"])
+
+    def test_a_conflicting_merge_fails_loudly_and_publishes_nothing(self):
+        before = self.board.read_bytes()
+        proc = self.run_tick(ANCESTOR_RC="1", MERGE_RC="1")
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("git merge --abort", self.call_lines("git merge"),
+                      "a failed merge must leave the tree as it was")
+        self.assertEqual(self.outcomes(), ["failed:merge"])
+        self.assertEqual(self.board.read_bytes(), before)
+        for prefix in ("census", "task-queue publish", "git commit", "git push"):
+            self.assertEqual(self.call_lines(prefix), [], f"{prefix} ran after a failed merge")
+
+    def test_a_peers_uncommitted_change_skips_instead_of_failing(self):
+        # Not the tick's failure and not ours to clear: name the file, publish nothing, exit 0.
+        proc = self.run_tick(ANCESTOR_RC="1", MERGE_RC="1", MERGE_DIRTY="1")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("a peer's uncommitted change blocks the merge", proc.stdout)
+        self.assertIn("mad-science/queue.json", proc.stdout)
+        self.assertEqual(self.outcomes(), ["skipped:dirty"])
+        self.assertEqual(self.call_lines("census"), [])
+        self.assertEqual(self.call_lines("git push"), [])
 
 
 if __name__ == "__main__":

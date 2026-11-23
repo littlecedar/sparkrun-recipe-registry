@@ -152,6 +152,24 @@ def materialize_register(ref: str) -> Path:
     return REGISTER_ORIGIN
 
 
+def reconcile() -> subprocess.CompletedProcess | None:
+    """Merge `origin/main` into HEAD when the branch has diverged; None when it has not.
+
+    A syncthing replica accumulates its own board commits while peers push: measured 2026-11-23
+    the clone was 7 ahead / 35 behind, so every tick rendered a fresh board and then died at
+    `push` — four `failed:push` ledger lines and a board that never moved, while the gate worked.
+    The local-only commits are the tick's own board commits, so a merge is the honest join; it
+    never resets, rebases or forces, and a merge that cannot run (a peer's uncommitted change in a
+    path origin also changed, or a real conflict) is aborted so the tree is left exactly as it was.
+    """
+    if git("merge-base", "--is-ancestor", "origin/main", "HEAD").returncode == 0:
+        return None
+    proc = git("merge", "--no-edit", "origin/main")
+    if proc.returncode != 0:
+        git("merge", "--abort")     # leave the tree as it was; nothing half-merged
+    return proc
+
+
 def previous_evidence() -> Path | None:
     names = sorted(p.name for p in EVIDENCE.glob("*.json")) if EVIDENCE.is_dir() else []
     return EVIDENCE / names[-1] if names else None
@@ -272,6 +290,21 @@ def tick(args) -> int:
               f"{ref} since the last board commit there")
         return 0
     print(f"board-tick: running ({why})")
+    if not args.dry_run:
+        merged = reconcile()
+        if merged is not None:
+            stderr = merged.stderr.decode(errors="replace")
+            if merged.returncode != 0 and "would be overwritten" in stderr:
+                # A peer's uncommitted change sits in a path origin also changed. That is not the
+                # tick's failure and not ours to clear: say whose it is and retry next fire.
+                dirty = [line.strip() for line in stderr.splitlines() if line.startswith("\t")]
+                print("board-tick: skipped — a peer's uncommitted change blocks the merge "
+                      f"({', '.join(dirty) or 'see git status'}); nothing published")
+                ledger("skipped:dirty", rows=0, census_stamp=None)
+                return 0
+            if merged.returncode != 0:
+                return fail("merge", merged, 0, None)
+            print("board-tick: merged origin/main (the branch had diverged)")
     register = materialize_register(ref)
     rows = len(stale_ids(register))
     census_stamp: str | None = None
