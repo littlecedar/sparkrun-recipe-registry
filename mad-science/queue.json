@@ -4075,14 +4075,14 @@
       "estimate_h": 0.5,
       "blocks": [],
       "blocked_by": [],
-      "state": "running",
+      "state": "done",
       "model": "",
       "node_cost": "single",
-      "notes": "PIN MOVE 2026-11-22 (owner rule, ViBoard thread t24): updated pins are boot-tested as soon as a window of the correct size is free for them, and the pin moves in that boot's commit — no carrier-lane ride-along. This row boots recipes/explore/spark-x2.6-4b-fp8-sglang.yaml with model_revision moved 0318d6f6ab070c7b5b43052db571489b2508006c -> b0065cff38594d3a5e265a5ed12cfb552b179b7c; the delta is docs-only (README/LICENSE/.eval_results/images), so the boot is the test and nothing beyond a healthy serve and one cell is expected. estimate: provisional.\n\nWORK ITEM (session work, corrected 2026-11-22): this row is NOT machine-runnable — the campaign boots the committed recipe and never moves a pin, so a queued recipe row would have booted the OLD pin, passed on a docs-only delta and tested nothing. One item, done by a session worker: move model_revision in recipes/explore/spark-x2.6-4b-fp8-sglang.yaml to the new head, commit that move, boot the arm with tools/run-arm.sh when a free slot of the declared size exists (check fleet availability first), verify the serve, and close this row citing the boot's receipt. The pin move and the boot are one item; the session director schedules it.",
+      "notes": "PIN MOVE 2026-11-22 (owner rule, ViBoard thread t24): updated pins are boot-tested as soon as a window of the correct size is free for them, and the pin moves in that boot's commit — no carrier-lane ride-along. This row boots recipes/explore/spark-x2.6-4b-fp8-sglang.yaml with model_revision moved 0318d6f6ab070c7b5b43052db571489b2508006c -> b0065cff38594d3a5e265a5ed12cfb552b179b7c; the delta is docs-only (README/LICENSE/.eval_results/images), so the boot is the test and nothing beyond a healthy serve and one cell is expected. estimate: provisional.\n\nWORK ITEM (session work, corrected 2026-11-22): this row is NOT machine-runnable — the campaign boots the committed recipe and never moves a pin, so a queued recipe row would have booted the OLD pin, passed on a docs-only delta and tested nothing. One item, done by a session worker: move model_revision in recipes/explore/spark-x2.6-4b-fp8-sglang.yaml to the new head, commit that move, boot the arm with tools/run-arm.sh when a free slot of the declared size exists (check fleet availability first), verify the serve, and close this row citing the boot's receipt. The pin move and the boot are one item; the session director schedules it.\n\nBOOT 2026-11-23: pin moved 0318d6f6ab070c7b5b43052db571489b2508006c -> b0065cff38594d3a5e265a5ed12cfb552b179b7c in cc9fee62 and booted on .35 (task 9c8e0fffc3cbe638_155d3a183f29, container gone after teardown). The engine's own launch log names /cache/huggingface/.../snapshots/b0065cff38594d3a5e265a5ed12cfb552b179b7c, so the pin reached the engine; readiness at t=146 s, ladder tg128 40.92 (c1) / 218.52 (c10) t/s, 15-scenario tool suite ran, arm rc=0. Receipt head:~/benchmarks/repin-20261123/spark-x2.6-4b-fp8-sglang.\n",
       "provenance": "row hf-cache-20261110-docs-only-repin-bundle (the sweep's 22 rows, 14 live); head:~/benchmarks/hf-cache-update-20261110/RECEIPT.md sections 2 and 4; owner rule 2026-11-22 (ViBoard thread t24)",
-      "evidence": "",
-      "claimed_by": "repin-drain-20261123",
-      "claimed_at": "2026-11-23T00:51:07Z"
+      "evidence": "head:~/benchmarks/repin-20261123/spark-x2.6-4b-fp8-sglang (rc=0; launch.log names snapshots/b0065cff38594d3a5e265a5ed12cfb552b179b7c); commit cc9fee62",
+      "claimed_by": "",
+      "claimed_at": ""
     },
     {
       "id": "repin-ternary-bonsai-2-9b-q2_0-llamacpp",
@@ -4090,14 +4090,14 @@
       "estimate_h": 0.5,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "",
       "node_cost": "single",
       "notes": "PIN MOVE 2026-11-22 (owner rule, ViBoard thread t24): updated pins are boot-tested as soon as a window of the correct size is free for them, and the pin moves in that boot's commit — no carrier-lane ride-along. This row boots recipes/explore/ternary-bonsai-2-9b-q2_0-llamacpp.yaml with model_revision moved 5b2abb02362efbed46bbe204014b02837778b2c2 -> 82265ccc78ddaac4700286a35e9badcc32376dd9; the delta is docs-only (README/LICENSE/.eval_results/images), so the boot is the test and nothing beyond a healthy serve and one cell is expected. estimate: provisional.\n\nWORK ITEM (session work, corrected 2026-11-22): this row is NOT machine-runnable — the campaign boots the committed recipe and never moves a pin, so a queued recipe row would have booted the OLD pin, passed on a docs-only delta and tested nothing. One item, done by a session worker: move model_revision in recipes/explore/ternary-bonsai-2-9b-q2_0-llamacpp.yaml to the new head, commit that move, boot the arm with tools/run-arm.sh when a free slot of the declared size exists (check fleet availability first), verify the serve, and close this row citing the boot's receipt. The pin move and the boot are one item; the session director schedules it.",
       "provenance": "row hf-cache-20261110-docs-only-repin-bundle (the sweep's 22 rows, 14 live); head:~/benchmarks/hf-cache-update-20261110/RECEIPT.md sections 2 and 4; owner rule 2026-11-22 (ViBoard thread t24)",
       "evidence": "",
-      "claimed_by": "",
-      "claimed_at": ""
+      "claimed_by": "repin-drain-20261123",
+      "claimed_at": "2026-11-23T01:01:31Z"
     },
     {
       "id": "repin-zz-sage-a1.5-35b-a3b-fp8-sglang",
