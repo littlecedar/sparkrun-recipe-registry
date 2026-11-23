@@ -1,6 +1,6 @@
 recipe_version: "2"
 model: orcarouter/Qwen3.8-Flash-Next-Uncensored-NVFP4
-model_revision: cd56f6c148c6287cf26fa6618223ad046b9af27c
+model_revision: 9c6f1345b523a9d9d70b41542a63b39e3c9b7ca6
 runtime: sglang
 container: lmsysorg/sglang:dev-cu13-qwen38-next-local@sha256:9d2a843c706c74bc259c0d9abf360551eb2734e1e7d255ab012a6965f10480b6
 min_nodes: 2
