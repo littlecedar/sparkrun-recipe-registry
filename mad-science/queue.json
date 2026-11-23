@@ -2531,12 +2531,8 @@
       "title": "DS4 1017 SM121: port the V41/V41_FP4 KV layout so fp4 KV is admissible — dtype is not a lever today, and sizing lies about fp4",
       "estimate_h": 6.0,
       "blocks": [],
-      "blocked_by": [
-        "ask-tp4-window-declaration",
-        "ds4-fp4-kv-layout-sm121-port-sglang",
-        "ds4-fp4-kv-layout-sm121-port-vllm"
-      ],
-      "state": "blocked",
+      "blocked_by": [],
+      "state": "queued",
       "model": "",
       "node_cost": "quartet",
       "notes": "RECIPE RETIRED 2026-11-18: the `zz-` arm this row booted is archived at `attic/ds4/zz-ds4-1017-sm121-indexer-scoring.yaml` (it was run or refused on record; see the lane attic index), so the row is no longer bootable. CORRECTION TO THE FP8-KV IDEA this lane carried: KV dtype is NOT a lever here. The line is already `kv_dtype: fp8_e4m3`, and `fp8_ds_mla` is not a value this engine knows — zero occurrences in image commit `103ad321`; it is vLLM's packed MLA row, a different engine. Nor would a narrower dtype move the floor: the pool fills every available byte, so halving bytes/token doubles tokens and leaves the memory pressure (and the floor) where it was. `nvfp4` KV is actively UNSAFE: the sizing path has no fp4 term, so it would print the same 1,670.75 B/token while asking kernels for fp4 rows — the engine would over-advertise budget it cannot back. WHAT WOULD ACTUALLY UNLOCK FP4 KV is engine work, and it is two sites plus a branch: relax the `is_sm100` gate at `deepseek_v4_memory_pool.py:197`, port the `V41`/`V41_FP4` layout from `kv_layout.cuh:38`, and add the fp4 branch in `pool_configurator.py:1024-1035`. That buys 2-4x tokens per GiB (a context win), zero floor — so it is a reason to rebuild, not a reason to expect a boot where none fit. Blocked: engine work, no boot can pass before the port exists.\n\nREMAINING WORK 2026-11-23: both children are done (the SGLang port and the vLLM 384-byte store), so the two child edges above are history and this row now waits on the four-rank window like the other TP4 rows. What is left is a fleet act: build the image carrying both ports, re-author the retired arm (the zz- arm is archived at attic/ds4/zz-ds4-1017-sm121-indexer-scoring.yaml), boot the quartet, and read the engine's own allocation line — 384 B/token for the vLLM nvfp4 path against fp8's 976 — plus one needle cell. No policy question remains.",
@@ -2568,11 +2564,8 @@
       "title": "The campaign leases memory-heavy TP4 quartets onto .30, which the owner ruling excludes",
       "estimate_h": 1.0,
       "blocks": [],
-      "blocked_by": [
-        "ask-placement-policy-30",
-        "ask-tp4-window-declaration"
-      ],
-      "state": "blocked",
+      "blocked_by": [],
+      "state": "queued",
       "model": "",
       "node_cost": "quartet",
       "notes": "MECHANISM LANDED OFFLINE 2026-11-11 (commits `aa54000`, `ebf5c8e`, `298098d`, `08ff156`; no live lease and no live six-node boot has run, so the row stays open). One ledger, `<repo>/.local/fleet-leases.json` (flock + atomic write), and one claim path for a multi-rank boot: `director lease --hosts --holder --ttl [--window]`, plus `--list`/`--release`; the director writes the same record before handing an arm to a worker and refuses a rank already leased. The legacy `.local/fleet-window.lock` is honoured, not written. `.30` is waivable only when the boot's own record names `allow_hosts` + `window` AND the lease-time guardrail probe proves the host: earlyoom argv quoting non-zero memory and swap thresholds, negative OOM scores on `ssh`, `NetworkManager`, `user@1000` and the BeeGFS trio, and a window-named `mem-guard` sampler. Six-node shape goes into a manifest as `tp 2 x pp 3`. Gaps named, not fixed: `tools/queue-drip.py` read `state.json` and the legacy lock but not the ledger -- its read side is closed in the same push's next commit; ledger visibility is syncthing-delayed, so claims and boots belong on the head; live probes on `.30`/`.33` pass except the sampler, which stays unarmed until a window starts.\n\nOWNER 2026-11-11 (authorization): `.30` is allowed only when the boot's own declaration names it AND the six guardrails in `mad-science/TODO.md` §\"Settled questions\" `## Owner authorization 2026-11-11 — six-machine fleet, .30 guardrailed` pass (earlyoom re-proven per window, OOM scores re-verified, the instrument off `.30`, the sampler armed before the launch, a non-head rank with id-only stops, and a pause if `.30` drops); otherwise the lease is refused. Row stays open. | OWNER 2026-11-11 (#2): the `.30` exclusion is waivable only inside an explicitly declared window, named per boot; the default is unchanged — a memory-risky shape still avoids `.30`. Acceptance narrows to: such a shape may sit on `.30` only when the boot's own declaration names `.30` and the window, and the director must refuse it otherwise. Row stays open. Provenance: mad-science/TODO.md §\"Settled questions\" ## Owner round 2026-11-11 — TP>=4 survey S2; mad-science/TODO.md `#67` as amended. | MEASURED 2026-11-10, read-only from the head's journal: the queue-mode director leased two memory-heavy TP4 quartets onto `.30`-`.33` - its `assign` lines name four hosts starting at `.30` (18:34:17Z `zz-ds4-1017-sm121-arm3-control-marlin`, 18:38:23Z `zz-ds4-1017-malloc-pin-sglang`) - and `h2h-20261107/state.json` carries `hosts` starting at the same node with `order` unchanged, so the next runnable arm re-leases the same four. AGENTS.md's owner ruling of 2026-11-08 (`#67`) puts a memory-overrunning TP4 quartet on `.31`-`.35`, never `.30`, because a global OOM there takes `ssh`, NetworkManager and the BeeGFS units; the same window's guard log shows the shape is memory-overrunning (`mem-guard.log` TRIGGER at 5.77 GiB on `.32`, the 0.77 arm's `min_MemAvailable` 5.25 GiB on `.31`). `.30` is a normal worker for every other shape - this row is the placement rule for the TP4 quartet only, not a role claim. Acceptance: the director's host selection excludes `.30` for a quartet whose recipe is memory-heavy (or the plan declares the exclusion), and a test covers the refusal. SPARKRUN SURFACE (scout reads 2026-11-11): `sparkrun daemon resources` reservations are host-granular, carry no expiry and no window, and are per config root (`sparkrun/core/coordination.py:83,210,311,327`), so they cannot express a declared window; the lease ledger is complementary and stays. MEASURED COLLISION 2026-11-11 (same window, receipt `head:~/benchmarks/arm5-verify-route-20261111/RECEIPT-verify-route-fi073e.md`): two workstreams ran under one holder string (`session:tp4-20261111`), and the second write superseded the first live record — `lease --release session:tp4-20261111:manual:1794408187` answered `no such live lease` while the other workstream's record survived under the same holder. A holder names a session; an id names a claim. LANDED 2026-11-11 (`d0cf704`, campaign suite 241 OK / 5 skipped): claim identity is `(holder, sorted hosts, window)` (`campaign/sparkrun_campaign/leases.py:127-137`); an identical rewrite refreshes in place (`:144-145`); two claims from one holder on disjoint hosts coexist; an overlap with another live record refuses with `PlanError` naming each id, holder, hosts and expiry and leaving it untouched (`:168-172`, `_describe:206-211`); `--takeover` is explicit, prints `lease-takeover:` and records the replaced id in the note (`:196`; `director.py:1089-1091`); release resolves by exact id or holder+hosts, and an ambiguous match exits 3 naming every candidate and deletes nothing (`director.py:1064-1079`, `leases.py:229-232`). Live state: the Kimi six-rank claim `session:tp4-20261111:kimi-k3.1-pro-pruned75-mxfp4-vllm-tp2-pp3:1794408220` holds `.30`-`.35` until 2026-11-11T18:43:40Z (`.local/fleet-leases.json`), and the arm-5 verify claim was refused against it — the intended behaviour now. Rows stay queued: no live *director*-driven TP4 lease yet; the `campaign-*` acceptance still needs one director-driven arm.\n\ndecision: placement policy — owner call, 2026-11-22. The owner must decide whether .30 may host a memory-risky TP4 quartet inside a declared window as the standing rule (adopting the landed lease mechanism plus the six 2026-11-11 guardrails), or whether the default exclusion is permanent. The mechanism is landed and the policy is the missing half, so no tick can clear this row. Provenance: owner authorization 2026-11-11 in mad-science/TODO.md section 'Settled questions'; the landed commits are named above.\n\nASK ROW 2026-11-22: blocked_by ask-placement-policy-30 — the placement policy is the owner's call, and that row carries the question and the options. This row returns to queued when it is answered.\n\nANSWERED 2026-11-22 (owner, ViBoard thread t20): standing rule — the head node may host a memory-risky TP4 quartet inside a declared window, under the six 2026-11-11 guardrails (the boot's own record names allow_hosts plus its window, and the lease-time guardrail probe passes); it is not a permanent exclusion. What remains is the live proof: the mechanism is landed (the commits above) and this row's work is a real quartet lease inside a declared window on .30, with the guardrail probe's own output as the receipt.\n\nWINDOW HOLD 2026-11-22: blocked_by ask-tp4-window-declaration — the remaining work is a fleet act (a real quartet lease inside a declared window), so it waits on the four-rank window declaration exactly like the two TP4 boots; the rule itself is settled above.",
@@ -3326,10 +3319,8 @@
       "title": "Boot the weightless-dsgb10 arm four-rank: the α=0 golden hash must equal stock bit-for-bit before any steered request is quoted",
       "estimate_h": 4.0,
       "blocks": [],
-      "blocked_by": [
-        "ask-tp4-window-declaration"
-      ],
-      "state": "blocked",
+      "blocked_by": [],
+      "state": "queued",
       "model": "deepseek-ai/DeepSeek-V4.1-Flash-1017",
       "node_cost": "quartet",
       "notes": "Boot gate for the image closed by weightless-image-build-publish-pin (1bc6b5cb). Image ghcr.io/littlecedar/dgx-picom-ds41f:ds41f-7c123ad4-pr15-pr7-weightless, digest sha256:305b6e5151a2cfd13b85f18c36bccf9062af83e28917fd11a0f151691c5e83df, pinned in recipes/ds4/zz-deepseek-v4.1-flash-1017-weightless-dsgb10-tp4.yaml:30 (the recipe comment at line 5 names the 4-rank boot as the remaining gate).\n\nTwo gates, in this order — the first must pass before any steered output is quoted:\n(1) With steering disabled (α=0) the engine's output must be byte-identical to the stock picom engine for the same prompt and seed (a golden-hash comparison). The patch's α=0 path is documented as bit-exact identity (README.md:2911, checked by glp_test); this gate proves it through the served stack, not only the unit test.\n(2) A request naming the second served name (deepseek-v4.1-flash-weightless) is projected, while a stock request in the same batch keeps its own text (README.md:2890-2894; the stats: line's reqs_steered=1 reqs_stock=1 is the witness). A request for an unserved name answers 400 (README.md:2994).\n\nWindow: four ranks. .31–.34 must be unfenced or four free hosts declared; the fence lives in .local/fleet-leases.json as an owner record (README.md:2831-2832). .30 is the memory-risky quartet exclusion and .35 alone cannot host a quartet.\n\nLaunch with --cluster WOPR: without it the launch dies at 'prepared model is not visible through the workload mounts' (measured 2026-10-26 on another arm, README.md:747-749); the named profile skips model fan-out and reads the shared pool cache.\n\nMemory guard: a four-rank shape on GB10, so util ≤0.78 and a mem-guard.sh in the window directory. A superseded guard re-reads a reused trigger and stops the wrong task (README.md:1907-1916) — kill stale guards or give each run its own trigger directory.\n\nowner-decision: declared TP4 window required — blocked until a four-rank window is declared; the fence is an owner record in .local/fleet-leases.json (README.md:2831-2832). It unblocks on that declaration and needs nothing else.\n\nASK ROW 2026-11-22: blocked_by ask-tp4-window-declaration — the declared four-rank window is the only unblock, and that row is the question.",
@@ -3348,10 +3339,8 @@
       "title": "Inkling-2-Small TP=4 first boot: nightly pull and the unproven sm_121 Triton path",
       "estimate_h": 4.0,
       "blocks": [],
-      "blocked_by": [
-        "ask-tp4-window-declaration"
-      ],
-      "state": "blocked",
+      "blocked_by": [],
+      "state": "queued",
       "model": "thinkingmachines/Inkling-2-Small",
       "node_cost": "quartet",
       "notes": "No node holds the pinned nightly digest c17e9d88, so the first boot includes the pull. GB10 is sm_121 and the Blackwell path gates on capability family 100, so the engine runs the Hopper/Triton half (attention_sm90 plus the Humming expert GEMMs), unproven on this board. Boot only inside an owner-declared TP4 window with the production ring free; gate = /v1/models at 131072 plus one chat and the engine kernel-selection line.\n\nowner-decision: declared TP4 window required — blocked until a four-rank window is declared; it unblocks on that declaration and needs nothing else.\n\nASK ROW 2026-11-22: blocked_by ask-tp4-window-declaration — the declared four-rank window is the only unblock, and that row is the question.",
@@ -3494,9 +3483,7 @@
       "id": "ds4-fp4-kv-layout-sm121-port-sglang",
       "title": "DS4 1017 SM121 SGLang: port the V41_FP4 KV layout and the fp4 pool-sizing term so fp4 KV is admissible",
       "estimate_h": 4.0,
-      "blocks": [
-        "ds4-fp4-kv-layout-sm121-port"
-      ],
+      "blocks": [],
       "blocked_by": [],
       "state": "done",
       "model": "deepseek-v4.1-flash-1017",
@@ -3514,9 +3501,7 @@
       "id": "ds4-fp4-kv-layout-sm121-port-vllm",
       "title": "DS4 1017 SM121 vLLM: carry nvfp4_ds_mla through the SM12x sparse-MLA backend so fp4 KV is selectable",
       "estimate_h": 2.0,
-      "blocks": [
-        "ds4-fp4-kv-layout-sm121-port"
-      ],
+      "blocks": [],
       "blocked_by": [
         "ask-vllm-nvfp4-abi"
       ],
@@ -3802,21 +3787,14 @@
       "id": "ask-tp4-window-declaration",
       "title": "Ask: declare the four-rank TP4 window that two blocked quartet boots wait on",
       "estimate_h": 0.5,
-      "blocks": [
-        "weightless-dsgb10-tp4-boot-gate",
-        "inkling-tp4-first-boot",
-        "campaign-leases-tp4-onto-30",
-        "repin-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang",
-        "repin-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2",
-        "ds4-fp4-kv-layout-sm121-port"
-      ],
+      "blocks": [],
       "blocked_by": [],
-      "state": "ask",
+      "state": "done",
       "model": "",
       "node_cost": "",
-      "notes": "QUESTION FOR THE OWNER: when may a four-rank TP4 boot run? Two arms are otherwise ready — weightless-dsgb10-tp4-boot-gate (the alpha=0 golden hash must equal stock before any steered request is quoted) and inkling-tp4-first-boot (first boot of the pinned nightly, sm_121 Triton path unproven) — and both need four free hosts declared as a window. OPTIONS: (a) declare a window now and name its hosts and end time; (b) keep the quartet fence and leave both arms blocked behind it. The fence is an owner record in .local/fleet-leases.json (README.md:2831-2832); .30 is the memory-risky quartet exclusion and .35 alone cannot host a quartet, so a window is the only unblock. ANSWER: done --id ask-tp4-window-declaration, then return both dependents to queued (or straight to scheduled).\n\nOWNER HOLD 2026-11-22 (ViBoard thread t19): HOLD — keep the fence, no window now. The question stays open (this row stays `ask`), and the three dependents — weightless-dsgb10-tp4-boot-gate, inkling-tp4-first-boot and campaign-leases-tp4-onto-30 — stay blocked on it. A hold means wait: no scheduling row and no push for a window.",
+      "notes": "QUESTION FOR THE OWNER: when may a four-rank TP4 boot run? Two arms are otherwise ready — weightless-dsgb10-tp4-boot-gate (the alpha=0 golden hash must equal stock before any steered request is quoted) and inkling-tp4-first-boot (first boot of the pinned nightly, sm_121 Triton path unproven) — and both need four free hosts declared as a window. OPTIONS: (a) declare a window now and name its hosts and end time; (b) keep the quartet fence and leave both arms blocked behind it. The fence is an owner record in .local/fleet-leases.json (README.md:2831-2832); .30 is the memory-risky quartet exclusion and .35 alone cannot host a quartet, so a window is the only unblock. ANSWER: done --id ask-tp4-window-declaration, then return both dependents to queued (or straight to scheduled).\n\nOWNER HOLD 2026-11-22 (ViBoard thread t19): HOLD — keep the fence, no window now. The question stays open (this row stays `ask`), and the three dependents — weightless-dsgb10-tp4-boot-gate, inkling-tp4-first-boot and campaign-leases-tp4-onto-30 — stay blocked on it. A hold means wait: no scheduling row and no push for a window.\nOWNER ANSWER 2026-11-23 (ViBoard thread t1): WINDOW DECLARED — the production serve is down, so the four-rank nodes are available. The 2026-11-22 HOLD is lifted; all six dependents (weightless-dsgb10-tp4-boot-gate, inkling-tp4-first-boot, campaign-leases-tp4-onto-30, both repin-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang rows, ds4-fp4-kv-layout-sm121-port) are unblocked and this row closes done.",
       "provenance": "rows weightless-dsgb10-tp4-boot-gate and inkling-tp4-first-boot (their notes name the window); recipes/explore/README.md:2831-2832; owner directive 2026-11-22 (asks are rows)",
-      "evidence": "",
+      "evidence": "window declared 2026-11-23 (production serve down); all six dependents unblocked",
       "claimed_by": "",
       "claimed_at": ""
     },
@@ -3824,9 +3802,7 @@
       "id": "ask-placement-policy-30",
       "title": "Ask: may .30 host a memory-risky TP4 quartet inside a declared window?",
       "estimate_h": 0.5,
-      "blocks": [
-        "campaign-leases-tp4-onto-30"
-      ],
+      "blocks": [],
       "blocked_by": [],
       "state": "done",
       "model": "",
@@ -4121,10 +4097,8 @@
       "title": "Boot glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2 with the refreshed pin and move its pins",
       "estimate_h": 0.5,
       "blocks": [],
-      "blocked_by": [
-        "ask-tp4-window-declaration"
-      ],
-      "state": "blocked",
+      "blocked_by": [],
+      "state": "queued",
       "model": "",
       "node_cost": "quartet",
       "notes": "PIN MOVE 2026-11-22 (owner rule, ViBoard thread t24): updated pins are boot-tested as soon as a window of the correct size is free for them, and the pin moves in that boot's commit — no carrier-lane ride-along. This row boots recipes/glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2.yaml with model_revision moved 078455ffe6472f9a52fbc1139f58b9db2881b25c -> 76c0b5173166d2795dd48860f45d8224817f894c; the delta is docs-only (README/LICENSE/.eval_results/images), so the boot is the test and nothing beyond a healthy serve and one cell is expected. estimate: provisional. Precondition: a declared four-rank TP4 window — the window ask (ask-tp4-window-declaration) is HELD as of 2026-11-22 (thread t19), so this row waits for one and the campaign cannot place it until then.\n\nWORK ITEM (session work, corrected 2026-11-22): this row is NOT machine-runnable — the campaign boots the committed recipe and never moves a pin, so a queued recipe row would have booted the OLD pin, passed on a docs-only delta and tested nothing. One item, done by a session worker: move model_revision in recipes/glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2.yaml to the new head, commit that move, boot the arm with tools/run-arm.sh when a free slot of the declared size exists (check fleet availability first), verify the serve, and close this row citing the boot's receipt. The pin move and the boot are one item; the session director schedules it.",
@@ -4138,10 +4112,8 @@
       "title": "Boot glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang with the refreshed pin and move its pins",
       "estimate_h": 0.5,
       "blocks": [],
-      "blocked_by": [
-        "ask-tp4-window-declaration"
-      ],
-      "state": "blocked",
+      "blocked_by": [],
+      "state": "queued",
       "model": "",
       "node_cost": "quartet",
       "notes": "PIN MOVE 2026-11-22 (owner rule, ViBoard thread t24): updated pins are boot-tested as soon as a window of the correct size is free for them, and the pin moves in that boot's commit — no carrier-lane ride-along. This row boots recipes/glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml with model_revision moved 078455ffe6472f9a52fbc1139f58b9db2881b25c -> 76c0b5173166d2795dd48860f45d8224817f894c; the delta is docs-only (README/LICENSE/.eval_results/images), so the boot is the test and nothing beyond a healthy serve and one cell is expected. estimate: provisional. Precondition: a declared four-rank TP4 window — the window ask (ask-tp4-window-declaration) is HELD as of 2026-11-22 (thread t19), so this row waits for one and the campaign cannot place it until then.\n\nWORK ITEM (session work, corrected 2026-11-22): this row is NOT machine-runnable — the campaign boots the committed recipe and never moves a pin, so a queued recipe row would have booted the OLD pin, passed on a docs-only delta and tested nothing. One item, done by a session worker: move model_revision in recipes/glm/glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang.yaml to the new head, commit that move, boot the arm with tools/run-arm.sh when a free slot of the declared size exists (check fleet availability first), verify the serve, and close this row citing the boot's receipt. The pin move and the boot are one item; the session director schedules it.",
