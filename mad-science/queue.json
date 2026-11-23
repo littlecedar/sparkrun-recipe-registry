@@ -4105,14 +4105,14 @@
       "estimate_h": 0.5,
       "blocks": [],
       "blocked_by": [],
-      "state": "queued",
+      "state": "running",
       "model": "",
       "node_cost": "single",
       "notes": "PIN MOVE 2026-11-22 (owner rule, ViBoard thread t24): updated pins are boot-tested as soon as a window of the correct size is free for them, and the pin moves in that boot's commit — no carrier-lane ride-along. This row boots recipes/explore/zz-sage-a1.5-35b-a3b-fp8-sglang.yaml with model_revision moved b442b0c6a66c8e845c5ded85bc129eb4a44f32fc -> f92d59b1731d67836433e503d51c2f825ef9dad4; the delta is docs-only (README/LICENSE/.eval_results/images), so the boot is the test and nothing beyond a healthy serve and one cell is expected. estimate: provisional.\n\nWORK ITEM (session work, corrected 2026-11-22): this row is NOT machine-runnable — the campaign boots the committed recipe and never moves a pin, so a queued recipe row would have booted the OLD pin, passed on a docs-only delta and tested nothing. One item, done by a session worker: move model_revision in recipes/explore/zz-sage-a1.5-35b-a3b-fp8-sglang.yaml to the new head, commit that move, boot the arm with tools/run-arm.sh when a free slot of the declared size exists (check fleet availability first), verify the serve, and close this row citing the boot's receipt. The pin move and the boot are one item; the session director schedules it.",
       "provenance": "row hf-cache-20261110-docs-only-repin-bundle (the sweep's 22 rows, 14 live); head:~/benchmarks/hf-cache-update-20261110/RECEIPT.md sections 2 and 4; owner rule 2026-11-22 (ViBoard thread t24)",
       "evidence": "",
-      "claimed_by": "",
-      "claimed_at": ""
+      "claimed_by": "repin-drain-20261123",
+      "claimed_at": "2026-11-23T01:20:51Z"
     },
     {
       "id": "repin-glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang-boot2",
