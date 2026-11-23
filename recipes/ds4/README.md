@@ -49,7 +49,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
   - [Probe arms: prefill chunk budget, Engram read batch, output ceiling (authored 2026-11-17; all three booted in the 2026-11-18 production window)](#probe-arms-prefill-chunk-budget-engram-read-batch-output-ceiling-authored-2026-11-17-all-three-booted-in-the-2026-11-18-production-window)
   - [License](#license-2)
 - [zz-deepseek-v4.1-flash-1017-weightless-tp4-1m (authored 2026-11-20, never booted)](#zz-deepseek-v41-flash-1017-weightless-tp4-1m-authored-2026-11-20-never-booted)
-- [deepseek-v4.1-flash-1017-aneda-tp4 (shipped production arm)](#deepseek-v41-flash-1017-aneda-tp4-shipped-production-arm)
+- [deepseek-v4.1-flash-1017-aneda-tp4-1m (shipped production arm)](#deepseek-v41-flash-1017-aneda-tp4-1m-shipped-production-arm)
 - [picom vs knapcio: one model, two engines on four GB10s](#picom-vs-knapcio-one-model-two-engines-on-four-gb10s)
 - [External stack: spark-ds41f (survey, 2026-11-08)](#external-stack-spark-ds41f-survey-2026-11-08)
 - [Upgrade candidates (measured elsewhere, not queued)](#upgrade-candidates-measured-elsewhere-not-queued)
@@ -2861,11 +2861,11 @@ over the picom pin, so the dual-name capability upstream `dsgb10` lacks now exis
 image this lane builds. The paragraph above still describes upstream at the pin, which is
 exactly why that arm needs an image of its own.
 
-## deepseek-v4.1-flash-1017-aneda-tp4 (shipped production arm)
+## deepseek-v4.1-flash-1017-aneda-tp4-1m (shipped production arm)
 
 | | |
 |:--|:--|
-| Recipe | `recipes/ds4/deepseek-v4.1-flash-1017-aneda-tp4.yaml` |
+| Recipe | `recipes/ds4/deepseek-v4.1-flash-1017-aneda-tp4-1m.yaml` |
 | Engine | the picom (`dsgb10`) TP=4 engine + its Rust front-end `dsfront`, **with this registry's GLP steering patch series** (`recipes/ds4/picom-weightless-steering.patch`, third in the series after PR #15 and PR #7) |
 | Runtime | `aneda` — `plugins/aneda_runtime.py`: native distribution, no rendezvous gate, GB10 only |
 | Model | [`deepseek-ai/DeepSeek-V4.1-Flash-1017`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017) at `1bae0e10` — the revision the steering vector was derived against |

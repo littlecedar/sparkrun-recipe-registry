@@ -3467,7 +3467,7 @@ if __name__ == "__main__":
 # names from one deployment, the second one steered, and must fail closed when
 # the vector or the patched engine is missing. Each of those is invisible in a
 # plain boot that answers 200, so each is checked here without a GPU.
-ANEDA_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-1017-aneda-tp4.yaml"
+ANEDA_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-1017-aneda-tp4-1m.yaml"
 ANEDA_RUNTIME_PLUGIN = REPO_ROOT / "plugins" / "aneda_runtime.py"
 WEIGHTLESS_PATCH = "picom-weightless-steering.patch"
 WEIGHTLESS_VECTOR = "/cache/runtime/glp/vector.gguf"
@@ -3484,7 +3484,7 @@ def _assert_aneda_arm_contract(tc, r: "Recipe", text: str) -> None:
     # second name is spelled in the two env vars (sparkrun substitutes `{...}`
     # in `command:` only), so the guard holds the two to one string.
     stock = "deepseek-v4.1-flash"
-    steered = "deepseek-v4.1-flash-aneda"
+    steered = "deepseek-v4.1-flash-weightless"
     tc.assertEqual(r.default("served_model_name"), stock)
     tc.assertNotEqual(stock, steered)
     tc.assertIn("--steer-model-name %s" % steered, r.env["PICOM_FRONT_ARGS"])
@@ -3579,7 +3579,7 @@ class AnedaNegativeControls(unittest.TestCase):
 
     def test_control_no_steered_name(self):
         r, text = self._mutated(
-            'PICOM_FRONT_ARGS: "--steer-model-name deepseek-v4.1-flash-aneda"',
+            'PICOM_FRONT_ARGS: "--steer-model-name deepseek-v4.1-flash-weightless"',
             'PICOM_FRONT_ARGS: ""')
         with self.assertRaises(AssertionError):
             _assert_aneda_arm_contract(self, r, text)

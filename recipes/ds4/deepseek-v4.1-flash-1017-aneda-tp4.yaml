@@ -87,11 +87,6 @@ env:
   # forbidden in tracked files (tests/test_tracked_address_hygiene.py).
   #   -o env.PICOM_RANK_TAILS=30,31,32,33
   PICOM_RANK_TAILS: ""
-  PICOM_FABRIC_A: "192.168.0"
-  PICOM_FABRIC_B: "192.168.1"
-  PICOM_DEV_A: "rocep1s0f0"
-  PICOM_DEV_B: "roceP2p1s0f0"
-  PICOM_GID_INDEX: "3"
   PICOM_RING_DIRECT: "2"
   PICOM_ENGINE_ARGS: >-
     --max-ctx 1048576 --slots 16 --big-slots 4

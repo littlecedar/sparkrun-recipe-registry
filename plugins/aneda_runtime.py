@@ -5,7 +5,7 @@
 steering vector loaded, so the front-end serves two names from one deployment:
 the stock one and a second whose requests are projected out of the residual
 stream (`docs/glp.md` in the engine tree; the arm is
-`recipes/ds4/deepseek-v4.1-flash-1017-aneda-tp4.yaml`).
+`recipes/ds4/deepseek-v4.1-flash-1017-aneda-tp4-1m.yaml`).
 
 Why a runtime rather than another `runtime: vllm` recipe: the shipped picom arm
 borrows vLLM's *distribution contract* (one container per node, tensor_parallel
