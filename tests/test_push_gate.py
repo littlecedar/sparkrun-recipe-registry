@@ -10,6 +10,7 @@ worktree a peer's uncommitted edit can move.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -124,6 +125,56 @@ class PushGate(unittest.TestCase):
             encoding="utf-8")
         out = self.gate()
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+
+    # --- register rows: a stale base drops rows, and nothing else in the gate can see it ------
+
+    def register(self, *ids: str) -> None:
+        path = self.root / "mad-science" / "queue.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        rows = [{"id": row, "title": row, "estimate_h": 1.0, "state": "queued"} for row in ids]
+        path.write_text(json.dumps({"priority_models": [], "tasks": rows}, indent=2) + "\n",
+                        encoding="utf-8")
+
+    def base(self) -> None:
+        """Make HEAD the upstream, so the gate has a `origin/main` to compare against."""
+        sha = run(["git", "-C", str(self.root), "rev-parse", "HEAD"], self.root).stdout.strip()
+        run(["git", "-C", str(self.root), "update-ref", "refs/remotes/origin/main", sha], self.root)
+
+    def test_a_dropped_register_row_fails_naming_it(self):
+        # The defect the tool's CAS cannot see: a commit built on a stale base silently loses a
+        # row a peer added, and every other check reads the result as a valid register.
+        (self.root / "AGENTS.md").write_text(agents(self.total), encoding="utf-8")
+        self.register("kept", "dropped")
+        commit(self.root, "base")
+        self.base()
+        self.register("kept")
+        commit(self.root, "stale base drops a row")
+        out = self.gate()
+        self.assertEqual(out.returncode, 1, out.stdout + out.stderr)
+        self.assertIn("register rows dropped", out.stderr)
+        self.assertIn("dropped", out.stderr)
+
+    def test_an_unchanged_register_passes(self):
+        (self.root / "AGENTS.md").write_text(agents(self.total), encoding="utf-8")
+        self.register("kept")
+        commit(self.root, "base")
+        self.base()
+        (self.root / "README.md").write_text("# Fixture\n\ntouched\n", encoding="utf-8")
+        commit(self.root, "unrelated change")
+        out = self.gate()
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("register rows (none dropped from upstream)", out.stdout)
+
+    def test_a_commit_that_only_adds_rows_passes(self):
+        (self.root / "AGENTS.md").write_text(agents(self.total), encoding="utf-8")
+        self.register("kept")
+        commit(self.root, "base")
+        self.base()
+        self.register("kept", "added")
+        commit(self.root, "adds a row")
+        out = self.gate()
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("register rows (none dropped from upstream)", out.stdout)
 
 
 if __name__ == "__main__":

@@ -143,6 +143,90 @@ class LedgerCase(unittest.TestCase):
         self.assertEqual(self.ledger.leases(), [], "a fenced claim writes nothing")
         self.assertEqual(len(self.ledger.fences()), 1, "the fence survives the refused write")
 
+    def _fence(self, hosts: list[str], reason: str = "production serve TP=4",
+               by: str = "owner directive", at: str = "2026-11-12T02:00:00Z") -> None:
+        write(self.repo / leases.LEDGER, json.dumps({
+            "version": 1, "leases": [],
+            "fenced": [{"hosts": hosts, "reason": reason, "fenced_by": by, "fenced_at": at}]}))
+
+    def test_unfence_empties_the_live_list_and_records_who_when_why(self) -> None:
+        self._fence(["n1", "n2"])
+        entries = self.ledger.unfence(["n1", "n2"], actor="session-x",
+                                      reason="production serve stopped")
+        self.assertEqual(self.ledger.fences(), [], "the live record is gone")
+        self.assertEqual(self.ledger.held_hosts(["n1", "n2"]), {})
+        self.assertEqual(len(entries), 1)
+        entry = entries[0]
+        self.assertEqual(entry["actor"], "session-x")
+        self.assertEqual(entry["reason"], "production serve stopped")
+        self.assertEqual(entry["removed_at"], "1970-01-01T00:16:40Z")
+        self.assertEqual(entry["hosts"], ["n1", "n2"])
+        self.assertEqual(entry["removed"]["fenced_by"], "owner directive")
+        data = json.loads((self.repo / leases.LEDGER).read_text(encoding="utf-8"))
+        self.assertEqual(data["fenced"], [])
+        self.assertEqual(len(data["fence_log"]), 1, "the history outlives the removal")
+        self.assertEqual(self.ledger.fence_log()[0]["removed"]["reason"],
+                         "production serve TP=4")
+
+    def test_an_unfence_without_a_reason_is_refused(self) -> None:
+        self._fence(["n1"])
+        with self.assertRaises(leases.LeaseError) as ctx:
+            self.ledger.unfence(["n1"], actor="session-x", reason=" ")
+        self.assertIn("why", str(ctx.exception))
+        self.assertEqual(len(self.ledger.fences()), 1, "a refused removal leaves the fence")
+        self.assertEqual(self.ledger.fence_log(), [])
+
+    def test_an_unfence_without_an_actor_is_refused(self) -> None:
+        self._fence(["n1"])
+        with self.assertRaises(leases.LeaseError) as ctx:
+            self.ledger.unfence(["n1"], actor="", reason="done")
+        self.assertIn("who", str(ctx.exception))
+        self.assertEqual(len(self.ledger.fences()), 1)
+        self.assertEqual(self.ledger.fence_log(), [])
+
+    def test_unfencing_a_missing_record_is_refused_naming_it(self) -> None:
+        self._fence(["n1"])
+        with self.assertRaises(leases.LeaseError) as ctx:
+            self.ledger.unfence(["n9"], actor="session-x", reason="done")
+        message = str(ctx.exception)
+        self.assertIn("n9", message)
+        self.assertIn("n1", message, "the refusal shows what is fenced now")
+        self.assertEqual(len(self.ledger.fences()), 1)
+        self.assertEqual(self.ledger.fence_log(), [])
+
+    def test_a_fence_outside_the_named_host_set_survives(self) -> None:
+        write(self.repo / leases.LEDGER, json.dumps({
+            "version": 1, "leases": [],
+            "fenced": [{"hosts": ["n1", "n2"], "reason": "one"},
+                       {"hosts": ["n3"], "reason": "two"}]}))
+        self.ledger.unfence(["n1", "n2"], actor="session-x", reason="done")
+        self.assertEqual([fence["reason"] for fence in self.ledger.fences()], ["two"])
+        self.assertEqual(sorted(self.ledger.held_hosts(["n1", "n3"])), ["n3"])
+
+    def test_unfence_through_the_cli_records_the_removal(self) -> None:
+        self._fence(["n1", "n2"])
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(director_module.main([
+                "lease", "--unfence", "n1,n2", "--holder", "session-x",
+                "--reason", "serve stopped", "--repo-root", str(self.repo)]), 0)
+        self.assertIn("unfenced n1,n2 (by session-x at ", out.getvalue())
+        self.assertIn(": serve stopped", out.getvalue())
+        self.assertEqual(self.ledger.fences(), [])
+        self.assertEqual(self.ledger.fence_log()[0]["reason"], "serve stopped")
+
+    def test_the_cli_refuses_an_unfence_without_a_reason(self) -> None:
+        self._fence(["n1"])
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(director_module.main([
+                "lease", "--unfence", "n1", "--holder", "session-x",
+                "--repo-root", str(self.repo)]), 3)
+        self.assertIn("cannot unfence", err.getvalue())
+        self.assertIn("why", err.getvalue())
+        self.assertEqual(len(self.ledger.fences()), 1)
+        self.assertEqual(self.ledger.fence_log(), [])
+
     def test_renew_keeps_a_live_claim_and_release_drops_it(self) -> None:
         record = self.ledger.acquire("session-a", ["n1"], ttl=10)
         self.clock.now += 8

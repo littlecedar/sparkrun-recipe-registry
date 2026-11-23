@@ -25,22 +25,24 @@ executor_config:
 # needs `--mmproj` plus llama-mtmd-cli semantics; staging it would be a second knob.
 mmproj: none
 
-# LICENSE — Apache-2.0 grant plus a SEPARATE acceptable-use policy (new class, raised as
-# `mad-science/QUESTIONS.md` `#88`, 2026-11-20). `LICENSE` is the verbatim Apache License
-# 2.0 text; `USAGE_POLICY.md` (5,230 B) layers prohibited uses on top of it: "You should
-# not use, or allow others to use, Muse Glimmer to: … Engage in, promote, incite,
-# facilitate, or assist in the planning or development of activities that present a risk
-# of death or bodily harm to individuals, including use of Muse Glimmer related to the
-# following: Military, warfare, nuclear industries or applications, espionage, use for
-# materials or activities that are subject to the International Traffic Arms Regulations
-# (ITAR) … or to the U.S. Biological Weapons Anti-Terrorism Act of 1989 or the Chemical
-# Weapons Convention Implementation Act of 1997", plus "Muse Glimmer is not intended for
-# individuals under the age of 18". None of it bites on an authored-not-booted probe arm
-# that is neither sold nor exposed, which is the same footing #86/#87 were ruled on; the
-# class itself is the owner's call, not this lane's.
+# LICENSE — Apache-2.0 grant plus a SEPARATE acceptable-use policy, CARRIED not waived.
+# `LICENSE` is the verbatim Apache License 2.0 text; `USAGE_POLICY.md` (5,230 B) layers
+# prohibited uses on top of it: "You should not use, or allow others to use, Muse Glimmer
+# to: … Engage in, promote, incite, facilitate, or assist in the planning or development of
+# activities that present a risk of death or bodily harm to individuals, including use of
+# Muse Glimmer related to the following: Military, warfare, nuclear industries or
+# applications, espionage, use for materials or activities that are subject to the
+# International Traffic Arms Regulations (ITAR) … or to the U.S. Biological Weapons
+# Anti-Terrorism Act of 1989 or the Chemical Weapons Convention Implementation Act of
+# 1997", plus "Muse Glimmer is not intended for individuals under the age of 18".
+# OWNER DECISION 2026-11-22 (ViBoard thread t26, settling the class raised as
+# `mad-science/QUESTIONS.md` `#88` on 2026-11-20): SHIP IT AS A NORMAL EXPLORE ARM — no
+# probe-only banner and no exclusion — with the policy's activity reservations carried as
+# obligations on any use (the `#84` precedent: a permissive grant plus an obligation, not a
+# gate). The obligations travel with the arm to whoever runs it; they are not waived.
 
 description: >-
-  PROBE ARM (`zz-`), boot-verified 2026-11-20 (TP=1, ladder + tool call, quality not re-scored): `meta-models/Muse-Glimmer-30B` (29.78B BF16,
+  SHIPPED 2026-11-22 (owner, ViBoard thread t26; the class was raised as `#88`), boot-verified 2026-11-20 (TP=1, ladder + tool call, quality not re-scored): `meta-models/Muse-Glimmer-30B` (29.78B BF16,
   59,553,435,272 B in two shards) in the fleet's 4-bit class, served from the AUTHOR ORG's
   own GGUF — `meta-models/Muse-Glimmer-30B-GGUF` @ b44f1072,
   `Muse-Glimmer-30B-KQuant-17GB-Q4_K_M.gguf` (16,756,683,904 B). Header read from the file,
@@ -105,7 +107,7 @@ metadata:
   model_params: "29.78B"
   model_dtype: q4_k_m
   kv_dtype: fp16
-  tags: trial, probe, reasoning, tools
+  tags: official, slow, reasoning, tools
 
 defaults:
   port: 8000

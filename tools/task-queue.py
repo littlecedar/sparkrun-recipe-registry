@@ -56,8 +56,7 @@ Stdlib only.  Usage:
     uv run python -B tools/task-queue.py render --board --stale # ids whose summary is missing/stale
     uv run python -B tools/task-queue.py summarize --id X --summary "one sentence"  # or --summary -
     uv run python -B tools/task-queue.py graph                 # fenced mermaid: the connected rows
-    #   only rows taking part in an edge (plus the questions they reach); `--all` draws every
-    #   open row
+    #   only rows taking part in an edge; `--all` draws every open row
     uv run python -B tools/task-queue.py orphans               # TODO items with no live queue row
     uv run python -B tools/task-queue.py lint [FILE ...]       # markdown that will not render (default: the board)
     uv run python -B tools/task-queue.py publish < new-board   # write the board unless the one on disk is newer
@@ -70,7 +69,7 @@ copies, so the work queue is derived rather than re-typed, and `orphans` is the 
 half: it reads the `<!-- archive-frozen: <sha> -->` marker and reports only open items *added since*
 that commit, so an item cannot quietly live in the archive instead of the register (a count bound was
 rejected — removing one grandfathered item while adding another would net out).  `questions` prints
-the open owner questions from the register's `questions` array.
+the open owner questions: the register's `ask` rows, with what each one blocks.
 
 Exit codes: 0 ok, 1 data/validation error (message on stderr), 2 usage error (argparse).
 """
@@ -390,29 +389,14 @@ def validate(data: dict, path: Path | None = None) -> list[dict]:
         if color[t["id"]] == WHITE:
             visit(t["id"], [])
 
-    # The owner-question register, when present: numbering only grows, and a row must name
-    # what decides it.  A settled row leaves the array (it moves to the prose record), so
-    # the array is the *open* set and `questions` can answer "what is waiting on the owner"
-    # without reading the markdown.
-    questions = data.get("questions")
-    if questions is not None:
-        if not isinstance(questions, list):
-            raise QueueError("'questions' must be a list")
-        last = 0
-        for i, question in enumerate(questions):
-            where = f"questions[{i}]"
-            if not isinstance(question, dict):
-                raise QueueError(f"{where}: not an object")
-            qid = question.get("id")
-            if isinstance(qid, bool) or not isinstance(qid, int) or qid <= 0:
-                raise QueueError(f"{where}: 'id' must be a positive integer (never reused)")
-            if qid <= last:
-                raise QueueError(f"questions: id {qid} does not come after {last} — numbering only grows")
-            last = qid
-            for field in ("summary", "status", "provenance", "asked"):
-                value = question.get(field)
-                if not isinstance(value, str) or not value.strip():
-                    raise QueueError(f"questions#{qid}: '{field}' must be a non-empty string")
+    # The owner-question register: owner directive 2026-11-22 replaced the `questions` array with
+    # `ask` rows, so a register that still carries the key is the drift that directive removed —
+    # two homes for one fact, one of them unread. Refuse it rather than ignore it.
+    if "questions" in data:
+        raise QueueError(
+            "'questions' was retired 2026-11-22: an owner question is an `ask` row now "
+            "(`add --state ask`, the waiting rows `blocked` on it). Remove the key and create "
+            "the rows; `task-queue.py questions` reads them")
     return tasks
 
 
@@ -763,19 +747,38 @@ def enumerate_tasks_with_tier(ordered, tiers):
         yield tier_index(task["model"], tiers), task
 
 
+#: An ask row carries no date field: the date it was raised lives in its provenance, by the
+#: convention every ask row follows — an explicit `asked YYYY-MM-DD` when the question predates the
+#: row (a migration), else the first ISO date there (the directive that created it). `-` when the
+#: provenance names neither.
+ASKED_EXPLICIT = re.compile(r"\basked\s+(20\d\d-\d\d-\d\d)\b", re.I)
+ASKED = re.compile(r"\b(20\d\d-\d\d-\d\d)\b")
+
+
+def asked_date(task: dict) -> str:
+    """The date an `ask` row was raised, from its provenance, or "" when it names none."""
+    text = str(task.get("provenance") or "")
+    match = ASKED_EXPLICIT.search(text) or ASKED.search(text)
+    return match.group(1) if match else ""
+
+
 def cmd_questions(args, path: Path) -> None:
-    """The open owner questions, from the register rather than the markdown."""
+    """The open owner questions: the register's `ask` rows (owner directive 2026-11-22).
+
+    An owner question is a row — `add --state ask`, with the waiting rows `blocked` on it — so this
+    reads the register and nothing else. It used to print the `questions` array; that array was
+    empty while four `ask` rows carried the live set, which is the drift the directive removed.
+    """
     data = load(path)
-    validate(data, path)
-    rows = data.get("questions") or []
-    open_rows = [q for q in rows if not q["status"].startswith("answered")]
-    print("| # | summary | status | provenance | asked |")
-    print("|---|---|---|---|---|")
-    for question in open_rows:
-        print(f"| {question['id']} | {question['summary']} | {question['status']} "
-              f"| {question['provenance']} | {question['asked']} |")
-    print(f"{len(open_rows)} open of {len(rows)} question row(s); the prose record is "
-          f"`mad-science/QUESTIONS.md` and `TODO.md` §\"Settled questions\"")
+    tasks = validate(data, path)
+    asks = [t for t in tasks if t.get("state") == "ask"]
+    print("| id | question | asked | blocks |")
+    print("|---|---|---|---|")
+    for ask in asks:
+        print(f"| {ask['id']} | {_cell(ask.get('title') or '')} | {asked_date(ask) or '-'} | "
+              f"{', '.join(ask.get('blocks') or []) or '-'} |")
+    print(f"{len(asks)} open owner question(s); answering one is `done --id <ask>`, then return "
+          f"each dependent to `queued` (`lint` names the ones left `blocked`)")
 
 
 def cmd_weight(args, path: Path) -> None:
@@ -1417,8 +1420,6 @@ def _cell(text: str) -> str:
 GRAPH_BUDGET = 30
 #: Hyphenated ids are long; with the connected view at ~9 nodes there is room for most of one.
 GRAPH_LABEL = 60
-#: The three ways a row cites an owner question: `QUESTIONS.md #67`, `questions [67]`, a bare `#67`.
-QUESTION_CITE = re.compile(r"#(\d+)|questions\s*\[\s*(\d+)\s*\]")
 
 #: One style-only rule, and not a colour: the renderer's theme owns fill and text, so the block
 #: reads on light and dark alike. State is in the label text; the dashed stroke is a non-colour
@@ -1431,22 +1432,18 @@ def _graph_label(text: str) -> str:
     return text if len(text) <= GRAPH_LABEL else text[:GRAPH_LABEL] + "…"
 
 
-def question_citations(task: dict, known: set[int]) -> list[int]:
-    """The open question ids a row cites in its prose, sorted; ids outside `known` are dropped."""
-    text = " ".join(str(task.get(key) or "") for key in ("notes", "provenance"))
-    found = {int(a or b) for a, b in QUESTION_CITE.findall(text)}
-    return sorted(found & known)
-
-
 def graph_body(data: dict, max_nodes: int = GRAPH_BUDGET,
                all_rows: bool = False) -> tuple[list[str], list[str]]:
     """(the mermaid lines above the closing fence, warnings) for the open rows in `data`.
 
-    Edge tiers, because a `blocked_by`-only graph would be a lie: measured 2026-11-08, every
-    open blocked row stores `blocked_by: []` while its gate is a citation of an owner question.
-    So: `blocks` pairs between open rows, `q<n> --> row` for every row whose notes or provenance
-    cite an open question, and nothing for the rest -- which `--all` draws dashed
-    `no-recorded-edge`, "gated by prose, not by a row".
+    One edge tier: `blocks` pairs between open rows. It used to have a second — `q<n> --> row`
+    for a row whose prose cited an open question number — because on 2026-11-08 every blocked row
+    stored `blocked_by: []` while its gate was a citation of `QUESTIONS.md`. Owner directive
+    2026-11-22 replaced that: an owner question is an `ask` row, the waiting row is `blocked` on
+    it, and `check` refuses a blocked row with no blocker — so the citation tier had nothing left
+    to draw and was removed with the `questions` array it keyed on. A blocked row with no incoming
+    edge is still drawn dashed (`no-recorded-edge`) by `--all`, which now means exactly what it
+    says: the graph could not find the row's blocker.
 
     The default view draws the connected set only: rows taking part in an edge, in either
     direction, plus the questions they reach. On the 2026-11-08 register that is 9 nodes and
@@ -1465,8 +1462,6 @@ def graph_body(data: dict, max_nodes: int = GRAPH_BUDGET,
                     if isinstance(t, dict) and t.get("state") != "done"),
                    key=lambda t: str(t.get("id")))
     open_ids = {str(t.get("id")) for t in tasks}
-    questions = {int(q["id"]): q for q in data.get("questions") or []
-                 if isinstance(q, dict) and isinstance(q.get("id"), int)}
     warnings: list[str] = []
 
     row_edges: set[tuple[str, str]] = set()
@@ -1488,21 +1483,15 @@ def graph_body(data: dict, max_nodes: int = GRAPH_BUDGET,
         for parent in sorted(derived - stored):
             warnings.append(f"{parent} -> {tid}: in {parent}.blocks, but blocked_by does not name it")
 
-    cited = {str(t.get("id")): question_citations(t, set(questions)) for t in tasks}
-    question_nodes = sorted({q for ids in cited.values() for q in ids})
-    question_edges = {("q:%d" % q, tid) for tid, qs in cited.items() for q in qs}
     incoming = {target for _source, target in row_edges}
     blocked_ids = [str(t.get("id")) for t in tasks if t.get("state") == "blocked"]
-    question_gated = [tid for tid in blocked_ids if tid not in incoming and cited[tid]]
-    prose_gated = [tid for tid in blocked_ids if tid not in incoming and not cited[tid]]
+    prose_gated = [tid for tid in blocked_ids if tid not in incoming]
 
     participants = {tid for edge in row_edges for tid in edge}
-    participants |= {tid for _q, tid in question_edges}
     drawn = tasks if all_rows else [t for t in tasks if str(t.get("id")) in participants]
     omitted = len(tasks) - len(drawn)
     counts = (f"{len(blocked_ids)} blocked, {len(row_edges)} edges, "
-              f"{len(prose_gated)} prose-gated, {len(question_gated)} question-gated, "
-              f"{len(question_nodes)} question")
+              f"{len(prose_gated)} prose-gated")
     if omitted:
         counts += f", {omitted} rows not drawn (--all)"
 
@@ -1511,35 +1500,26 @@ def graph_body(data: dict, max_nodes: int = GRAPH_BUDGET,
         # A fence with only a classDef says nothing; the reader gets a node that says it.
         return (["flowchart LR", "  %% " + counts,
                  '  empty["no open rows in the register"]', classdef], warnings)
-    if not drawn and not question_nodes:
+    if not drawn:
         return (["flowchart LR", "  %% " + counts,
                  '  empty["no edge recorded among the open rows; --all draws every row"]',
                  classdef], warnings)
 
-    nodes = [("q:%d" % q, questions[q], "question") for q in question_nodes]
-    nodes += [(str(t.get("id")), t, "task") for t in drawn]
+    nodes = [(str(t.get("id")), t, "task") for t in drawn]
     truncated = len(nodes) > max_nodes
     shown = nodes[: max_nodes - 1] if truncated else nodes
     hidden = nodes[len(shown):]
     hidden_tasks = [n for n in hidden if n[2] == "task"]
-    hidden_questions = [n for n in hidden if n[2] == "question"]
 
     name: dict[str, str] = {}
     task_number = 0
     for key, _payload, kind in shown:
-        if kind == "question":
-            name[key] = "q" + key.split(":", 1)[1]
-        else:
-            task_number += 1
-            name[key] = "t%d" % task_number
+        task_number += 1
+        name[key] = "t%d" % task_number
     lines = ["flowchart LR", "  %% " + counts]
     if truncated:
         lines.append(f"  %% truncated: {len(shown)} shown of {len(nodes)}")
     for key, payload, kind in shown:
-        if kind == "question":
-            lines.append(f'  {name[key]}["Q{payload["id"]} · '
-                         f'{_graph_label(payload.get("summary"))}"]')
-            continue
         tid = str(payload.get("id"))
         gated = tid in prose_gated
         owner = " · owner" if gated else ""
@@ -1549,10 +1529,8 @@ def graph_body(data: dict, max_nodes: int = GRAPH_BUDGET,
         more = []
         if hidden_tasks:
             more.append(f"{len(hidden_tasks)} more open rows")
-        if hidden_questions:
-            more.append(f"{len(hidden_questions)} more question(s)")
         lines.append(f'  tn["… {" + ".join(more)} (see the table)"]')
-    edges = sorted({(name[a], name[b]) for a, b in row_edges | question_edges
+    edges = sorted({(name[a], name[b]) for a, b in row_edges
                     if a in name and b in name},
                    key=lambda e: (e[0][0], int(e[0][1:]), e[1][0], int(e[1][1:])))
     for source, target in edges:

@@ -22,7 +22,7 @@ _Generated 2026-11-21 20:12 ET_
 ## Work Queue
 ```mermaid
 flowchart LR
-  %% 1 blocked, 1 edges, 0 prose-gated, 0 question-gated, 0 question
+  %% 1 blocked, 1 edges, 0 prose-gated
   t1["board-census-tool · queued"]
   t2["board-render-tool · blocked"]
   t1 --> t2

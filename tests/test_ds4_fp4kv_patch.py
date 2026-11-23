@@ -57,11 +57,14 @@ class CacheFormat(unittest.TestCase):
         self.assertEqual(self.mod.sm120_cache_format(584), ("", False))
         self.assertEqual(self.mod.sm120_cache_format(584, 584), ("", False))
 
-    def test_v41_main_selects_the_inline_route(self):
-        inline = self.mod.V41_INLINE_SCALE_FORMAT
-        self.assertEqual(self.mod.sm120_cache_format(528), (inline, False))
-        self.assertEqual(self.mod.sm120_cache_format(528, 528), (inline, False))
-        self.assertEqual(self.mod.sm120_cache_format(528, 288), (inline, True))
+    def test_v41_main_selects_the_footer_route(self):
+        # The tree's V41 page is a footer page, so the format is the footer one;
+        # the inline family reads zeros from it (measured 2026-11-22).
+        footer = self.mod.V41_SCALE_FORMAT
+        self.assertEqual(footer, "ue8m0_g32")
+        self.assertEqual(self.mod.sm120_cache_format(528), (footer, False))
+        self.assertEqual(self.mod.sm120_cache_format(528, 528), (footer, False))
+        self.assertEqual(self.mod.sm120_cache_format(528, 288), (footer, True))
 
     def test_an_unreadable_pair_is_refused(self):
         for main_bytes, extra_bytes in ((584, 528), (584, 288), (528, 584), (288, None)):
@@ -71,7 +74,7 @@ class CacheFormat(unittest.TestCase):
 
     def test_the_reader_probe_is_false_without_flashinfer(self):
         # CI has no FlashInfer; the probe must answer, not raise.
-        self.assertFalse(self.mod.sm120_reader_has_inline_route())
+        self.assertFalse(self.mod.sm120_reader_has_v41_route())
 
 
 class PatchMechanics(unittest.TestCase):
@@ -95,7 +98,7 @@ class PatchMechanics(unittest.TestCase):
         self.mod.apply(self.root)
         self.mod.verify(self.root)
         self.assertNotEqual(self.files["pool"].read_text(), "")
-        self.assertIn("is_v41_arch = _sm120_inline_reader()", self.files["pool"].read_text())
+        self.assertIn("is_v41_arch = _sm120_v41_reader()", self.files["pool"].read_text())
         self.assertIn("**_sm120_format_kwargs(", self.files["flashmla"].read_text())
 
     def test_a_missing_anchor_fails_closed(self):

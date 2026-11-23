@@ -262,6 +262,46 @@ class Register:
                         if row.get("id") == task_id), "")
         return f"{current} — {why}" if current else why
 
+    def ask(self, task_id: str, arm: str, why: str, mdir: str = "") -> str:
+        """The human-intervention row that holds a blocked arm; returns its id.
+
+        A `blocked` row must name its blocker (`QUEUE.md` §States and transitions, owner directive
+        2026-11-22), and a campaign's non-measured outcome *is* an owner question: the arm could not
+        be measured and a human has to look. The ask is created once per (row, question) and reused
+        — a second identical question would split the owner's answer across two rows — and a `done`
+        ask (already answered) is not reopened: the next block of the same row gets a numbered one.
+        """
+        base = f"ask-campaign-{task_id}"
+        for candidate in [base, *[f"{base}-{n}" for n in range(2, 10)]]:
+            state = self.state(candidate)
+            if not state:
+                self._call(
+                    "add", "--id", candidate, "--state", "ask", "--estimate-h", "0.5",
+                    "--title", f"Ask: human intervention for {arm} — {why}",
+                    "--notes",
+                    (f"QUESTION FOR THE OWNER: the campaign could not measure {arm} — {why}. "
+                     f"The row {task_id} is blocked on this answer; nothing else is outstanding. "
+                     f"OPTIONS: (a) the arm is not worth another attempt — close {task_id} with the "
+                     f"reason; (b) it is — say what to change and return {task_id} to queued. "
+                     f"ANSWER: done --id {candidate}, then act on {task_id}."),
+                    "--provenance",
+                    (f"campaign settle: {arm} ({why}); arm receipt {mdir or '-'}"),
+                    "--blocks", task_id)
+                return candidate
+            if state != "done":
+                blocks = self._blocks(candidate)
+                if task_id not in blocks:
+                    self._call("update", "--id", candidate,
+                               "--blocks", ",".join([*blocks, task_id]))
+                return candidate
+        raise RegisterError(f"{task_id}: no free ask id for the human-intervention row "
+                            f"({base} and 8 suffixes are all done)")
+
+    def _blocks(self, task_id: str) -> list[str]:
+        """The row's `blocks` list as the file says now."""
+        return next(([str(b) for b in row.get("blocks", [])] for row in self.rows()
+                     if row.get("id") == task_id), [])
+
 
 def row_arm(row: dict[str, Any]) -> str:
     """The arm a register row names: its recipe's basename, or "" for an authoring row."""

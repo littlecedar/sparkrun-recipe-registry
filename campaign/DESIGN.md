@@ -205,7 +205,7 @@ lease/reap path, not the register. At the end of the arm:
 |---|---|
 | measured (from receipt fields, never the rc) | `--state done --evidence <measurement dir>` |
 | failed | `--state queued` when the row carries no hold, `--notes` appended with `campaign: <reason>` — the row keeps its own justification text and no evidence pointer is invented; the transition clears `claimed_by`/`claimed_at`, so the row cannot be mistaken for a live claim. A `blocked` or `done` state that landed while the arm ran keeps its state and only gains the note: a human's hold outranks the campaign's wish to retry, and requeueing over it is what resurrected the SM121 rows three times on 2026-11-08 |
-| blocked (leftover survivor, unverifiable host) | `--state blocked` plus the same note, because a human must look — unless a `done` state already answers the row, which is preserved; the claim is cleared the same way |
+| blocked (leftover survivor, unverifiable host) | `--state blocked` plus the same note, because a human must look — and a blocked row must name its blocker, so the director first creates the human-intervention row (`add --state ask --id ask-campaign-<row> --title "Ask: human intervention for <arm> — <reason>" --blocks <row>`) and reuses the open one on a second settle instead of splitting the answer across two rows; a `done` ask is already answered, so the next block gets a numbered one. A `done` state already on the row is preserved, and the claim is cleared the same way |
 | recorded negative | `--state done --evidence "<doc>:<line> (measured-rejected)"` — a recorded negative is an answer, and the citation is its evidence |
 | claim refused by the tool | the arm is blocked in the campaign and no lease is issued; the row is left alone |
 
@@ -264,8 +264,15 @@ waits; a claim that appears between placement and the write refuses that arm's b
 ruling is about multi-machine boots — but they still do not land on a leased rank. A top-level
 `fenced` list in the same ledger holds ranks **permanently** — a live production serve, not a
 window — and is refused by every reader (`lease-held: <host> (fence: …)`) and by `acquire` even
-with `--takeover`; only deleting the record opens the hosts, so a lapsed TTL cannot un-fence
-production. The legacy
+with `--takeover`; only the supported removal opens the hosts, so a lapsed TTL cannot un-fence
+production. A removal is `lease --unfence <hosts> --holder <session> --reason "<why>"`: it removes
+the fence record whose host set is exactly `<hosts>` and appends one `fence_log` entry naming the
+actor, the time, the reason and the record it removed, so a fence that is gone still has its
+history (`lease --list` prints it as `fence-log removed=…`). The log is append-only: a removal
+without `--reason` or `--holder`, or one naming hosts no record covers, refuses and writes nothing.
+**A manual edit of `.local/fleet-leases.json` still bypasses the path and leaves no entry** — the
+ledger is a plain syncthing-shared file, so the record covers the supported path, not every
+byte-level edit (the same direct-edit scope the window lock has). The legacy
 `.local/fleet-window.lock` is still read, as a blanket hold for every declared host, because a
 session that wrote one has not moved to a lease yet; the lease command refuses while one exists,
 and the director never writes it. Only the canonical `.local/fleet-window.lock` and its legacy
@@ -284,12 +291,13 @@ ledger's rules verbatim (`read_window`): a lock past its end still holds — a b
 and a lock with no parseable `window-end` holds as well, because an unreadable declaration is not
 the absence of one. The window's own owner boots inside it with
 `ARM_ALLOW_DECLARED_WINDOW=<reason>`, and the reason lands in `<receipt>/window-override.txt` so an
-override is evidence rather than a silent bypass. **The remaining gap is upstream, not here:** a
-human typing `sparkrun run` or `sparkrun benchmark` directly bypasses every repo launcher and never
-sees the lock. The request to sparkrun is to read a declared-window file (or accept a `--window`
-declaration) before placement, or to expose a pre-launch hook this repo can install; until one
-exists, the rule is enforced in the repo's launchers and documented for the human path — it is not
-claimed to be blocked.
+override is evidence rather than a silent bypass. **The direct-boot path is campaign-scope by owner
+decision** (2026-11-22, ViBoard thread t21): the window lock and the lease ledger bind campaign
+placement, and a direct manual boot is the owner's own act, not a path that has to consult them. A
+human typing `sparkrun run` or `sparkrun benchmark` therefore bypasses the repo launchers by design,
+and the rule stays enforced where the campaign places work — the launchers' exit-19 check above is
+unchanged. The upstream request (sparkrun reads a declared-window file, accepts `--window`, or
+exposes a pre-launch hook) is withdrawn unless the owner reopens it.
 
 **Draining.** Manifest mode is unchanged: drained means exit 0 and stay down. A queue campaign
 defaults to **polling** instead — every `QUEUE_POLL` (30 s) the serve loop re-reads the register,
@@ -321,10 +329,10 @@ uv run --frozen python -m sparkrun_campaign.director serve --queue --dry-run \
 Owner directive 2026-11-22: *"there should be a campaign director for session or code work."* Queue
 mode above dispatches **fleet** rows (`recipe` + `tp`). The register also carries rows a session can
 do with no fleet at all — a doc sweep, a tool change, a measurement from existing receipts — and
-those had no dispatcher, so they sat `queued` forever while a human read the board. This is that
-dispatcher. It is **designed here, not implemented in the 2026-11-22 pass**: the tool already
-supports every state it needs (`scheduled`, `running`, `blocked`, `ask`, `done`), and the design is
-written to be implemented as one module without touching the register's shape.
+those had no dispatcher, so they sat `queued` forever while a human read the board. **Implemented** as
+`tools/session-director.py` (stdlib, no campaign import): its whole interface is
+`tools/task-queue.py`, so a session-only dispatcher does not need the fleet campaign's package or its
+`uv --project campaign` environment.
 
 **Selection.** Read `task-queue.py queue --json` (the weighted, tiered ordering — the director never
 re-derives it) and take rows that are: `state == "queued"`; no `recipe` and no `tp` (a fleet row is
@@ -364,9 +372,43 @@ its own stamp line. It never writes `done` for work it did not do.
 stale read, so two dispatchers racing on one row means one loses loudly and re-reads. The director is
 idempotent per tick: a row it already scheduled is skipped because it is no longer `queued`.
 
-**Why this is safe to add later.** The states are already enforced by `check` (a `scheduled` row
-must name its dispatcher; `blocked` must name a blocker; `ask` must be a root), so an implementation
-that follows the four steps above cannot invent a state the register rejects.
+**Why this is safe.** The states are enforced by `check` (a `scheduled` row must name its
+dispatcher; `blocked` must name a blocker; `ask` must be a root), so the dispatcher cannot invent a
+state the register rejects.
+
+### Running it
+
+```sh
+# one tick, nothing written: what it would hand out, and to whom
+uv run python -B tools/session-director.py --once --dry-run
+
+# the live single-row path: ONE row, assigned to a named worker, logged, then exit
+uv run python -B tools/session-director.py --once --dispatcher-name worker-a --limit 1
+
+# the loop a dispatcher service would run
+uv run python -B tools/session-director.py --dispatcher-name worker-a --interval 60
+```
+
+`--limit` defaults to 1 on purpose: the live path hands out one row, so a dispatcher never
+mass-assigns work nobody is waiting for. `--dispatcher-name` is required for a real run (an
+anonymous assignment names no worker that may claim it); `--lane`/`--model` narrow the scope;
+`--assign-timeout` is minutes. Exit codes: 0 ok, 1 the register or a write failed (the message names
+the row), 2 usage. The JSONL log is `.local/session-director/<name>.jsonl`, one line per assignment:
+`{"row", "worker", "at", "attempt"}`.
+
+**The worker side, exactly.** A worker session polls for rows whose `scheduled_by` is
+`session-director:<its name>`, and claims one before doing anything:
+
+```sh
+uv run python -B tools/task-queue.py queue --json | jq -r '.[] | select(.state=="scheduled" and .scheduled_by=="session-director:worker-a") | .id'
+uv run python -B tools/task-queue.py update --id <row> --state running --claimed-by worker-a
+```
+
+Then it does the work and returns the row: `done --id <row> --evidence <receipt>`, or
+`update --id <row> --state queued --notes "<old> — <why it failed>"`, or `blocked` with an edge to
+the row that is now the work (an `ask` row when it needs an owner input). A worker that cannot
+finish must not leave the row `running`; the expiry sweep only returns `scheduled` rows, so a stale
+claim is the reconciliation pass's finding.
 
 ## Wire protocol
 
@@ -819,13 +861,17 @@ uv run --frozen python -m sparkrun_campaign.director lease --list
 uv run --frozen python -m sparkrun_campaign.director lease --hosts "$NODES" \
   --holder <session> --ttl 14400 --window <window-name>
 uv run --frozen python -m sparkrun_campaign.director lease --release <id>
+uv run --frozen python -m sparkrun_campaign.director lease --unfence "$HOSTS" \
+  --holder <session> --reason "<why>"      # the removal is recorded in `fence_log`
 ```
 
 `.local/` is syncthing-shared, so a claim written on another checkout reaches the head on sync
 delay; claims and boots belong on the head, which is where every session reads them. The ledger is
 read by `tools/queue-drip.py` beside campaign `state.json` and the legacy lock, so a manual lease is
 seen by the drip without a lock; a `fenced` record in the same document holds a production serve's
-ranks permanently, and both the drip and every placement/proof path refuse them by name.
+ranks permanently, and both the drip and every placement/proof path refuse them by name. A fence is
+removed only through `lease --unfence`, which records who, when and why in `fence_log`; the live
+`fenced` list then no longer holds the ranks, but the removal stays in the ledger's history.
 
 Deliberately not done: a system-wide unit (needs root for no benefit), a timer (a campaign is
 started by a decision, not a schedule), and `Restart=always` (a finished campaign must not restart

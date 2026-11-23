@@ -150,6 +150,13 @@ dispatcher path exists so that a session/code worker can be handed work without 
 (`--claimed-by <name>`), and both records are released by the next exit from their state. Every
 state may be set back to `queued` (a failed attempt), and `done` is terminal.
 
+Two dispatchers exist: the **fleet campaign** (`campaign/`, rows with `recipe` + `tp`) and
+`tools/session-director.py` (rows without them — the session/code work). The session director takes
+the register's order, assigns one row per tick by default (`--limit 1`), logs the hand-off to
+`.local/session-director/<name>.jsonl`, and returns an unclaimed `scheduled` row to `queued` after
+`--assign-timeout` (default 30 min). A worker claims `running` before it starts; see
+`campaign/DESIGN.md` §"Session/code director" for the exact commands.
+
 **`ask` rows.** An owner input is a row, not a prose marker. `add --state ask` creates a root row
 whose `title` is the question and whose `notes` carry the options and the answer procedure; the rows
 that need the answer are `blocked` with `blocked_by: [<ask id>]`, which the tool derives from the
@@ -248,9 +255,14 @@ Rules that follow:
 - **New work goes to the queue only**: `task-queue.py add` with an estimate, `node_cost`, `notes`
   and `provenance`. There is no second copy of the item in `TODO.md`, because two restatements of
   one fact drift (the same rule as `AGENTS.md` §"Documentation zones").
-- **A settled question or decision stays prose.** `QUESTIONS.md` keeps the unresolved rows,
-  `TODO.md` §"Settled questions" and `# DECISIONS` keep the answered ones — they are read by a human
-  chasing a citation, not by a tick, so they are correctly outside the JSON.
+- **An open owner question is an `ask` row; a settled one is prose.** `task-queue.py add --state
+  ask` creates the question as its own root row (the question in `title`, the options and the answer
+  procedure in `notes`), and every row that needs the answer is `blocked` on it — see §"`ask`
+  rows" above and §6 of the session protocol. `TODO.md` §"Settled questions" and `# DECISIONS` keep
+  the answered ones, read by a human chasing a citation, not by a tick. `mad-science/QUESTIONS.md`
+  is an index of the `#N` numbering only: owner directive 2026-11-22 retired both the open-row
+  bullets and the register's `questions` array, because a second home for the open set is the
+  restatement drift this list exists to prevent.
 - **The board is rendered by script; a model only writes summaries.** `tools/board-tick.py` takes a
   flock, censuses the fleet, renders every cell through `board-render.py` (the `## Work Queue` table
   comes from `task-queue.py render --board`), publishes through `task-queue.py publish`, then
@@ -283,8 +295,10 @@ Rules that follow:
   open items **added since that commit** (plus markers naming an unknown id); it exits non-zero on
   either. A count bound was rejected: removing one grandfathered item while adding a new one would net
   out, and the archive's 52 pre-freeze items would need a permanent amnesty.
-- **The open owner questions are a register array too.** `queue.json` `questions` carries
-  `{id, summary, status, provenance, asked}` with numbering that only grows; a settled row leaves the
-  array for the prose record, so `task-queue.py questions` answers "what is waiting on the owner"
-  without reading `QUESTIONS.md`. Rationale for the asymmetry (questions in JSON, decisions in prose)
-  is the next section.
+- **The open owner questions are `ask` rows, and the array is retired.** `queue.json` carried a
+  `questions` array (`{id, summary, status, provenance, asked}`) until 2026-11-22; it sat empty while
+  four `ask` rows carried the live set, so owner directive 2026-11-22 replaced it with rows and
+  `validate` now **refuses** the key rather than ignoring it. `task-queue.py questions` prints the
+  `ask` rows — id, question, asked date (from the row's `provenance`), and what each one blocks —
+  without reading `QUESTIONS.md`, which keeps only the `#N` numbering. The next section keeps the
+  rationale for that asymmetry (open questions are rows, settled decisions are prose).

@@ -524,6 +524,8 @@ class Director:
             elif status == FAILED:
                 self.register.update(task, state="queued", notes=note)
             else:
+                # `blocked` must name its blocker: the human who has to look is the row.
+                self.register.ask(task, arm, why, mdir)
                 self.register.update(task, state="blocked", notes=note)
         except plan.RegisterError as exc:
             print(f"register: {arm} not updated ({exc}); its row may still read running",
@@ -1122,13 +1124,26 @@ def lease_command(args: argparse.Namespace) -> int:
     Same ledger and same record as the director uses, so one mechanism claims a multi-rank boot.
     A `--ttl` is required to write: the claim expires on its own, which is what lets a lost session
     stop holding the fleet. A release names one record — its id, or the same holder and hosts it
-    was written with — because a holder is a session, not a claim. A memory-risky shape (four or
-    more ranks unless `--memory-risky/--no-memory-risky` says otherwise) may not take an excluded
-    host without `--allow-host` naming it and a `--window`: the same waiver the plan requires, with
-    the host's guardrails proved before the record exists.
+    was written with — because a holder is a session, not a claim. An `--unfence` removes the fence
+    record whose host set is exactly the named hosts and appends who (--holder), when and why
+    (--reason) to `fence_log`, so the removal keeps a record after the fence is gone. A
+    memory-risky shape (four or more ranks unless `--memory-risky/--no-memory-risky` says
+    otherwise) may not take an excluded host without `--allow-host` naming it and a `--window`:
+    the same waiver the plan requires, with the host's guardrails proved before the record exists.
     """
     ledger = leases.Ledger(Path(args.repo_root).expanduser() / leases.LEDGER)
     try:
+        if args.unfence:
+            try:
+                entries = ledger.unfence(_host_list(args.unfence), actor=args.holder,
+                                         reason=args.reason)
+            except leases.LeaseError as exc:
+                print(f"cannot unfence: {exc}", file=sys.stderr)
+                return 3
+            for entry in entries:
+                print(f"unfenced {','.join(entry['hosts'])} (by {entry['actor']} at "
+                      f"{entry['removed_at']}): {entry['reason']}")
+            return 0
         if args.release:
             hosts = _host_list(args.hosts)
             record = ledger.find(lease_id=args.release) or (
@@ -1168,6 +1183,10 @@ def lease_command(args: argparse.Namespace) -> int:
                       f"at={fence.get('fenced_at') or '?'} "
                       f"task={serve.get('task_id') or '-'} "
                       f"image={serve.get('image_id') or '-'}")
+            for entry in ledger.fence_log():
+                print(f"fence-log removed={','.join(entry.get('hosts') or ())} "
+                      f"by={entry.get('actor') or '?'} at={entry.get('removed_at') or '?'} "
+                      f"reason={entry.get('reason') or '?'}")
             window = ledger.window()
             if window is not None:
                 print(f"window: {window.verdict}")
@@ -1340,6 +1359,11 @@ def main(argv: list[str] | None = None) -> int:
                             "and shown by --list")
     claim.add_argument("--release", default="", metavar="ID",
                        help="drop one record: give its id, or a holder plus --hosts")
+    claim.add_argument("--unfence", default="", metavar="HOSTS",
+                       help="remove the fence record whose host set is exactly these hosts, "
+                            "recording --holder (who), the time and --reason (why) in `fence_log`")
+    claim.add_argument("--reason", default="", metavar="WHY",
+                       help="why a fence is removed (required with --unfence; stored in the log)")
     claim.add_argument("--takeover", action="store_true",
                        help="supersede a live claim on overlapping ranks; the note records it "
                             "(never needed to release your own record)")

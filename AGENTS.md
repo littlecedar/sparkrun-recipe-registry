@@ -21,7 +21,7 @@ still add no row, because an accuracy declaration belongs inside `metadata:` whe
 `unknown-top-level-key` does not fire, while the 3D arm does now, on a `restated-managed-path`
 suggestion; the roster names every arm that
 prints any finding, warnings and suggestions alike, not only the warning arms it listed before);
-suite 1915 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
+suite 1944 tests (derived by discovery, guard-checked) and 3 skipped on a clean checkout (4 in CI, 2 in this clone, which carries the untracked `.local/fleet.yaml`; §Testing & QA names every skip and its cause), the skip count dated 2026-11-08, from the run that produced it**. The snapshot is one
 run over the tracked tree, so it is re-taken — never arithmetic-adjusted — whenever recipes are
 added or retired, and every number in it carries the date of the run that produced it, never the date
 it was edited. It deliberately carries no "n/m pass" fraction: `--fix` rewrites only the
@@ -146,7 +146,7 @@ Load-bearing contracts:
 | `attic/` | Tracked recipe/doc archive: 5 retired EXL3 vLLM recipes (+ tuning configs), their EXL3 patch/cache mods, the 2026-10-26-retired vLLM b12x parity arm `zz-ds4-1017-b12x-vllm-parity.yaml`, and the 14 TP≥4 `zz-` experiment arms retired 2026-11-18 (SM121 survey + picom probes; every one booted or refused on record, per the lane's attic index) in `attic/ds4/`, 30 arms, the closed input-scale mod, 9 archived benchmark profiles, + `ARMS-MANIFEST.md` in `attic/qwen4/`, the withdrawn K2-Horizon MoVA sub-lane (4 arms + its gate mod + guard + the RoCE env mod) in `attic/ifm/` plus three retired IFM 7B arms (plain and NGRAM `k2-horizon-7b-fp8-*`, and the UNO tree probe `zz-k2-horizon-7b-uno-tree-sglang.yaml`) in `attic/ifm/arms/` — 7 recipe files in that directory, counted 2026-10-21, the retired qwen3 no-spec control recipe, its spec-metrics guard mod, and 3 archived benchmark profiles in `attic/qwen3/` (metrics in `attic/qwen3/AGENTS.md` §6), `attic/ornith/` (4 archived arms, plus the 3 measured-rejected 122B survey arms retired 2026-11-22 — the two no-drafter probes and the DFlash2 arm, all token salad / zero acceptance), `attic/explore/` (25 archived Explore arms + `ARMS-MANIFEST.md`), `attic/glm/` (1 archived arm + `ARMS-MANIFEST.md`). Not served by the registry, but referenced by tests, benchmarks, and tools |
 | `mad-science/` | Research notes — claim traces and experiments, not recipes and not shipped. Index in `mad-science/README.md`; unresolved owner questions live in `mad-science/QUESTIONS.md`, settled ones in `mad-science/TODO.md` §"Settled questions" (numbering stable across both). Not served by the registry |
 | `mods/` | Shared mods only (used by ≥2 lanes): 5 + `mod-template/`, the authoritative harness. A mod relevant to a single lane lives at `recipes/<lane>/mods/<mod>/` |
-| `tests/` | 79 test modules, plus one tracked `*.sync-conflict-*.py` fixture that the conflict-copy guard expects |
+| `tests/` | 80 test modules, plus one tracked `*.sync-conflict-*.py` fixture that the conflict-copy guard expects |
 | `tools/` | stdlib scripts (CLIs, fixture generators and guards; `tools/README.md` is the index): bfcl-eval, pooling-bench, needle-haystack, quality-battery, jev-decision-bench, decision-tandem, decision-ensemble, decision-ladder, cache-audit, build-dsv41-*, gate-37111, qwen4-quality-eval, safe_text, synthetic_png, eval-suite, agentic-horizon-probe, horizon-analyze, refresh-sweep, boot-watchdog, diarize-fixture, diarize-score, enable-io-uring, forecast-bench, forecast-fixtures, humanizer-analyze, humanizer-measure, task-queue, doc-census, longctx-cell, h2h-client |
 | `plugins/` | One module, `pooling_bench_framework.py`, plus its `plugin.toml` compatibility sidecar: the out-of-tree sparkrun `BenchmarkingPlugin` that drives `tools/pooling-bench.py` for a `framework: pooling-bench` profile (the pooling lanes' only profile-shaped measurement path). Not a registry asset and not stdlib-only — it imports `sparkrun` by definition and is loaded only *inside* a sparkrun process via `plugins.paths` (`tools/README.md` §plugins/; the sidecar's `a0` floor and the unreadable Python range are explained there). |
 | `campaign/` | The campaign director: `sparkrun_campaign/` (protocol, evidence readers, persisted state, director, worker), `bin/campaign` (the human wrapper: subcommand argv, root/hosts defaults, `-v`), its acceptance tests, `DESIGN.md` and `systemd/sparkrun-campaign.service`. A **second uv project** with its own `pyproject.toml`/`uv.lock` and third-party deps allowed (it takes none), deliberately not stdlib-only like `tools/`: `tools/run-arm.sh` stays the per-arm executor and `tools/next-arms.py`'s evidence readers are mirrored rather than imported. Live-zone obligations apply — `DESIGN.md` is the current description, and the gate runs its suite with `uv run --project campaign --frozen python -B -m unittest discover -s campaign/tests -t campaign` |
@@ -636,17 +636,21 @@ ignored by the board (owner directive, 2026-10-28):** a production serve is neve
 and is never counted by the census — the census counts *research* containers only and says so, so a
 protected serve must not be listed as work in progress nor inflate a container count.
 
-**Owner questions live in `mad-science/QUESTIONS.md` — the unresolved ones — and settled ones in
-`mad-science/TODO.md` §"Settled questions".** One table row per *unresolved* question, with its status, its
-`path:line` provenance and the date it was asked, grouped by subject. Since **2026-11-03 the register
-is `mad-science/queue.json`** (`QUEUE.md` the protocol, `tools/task-queue.py render --board` the board's
-`## Work queue`); `TODO.md` is a frozen archive holding item text as evidence, its `# DECISIONS` block
-the decisions already taken, and §"Settled questions" the answered rows moved there verbatim — a new
-open `- [ ]` item belongs in the queue, and `task-queue.py orphans` reports one that lands in the
-archive instead. Numbering is stable across both files, so a citation such as `QUESTIONS.md #9` still resolves for
-a question that has since settled. A question never stays buried in a lane README, a board cell or a commit
-body — it either lands as a row in `QUESTIONS.md` or it does not exist. A row the owner answered keeps its
-answer, so the question is not re-opened.
+**Owner questions are `ask` rows in the register — the unresolved ones — and settled ones in
+`mad-science/TODO.md` §"Settled questions".** Owner directive 2026-11-22: an owner input is a row
+(`task-queue.py add --state ask`, the question in `title` and the options and answer procedure in
+`notes`), and every row that needs the answer is `blocked` on it, so `check` refuses a blocked row
+that names no blocker and `task-queue.py questions` prints the open set. Since **2026-11-03 the
+register is `mad-science/queue.json`** (`QUEUE.md` the protocol, `tools/task-queue.py render --board`
+the board's `## Work queue`); `TODO.md` is a frozen archive holding item text as evidence, its
+`# DECISIONS` block the decisions already taken, and §"Settled questions" the answered rows moved
+there verbatim — a new open `- [ ]` item belongs in the queue, and `task-queue.py orphans` reports
+one that lands in the archive instead. `mad-science/QUESTIONS.md` is now only an **index** of the
+numbering (`#1`–`#89`), so a citation such as `QUESTIONS.md #9` still resolves; it holds no open
+rows, and the `questions` array the tool used to read is retired (`validate` refuses the key). A
+question never stays buried in a lane README, a board cell or a commit body — it either lands as an
+`ask` row or it does not exist. A row the owner answered keeps its answer, so the question is not
+re-opened.
 
 ### Documentation zones (a rule)
 
@@ -1008,6 +1012,14 @@ explanation, and the next session re-derives work that is already done. Mitigati
   `git status --porcelain`, and never touches a `model_revision:`; a model re-pin stays a boot-gated
   lane decision (see `tools/README.md` §refresh-sweep.py). Do not expect CI to move a pin, and do
   not treat its drift report as a request to.
+  **A re-pin is boot-tested as soon as a free slot of the right size exists** (owner rule 2026-11-22,
+  ViBoard thread t24), and the pin moves in that boot's commit — no carrier-lane ride-along. The
+  register carries one machine-runnable row per affected arm (`repin-<arm>`, recipe + `tp`, ~0.5 h
+  provisional); the boot is the test, so a docs-only delta still gets a healthy serve and one cell,
+  and the eight arms retired to `attic/` need no re-pin. **Operational precondition, not yet met:**
+  the free-slot scheduler is a queue-mode campaign over the free hosts, and the head's current
+  campaign service is a dead manifest, so nothing schedules these rows today — they sit `queued`
+  until one is pointed at them.
 - `tests/` and `tools/` must stay **stdlib-only** (parse recipes as text; no PyYAML). Never add a
   dependency there. `plugins/` is the one tree that imports `sparkrun`, by definition: a module
   there is loaded *inside* a sparkrun process, so it is not runnable standalone and not a tool.
@@ -1016,7 +1028,7 @@ explanation, and the next session re-derives work that is already done. Mitigati
 
 ## Testing & QA
 
-- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1915 tests,
+- Framework: stdlib `unittest`. `uv run python -B -m unittest discover -s tests -v` — **1944 tests,
   3 skipped on 2026-11-08** in a clean checkout of the tracked tree, 4 in CI and 2 in this clone (it
   carries the untracked `.local/fleet.yaml`). The first three, by name and cause: `test_ifm_recipes`'
   research-doc case (the git-ignored K2-09B docs are absent on any fresh checkout);
