@@ -260,7 +260,7 @@ def shipped_runtimes() -> set[str]:
 
     The three engine families this file instruments, plus every runtime a module
     in `plugins/` declares: an out-of-tree runtime is by construction not one of
-    the three (the weightless dsgb10 arm names its own), and a recipe naming one
+    the three (the aneda arm names its own), and a recipe naming one
     is still a recipe that must parse and carry a command.
     """
     names = set(ENGINE_MARKERS)
@@ -276,7 +276,7 @@ class ParseCoverage(unittest.TestCase):
         # The plugins/ scan is what keeps an out-of-tree runtime admissible; a
         # renamed or unreadable plugin module must redden here, not silently
         # shrink the vocabulary back to the three in-tree families.
-        self.assertIn("weightless-dsgb10", vocab, "the plugins/ scan found no runtime")
+        self.assertIn("aneda", vocab, "the plugins/ scan found no runtime")
         recipes = shipped_recipes()
         self.assertGreater(len(recipes), 100, "the recipe glob found almost nothing")
         for path in recipes:

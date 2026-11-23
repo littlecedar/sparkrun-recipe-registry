@@ -1,11 +1,11 @@
-"""The weightless (GLP-steered) picom stack as a sparkrun runtime.
+"""The aneda (GLP-steered) picom stack as a sparkrun runtime.
 
 `dsgb10` is Picom-code's from-scratch TP=4 DeepSeek-V4.1-Flash engine and
 `dsfront` its Rust OpenAI front-end; this runtime is that stack with a GLP
 steering vector loaded, so the front-end serves two names from one deployment:
 the stock one and a second whose requests are projected out of the residual
 stream (`docs/glp.md` in the engine tree; the arm is
-`recipes/ds4/zz-deepseek-v4.1-flash-1017-weightless-dsgb10-tp4.yaml`).
+`recipes/ds4/zz-deepseek-v4.1-flash-1017-aneda-tp4.yaml`).
 
 Why a runtime rather than another `runtime: vllm` recipe: the shipped picom arm
 borrows vLLM's *distribution contract* (one container per node, tensor_parallel
@@ -47,10 +47,10 @@ _LAUNCH_ARGS = (
 )
 
 
-class WeightlessDsgb10Runtime(RuntimePlugin):
+class AnedaRuntime(RuntimePlugin):
     """`dsgb10` + `dsfront` with a GLP vector: two served names, one deployment."""
 
-    runtime_name = "weightless-dsgb10"
+    runtime_name = "aneda"
 
     #: The engine is built for sm_121 (the vector is checkpoint-bound to it), so a
     #: host without a GB10 accelerator must fail before a 130 GB conversion runs.
@@ -159,9 +159,9 @@ class WeightlessDsgb10Runtime(RuntimePlugin):
             comm_env=comm_env,
             init_port=init_port,
             skip_keys=skip_keys,
-            banner_title="weightless (dsgb10) Cluster Launcher",
+            banner_title="aneda (dsgb10) Cluster Launcher",
             port_label="Engine Port",
-            node_label="weightless node",
+            node_label="aneda node",
             **kwargs,
         )
 

@@ -3461,30 +3461,30 @@ if __name__ == "__main__":
 
 
 # --------------------------------------------------------------------------
-# The weightless (GLP-steered) dsgb10 arm
+# The aneda (GLP-steered) dsgb10 arm
 # --------------------------------------------------------------------------
 # A steering vector is checkpoint-bound and per-request: the arm must serve two
 # names from one deployment, the second one steered, and must fail closed when
 # the vector or the patched engine is missing. Each of those is invisible in a
 # plain boot that answers 200, so each is checked here without a GPU.
-WEIGHTLESS_DSGB10_RECIPE = RECIPE_DIR / "zz-deepseek-v4.1-flash-1017-weightless-dsgb10-tp4.yaml"
-WEIGHTLESS_RUNTIME_PLUGIN = REPO_ROOT / "plugins" / "weightless_dsgb10_runtime.py"
+ANEDA_RECIPE = RECIPE_DIR / "zz-deepseek-v4.1-flash-1017-aneda-tp4.yaml"
+ANEDA_RUNTIME_PLUGIN = REPO_ROOT / "plugins" / "aneda_runtime.py"
 WEIGHTLESS_PATCH = "picom-weightless-steering.patch"
 WEIGHTLESS_VECTOR = "/cache/runtime/glp/vector.gguf"
 
 
-def _assert_weightless_arm_contract(tc, r: "Recipe", text: str) -> None:
+def _assert_aneda_arm_contract(tc, r: "Recipe", text: str) -> None:
     """The invariants that keep the steered name from being an alias of stock."""
     # The dedicated runtime: the borrowed vLLM contract cannot declare a GB10
     # requirement, a no-gate native launch, or this image.
-    tc.assertEqual(r.runtime, "weightless-dsgb10")
+    tc.assertEqual(r.runtime, "aneda")
     tc.assertEqual(r.min_nodes, 4)
     tc.assertNotIn("tensor_parallel", r.defaults)
     # Both names, the stock one first: dsfront's steered name follows it. The
     # second name is spelled in the two env vars (sparkrun substitutes `{...}`
     # in `command:` only), so the guard holds the two to one string.
     stock = "deepseek-v4.1-flash"
-    steered = "deepseek-v4.1-flash-weightless"
+    steered = "deepseek-v4.1-flash-aneda"
     tc.assertEqual(r.default("served_model_name"), stock)
     tc.assertNotEqual(stock, steered)
     tc.assertIn("--steer-model-name %s" % steered, r.env["PICOM_FRONT_ARGS"])
@@ -3499,14 +3499,14 @@ def _assert_weightless_arm_contract(tc, r: "Recipe", text: str) -> None:
     tc.assertEqual(r.model_revision, "1bae0e1088993b9b82de08f59de5be5a34e42170")
     # The image is this registry's own build, published and pinned by digest: a
     # tag here could name an image that does not contain the patch.
-    tc.assertRegex(r.container, r"^ghcr\.io/littlecedar/dgx-picom-ds41f@sha256:[0-9a-f]{64}$")
+    tc.assertRegex(r.container, r"^ghcr\.io/littlecedar/aneda@sha256:[0-9a-f]{64}$")
     tc.assertNotIn("NOT PUBLISHED", text)
     # The engine's argv is the launcher's own four flags.
     tc.assertIn("--served-model-name {served_model_name}", r.command_template)
     tc.assertIn("--revision {model_revision}", r.command_template)
 
 
-def _assert_weightless_dockerfile(tc, dockerfile: str) -> None:
+def _assert_aneda_dockerfile(tc, dockerfile: str) -> None:
     """The steering patch ships beside the Dockerfile and applies after the two PRs."""
     tc.assertIn(WEIGHTLESS_PATCH, dockerfile)
     tc.assertIn("COPY picom-pr15-service-vision.patch picom-pr7-stream-tool-args.patch " + WEIGHTLESS_PATCH,
@@ -3521,9 +3521,9 @@ def _assert_weightless_dockerfile(tc, dockerfile: str) -> None:
     tc.assertIn("cargo test --release --locked", dockerfile)
 
 
-def _assert_weightless_runtime(tc, source: str) -> None:
+def _assert_aneda_runtime(tc, source: str) -> None:
     """The runtime's declarations, each of which a boot depends on."""
-    tc.assertIn('runtime_name = "weightless-dsgb10"', source)
+    tc.assertIn('runtime_name = "aneda"', source)
     tc.assertIn('requires_capability = frozenset({"gb10"})', source)
     tc.assertIn('return "native"', source)
     # A native rendezvous gate would wait on a port nothing binds.
@@ -3532,24 +3532,24 @@ def _assert_weightless_runtime(tc, source: str) -> None:
     tc.assertIn("def managed_rendezvous_flags", source)
 
 
-class WeightlessDsgb10Contract(unittest.TestCase):
-    """The weightless arm's contract, as far as it can be checked without GPUs."""
+class AnedaContract(unittest.TestCase):
+    """The aneda arm's contract, as far as it can be checked without GPUs."""
 
     def setUp(self):
-        self.text = WEIGHTLESS_DSGB10_RECIPE.read_text()
-        self.r = Recipe(self.text, WEIGHTLESS_DSGB10_RECIPE.name)
+        self.text = ANEDA_RECIPE.read_text()
+        self.r = Recipe(self.text, ANEDA_RECIPE.name)
         self.dockerfile = PICOM_DOCKERFILE.read_text()
-        self.runtime = WEIGHTLESS_RUNTIME_PLUGIN.read_text()
+        self.runtime = ANEDA_RUNTIME_PLUGIN.read_text()
 
     def test_recipe_contract(self):
-        _assert_weightless_arm_contract(self, self.r, self.text)
+        _assert_aneda_arm_contract(self, self.r, self.text)
 
     def test_patch_is_in_the_image_build(self):
         self.assertTrue((RECIPE_DIR / WEIGHTLESS_PATCH).is_file(), WEIGHTLESS_PATCH)
-        _assert_weightless_dockerfile(self, self.dockerfile)
+        _assert_aneda_dockerfile(self, self.dockerfile)
 
     def test_runtime_declarations(self):
-        _assert_weightless_runtime(self, self.runtime)
+        _assert_aneda_runtime(self, self.runtime)
 
     def test_steered_name_is_not_a_second_alias(self):
         # A recipe that names the steered name but never tells the engine the
@@ -3562,45 +3562,45 @@ class WeightlessDsgb10Contract(unittest.TestCase):
             self.assertIn("{%s}" % key, self.text, key)
 
 
-class WeightlessDsgb10NegativeControls(unittest.TestCase):
-    """Mutation controls for WeightlessDsgb10Contract: each must break its guard."""
+class AnedaNegativeControls(unittest.TestCase):
+    """Mutation controls for AnedaContract: each must break its guard."""
 
     @staticmethod
     def _mutated(old: str, new: str) -> tuple["Recipe", str]:
-        text = WEIGHTLESS_DSGB10_RECIPE.read_text()
+        text = ANEDA_RECIPE.read_text()
         assert old in text, f"control anchor {old!r} vanished"
         mutated = text.replace(old, new, 1)
-        return Recipe(mutated, WEIGHTLESS_DSGB10_RECIPE.name), mutated
+        return Recipe(mutated, ANEDA_RECIPE.name), mutated
 
     def test_control_borrowed_vllm_runtime(self):
-        r, text = self._mutated("runtime: weightless-dsgb10", "runtime: vllm")
+        r, text = self._mutated("runtime: aneda", "runtime: vllm")
         with self.assertRaises(AssertionError):
-            _assert_weightless_arm_contract(self, r, text)
+            _assert_aneda_arm_contract(self, r, text)
 
     def test_control_no_steered_name(self):
         r, text = self._mutated(
-            'PICOM_FRONT_ARGS: "--steer-model-name deepseek-v4.1-flash-weightless"',
+            'PICOM_FRONT_ARGS: "--steer-model-name deepseek-v4.1-flash-aneda"',
             'PICOM_FRONT_ARGS: ""')
         with self.assertRaises(AssertionError):
-            _assert_weightless_arm_contract(self, r, text)
+            _assert_aneda_arm_contract(self, r, text)
 
     def test_control_vector_not_staged(self):
         r, text = self._mutated("  - \"mods/glp-vector-stage\"\n", "")
         with self.assertRaises(AssertionError):
-            _assert_weightless_arm_contract(self, r, text)
+            _assert_aneda_arm_contract(self, r, text)
 
     def test_control_lane_pin(self):
         r, text = self._mutated(
             "model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170",
             "model_revision: 08c8657f02291e11b6f6b63e0e16014f8e748518")
         with self.assertRaises(AssertionError):
-            _assert_weightless_arm_contract(self, r, text)
+            _assert_aneda_arm_contract(self, r, text)
 
     def test_control_unpublished_digest(self):
         r, text = self._mutated(
-            "dgx-picom-ds41f@sha256:", "dgx-picom-ds41f:tag-")
+            "aneda@sha256:", "aneda:tag-")
         with self.assertRaises(AssertionError):
-            _assert_weightless_arm_contract(self, r, text)
+            _assert_aneda_arm_contract(self, r, text)
 
     def test_control_patch_after_the_prs_out_of_order(self):
         dockerfile = PICOM_DOCKERFILE.read_text()
@@ -3611,10 +3611,10 @@ class WeightlessDsgb10NegativeControls(unittest.TestCase):
             "RUN git -C /src apply /tmp/" + WEIGHTLESS_PATCH
             + " \\\n && git -C /src apply /tmp/picom-pr15-service-vision.patch", 1)
         with self.assertRaises(AssertionError):
-            _assert_weightless_dockerfile(self, moved)
+            _assert_aneda_dockerfile(self, moved)
 
     def test_control_runtime_without_gb10(self):
-        source = WEIGHTLESS_RUNTIME_PLUGIN.read_text().replace(
+        source = ANEDA_RUNTIME_PLUGIN.read_text().replace(
             'requires_capability = frozenset({"gb10"})', "requires_capability = frozenset()")
         with self.assertRaises(AssertionError):
-            _assert_weightless_runtime(self, source)
+            _assert_aneda_runtime(self, source)

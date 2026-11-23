@@ -49,7 +49,7 @@ baseline — see [benchmarking/README.md §Instrumentation and comparability](..
   - [Probe arms: prefill chunk budget, Engram read batch, output ceiling (authored 2026-11-17; all three booted in the 2026-11-18 production window)](#probe-arms-prefill-chunk-budget-engram-read-batch-output-ceiling-authored-2026-11-17-all-three-booted-in-the-2026-11-18-production-window)
   - [License](#license-2)
 - [zz-deepseek-v4.1-flash-1017-weightless-tp4-1m (authored 2026-11-20, never booted)](#zz-deepseek-v41-flash-1017-weightless-tp4-1m-authored-2026-11-20-never-booted)
-- [zz-deepseek-v4.1-flash-1017-weightless-dsgb10-tp4 (authored 2026-11-20, never booted)](#zz-deepseek-v41-flash-1017-weightless-dsgb10-tp4-authored-2026-11-20-never-booted)
+- [zz-deepseek-v4.1-flash-1017-aneda-tp4 (authored 2026-11-20, never booted)](#zz-deepseek-v41-flash-1017-aneda-tp4-authored-2026-11-20-never-booted)
 - [picom vs knapcio: one model, two engines on four GB10s](#picom-vs-knapcio-one-model-two-engines-on-four-gb10s)
 - [External stack: spark-ds41f (survey, 2026-11-08)](#external-stack-spark-ds41f-survey-2026-11-08)
 - [Upgrade candidates (measured elsewhere, not queued)](#upgrade-candidates-measured-elsewhere-not-queued)
@@ -2855,25 +2855,25 @@ request's `model` (`PICOM-VS-KNAPCIO.md:161`, citing `server.rs:981`; the plan's
 two-name per-request steering is a vLLM capability, which is why this arm is a vLLM probe.
 Verdict at the time: build neither runtime now, and keep the arm blocked on the unpublished
 engine image. **Superseded 2026-11-20** by
-`zz-deepseek-v4.1-flash-1017-weightless-dsgb10-tp4` (above): the runtime is
-`plugins/weightless_dsgb10_runtime.py` and the steering is this registry's own patch series
+`zz-deepseek-v4.1-flash-1017-aneda-tp4` (above): the runtime is
+`plugins/aneda_runtime.py` and the steering is this registry's own patch series
 over the picom pin, so the dual-name capability upstream `dsgb10` lacks now exists in the
 image this lane builds. The paragraph above still describes upstream at the pin, which is
 exactly why that arm needs an image of its own.
 
-## zz-deepseek-v4.1-flash-1017-weightless-dsgb10-tp4 (authored 2026-11-20, never booted)
+## zz-deepseek-v4.1-flash-1017-aneda-tp4 (authored 2026-11-20, never booted)
 
 | | |
 |:--|:--|
-| Recipe | `recipes/ds4/zz-deepseek-v4.1-flash-1017-weightless-dsgb10-tp4.yaml` |
+| Recipe | `recipes/ds4/zz-deepseek-v4.1-flash-1017-aneda-tp4.yaml` |
 | Engine | the picom (`dsgb10`) TP=4 engine + its Rust front-end `dsfront`, **with this registry's GLP steering patch series** (`recipes/ds4/picom-weightless-steering.patch`, third in the series after PR #15 and PR #7) |
-| Runtime | `weightless-dsgb10` — `plugins/weightless_dsgb10_runtime.py`: native distribution, no rendezvous gate, GB10 only |
+| Runtime | `aneda` — `plugins/aneda_runtime.py`: native distribution, no rendezvous gate, GB10 only |
 | Model | [`deepseek-ai/DeepSeek-V4.1-Flash-1017`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017) at `1bae0e10` — the revision the steering vector was derived against |
-| Second name | `deepseek-v4.1-flash-weightless`, the same weights with the GLP vector projected out of the residual stream **per request** |
+| Second name | `deepseek-v4.1-flash-aneda`, the same weights with the GLP vector projected out of the residual stream **per request** |
 | Artifact | `msuiche/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75` at `2715ffd5`, one 803,392-byte GGUF, sha256 `9c66d477…f5cf`, 39 layers, α 0.75, MIT, access-gated; staged by `mods/glp-vector-stage` |
 | Topology | TP=4, four GB10 nodes, one process per node, switched RoCE ring |
 | Context | 1,048,576 tokens served (`--max-ctx 1048576`, 16 slots, 4 big) |
-| Image | `ghcr.io/littlecedar/dgx-picom-ds41f@sha256:305b6e51…` — public and digest-pinned (tag `ds41f-7c123ad4-pr15-pr7-weightless`, built 2026-11-21 on `.30`) |
+| Image | `ghcr.io/littlecedar/aneda@sha256:305b6e51…` — public and digest-pinned (tag `aneda-7c123ad4-pr15-pr7-aneda`, built 2026-11-21 on `.30`) |
 | Status | **Probe.** Nothing here has been booted; the engine is compiled in the published image (see "Built, not booted") |
 
 **Probe framing.** The shipped picom arm borrows vLLM's distribution contract because the engine
@@ -2882,14 +2882,14 @@ GB10 (the vector is sm_121-bound), must not wait out a native rendezvous gate no
 launcher meets its peers on 19110 itself), and carries its own image — declarations, not recipe
 text, which is why the runtime exists. The image is built on an idle GB10 node from
 `Dockerfile.picom-ds41f` with the three-patch series (`git apply` in that order, `git apply
---check` proven, resulting tree `637fc87a`), pushed to `ghcr.io/littlecedar/dgx-picom-ds41f` and
+--check` proven, resulting tree `637fc87a`), pushed to `ghcr.io/littlecedar/aneda` and
 pinned by digest, so `container:` is public and `sparkrun` pulls it like any other arm. The two
 compile defects the first build found are fixed in the patch (`read_kind` is `inline`; the
 `glp_dev` destination is not `const`).
 
 **The two-name contract.** One deployment, one checkpoint, two served names; the client picks per
 request by the body's `model`. `deepseek-v4.1-flash` is the stock stream. A request naming
-`deepseek-v4.1-flash-weightless` carries `SubmitHeader::steer = 1` to the engine and has the
+`deepseek-v4.1-flash-aneda` carries `SubmitHeader::steer = 1` to the engine and has the
 vector projected out of its residual stream, while a stock request in the same batch, through the
 same prefix cache, keeps its own text. The stock name is listed first on purpose: `dsfront`'s
 second name follows it. Two consequences a client cannot see:
@@ -3183,3 +3183,15 @@ regression guards in `tests/` (via `ATTIC_DIR`), which is deliberate. Restore a 
 | `deepseek-v4.1-flash-exl3-tp6-1m-vllm.yaml` | Retired EXL3/vLLM recipe — TP=6, 1M context (6 nodes). |
 | `mods/` | The mods the retired recipes mounted, plus one provenance copy. `mount-dsv41-exl3-patches` installs tonyd2wild's DeepSeek-V4.1-Flash vLLM patch set (incl. the Engram-on-disk reader and the TP=3/6 draft virtual-heads config fix); `bound-engram-cache` is an opt-in post-patch mod that `fadvise(DONTNEED)`s the Engram reader's read-once pages out of the host page cache; `dsv41-vision-overlay` is the archived TP=2 vision trial, SHIPPED 2026-10-15 into `mods/tensorfold-dsv41-launcher` (see the vision knob above). |
 | `tuning/` | The vLLM autotuning cache for the EXL3 3.5 bpw (`bot-lab-21/…-Pollard`) checkpoint at TP=6 — MoE and FP8 kernel configs plus the tuning report. |
+
+
+---
+
+## Footnotes from root README
+
+_These footnotes were moved here from the root [README.md](../../README.md) to keep the main index concise. They document arm-specific measurement provenance._
+
+* _The **tensorfold** row's C2/C5/C10 are the **0.6.3 engine's** 2026-10-18 5-run ladder (`ds4-1017-ab-interleaved-20261018`). The shipped image was bumped to the v0.6 engine on 2026-10-21; on the depth-0 profile (c1/c4/c8/c16, 3 runs/cell, 3 boots per arm) it reads **64.5 / 51.2 / 52.5 / 53.2** t/s against the 0.6.3 control's 64.7 / 46.1 / 41.5 / 42.3 — c8 **+26.5 %**, c16 **+25.7 %** with the treatment's worst boot above the control's best, c1 flat, c4 +10.9 % with overlapping ranges — and cold prefill **2,077** t/s @ 32k / **2,073** @ 131k (+24.6 % / +39.5 %). `~/benchmarks/ds4-v06-ab-20261021/REPORT.md`; lane [`recipes/ds4/README.md`](recipes/ds4/README.md#deepseek-v41-flash-tensorfold-tp2-1m-sglang)._
+* _The **picom -oea** row is the same recipe plus `PICOM_OEA=4,12,9`, a batch-aware, **lossy** MoE re-route, measured one boot per side (`phase6/ladder.csv`): **+5.4 % at C5 and +4.0 % at C10**, C1 +4.5 % inside the spreads — one boot per side, not a repeated measurement. Accuracy on the same single battery: **13/13, 12/13, 12/13** at **108.1 / 136.7 / 131.8 s** total, runs 2–3 missing `shell-repro-rounding` (`head:~/benchmarks/picom-prod-20261118/final-20261118/bootB-oea/`), which sits inside the exact arm's own **110.2–133.4 s** range (medians 131.8 against 125.1, inside either arm's 21–24 % run-to-run spread), so the shortcut's only measured advantage is the concurrency ladder; both arms lead the SGLang line's **147.1–152.9 s** on that battery, this one by **13.8 %** at the median, ranges disjoint in the sample — LIKELY, one boot per arm against a ~7 % inter-boot floor — with `stub-service-client` at 11.4 / 11.0 / 10.8 s, house **37/37** and the same needle results as the exact boot. **No accuracy loss was found on the house or needle cells; that is not a guarantee beyond them.**_
+* _The production pair above supersedes `zz-deepseek-v4.1-flash-1017-picom-tp4-1m`; the `zz-ds4-1017-picom-*` arms (now `attic/ds4/`) stay the experiment record that selected this configuration. Design, the two integrated upstream PRs and every open boot gate: [`recipes/ds4/README.md`](recipes/ds4/README.md) — `sparkrun run … -o env.PICOM_RANK_TAILS=30,31,32,33`._
+

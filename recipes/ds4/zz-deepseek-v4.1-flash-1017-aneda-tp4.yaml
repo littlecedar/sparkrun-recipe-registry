@@ -13,13 +13,13 @@
 # layer L's post-layer fold, pre-Engram — while a stock request in the same
 # batch keeps its own text. The weights are never modified.
 #
-# The runtime is `weightless-dsgb10` (plugins/weightless_dsgb10_runtime.py):
+# The runtime is `aneda` (plugins/aneda_runtime.py):
 # native distribution, no rendezvous gate, a GB10 requirement. The launcher,
 # the fabric resolution and the weight/Engram staging are the shipped arm's.
 # ===========================================================================
 recipe_version: "2"
 model: deepseek-ai/DeepSeek-V4.1-Flash-1017
-runtime: weightless-dsgb10
+runtime: aneda
 # The revision the GLP-39 vector was derived against (the vector repo's own
 # base_model tag). Not the lane's 08c8657f: that pin differs only in
 # chat_template.jinja, which no engine here reads, but a steering vector is
@@ -27,7 +27,7 @@ runtime: weightless-dsgb10
 model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
 # Built from Dockerfile.picom-ds41f at pin 7c123ad4 with the three-patch
 # series (the third is this arm's steering code).
-container: ghcr.io/littlecedar/dgx-picom-ds41f@sha256:305b6e5151a2cfd13b85f18c36bccf9062af83e28917fd11a0f151691c5e83df
+container: ghcr.io/littlecedar/aneda@sha256:305b6e5151a2cfd13b85f18c36bccf9062af83e28917fd11a0f151691c5e83df
 distribution_config:
   models:
     entries:
@@ -45,9 +45,10 @@ max_nodes: 4
 description: >-
   TRIAL PROBE (zz-): DeepSeek-V4.1-Flash-1017 at native weights served under
   two names from one picom (dsgb10) TP=4 deployment — `deepseek-v4.1-flash`
-  (stock) and `deepseek-v4.1-flash-weightless`, which projects msuiche's
+  (stock) and `deepseek-v4.1-flash-aneda`, which projects msuiche's
   GLP-39 vector out of the residual stream for that request only. Measured
   upstream on AdvBench's 520 prompts: 13 answered stock, 266 steered.
+lcg_favorite: true
 metadata:
   model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
   maintainer: Little Cedar Group <sparkrun@littlecedar.net>
@@ -107,14 +108,14 @@ env:
   # name would be a second alias of the stock model. The name is spelled here
   # and in WEIGHTLESS_STEER_MODEL because sparkrun substitutes `{...}` in
   # `command:` only — an env value keeps its braces literally — and
-  # WeightlessDsgb10Contract asserts the two agree.
-  PICOM_FRONT_ARGS: "--steer-model-name deepseek-v4.1-flash-weightless"
+  # AnedaContract asserts the two agree.
+  PICOM_FRONT_ARGS: "--steer-model-name deepseek-v4.1-flash-aneda"
   # The engine's own reader: the staged file, its alpha and the layers the file
   # steers. A file this runtime cannot apply exactly stops the boot.
   WEIGHTLESS_STEER_PATH: /cache/runtime/glp/vector.gguf
   WEIGHTLESS_STEER_ALPHA: "0.75"
   WEIGHTLESS_STEER_LAYERS: "1-39"
-  WEIGHTLESS_STEER_MODEL: "deepseek-v4.1-flash-weightless"
+  WEIGHTLESS_STEER_MODEL: "deepseek-v4.1-flash-aneda"
   # One `stats:` line a minute on each side (0 disables), for the receipt.
   WEIGHTLESS_STATS_INTERVAL: "60"
 defaults:
