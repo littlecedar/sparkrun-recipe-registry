@@ -1012,6 +1012,14 @@ explanation, and the next session re-derives work that is already done. Mitigati
   `git status --porcelain`, and never touches a `model_revision:`; a model re-pin stays a boot-gated
   lane decision (see `tools/README.md` §refresh-sweep.py). Do not expect CI to move a pin, and do
   not treat its drift report as a request to.
+  **A re-pin is boot-tested as soon as a free slot of the right size exists** (owner rule 2026-11-22,
+  ViBoard thread t24), and the pin moves in that boot's commit — no carrier-lane ride-along. The
+  register carries one machine-runnable row per affected arm (`repin-<arm>`, recipe + `tp`, ~0.5 h
+  provisional); the boot is the test, so a docs-only delta still gets a healthy serve and one cell,
+  and the eight arms retired to `attic/` need no re-pin. **Operational precondition, not yet met:**
+  the free-slot scheduler is a queue-mode campaign over the free hosts, and the head's current
+  campaign service is a dead manifest, so nothing schedules these rows today — they sit `queued`
+  until one is pointed at them.
 - `tests/` and `tools/` must stay **stdlib-only** (parse recipes as text; no PyYAML). Never add a
   dependency there. `plugins/` is the one tree that imports `sparkrun`, by definition: a module
   there is loaded *inside* a sparkrun process, so it is not runnable standalone and not a tool.
