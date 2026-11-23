@@ -22,10 +22,12 @@ _Generated 2026-11-21 20:12 ET_
 ## Work Queue
 ```mermaid
 flowchart LR
-  %% 1 blocked, 1 edges, 0 prose-gated
+  %% 1 blocked, 1 blocker edge(s), 1 drained by session director (1)
+  r1["session director · owns 1"]
   t1["board-census-tool · queued"]
   t2["board-render-tool · blocked"]
   t1 --> t2
+  r1 -.-> t1
   classDef no-recorded-edge stroke-dasharray: 4 3
 ```
 

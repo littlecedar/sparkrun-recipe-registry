@@ -172,6 +172,25 @@ therefore ends at a row with `blocked_by: []` — an `ask` row or a row with no 
 reminder about a row that is one command from correct, and the intermediate state exists for the
 length of the two commands that answer an ask.
 
+**The either/or rule, and the runner taxonomy.** Owner directive 2026-11-22: *"the graph must show
+every campaign runner and everything each owns, and every row must show EITHER what blocks it or
+what drains it."* So `graph` draws two edge tiers — blocker → row, and **runner → row** (dashed) —
+and one node per distinct drainer, derived from the rows themselves and never stored:
+
+| row | runner |
+|---|---|
+| `running` | its `claimed_by` |
+| `scheduled` | its `scheduled_by` |
+| `queued` with `recipe` + `tp` | the **fleet campaign (queue mode)** — it boots those |
+| `queued` with neither | the **session director** (`tools/session-director.py`) |
+| `ask` | the **owner** |
+| `blocked` | none: its edge is the blocker it waits on |
+
+A runner node's label carries what it owns (`owner · owns 2`), so one glance shows every runner and
+its set. A row with **neither** a live blocker nor a runner is a defect: `graph` names it and exits
+non-zero, `lint` reports it, and `--all` draws it dashed rather than leaving it out. `done` rows are
+history — drawn only with `--all`, and exempt from the rule.
+
 ## Session protocol
 
 1. **At session start, read the queue**: `uv run python -B tools/task-queue.py queue`. Work the

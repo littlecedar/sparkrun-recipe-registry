@@ -1110,6 +1110,13 @@ def lint_blocked(data: dict) -> list[tuple[str, str]]:
             out.append((str(task.get("id", "?")),
                         f"{state} with live blocker(s) {', '.join(live)} — `blocked` is the only "
                         f"state that carries live blockers"))
+    # The graph's either/or rule, enforced here too so a board tick sees it: a row with neither a
+    # live blocker nor a runner cannot be drawn honestly (owner directive 2026-11-22).
+    named = {tid for tid, _detail in out}
+    for tid in undrained_rows(data):
+        if tid not in named:
+            out.append((tid, "no live blocker and no runner — every row must show what blocks it "
+                             "or what drains it"))
     return out
 
 
@@ -1416,6 +1423,12 @@ def _cell(text: str) -> str:
 
 # ---------------------------------------------------------------- dependency graph
 
+#: The runner taxonomy (owner directive 2026-11-22): every open row shows EITHER the row that
+#: blocks it or the runner that will drain it. A drainer is derived from the row, never stored.
+FLEET_RUNNER = "fleet campaign (queue mode)"
+SESSION_RUNNER = "session director"
+OWNER_RUNNER = "owner"
+
 #: Node budget for `graph`: a 100-box diagram is unreadable, and it lands in an ~80 KB board.
 GRAPH_BUDGET = 30
 #: Hyphenated ids are long; with the connected view at ~9 nodes there is room for most of one.
@@ -1430,6 +1443,43 @@ GRAPH_STYLE = ("no-recorded-edge", "stroke-dasharray: 4 3")
 def _graph_label(text: str) -> str:
     text = " ".join(str(text).split()).replace('"', "'")
     return text if len(text) <= GRAPH_LABEL else text[:GRAPH_LABEL] + "…"
+
+
+def runner_of(task: dict) -> str:
+    """The runner that will drain this row, or "" when it waits on a blocker or is history.
+
+    A `running` row is drained by whoever claimed it, a `scheduled` one by whoever it was assigned
+    to, an `ask` by the owner. A queued row splits on whether a scheduler can boot it: a fleet row
+    (`recipe` + `tp`) is the campaign's, everything else is session work. `blocked` has no runner —
+    its edge is the blocker.
+    """
+    state = task.get("state")
+    if state == "ask":
+        return OWNER_RUNNER
+    if state == "running":
+        return str(task.get("claimed_by") or "")
+    if state == "scheduled":
+        return str(task.get("scheduled_by") or "")
+    if state == "queued":
+        return FLEET_RUNNER if (task.get("recipe") is not None or task.get("tp") is not None) \
+            else SESSION_RUNNER
+    return ""
+
+
+def undrained_rows(data: dict) -> list[str]:
+    """Open rows with no live blocker and no runner — the graph's either/or defect (pure).
+
+    A row that names neither cannot be drawn honestly: nothing says what holds it and nothing says
+    who would run it. It is a lint-class defect, so `graph` names it and exits non-zero rather than
+    drawing a box that asserts nothing.
+    """
+    tasks = [t for t in data.get("tasks") or []
+             if isinstance(t, dict) and t.get("state") != "done"]
+    open_ids = {str(t.get("id")) for t in tasks}
+    incoming = {str(child) for t in tasks for child in (t.get("blocks") or [])
+                if str(child) in open_ids}
+    return [str(t.get("id")) for t in tasks
+            if str(t.get("id")) not in incoming and not runner_of(t)]
 
 
 def graph_body(data: dict, max_nodes: int = GRAPH_BUDGET,
@@ -1485,13 +1535,35 @@ def graph_body(data: dict, max_nodes: int = GRAPH_BUDGET,
 
     incoming = {target for _source, target in row_edges}
     blocked_ids = [str(t.get("id")) for t in tasks if t.get("state") == "blocked"]
-    prose_gated = [tid for tid in blocked_ids if tid not in incoming]
 
-    participants = {tid for edge in row_edges for tid in edge}
+    # Owner directive 2026-11-22: every open row shows either its blocker or its runner. A row in
+    # `incoming` waits on another row; everything else is drained by a runner, and a row with
+    # neither is a defect the caller must report rather than draw.
+    drainers: dict[str, list[str]] = {}
+    undrained: list[str] = []
+    for t in tasks:
+        tid = str(t.get("id"))
+        if tid in incoming:
+            continue
+        who = runner_of(t)
+        if who:
+            drainers.setdefault(who, []).append(tid)
+        else:
+            undrained.append(tid)
+    drain_edges = {(who, tid) for who, rows in drainers.items() for tid in rows}
+
+    participants = ({tid for edge in row_edges for tid in edge}
+                    | {tid for _who, tid in drain_edges}
+                    | set(undrained))
     drawn = tasks if all_rows else [t for t in tasks if str(t.get("id")) in participants]
     omitted = len(tasks) - len(drawn)
-    counts = (f"{len(blocked_ids)} blocked, {len(row_edges)} edges, "
-              f"{len(prose_gated)} prose-gated")
+
+    counts = (f"{len(blocked_ids)} blocked, {len(row_edges)} blocker edge(s), "
+              f"{len(drain_edges)} drained")
+    if drainers:
+        counts += " by " + ", ".join(f"{who} ({len(rows)})" for who, rows in sorted(drainers.items()))
+    if undrained:
+        counts += f", {len(undrained)} with no blocker and no runner"
     if omitted:
         counts += f", {omitted} rows not drawn (--all)"
 
@@ -1505,36 +1577,35 @@ def graph_body(data: dict, max_nodes: int = GRAPH_BUDGET,
                  '  empty["no edge recorded among the open rows; --all draws every row"]',
                  classdef], warnings)
 
-    nodes = [(str(t.get("id")), t, "task") for t in drawn]
-    truncated = len(nodes) > max_nodes
-    shown = nodes[: max_nodes - 1] if truncated else nodes
+    runner_names = sorted(drainers)
+    task_budget = max(1, max_nodes - len(runner_names))
+    nodes = [str(t.get("id")) for t in drawn]
+    truncated = len(nodes) > task_budget
+    shown = nodes[: task_budget - 1] if truncated else nodes
     hidden = nodes[len(shown):]
-    hidden_tasks = [n for n in hidden if n[2] == "task"]
+    payload = {str(t.get("id")): t for t in tasks}
 
-    name: dict[str, str] = {}
-    task_number = 0
-    for key, _payload, kind in shown:
-        task_number += 1
-        name[key] = "t%d" % task_number
     lines = ["flowchart LR", "  %% " + counts]
     if truncated:
-        lines.append(f"  %% truncated: {len(shown)} shown of {len(nodes)}")
-    for key, payload, kind in shown:
-        tid = str(payload.get("id"))
-        gated = tid in prose_gated
-        owner = " · owner" if gated else ""
+        lines.append(f"  %% truncated: {len(shown)} task node(s) shown of {len(nodes)}")
+    rname = {who: f"r{i}" for i, who in enumerate(runner_names, 1)}
+    for who, key in rname.items():
+        lines.append(f'  {key}["{_graph_label(who)} · owns {len(drainers[who])}"]')
+    tname: dict[str, str] = {}
+    for i, tid in enumerate(shown, 1):
+        tname[tid] = f"t{i}"
+        gated = tid in undrained
         suffix = ":::" + GRAPH_STYLE[0] if gated else ""
-        lines.append(f'  {name[key]}["{_graph_label(tid)} · {payload.get("state")}{owner}"]{suffix}')
+        owner = " · no blocker, no runner" if gated else ""
+        lines.append(f'  {tname[tid]}["{_graph_label(tid)} · {payload[tid].get("state")}{owner}"]{suffix}')
     if truncated:
-        more = []
-        if hidden_tasks:
-            more.append(f"{len(hidden_tasks)} more open rows")
-        lines.append(f'  tn["… {" + ".join(more)} (see the table)"]')
-    edges = sorted({(name[a], name[b]) for a, b in row_edges
-                    if a in name and b in name},
-                   key=lambda e: (e[0][0], int(e[0][1:]), e[1][0], int(e[1][1:])))
-    for source, target in edges:
-        lines.append(f"  {source} --> {target}")
+        lines.append(f'  tn["… {len(hidden)} more open rows (see the table)"]')
+    for source, target in sorted(row_edges):
+        if source in tname and target in tname:
+            lines.append(f"  {tname[source]} --> {tname[target]}")
+    for who, tid in sorted(drain_edges):
+        if tid in tname:
+            lines.append(f"  {rname[who]} -.-> {tname[tid]}")
     lines.append(classdef)
     return lines, warnings
 
@@ -1549,6 +1620,11 @@ def cmd_graph(args, path: Path) -> None:
     for line in body:
         print(line)
     print("```")
+    missing = undrained_rows(data)
+    if missing:
+        raise QueueError(f"graph: {len(missing)} open row(s) with no live blocker and no runner: "
+                         f"{', '.join(missing)} — every row must show what blocks it or what "
+                         f"drains it")
 
 
 
