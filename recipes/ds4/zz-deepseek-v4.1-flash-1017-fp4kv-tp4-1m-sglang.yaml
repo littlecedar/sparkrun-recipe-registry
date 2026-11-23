@@ -1,0 +1,65 @@
+recipe_version: "2"
+model: deepseek-ai/DeepSeek-V4.1-Flash-1017
+model_revision: 08c8657f02291e11b6f6b63e0e16014f8e748518
+runtime: sglang
+# FP4-KV combined image: the SGLang dsv41 tree (da64c5cb) on the c3-reconciled
+# base with FlashInfer 0.7.3 (the arm-5 fi073 build), plus the V4.1 KV-layout
+# port: the capability gate admits SM12x when FlashInfer advertises the 528-byte
+# inline route, the SM120 reader passes kv_scale_format="ue8m0_g32" and
+# extra_fp4=True, and the pool sizes at 528/288 instead of the hardcoded 584.
+# Built from recipes/ds4/Dockerfile.dsv41-fp4kv.
+container: ghcr.io/littlecedar/aneda@sha256:b5de5272edd983e41059154f10d862a44c25f8f5f403fafd48ad0778b95ceed6
+min_nodes: 4
+description: >-
+  FP4 KV survey arm (queue row ds4-fp4-kv-layout-sm121-port, unblocked by its
+  two done children): the SGLang V4.1 KV port da64c5cb + FlashInfer 0.7.3 with
+  the format module, the gate, and the SM120 reader wiring. Enables V4.1 footer
+  layout (528 B/token main, 288 B/token fp4 compressed for ratios 1/2) via
+  SGLANG_DSV4_KV_LAYOUT=v41. Same production environment as the knapcio line:
+  DSpark k=5, 1M context, knapcio adapter. The delta under test is the FP4 KV
+  layout: 1.32x tokens at equal bytes (coefficient 3002 vs 3970), store kernels
+  byte-exact against the tree's own oracles, and the SM120 reader matches at
+  rel_err 0.029 (gate receipt ~/benchmarks/ds4-fp4kv-20261122/kernel-gate.log).
+metadata:
+  model_url: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
+  maintainer: Little Cedar Group <sparkrun@littlecedar.net>
+  model_params: "552B"
+  model_dtype: mxfp4
+  model_mtp_dtype: mxfp4
+  kv_dtype: fp8
+  tags: trial
+mods:
+  - "mods/dsv41-sglang-overlay"
+executor_config:
+  entrypoint: ""
+  shm_size: 32gb
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 4
+  max_model_len: 1048576
+  dspark_block_size: 5
+env:
+  DSV41_MODEL_REVISION: 08c8657f02291e11b6f6b63e0e16014f8e748518
+  # Enable the V4.1 footer layout: main cache at 528 B/token, compressed caches
+  # at 288 B/token (V41_FP4 for ratios 1/2) per the format module.
+  SGLANG_DSV4_KV_LAYOUT: "v41"
+  SGLANG_DSV4_COMPRESSED_KV_LAYOUT: "auto"
+  # Keep the shipped kernel pin so the tree delta is isolated.
+  SGLANG_SKIP_SGL_KERNEL_VERSION_CHECK: "1"
+  # Metrics + cache report as on the production line.
+  EXTRA_SGLANG_ARGS: "--enable-metrics --enable-cache-report"
+command: >
+  python3 /workspace/mods/dsv41-sglang-overlay/launcher.py
+  --boot
+  --model {model}
+  --port {port}
+  --tp {tensor_parallel}
+  --served-model-name {model}
+  --context-length {max_model_len}
+  --dspark-block-size {dspark_block_size}
+  --fp8-gemm-backend flashinfer_cutlass
+readiness:
+  inference: false
+  port_timeout_s: 7200
+  health_timeout_s: 3600
