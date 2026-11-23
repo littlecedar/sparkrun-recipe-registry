@@ -1,6 +1,6 @@
 recipe_version: "2"
 model: XHToken/Spark-X2.6-4B-FP8
-model_revision: 0318d6f6ab070c7b5b43052db571489b2508006c
+model_revision: b0065cff38594d3a5e265a5ed12cfb552b179b7c
   # Offline engine: --revision is required (a SHA-keyed download writes no refs/ entry).
 container: lmsysorg/sglang:v0.5.22-cu130@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae
 runtime: sglang
