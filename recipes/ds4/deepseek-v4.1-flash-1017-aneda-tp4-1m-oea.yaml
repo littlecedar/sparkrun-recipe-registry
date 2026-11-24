@@ -27,10 +27,10 @@ runtime: aneda
 # checkpoint-bound and this arm must not be the test of that.
 model_revision: 1bae0e1088993b9b82de08f59de5be5a34e42170
 # Built from Dockerfile.picom-ds41f at pin 7c123ad4 with the three-patch
-# series (the third is this arm's steering code; its `stats:` line now carries
-# kv_hit, engram_hit and engram_used, and rank 0's engine output reaches the
-# container stdout sparkrun captures).
-container: ghcr.io/littlecedar/aneda@sha256:aa0bf7bca28f345c762c826f108f7a795a85fda61f672a7f3b809c54893050cc
+# series (the third is this arm's steering code; its `stats:` line carries
+# kv_hit, engram_hit and engram_used, and each side's own clock emits it with
+# no request in flight, so an idle serve logs too).
+container: ghcr.io/littlecedar/aneda@sha256:d9d6ab2b8f3f9207896dfa87a741cc043626d866279a7c8cebe380584007add4
 distribution_config:
   models:
     entries:
@@ -53,7 +53,8 @@ description: >-
   own ViT as a supervised side encoder) through dsfront. Lossy by choice:
   `PICOM_OEA=4,12,9` re-routes MoE batches for throughput.
   The Aneda runtime, weightless-ablit variant alongside the full weight model:
-  `deepseek-v4.1-flash` (stock) and `deepseek-v4.1-flash-aneda` (steered by
+  `deepseek-ai/DeepSeek-V4.1-Flash-1017` (stock) and
+  `deepseek-ai/DeepSeek-V4.1-Flash-1017-Weightless` (steered by
   msuiche's GLP-39 vector per request).
   Measured upstream on AdvBench's 520 prompts: 13 answered stock, 266 steered.
 lcg_favorite: true
@@ -119,21 +120,22 @@ env:
   # and in WEIGHTLESS_STEER_MODEL because sparkrun substitutes `{...}` in
   # `command:` only — an env value keeps its braces literally — and
   # AnedaContract asserts the two agree.
-  PICOM_FRONT_ARGS: "--steer-model-name deepseek-v4.1-flash-weightless"
+  PICOM_FRONT_ARGS: "--steer-model-name deepseek-ai/DeepSeek-V4.1-Flash-1017-Weightless"
   # The engine's own reader: the staged file, its alpha and the layers the file
   # steers. A file this runtime cannot apply exactly stops the boot.
   WEIGHTLESS_STEER_PATH: /cache/runtime/glp/vector.gguf
   WEIGHTLESS_STEER_ALPHA: "0.75"
   WEIGHTLESS_STEER_LAYERS: "1-39"
-  WEIGHTLESS_STEER_MODEL: "deepseek-v4.1-flash-weightless"
-  # One `stats:` line a minute on each side (0 disables), for the receipt.
-  WEIGHTLESS_STATS_INTERVAL: "60"
+  WEIGHTLESS_STEER_MODEL: "deepseek-ai/DeepSeek-V4.1-Flash-1017-Weightless"
+  # One `stats:` line every 10 s on each side (0 disables), for the receipt. Both
+  # emitters have their own clocks, so an idle serve emits too.
+  WEIGHTLESS_STATS_INTERVAL: "10"
 defaults:
   port: 8000
   # One GPU per node; the engine's TP=4 is its own four processes, not a torch
   # world, so the runtime appends no rank flags and the launcher reads
   # PICOM_NODE_RANK instead.
-  served_model_name: deepseek-v4.1-flash
+  served_model_name: deepseek-ai/DeepSeek-V4.1-Flash-1017
 # The stock name is first on purpose: dsfront's second name must follow it.
 command: >
   bash /workspace/mods/picom-launcher/launch.sh

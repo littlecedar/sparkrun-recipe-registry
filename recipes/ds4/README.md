@@ -2869,11 +2869,11 @@ exactly why that arm needs an image of its own.
 | Engine | the picom (`dsgb10`) TP=4 engine + its Rust front-end `dsfront`, **with this registry's GLP steering patch series** (`recipes/ds4/picom-weightless-steering.patch`, third in the series after PR #15 and PR #7) |
 | Runtime | `aneda` — `plugins/aneda_runtime.py`: native distribution, no rendezvous gate, GB10 only |
 | Model | [`deepseek-ai/DeepSeek-V4.1-Flash-1017`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017) at `1bae0e10` — the revision the steering vector was derived against |
-| Second name | `deepseek-v4.1-flash-aneda`, the same weights with the GLP vector projected out of the residual stream **per request** |
+| Second name | `deepseek-ai/DeepSeek-V4.1-Flash-1017-Weightless`, the same weights with the GLP vector projected out of the residual stream **per request** |
 | Artifact | `msuiche/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75` at `2715ffd5`, one 803,392-byte GGUF, sha256 `9c66d477…f5cf`, 39 layers, α 0.75, MIT, access-gated; staged by `mods/glp-vector-stage` |
 | Topology | TP=4, four GB10 nodes, one process per node, switched RoCE ring |
 | Context | 1,048,576 tokens served (`--max-ctx 1048576`, 16 slots, 4 big) |
-| Image | `ghcr.io/littlecedar/aneda@sha256:aa0bf7bc…` — public and digest-pinned (tag `aneda:stats-20261123`, built 2026-11-23 on `.30`; its `stats:` line carries the cache counters) |
+| Image | `ghcr.io/littlecedar/aneda@sha256:d9d6ab2b…` — public and digest-pinned (tag `aneda:stats10-20261124`, built 2026-11-24 on `.30`; both `stats:` clocks are time-driven) |
 | Status | **Shipped production arm.** The Aneda runtime, weightless-ablit variant alongside the full weight model. |
 
 **Arm framing.** The shipped picom arm borrows vLLM's distribution contract because the engine
@@ -2888,11 +2888,12 @@ compile defects the first build found are fixed in the patch (`read_kind` is `in
 `glp_dev` destination is not `const`).
 
 **The two-name contract.** One deployment, one checkpoint, two served names; the client picks per
-request by the body's `model`. `deepseek-v4.1-flash` is the stock stream. A request naming
-`deepseek-v4.1-flash-aneda` carries `SubmitHeader::steer = 1` to the engine and has the
-vector projected out of its residual stream, while a stock request in the same batch, through the
-same prefix cache, keeps its own text. The stock name is listed first on purpose: `dsfront`'s
-second name follows it. Two consequences a client cannot see:
+request by the body's `model`. `deepseek-ai/DeepSeek-V4.1-Flash-1017` is the stock stream. A
+request naming `deepseek-ai/DeepSeek-V4.1-Flash-1017-Weightless` carries
+`SubmitHeader::steer = 1` to the engine and has the vector projected out of its residual stream,
+while a stock request in the same batch, through the same prefix cache, keeps its own text. The
+stock name is listed first on purpose: `dsfront`'s second name follows it. Two consequences a
+client cannot see:
 
 - **Sessions never share KV across names.** The front-end's session table is matched on prompt
   text alone, so identical text under both names would have reused the other stream's state. Each
@@ -2936,12 +2937,20 @@ stock graph. Front-end: `--steer-model-name`, the strict name selector, both nam
    (see adaptation 2).
 
 **The `stats:` line.** Both sides emit one line per interval, `WEIGHTLESS_STATS_INTERVAL` seconds
-(60 by default, `0` disables), best-effort and never fatal:
+(the recipes pass `10`; the code's own default is `60`; `0` disables), best-effort and never fatal:
 
 ```
-stats: t=60 rank=0 tok_out=… tok_in=… kv_util=… kv_hit=… draft_accept=… queue=… engram_hit=… engram_used=… reqs_stock=… reqs_steered=…
-stats: t=60 front queue=… reqs_stock=… reqs_steered=…
+stats: t=10 rank=0 tok_out=… tok_in=… kv_util=… kv_hit=… draft_accept=… queue=… engram_hit=… engram_used=… reqs_stock=… reqs_steered=…
+stats: t=10 front queue=… reqs_stock=… reqs_steered=…
 ```
+
+**The interval is time-driven, not request-driven.** Each side owns a clock: the engine ticks at
+the top of `Server::loop()` (whose idle path is a 250 ms pop, so the loop runs with nothing in
+flight), and dsfront spawns `server::stats_clock` at startup. Before, the tick lived in
+`Server::run()` and the front-end's only call site was the `/v1/chat/completions` handler, so a
+serve that took no requests printed nothing at all however small the interval was — measured
+2026-11-24: an OEA serve idle since boot, `WEIGHTLESS_STATS_INTERVAL=60`, six hours, no line on
+either side.
 
 `reqs_*` is what was actually sent per name, which is the number that tells a steered arm from two
 aliases; `kv_util` is slot occupancy, `draft_accept` the verify steps' accepted drafts, `queue` the

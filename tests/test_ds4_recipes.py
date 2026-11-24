@@ -3483,8 +3483,8 @@ def _assert_aneda_arm_contract(tc, r: "Recipe", text: str) -> None:
     # Both names, the stock one first: dsfront's steered name follows it. The
     # second name is spelled in the two env vars (sparkrun substitutes `{...}`
     # in `command:` only), so the guard holds the two to one string.
-    stock = "deepseek-v4.1-flash"
-    steered = "deepseek-v4.1-flash-weightless"
+    stock = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    steered = "deepseek-ai/DeepSeek-V4.1-Flash-1017-Weightless"
     tc.assertEqual(r.default("served_model_name"), stock)
     tc.assertNotEqual(stock, steered)
     tc.assertIn("--steer-model-name %s" % steered, r.env["PICOM_FRONT_ARGS"])
@@ -3579,7 +3579,7 @@ class AnedaNegativeControls(unittest.TestCase):
 
     def test_control_no_steered_name(self):
         r, text = self._mutated(
-            'PICOM_FRONT_ARGS: "--steer-model-name deepseek-v4.1-flash-weightless"',
+            'PICOM_FRONT_ARGS: "--steer-model-name deepseek-ai/DeepSeek-V4.1-Flash-1017-Weightless"',
             'PICOM_FRONT_ARGS: ""')
         with self.assertRaises(AssertionError):
             _assert_aneda_arm_contract(self, r, text)
