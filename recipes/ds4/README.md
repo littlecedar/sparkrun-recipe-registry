@@ -2873,7 +2873,7 @@ exactly why that arm needs an image of its own.
 | Artifact | `msuiche/DeepSeek-V4.1-Flash-1017-abliterated-cyber-GLP-39-L1-39-a0.75` at `2715ffd5`, one 803,392-byte GGUF, sha256 `9c66d477…f5cf`, 39 layers, α 0.75, MIT, access-gated; staged by `mods/glp-vector-stage` |
 | Topology | TP=4, four GB10 nodes, one process per node, switched RoCE ring |
 | Context | 1,048,576 tokens served (`--max-ctx 1048576`, 16 slots, 4 big) |
-| Image | `ghcr.io/littlecedar/aneda@sha256:d9d6ab2b…` — public and digest-pinned (tag `aneda:stats10-20261124`, built 2026-11-24 on `.30`; both `stats:` clocks are time-driven) |
+| Image | `ghcr.io/littlecedar/aneda@sha256:728f8ade…` — public and digest-pinned (tag `aneda:stats10b-20261124`, built 2026-11-24 on `.30`; both `stats:` clocks are time-driven, and `run_rows` keeps a steered short prompt off the spec path) |
 | Status | **Shipped production arm.** The Aneda runtime, weightless-ablit variant alongside the full weight model. |
 
 **Arm framing.** The shipped picom arm borrows vLLM's distribution contract because the engine
@@ -2974,6 +2974,13 @@ appeared in a captured log.
    (`spec.cu`, one per context bucket, 0.32 GiB each), so a steered request would replay a graph
    with no steer launches — drafts from an unsteered pass verified against a steered stream. A
    steered request decodes through the plain step path, and the four spec entry points refuse one.
+   **Three sites keep it off spec, and the first two were the only ones the first build had:**
+   `decode_one` (`c.spec = o_.spec && !h.steer`), `decode_batch` (`!any_steer`), and — since
+   2026-11-24 — `run_rows`, the path a prompt of at most `--small-rows` rows takes. Without that
+   third guard a steered short prompt reached `launch_spec` with `cur_steer` set and the guard
+   aborted the whole engine ("model: a speculative step of a steered request", measured on the OEA
+   arm with a 5-token steered prompt; `S->w`'s draft-window margin follows the same condition, or a
+   steered session would claim written positions nothing computed).
 3. The missing-caps check is the request-path 503 above, not a startup `die` (adaptation to §3 of
    the plan, which assumed the caps were known at start).
 4. `WEIGHTLESS_STEER_LAYERS` (range or comma list) is this registry's addition: it restricts the

@@ -1037,7 +1037,7 @@ index 0000000..efae9f6
 +  return g_fail == 0 ? 0 : 1;
 +}
 diff --git a/ds41f-4xgx10-switchless/engine/server/cmd.cpp b/ds41f-4xgx10-switchless/engine/server/cmd.cpp
-index 30b3e3b..f132fbb 100644
+index 30b3e3b..b57474f 100644
 --- a/ds41f-4xgx10-switchless/engine/server/cmd.cpp
 +++ b/ds41f-4xgx10-switchless/engine/server/cmd.cpp
 @@ -74,6 +74,7 @@ void apply_state(model::Model& m, const StateOp& o) {
@@ -1048,7 +1048,21 @@ index 30b3e3b..f132fbb 100644
    std::vector<int> pin;
    for (int i = 0; i < c.n_ops; ++i) {
      pin.push_back(c.ops[i].h);
-@@ -444,6 +445,7 @@ std::vector<BatchEnd> batch_loop(model::Model& m, const Cmd& c, const std::vecto
+@@ -125,7 +126,12 @@ uint64_t run_prefill(model::Model& m, const Cmd& c) {
+ 
+ uint64_t run_rows(model::Model& m, const Cmd& c) {
+   uint64_t n;
+-  if (m.spec()) {  // the rows go into the draft module's windows too
++  // GLP (docs/glp.md): a steered command never takes the spec path. spec.cu's graphs are captured
++  // unsteered and its entry points refuse a steered step, and decode_one/decode_batch already keep a
++  // steered flight off it; this is the rows path they hand a short prompt to. Without the guard a
++  // steered prompt of at most --small-rows rows aborts the engine (measured 2026-11-24: "model: a
++  // speculative step of a steered request" on the OEA arm, a 5-token steered prompt).
++  if (m.spec() && !c.steer) {  // the rows go into the draft module's windows too
+     model::SpecCfg sc;
+     sc.max_drafts = 0;
+     sc.pos_end = c.pos0 + c.rows + 1;
+@@ -444,6 +450,7 @@ std::vector<BatchEnd> batch_loop(model::Model& m, const Cmd& c, const std::vecto
        }
        b.tokens[r] = j == 0 ? e[k].token : -1 - last_row[k];  // the step before holds its row
        b.pos[r] = pos, b.slot[r] = e[k].slot, b.sess[r] = r, b.sp[r] = e[k].sp;
@@ -1121,7 +1135,7 @@ index 53bc32a..4d5b8ef 100644
      const int rc = serve(m, ring, wd, so);
      mem_report(a.rank, "stopped");
 diff --git a/ds41f-4xgx10-switchless/engine/server/serve.cpp b/ds41f-4xgx10-switchless/engine/server/serve.cpp
-index 9dee628..4f67261 100644
+index 9dee628..e29db32 100644
 --- a/ds41f-4xgx10-switchless/engine/server/serve.cpp
 +++ b/ds41f-4xgx10-switchless/engine/server/serve.cpp
 @@ -373,6 +373,7 @@ struct Session {
@@ -1181,7 +1195,18 @@ index 9dee628..4f67261 100644
        if (R <= o_.small_rows && !ced && !img) {
          c.op = kCmdRows;
          std::copy(prompt.begin() + pos, prompt.begin() + pos + R, c.tokens);
-@@ -1230,6 +1245,53 @@ class Server {
+@@ -1095,7 +1110,9 @@ class Server {
+         first = m_.wait(k);
+         tu.rows_ms += m_.last_gpu_ms();
+         first_row = R - 1;
+-        S->w = std::max(S->w, pos + R + (m_.spec() ? model::ops::kDrafts : 0));  // its draft's block keys
++        // its draft's block keys -- only when the rows step really went through spec (run_rows: a
++        // steered command takes the plain launch, so nothing of it is in the draft windows)
++        S->w = std::max(S->w, pos + R + (m_.spec() && !h.steer ? model::ops::kDrafts : 0));
+       } else {
+         c.op = kCmdPrefill;
+         c.flags = (last ? kPfSample : 0) | (ced ? kPfCed : 0);
+@@ -1230,6 +1247,53 @@ class Server {
    // to its end, or until a new request that can have a slot pauses them all (prefill first), or, while
    // requests wait for a slot, for a turn of o_.slice tokens. Then they wait again: the paused ones first, in
    // their order, those whose turn is over last.
@@ -1235,7 +1260,7 @@ index 9dee628..4f67261 100644
    void run() {
      std::vector<Flight> fl;
      std::set<uint64_t> keep;
-@@ -1295,7 +1357,9 @@ class Server {
+@@ -1295,7 +1359,9 @@ class Server {
      c.ahead = 1;
      c.handle = S->h;
      c.snap_every = o_.snap_every;
@@ -1246,7 +1271,7 @@ index 9dee628..4f67261 100644
      c.spec_drafts = o_.spec_drafts;
      c.spec_thresh = o_.spec_thresh;
      std::copy(o_.spec_cost, o_.spec_cost + 3, c.spec_cost);
-@@ -1347,7 +1411,10 @@ class Server {
+@@ -1347,7 +1413,10 @@ class Server {
    // drafts the last one left pauses, to go on alone. Each one's end (fe::k*), or kPaused / kTurn, in why.
    void decode_batch(std::vector<Flight>& fl, bool turns, std::vector<uint32_t>& why) {
      const int n = (int)fl.size();
@@ -1258,7 +1283,7 @@ index 9dee628..4f67261 100644
      std::vector<BatchEntry> e(n);
      std::vector<Session*> S(n);
      for (int k = 0; k < n; ++k) {
-@@ -1363,6 +1430,7 @@ class Server {
+@@ -1363,6 +1432,7 @@ class Server {
        x.n_stop = (int)f.rq.stop.size();
        std::copy(f.rq.stop.begin(), f.rq.stop.end(), x.stop);
        x.sp = f.sp;
@@ -1266,7 +1291,7 @@ index 9dee628..4f67261 100644
        x.spec_tok = f.spec_tok, x.spec_ms = f.spec_ms;  // the drafts' rate goes on from the last run
      }
      Cmd c{};
-@@ -1531,6 +1599,7 @@ class Server {
+@@ -1531,6 +1601,7 @@ class Server {
                  f.decoded / std::max(1e-9, t_dec),
                  why == fe::kStop ? "stop" : why == fe::kLength ? "length" : why == fe::kCancelled ? "cancelled" : "context",
                  m_.state_bytes() / 1048576.0, S ? (int)S->hist.size() : 0, si.bytes / 1048576.0, si.snaps.size(), sl);
@@ -1274,7 +1299,7 @@ index 9dee628..4f67261 100644
      const Turn& u = f.tu;
      std::printf("serve: req %llu turn: state ops %.1f ms (GPU %.1f), %d chunks: layers 0-19 %.1f ms, replay %.1f ms, "
                  "head %.1f ms, draft windows %.1f ms, rows %.1f ms; first token to decode %.1f ms, first decode step "
-@@ -1584,9 +1653,12 @@ int serve(model::Model& m, comm::Ring& ring, Watchdog& wd, const ServeOptions& o
+@@ -1584,9 +1655,12 @@ int serve(model::Model& m, comm::Ring& ring, Watchdog& wd, const ServeOptions& o
    const size_t budget = cap > room ? cap - room : 0;
    hi.max_sessions = (uint32_t)std::max<size_t>(1, budget / (64ull << 20));
    hi.name_len = (uint32_t)o.name.size();
