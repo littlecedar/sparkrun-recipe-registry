@@ -1165,13 +1165,13 @@ for hn in $(echo "$HOSTS" | tr ',' ' '); do
   _rank=$((_rank + 1))
 done
 
-# The picom arms serve an engine whose /v1/chat/completions can answer a canned body while the
-# decode path is dead; a plain endpoint probe reads that as healthy at t=1 s. `--require-inference`
-# makes health need a generated token too, so those arms hold at `loading`/`no_probe` instead of
-# reporting a false healthy. Every other arm keeps the argv it had.
+# The picom and aneda arms serve an engine whose /v1/chat/completions can answer a canned body
+# while the decode path is dead; a plain endpoint probe reads that as healthy at t=1 s.
+# `--require-inference` makes health need a generated token too, so those arms hold at
+# `loading`/`no_probe` instead of reporting a false healthy. Every other arm keeps the argv it had.
 WATCHDOG_INFER=()
 case "$RECIPE" in
-  recipes/ds4/*picom*) WATCHDOG_INFER=(--require-inference) ;;
+  recipes/ds4/*picom*|recipes/ds4/*aneda*) WATCHDOG_INFER=(--require-inference) ;;
 esac
 
 python3 tools/boot-watchdog.py --endpoint "http://$NODE:$PORT" --task-id "$TID" \

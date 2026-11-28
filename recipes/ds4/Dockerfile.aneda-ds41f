@@ -1,0 +1,174 @@
+# syntax=docker/dockerfile:1
+# ===========================================================================
+# Aneda — DeepSeek-V4.1-Flash on 4x DGX Spark: the picom (dsgb10) engine built
+# from upstream source https://github.com/Picom-code/pico-dgx-ds4 (MIT),
+# config ds41f-4xgx10-switchless, plus this registry's patch series (below).
+#
+# Built for arm64 only: the engine compiles sm_121a (GB10) and nothing else
+# (engine/CMakeLists.txt:10,19 upstream). A build on an x86 host produces
+# binaries the fleet cannot run — build it on a GB10 node.
+#
+# Build (on a GB10 node; the context is recipes/ds4/ because the tracked
+# patch series is COPYed from it):
+#   docker build -f recipes/ds4/Dockerfile.aneda-ds41f \
+#     -t ghcr.io/littlecedar/aneda:ds41f-7c123ad4 recipes/ds4
+# The two base images are digest-pinned for linux/arm64; both are archival
+# CUDA 13.0.1 images (upstream's build contract: CUDA 13.0 at
+# /usr/local/cuda-13.0, cmake >= 3.28, g++ 13, cargo, libibverbs-dev).
+#
+# What the image carries: the four of upstream's build targets that a boot
+# needs — dsgb10_rank (engine), dsfront (Rust front-end), dsw_convert +
+# engram_pack (one-time per-rank weight/Engram preparation), and the two
+# stdlib Python helpers (engram hash map, page-cache eviction). Plus
+# tools/stack4/cfmlp_cml.bin: the draft-gate weights upstream's production
+# line requires (DSGB10_CF_MLP); the engine dies at start without it.
+# The vision encoder (upstream PR #15) ships with torch 2.11+cu130, Pillow,
+# safetensors and PyAV; `--stream-tool-args` (PR #7) is in the dsfront build.
+#
+# Not in the image: model weights, Engram shards, spill directory, fleet
+# file. Those are per-node runtime artifacts under /cache/runtime/aneda/ —
+# see recipes/ds4/mods/aneda-launcher/.
+# ===========================================================================
+
+ARG CUDA_BUILD_IMAGE=nvidia/cuda:13.0.1-devel-ubuntu24.04@sha256:5c36750138dc1447a17dafbb397674f167d3b44ce18d9160d769df114577b35d
+ARG CUDA_RUNTIME_IMAGE=nvidia/cuda:13.0.1-runtime-ubuntu24.04@sha256:36050649ad1acc5d3de2c26620191c25850fb12a5771b6c22996033003d952e4
+
+FROM ${CUDA_BUILD_IMAGE} AS build
+
+ARG ANEDA_REPO=https://github.com/Picom-code/pico-dgx-ds4
+# HEAD 2026-11-16: the source of the 2026-11-11 numbers (stack4/stack5,
+# README "run it"). A later pin needs a re-measured lane receipt.
+ARG ANEDA_REF=7c123ad4e4c49e14c7f3270590e81d588acdcb04
+ARG RUST_TOOLCHAIN=1.90.0
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ca-certificates curl git cmake make g++ libibverbs-dev python3 \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+      | sh -s -- -y --profile minimal --default-toolchain "${RUST_TOOLCHAIN}"
+ENV PATH=/root/.cargo/bin:${PATH}
+
+# Pin asserted, not assumed: a moved branch must fail the build, not ship.
+RUN git init /src \
+ && git -C /src remote add origin "${ANEDA_REPO}" \
+ && git -C /src fetch --depth 1 origin "${ANEDA_REF}" \
+ && git -C /src checkout --detach FETCH_HEAD \
+ && test "$(git -C /src rev-parse HEAD)" = "${ANEDA_REF}"
+
+# Two unmerged upstream PRs, integrated as a tracked patch series over the
+# pin (both PR branches conflict with the pin, so the series carries the
+# merge resolutions; see the recipe/lane doc for what was resolved and why):
+#   picom-pr15-service-vision.patch   PR #15 @ 8031b928 — service-owned vision
+#                                     encoder + the mock engine's image-frame
+#                                     decode (protocol.rs keeps this tree's
+#                                     validated image-part layout)
+#   picom-pr7-stream-tool-args.patch  PR #7  @ 5063f5c3 — `--stream-tool-args`
+# and two local patches of this registry's own, on top of both:
+#   aneda-weightless-steering.patch   GLP steering (docs/glp.md in the engine
+#                                     tree): a vector reader that refuses any
+#                                     file it cannot apply exactly, the
+#                                     per-row steer flag on the step path, the
+#                                     second served name in dsfront and the
+#                                     protocol's v2 (kVersion, HelloEngine.caps).
+#                                     Not upstream; the arm it serves is
+#                                     zz-deepseek-v4.1-flash-1017-weightless-
+#                                     dsgb10-tp4.yaml. A tree that does not carry
+#                                     it answers the stock model under both
+#                                     names, which is why the engine refuses a
+#                                     steered submit when no vector is loaded.
+#   aneda-structured-logging.patch    the arm's structured log records.
+# The patch files are the build context (build from recipes/ds4/, not the
+# repo root) and apply in this order.
+COPY picom-pr15-service-vision.patch picom-pr7-stream-tool-args.patch aneda-weightless-steering.patch aneda-structured-logging.patch /tmp/
+RUN git -C /src apply /tmp/picom-pr15-service-vision.patch \
+ && git -C /src apply /tmp/picom-pr7-stream-tool-args.patch \
+ && git -C /src apply /tmp/aneda-weightless-steering.patch \
+ && git -C /src apply /tmp/aneda-structured-logging.patch
+
+WORKDIR /src/ds41f-4xgx10-switchless
+RUN cmake -S engine -B engine/build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc \
+ && cmake --build engine/build -j8
+RUN cd frontend && cargo build --release --locked
+# The merged frontend's own suite is the patch series' acceptance: a merge
+# resolution that changes a wire layout fails here instead of shipping.
+RUN cd frontend && cargo test --release --locked
+
+# Build gate: the bytes the recipe's launcher will exec must exist and be
+# aarch64. Shape checks only — no GPU is present at build time.
+RUN test -x engine/build/server/dsgb10_rank \
+ && test -x engine/build/weights/dsw_convert \
+ && test -x engine/build/engram/engram_pack \
+ && test -x frontend/target/release/dsfront \
+ && for b in engine/build/server/dsgb10_rank engine/build/weights/dsw_convert \
+             engine/build/engram/engram_pack frontend/target/release/dsfront; do \
+      readelf -h "$b" | grep -q 'Machine:.*AArch64' || exit 1; \
+    done
+
+FROM ${CUDA_RUNTIME_IMAGE}
+
+ARG ANEDA_REF=7c123ad4e4c49e14c7f3270590e81d588acdcb04
+
+LABEL org.opencontainers.image.source="https://github.com/littlecedar/sparkrun-recipe-registry" \
+      org.opencontainers.image.description="Pico dgx-ds4 (dsgb10) DeepSeek-V4.1-Flash TP=4 engine for 4x DGX Spark GB10, built from Picom-code/pico-dgx-ds4@${ANEDA_REF}" \
+      org.opencontainers.image.licenses="MIT"
+
+ENV DEBIAN_FRONTEND=noninteractive
+# libibverbs1 + ibverbs-providers: the engine's ring links ibverbs and
+# enumerates the fabric's mlx5 devices through rdma-core's provider stack —
+# without a provider the engine aborts "RDMA device rocep1s0f0 not found"
+# (boot 1, 2026-11-17);
+# librdmacm1t64 (the noble t64 name) + ibverbs-utils (ibv_devices/ibv_devinfo,
+# which the launcher's pre-start gate runs); libnl-route-3-200: rdma-core's
+# dependency; python3: the stdlib helpers;
+# python3-pip + torch/numpy/Pillow/safetensors/av: the vision encoder (PR #15) —
+# a Python side process on rank 0 that runs the checkpoint's own ViT code
+# (its inference/ modules import torch, numpy, safetensors and PIL).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      libibverbs1 ibverbs-providers librdmacm1t64 ibverbs-utils \
+      libnl-route-3-200 python3 python3-pip libgomp1 ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# Build gate for the RDMA user space, which needs no RDMA device to fail:
+# libibverbs must find its provider config dir and the mlx5 provider must be
+# installed (a lone libibverbs enumerates 0 devices).
+RUN set -eux; \
+    out=$(ibv_devinfo -l 2>&1 || true); printf '%s\n' "$out"; \
+    ! printf '%s\n' "$out" | grep -q "couldn't open config directory"; \
+    test -e /etc/libibverbs.d/mlx5.driver; \
+    ls /usr/lib/aarch64-linux-gnu/libibverbs/libmlx5-rdmav*.so >/dev/null
+RUN python3 -m pip install --break-system-packages --no-cache-dir \
+      --index-url https://download.pytorch.org/whl/cu130 'torch==2.11.0+cu130' \
+ && python3 -m pip install --break-system-packages --no-cache-dir \
+      pillow numpy safetensors av
+# Import-only gate: catches a wheel that resolves but cannot load. List every
+# module the encoder's import chain needs (torch's numpy warning is how a
+# missing numpy was found, not how it should be found).
+RUN python3 -c 'import torch, numpy, PIL, safetensors, av; print("torch", torch.__version__, "numpy", numpy.__version__)'
+
+COPY --from=build /src/ds41f-4xgx10-switchless/engine/build/server/dsgb10_rank /opt/picom/bin/
+COPY --from=build /src/ds41f-4xgx10-switchless/engine/build/weights/dsw_convert /opt/picom/bin/
+COPY --from=build /src/ds41f-4xgx10-switchless/engine/build/weights/dsw_verify /opt/picom/bin/
+COPY --from=build /src/ds41f-4xgx10-switchless/engine/build/weights/dsw_load /opt/picom/bin/
+COPY --from=build /src/ds41f-4xgx10-switchless/engine/build/engram/engram_pack /opt/picom/bin/
+COPY --from=build /src/ds41f-4xgx10-switchless/frontend/target/release/dsfront /opt/picom/bin/
+COPY --from=build /src/ds41f-4xgx10-switchless/tools/stack4/cfmlp_cml.bin /opt/picom/cfmlp_cml.bin
+COPY --from=build /src/ds41f-4xgx10-switchless/tools/vision/vision_encoder.py /opt/picom/vision/vision_encoder.py
+COPY --from=build /src/ds41f-4xgx10-switchless/engine/engram/py/make_hashmap_stdlib.py /opt/picom/bin/
+COPY --from=build /src/ds41f-4xgx10-switchless/engine/server/tools/evict_cache.py /opt/picom/bin/
+COPY --from=build /src/ds41f-4xgx10-switchless/fleet/homelab.conf /opt/picom/fleet/homelab.conf
+
+ENV PATH=/opt/picom/bin:${PATH}
+
+# Link gate: every binary the launcher execs must resolve its shared objects
+# inside this image (the ring links libibverbs; a missing provider dependency
+# shows up here, not as an engine abort at boot).
+RUN set -eux; \
+    for b in dsgb10_rank dsfront dsw_convert dsw_verify dsw_load engram_pack; do \
+      ! ldd "/opt/picom/bin/$b" | grep -q "not found"; \
+    done

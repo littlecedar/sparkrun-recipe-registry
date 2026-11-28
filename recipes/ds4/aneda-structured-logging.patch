@@ -1,0 +1,1879 @@
+diff --git a/ds41f-4xgx10-switchless/engine/comm/ring.cpp b/ds41f-4xgx10-switchless/engine/comm/ring.cpp
+index 2afd734..334b7c9 100644
+--- a/ds41f-4xgx10-switchless/engine/comm/ring.cpp
++++ b/ds41f-4xgx10-switchless/engine/comm/ring.cpp
+@@ -512,10 +512,8 @@ Ring::Ring(const Options& o) : impl_(new Impl) {
+   });
+   barrier();
+   if (o.verbose || I.direct)
+-    std::fprintf(stderr, "comm: rank %d (%s) up, region %zu bytes, cap %zu, mtu %d%s\n", I.rank,
+-                 I.F ? I.F->rank[I.rank].name.c_str() : "loop", I.region.size, I.L.cap,
+-                 128 << I.to_next[0].mtu,
+-                 I.direct ? (I.merge ? ", direct to the opposite rank (no relays), merged small writes" : ", direct to the opposite rank (no relays)") : "");
++    lg::line(I.rank, lg::kInfo, "comm.up", "region_bytes=%zu cap=%zu mtu=%d direct=%d merge=%d", I.region.size, I.L.cap,
++             128 << I.to_next[0].mtu, I.direct ? 1 : 0, I.merge ? 1 : 0);
+ }
+ 
+ Ring::~Ring() {
+diff --git a/ds41f-4xgx10-switchless/engine/common/check.h b/ds41f-4xgx10-switchless/engine/common/check.h
+index 84ee885..0d21c13 100644
+--- a/ds41f-4xgx10-switchless/engine/common/check.h
++++ b/ds41f-4xgx10-switchless/engine/common/check.h
+@@ -1,16 +1,18 @@
+ // Error checks shared by every part of the engine.
+ #pragma once
+ #include <cstdarg>
+-#include <cstdio>
+ #include <cstdlib>
+ #include <cuda_runtime.h>
+ 
++#include "common/log.h"
++
+ [[noreturn]] inline void die(const char* fmt, ...) {
++  char text[4000];
+   va_list ap;
+   va_start(ap, fmt);
+-  std::vfprintf(stderr, fmt, ap);
++  std::vsnprintf(text, sizeof text, fmt, ap);
+   va_end(ap);
+-  std::fputc('\n', stderr);
++  lg::msg_at(lg::rank_ref(), lg::kFatal, "fatal", text);
+   std::abort();
+ }
+ 
+diff --git a/ds41f-4xgx10-switchless/engine/common/log.h b/ds41f-4xgx10-switchless/engine/common/log.h
+new file mode 100644
+index 0000000..c283938
+--- /dev/null
++++ b/ds41f-4xgx10-switchless/engine/common/log.h
+@@ -0,0 +1,157 @@
++// Structured log records, one line per event. The grammar is shared with the front-end (frontend/src/log.rs):
++//   ts=<UTC ISO-8601 with milliseconds> level=<debug|info|warn|error|fatal> node=<host> rank=<0-3>
++//   src=engine event=<noun.verb> [key=value]... [msg="<text>"]
++// A record is built in one stack buffer and written with one fwrite: the request path allocates nothing.
++// DSGB10_LOG_LEVEL gates the records (debug < info < warn < error < fatal; default info): a call below
++// the threshold returns after one int compare.
++#pragma once
++#include <cstdarg>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <ctime>
++#include <time.h>
++#include <unistd.h>
++
++namespace lg {
++
++// The levels, in gate order.
++enum Level : int { kDebug = 0, kInfo, kWarn, kError, kFatal };
++
++inline const char* level_name(Level l) {
++  switch (l) {
++    case kDebug: return "debug";
++    case kWarn: return "warn";
++    case kError: return "error";
++    case kFatal: return "fatal";
++    default: return "info";
++  }
++}
++
++inline int level_value(const char* s) {
++  if (std::strcmp(s, "debug") == 0) return kDebug;
++  if (std::strcmp(s, "info") == 0) return kInfo;
++  if (std::strcmp(s, "warn") == 0) return kWarn;
++  if (std::strcmp(s, "error") == 0) return kError;
++  if (std::strcmp(s, "fatal") == 0) return kFatal;
++  return -1;
++}
++
++// The rank a record names when its call site holds no Model (check.h's die, the reader thread). main()
++// sets it from the rank it was started with.
++inline int& rank_ref() {
++  static int r = 0;
++  return r;
++}
++inline void set_rank(int r) { rank_ref() = r; }
++
++inline const char* node() {
++  static char h[256];
++  static const bool once = [] {
++    if (gethostname(h, sizeof h - 1) != 0) std::snprintf(h, sizeof h, "unknown");
++    return true;
++  }();
++  (void)once;
++  return h;
++}
++
++// The prefix, then tail as the caller built it (key=value fields, or msg="..." last), then a newline.
++inline void emit(int rank, Level level, const char* event, const char* tail) {
++  timespec ts{};
++  clock_gettime(CLOCK_REALTIME, &ts);
++  std::tm t{};
++  gmtime_r(&ts.tv_sec, &t);
++  char b[8192];
++  std::snprintf(b, sizeof b, "ts=%04d-%02d-%02dT%02d:%02d:%02d.%03ldZ level=%s node=%s rank=%d src=engine event=%s",
++                t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec, ts.tv_nsec / 1000000,
++                level_name(level), node(), rank, event);
++  size_t n = std::strlen(b);
++  if (tail && *tail) {
++    std::snprintf(b + n, sizeof b - n, " %s", tail);
++    n = std::strlen(b);
++  }
++  if (n < sizeof b - 1) b[n++] = '\n';
++  std::fwrite(b, 1, n, stdout);  // line-buffered stdout (main sets _IOLBF): one write
++}
++
++// The threshold, resolved once from DSGB10_LOG_LEVEL (default info). An unknown value falls back to
++// info and writes one warn record naming it, so a bad setting is visible, not silent.
++inline int threshold() {
++  static const int t = [] {
++    const char* e = std::getenv("DSGB10_LOG_LEVEL");
++    const int v = e && *e ? level_value(e) : int(kInfo);
++    if (v >= 0) return v;
++    char tail[256];
++    std::snprintf(tail, sizeof tail, "value=%s msg=\"unknown DSGB10_LOG_LEVEL, using info\"", e);
++    emit(rank_ref(), kWarn, "log.level", tail);
++    return int(kInfo);
++  }();
++  return t;
++}
++inline bool on(Level level) { return int(level) >= threshold(); }
++
++inline void vline(int rank, Level level, const char* event, const char* fmt, va_list ap) {
++  if (!on(level)) return;
++  char tail[4096];
++  std::vsnprintf(tail, sizeof tail, fmt, ap);
++  emit(rank, level, event, tail);
++}
++
++// key=value fields (fmt is the tail as the grammar defines it).
++inline void line(int rank, Level level, const char* event, const char* fmt, ...) {
++  va_list ap;
++  va_start(ap, fmt);
++  vline(rank, level, event, fmt, ap);
++  va_end(ap);
++}
++inline void log_line(Level level, const char* event, const char* fmt, ...) {
++  va_list ap;
++  va_start(ap, fmt);
++  vline(rank_ref(), level, event, fmt, ap);
++  va_end(ap);
++}
++
++// msg="..." with quotes, backslashes and control characters escaped, for a tail a caller builds itself.
++inline const char* quote(char* dst, size_t n, const char* text) {
++  size_t j = 0;
++  dst[j++] = '"';
++  for (const char* p = text; *p && j + 8 < n; ++p) {
++    const unsigned char c = (unsigned char)*p;
++    if (c == '"' || c == '\\') dst[j++] = '\\', dst[j++] = (char)c;
++    else if (c == '\n') dst[j++] = '\\', dst[j++] = 'n';
++    else if (c == '\t') dst[j++] = '\\', dst[j++] = 't';
++    else if (c == '\r') dst[j++] = '\\', dst[j++] = 'r';
++    else dst[j++] = (char)c;
++  }
++  dst[j++] = '"';
++  dst[j] = 0;
++  return dst;
++}
++
++inline void msg_at(int rank, Level level, const char* event, const char* text) {
++  if (!on(level)) return;
++  char q[4100];
++  std::memcpy(q, "msg=", 4);
++  quote(q + 4, sizeof q - 4, text);
++  emit(rank, level, event, q);
++}
++inline void log_msg_at(int rank, Level level, const char* event, const char* fmt, ...) {
++  if (!on(level)) return;
++  char text[4000];
++  va_list ap;
++  va_start(ap, fmt);
++  std::vsnprintf(text, sizeof text, fmt, ap);
++  va_end(ap);
++  msg_at(rank, level, event, text);
++}
++inline void log_msg(Level level, const char* event, const char* fmt, ...) {
++  if (!on(level)) return;
++  char text[4000];
++  va_list ap;
++  va_start(ap, fmt);
++  std::vsnprintf(text, sizeof text, fmt, ap);
++  va_end(ap);
++  msg_at(rank_ref(), level, event, text);
++}
++
++}  // namespace lg
+diff --git a/ds41f-4xgx10-switchless/engine/kernels/moe.cu b/ds41f-4xgx10-switchless/engine/kernels/moe.cu
+index cad31aa..fadcf94 100644
+--- a/ds41f-4xgx10-switchless/engine/kernels/moe.cu
++++ b/ds41f-4xgx10-switchless/engine/kernels/moe.cu
+@@ -1456,7 +1456,7 @@ void moe_routed(const uint8_t* xq, const uint8_t* xs, int M, const float* logits
+       int k0 = 0, kp = 0, mr = 0;
+       if (sscanf(e, "%d,%d,%d", &k0, &kp, &mr) == 3 && k0 >= 1 && k0 < kTopK && kp >= kTopK && kp <= 16 && mr >= 2) {
+         v[0] = k0, v[1] = kp, v[2] = mr;
+-        fprintf(stderr, "moe: DSGB10_OEA re-routing on: keep top %d, prefer the batch's core among top %d, from %d rows\n", k0, kp, mr);
++        lg::line(lg::rank_ref(), lg::kInfo, "moe.oea", "keep_top=%d prefer_top=%d min_rows=%d", k0, kp, mr);
+       } else {
+         die("DSGB10_OEA=%s: K0,KP,MINROWS with 1 <= K0 < 6, 6 <= KP <= 16, MINROWS >= 2", e);
+       }
+diff --git a/ds41f-4xgx10-switchless/engine/model/model.cu b/ds41f-4xgx10-switchless/engine/model/model.cu
+index e8779f7..d8a4fe2 100644
+--- a/ds41f-4xgx10-switchless/engine/model/model.cu
++++ b/ds41f-4xgx10-switchless/engine/model/model.cu
+@@ -13,6 +13,7 @@
+ #include <vector>
+ 
+ #include "attn/launch.h"
++#include "common/log.h"
+ #include "model/impl.h"
+ #include "model/prefill.h"
+ #include "model/spec.h"
+@@ -105,8 +106,8 @@ Model::Impl::Impl(int r, const Options& op) : rank(r), opt(op) {
+     k.carry_sc = dalloc<float>(nunits * KvSrc::kCarryStride);
+   }
+   if (rank == 0 && nunits != nslots)
+-    std::printf("model: %d session slots, %d of %d positions and %d of %d (%d units)\n", nslots, nbig, opt.max_ctx,
+-                nslots - nbig, unit_ctx, nunits);
++    lg::line(rank, lg::kInfo, "model.slots", "slots=%d big=%d big_ctx=%d small=%d small_ctx=%d units=%d", nslots, nbig,
++             opt.max_ctx, nslots - nbig, unit_ctx, nunits);
+   use_slot(0);
+   if (const char* rd = getenv("DSGB10_ROUTE_DUMP"); rd && rank == 0) {
+     route_ring = dalloc<RouteRec>(kRouteRing);
+@@ -397,8 +398,8 @@ void Model::Impl::bind(dsw::WeightFile& wf, comm::Ring& ring) {
+   scratch_bytes = 0;
+   if (hc_local) CUDA_CHECK(cudaFree(hc_local));
+   if (opt.n_layers > opt.first_layer)
+-    std::printf("moe: the experts' scale codes, %.1f MiB: %.2f %% of their 32-scale groups coded\n", code_bytes / 1048576.0,
+-                100 * code_share / (opt.n_layers - opt.first_layer));
++    lg::line(rank, lg::kInfo, "model.moe", "code_mib=%.1f coded_pct=%.2f", code_bytes / 1048576.0,
++             100 * code_share / (opt.n_layers - opt.first_layer));
+   bound = true;
+ }
+ 
+@@ -1149,8 +1150,8 @@ void Model::Impl::cert_setup(const uint8_t* head_raw, const uint8_t* q, const ui
+   cert.bscale = getenv("DSGB10_CERT_BSCALE") ? (float)atof(getenv("DSGB10_CERT_BSCALE")) : 1.f;
+   if (!(cert.bscale >= 1.f)) die("model: DSGB10_CERT_BSCALE below 1");
+   cert.on = true;
+-  std::fprintf(stderr, "cert: rank %d: certified head on (FP8 coarse read; bound mean %.4f max %.4f; check %d force %d bscale %g)\n",
+-               rank, sum / kVocabPart, mx, (int)cert.check, cert.force, cert.bscale);
++  lg::line(rank, lg::kInfo, "model.cert", "bound_mean=%.4f bound_max=%.4f check=%d force=%d bscale=%g", sum / kVocabPart, mx,
++           (int)cert.check, cert.force, cert.bscale);
+ }
+ 
+ void Model::Impl::forward_rows(int R, int ctx, uint32_t flags, Sink* sink, int pos0) {
+@@ -1251,8 +1252,8 @@ void Model::set_glp(const glp::Glp& g) {
+   CUDA_CHECK(cudaMemcpy(d_->glp_dev, all.data(), all.size() * 2, cudaMemcpyHostToDevice));
+   int n = 0;
+   for (int L = 0; L < kLayers; ++L) n += g.steered(L) ? 1 : 0;
+-  if (d_->rank == 0) std::printf("rank 0: glp: %d directions of %d layers, alpha %.3f, %.1f MB\n", n, kLayers, g.alpha,
+-                                 all.size() * 2 / 1e6);
++  if (d_->rank == 0)
++    lg::line(0, lg::kInfo, "glp.load", "directions=%d layers=%d alpha=%.3f mb=%.1f", n, kLayers, g.alpha, all.size() * 2 / 1e6);
+ }
+ bool Model::glp_loaded() const { return d_->glp.any(); }
+ uint64_t Model::launch(int R, int pos0, const int32_t* tokens, const Sampling& sp, uint32_t flags, Sink* sink) {
+diff --git a/ds41f-4xgx10-switchless/engine/model/prefill.cu b/ds41f-4xgx10-switchless/engine/model/prefill.cu
+index ae2fb0a..9f123ef 100644
+--- a/ds41f-4xgx10-switchless/engine/model/prefill.cu
++++ b/ds41f-4xgx10-switchless/engine/model/prefill.cu
+@@ -24,6 +24,7 @@
+ // compressor for its rows (the decoder's global KV and index keys, the exact path's), and keeps its
+ // last 128 positions' layer-20 input (ced_keep). The chunk that samples then replays layers 20-39 over
+ // [P - 128, P) as a chunk of 128 rows whose window starts at P - 128 (ced_replay), and the head reads it.
++#include "common/log.h"
+ #include "model/prefill.h"
+ 
+ #include <algorithm>
+@@ -181,8 +182,8 @@ void Model::Impl::prefill_alloc(comm::Ring* ring) {
+   sync();
+   CUDA_CHECK(cudaFree(tmp));
+   CUDA_CHECK(cudaMemGetInfo(&free1, &total));
+-  std::printf("rank %d: prefill buffers and gathered weights for %d-row chunks: %.2f GiB (%.2f GiB free)\n", rank,
+-              M, (double)(free0 - free1) / 1073741824.0, free1 / 1073741824.0);
++  lg::line(rank, lg::kInfo, "prefill.buffers", "rows=%d gib=%.2f free_gib=%.2f", M, (double)(free0 - free1) / 1073741824.0,
++           free1 / 1073741824.0);
+ }
+ 
+ #ifdef DSGB10_NVTX
+diff --git a/ds41f-4xgx10-switchless/engine/model/sample.cu b/ds41f-4xgx10-switchless/engine/model/sample.cu
+index 0195aaf..528443c 100644
+--- a/ds41f-4xgx10-switchless/engine/model/sample.cu
++++ b/ds41f-4xgx10-switchless/engine/model/sample.cu
+@@ -443,7 +443,9 @@ void sample(const comm::DevChannel& ch, const float* logits, int vocab0, const S
+     const char* e = getenv("DSGB10_RELAX");
+     float v = e ? (float)atof(e) : 0.f;
+     if (!(v > 0.f) && lpmin > -INFINITY) v = INFINITY;
+-    if (v > 0.f) fprintf(stderr, "sample: DSGB10_RELAX=%g DSGB10_RELAX_P lp>=%g: greedy one-session drafts accepted near the max (lossy)\n", v, lpmin);
++    if (v > 0.f)
++      lg::line(lg::rank_ref(), lg::kWarn, "sample.relax", "relax=%g lp_min=%g msg=\"greedy one-session drafts accepted near the max (lossy)\"", v,
++               lpmin);
+     return v;
+   }();
+   if (kBytes<kMaxRows> > ch.cap) die("sample: %u bytes exceed the channel's %u", kBytes<kMaxRows>, ch.cap);
+diff --git a/ds41f-4xgx10-switchless/engine/model/spec.cu b/ds41f-4xgx10-switchless/engine/model/spec.cu
+index 44bb21e..e755c85 100644
+--- a/ds41f-4xgx10-switchless/engine/model/spec.cu
++++ b/ds41f-4xgx10-switchless/engine/model/spec.cu
+@@ -14,6 +14,7 @@
+ #include <cmath>
+ #include <ctime>
+ 
++#include "common/log.h"
+ #include "model/nvtx.h"
+ #include "model/prefill.h"
+ #include "model/spec_batch.h"
+@@ -578,15 +579,16 @@ void Model::Impl::bind_spec(dsw::WeightFile& wf, const dsw::WeightFile* draft) {
+       uint8_t* s4 = dalloc<uint8_t>((size_t)dspark::kVocabRank * kDim / 32);
+       const long moved = dspark::head_fp4(q, s, q4, s4, st);
+       if (rank == 0)
+-        std::printf("draft head as MXFP4: %ld of %d groups under a scale above sim_fp4's (its e4m3 rounding)\n",
+-                    moved, dspark::kVocabRank * kDim / 32);
++        lg::line(0, lg::kInfo, "spec.head4", "moved=%ld groups=%d msg=\"groups under a scale above sim_fp4's (its e4m3 rounding)\"",
++                 moved, dspark::kVocabRank * kDim / 32);
+       dw.head4 = q4, dw.head4_s = s4;
+       // stack4: DSGB10_HEAD4_C1=1 keeps the FP8 copy for the batch passes (dspark.cu draft_batch_head): the MXFP4 head
+       // then serves one-session drafts only, and steps of several sessions draft as without --draft-head4
+       static const bool keep8 = getenv("DSGB10_HEAD4_C1") && atoi(getenv("DSGB10_HEAD4_C1")) != 0;
+       if (keep8) {
+         sp.whole.push_back(q), sp.whole.push_back(s);
+-        if (rank == 0) std::printf("draft head: MXFP4 for one-session drafts, the FP8 copy kept for batch passes\n");
++        if (rank == 0)
++          lg::msg_at(0, lg::kInfo, "spec.head4", "draft head: MXFP4 for one-session drafts, the FP8 copy kept for batch passes");
+       } else {
+         if (cert.on) die("model: DSGB10_CERT needs the FP8 head copy kept (DSGB10_HEAD4_C1=1 with --draft-head4)");
+         dw.head8 = dw.head8_s = nullptr;
+@@ -636,7 +638,8 @@ void Model::Impl::bind_spec(dsw::WeightFile& wf, const dsw::WeightFile* draft) {
+         dspark::sim_fp4(wp, static_cast<uint8_t*>(ts->data), (int)t->shape[0], (int)t->shape[1], l1, st);
+         sync();
+         const int ok = check_fp4(before, e4m3_block0(wp, (int)t->shape[1], l1));
+-        if (rank == 0 && n == 0) std::printf("DSPARK_SIM: %s block 0: %d of 1024 values MXFP4's\n", nm.c_str(), ok);
++        if (rank == 0 && n == 0)
++          lg::line(0, lg::kInfo, "spec.sim", "tensor=%s block=0 values=%d values_of=1024 fmt=MXFP4", nm.c_str(), ok);
+         if (ok < 1024) die("DSPARK_SIM: %s block 0: only %d of 1024 values MXFP4's", nm.c_str(), ok);
+         ++n;
+       }
+@@ -649,7 +652,7 @@ void Model::Impl::bind_spec(dsw::WeightFile& wf, const dsw::WeightFile* draft) {
+       dspark::sim_fp4(hp, const_cast<uint8_t*>(dw.head8_s), dspark::kVocabRank, kDim, true, st);
+       sync();
+       const int ok = check_fp4(before, e4m3_block0(hp, kDim, true));
+-      if (rank == 0) std::printf("DSPARK_SIM: the FP8 head copy, block 0: %d of 1024 values MXFP4's\n", ok);
++      if (rank == 0) lg::line(0, lg::kInfo, "spec.sim", "tensor=fp8_head block=0 values=%d values_of=1024 fmt=MXFP4", ok);
+       if (ok < 1024) die("DSPARK_SIM: the head copy's block 0: only %d of 1024 values MXFP4's", ok);
+       ++n;
+     }
+@@ -661,11 +664,11 @@ void Model::Impl::bind_spec(dsw::WeightFile& wf, const dsw::WeightFile* draft) {
+       dspark::sim_fp8_l2(mp, dspark::kVocabRank, dspark::kMarkov, st);
+       sync();
+       const int ok = check_fp8(before, bf16_l2_block0(mp, dspark::kMarkov));
+-      if (rank == 0) std::printf("DSPARK_SIM: the Markov head, block 0: %d of 1024 values e4m3's\n", ok);
++      if (rank == 0) lg::line(0, lg::kInfo, "spec.sim", "tensor=markov_head block=0 values=%d values_of=1024 fmt=e4m3", ok);
+       if (ok < 1024) die("DSPARK_SIM: the Markov head's block 0: only %d of 1024 values e4m3's", ok);
+       ++n;
+     }
+-    if (rank == 0) std::printf("DSPARK_SIM=%s: %d tensors rounded in place\n", sim, n);
++    if (rank == 0) lg::line(0, lg::kInfo, "spec.sim", "sim=%s tensors=%d", sim, n);
+   }
+   sync();
+   cudaFree(hc_tmp);
+@@ -686,7 +689,7 @@ void Model::Impl::bind_spec(dsw::WeightFile& wf, const dsw::WeightFile* draft) {
+     for (size_t i = 0; i < n * 4; ++i) h = (h ^ reinterpret_cast<const uint8_t*>(w.data())[i]) * 16777619u;
+     const int dbg = getenv("DSGB10_CF_DBG") ? atoi(getenv("DSGB10_CF_DBG")) : 0;
+     sp.draft->enable_cf(w.data(), dbg);
+-    std::fprintf(stderr, "spec: rank %d: confidence MLP %s (hash %08x, dbg %d) for one-session drafts\n", rank, path.c_str(), h, dbg);
++    lg::line(rank, lg::kInfo, "spec.cfmlp", "path=%s hash=%08x dbg=%d", path.c_str(), h, dbg);
+   }
+   static_assert(kDecodeRows <= dspark::kMaxHidden, "a batch spec step's rows fit the draft module's main_hidden tap");
+   sp.mh = dalloc<uint16_t>((size_t)kMaxRows * dspark::kMainK);
+@@ -850,8 +853,8 @@ cudaGraphExec_t Model::Impl::spec_graph(int ctx) {
+   sp.graphs.emplace(ctx, e);
+   CUDA_CHECK(cudaMemGetInfo(&free1, &total));
+   if (rank == 0 && !sp.quiet)
+-    std::printf("spec: the step graph of context %d (%zu nodes in its bodies) in %.2f s (CPU), %.1f MiB of device "
+-                "memory\n", ctx, nodes, (double)(clock() - t0) / CLOCKS_PER_SEC, ((double)free0 - (double)free1) / 1048576.0);
++    lg::line(0, lg::kInfo, "spec.graph", "context=%d nodes=%zu cpu_s=%.2f mib=%.1f", ctx, nodes,
++             (double)(clock() - t0) / CLOCKS_PER_SEC, ((double)free0 - (double)free1) / 1048576.0);
+   return e;
+ }
+ 
+@@ -1037,8 +1040,8 @@ cudaGraphExec_t Model::Impl::spec_batch_graph(int ctx) {
+   if (ie != cudaSuccess) {  // DIAGNOSTICS: what the graph holds, then the error
+     size_t ng = 0;
+     cudaGraphGetNodes(g, nullptr, &ng);
+-    std::fprintf(stderr, "spec batch graph: instantiate failed (%s): %zu top nodes, %d switch bodies, %d if bodies\n",
+-                 cudaGetErrorString(ie), ng, bodies, (int)ifbody.size());
++    lg::line(rank, lg::kError, "spec.graph", "failed=%s top_nodes=%zu switch_bodies=%d if_bodies=%d", cudaGetErrorString(ie), ng,
++             bodies, (int)ifbody.size());
+     for (size_t b = 0; b < ifbody.size() && b < 1; ++b) {
+       size_t kn = 0;
+       cudaGraphGetNodes(ifbody[b], nullptr, &kn);
+@@ -1049,10 +1052,11 @@ cudaGraphExec_t Model::Impl::spec_batch_graph(int ctx) {
+         cudaGraphNodeType t;
+         if (cudaGraphNodeGetType(nodes_[i], &t) == cudaSuccess && (int)t < 16) ++types[(int)t];
+       }
+-      std::fprintf(stderr, "spec batch graph: if body %zu: %zu nodes; by type:", b, kn);
++      char ts[256] = "";
++      size_t tl = 0;
+       for (int t = 0; t < 16; ++t)
+-        if (types[t]) std::fprintf(stderr, " %d:%d", t, types[t]);
+-      std::fprintf(stderr, "\n");
++        if (types[t]) tl += (size_t)std::snprintf(ts + tl, sizeof ts - tl, "%s%d:%d", tl ? " " : "", t, types[t]);
++      lg::line(rank, lg::kError, "spec.graph", "if_body=%zu nodes=%zu types=%s", b, kn, ts);
+     }
+     cudaGetLastError();
+     CUDA_CHECK(ie);
+@@ -1061,9 +1065,8 @@ cudaGraphExec_t Model::Impl::spec_batch_graph(int ctx) {
+   sp.bgraphs.emplace(ctx, e);
+   CUDA_CHECK(cudaMemGetInfo(&free1, &total));
+   if (rank == 0 && !sp.quiet)
+-    std::printf("spec: the batch step graph of context %d (%d entries, %zu nodes in its bodies) in %.2f s (CPU), %.1f "
+-                "MiB of device memory\n", ctx, sp.bents, nodes, (double)(clock() - t0) / CLOCKS_PER_SEC,
+-                ((double)free0 - (double)free1) / 1048576.0);
++    lg::line(0, lg::kInfo, "spec.graph", "context=%d entries=%d nodes=%zu cpu_s=%.2f mib=%.1f", ctx, sp.bents, nodes,
++             (double)(clock() - t0) / CLOCKS_PER_SEC, ((double)free0 - (double)free1) / 1048576.0);
+   return e;
+ }
+ 
+@@ -1081,9 +1084,8 @@ void Model::Impl::spec_graphs() {
+   spec->quiet = false;
+   CUDA_CHECK(cudaMemGetInfo(&free1, &total));
+   if (rank == 0)
+-    std::printf("spec: %zu step graph%s for contexts up to %d (%zu nodes in its bodies) in %.1f s (CPU), %.2f GiB of "
+-                "device memory\n", spec->graphs.size(), spec->graphs.size() == 1 ? "" : "s", opt.max_ctx, spec->nodes,
+-                (double)(clock() - t0) / CLOCKS_PER_SEC, ((double)free0 - (double)free1) / 1073741824.0);
++    lg::line(0, lg::kInfo, "spec.graph", "graphs=%zu contexts=%d nodes=%zu cpu_s=%.1f gib=%.2f", spec->graphs.size(),
++             opt.max_ctx, spec->nodes, (double)(clock() - t0) / CLOCKS_PER_SEC, ((double)free0 - (double)free1) / 1073741824.0);
+   if (spec->bents < 2) return;
+   const clock_t t1 = clock();
+   size_t free2 = 0;
+@@ -1093,9 +1095,8 @@ void Model::Impl::spec_graphs() {
+   spec->quiet = false;
+   CUDA_CHECK(cudaMemGetInfo(&free2, &total));
+   if (rank == 0)
+-    std::printf("spec: %zu batch step graph%s of up to %d entries (%zu nodes in its bodies) in %.1f s (CPU), %.2f GiB "
+-                "of device memory\n", spec->bgraphs.size(), spec->bgraphs.size() == 1 ? "" : "s", spec->bents,
+-                spec->bnodes, (double)(clock() - t1) / CLOCKS_PER_SEC, ((double)free1 - (double)free2) / 1073741824.0);
++    lg::line(0, lg::kInfo, "spec.graph", "batch_graphs=%zu entries=%d nodes=%zu cpu_s=%.1f gib=%.2f", spec->bgraphs.size(),
++             spec->bents, spec->bnodes, (double)(clock() - t1) / CLOCKS_PER_SEC, ((double)free1 - (double)free2) / 1073741824.0);
+ }
+ 
+ void Model::Impl::spec_use_slot(int s) {
+diff --git a/ds41f-4xgx10-switchless/engine/model/spill.cpp b/ds41f-4xgx10-switchless/engine/model/spill.cpp
+index e20c2ab..318bff2 100644
+--- a/ds41f-4xgx10-switchless/engine/model/spill.cpp
++++ b/ds41f-4xgx10-switchless/engine/model/spill.cpp
+@@ -201,10 +201,9 @@ void SpillFile::writer() {
+       if (j.pre) CUDA_CHECK(cudaEventElapsedTime(&sum_ms, j.pre, j.start));
+       CUDA_CHECK(cudaEventElapsedTime(&copy_ms, j.start, j.ev));
+       const double w = now_s() - t_landed;
+-      std::printf("spill: %.1f MiB to staging in %.2f ms on the stream (%.1f GB/s; checksums before it %.2f ms), "
+-                  "then to the file in %.1f ms (%.2f GB/s)\n",
+-                  j.batch / 1048576.0, copy_ms, j.batch / std::max(1e-6, (double)copy_ms) / 1e6, sum_ms, 1e3 * w,
+-                  j.batch / std::max(1e-9, w) / 1e9);
++      lg::line(lg::rank_ref(), lg::kInfo, "state.spill",
++               "mib=%.1f copy_ms=%.2f copy_gbps=%.1f sum_ms=%.2f io_ms=%.1f io_gbps=%.2f", j.batch / 1048576.0, copy_ms,
++               j.batch / std::max(1e-6, (double)copy_ms) / 1e6, sum_ms, 1e3 * w, j.batch / std::max(1e-9, w) / 1e9);
+       for (cudaEvent_t e : {j.pre, j.start, j.ev})
+         if (e) CUDA_CHECK(cudaEventDestroy(e));
+       waited = nullptr;
+diff --git a/ds41f-4xgx10-switchless/engine/model/state.cu b/ds41f-4xgx10-switchless/engine/model/state.cu
+index f5d8d47..540f8a7 100644
+--- a/ds41f-4xgx10-switchless/engine/model/state.cu
++++ b/ds41f-4xgx10-switchless/engine/model/state.cu
+@@ -17,6 +17,7 @@
+ #include <set>
+ 
+ #include "common/keepfile.h"
++#include "common/log.h"
+ #include "model/spec.h"
+ #include "model/spill.h"
+ 
+@@ -282,8 +283,8 @@ void Model::Impl::state_disk(const std::string& base, size_t bytes, size_t stagi
+     }
+     s.loaded_gen = s.kept_gen;
+     if (rank == 0)
+-      std::printf("state: %zu kept sessions in %s (%.2f of %.2f GiB), in the store in %.1f ms\n", s.kept.size(),
+-                  s.disk->path().c_str(), s.dbytes / 1073741824.0, s.dpool.size / 1073741824.0, 1e3 * (wall_s() - t0));
++      lg::line(0, lg::kInfo, "state.kept", "sessions=%zu path=%s gib=%.2f pool_gib=%.2f ms=%.1f", s.kept.size(),
++               s.disk->path().c_str(), s.dbytes / 1073741824.0, s.dpool.size / 1073741824.0, 1e3 * (wall_s() - t0));
+   }
+   s.kept.clear();
+   s.kept.shrink_to_fit();
+@@ -324,13 +325,13 @@ void Model::Impl::state_keep(uint64_t gen) {
+   std::memcpy(f.data(), &hd, sizeof hd);
+   std::string why;
+   if (!keepfile::write_atomic(s.base + ".index", f.data(), f.size(), &why)) {
+-    std::printf("state: rank %d keeps nothing: %s\n", rank, why.c_str());
++    lg::msg_at(rank, lg::kWarn, "state.keep", ("keeps nothing: " + why).c_str());
+     return;
+   }
+   s.disk->keep();
+   if (rank == 0)
+-    std::printf("state: %d sessions kept for the next start (%.2f GiB of the file): synced in %.1f ms, index of %.1f KiB "
+-                "in %.1f ms\n", n, s.dbytes / 1073741824.0, 1e3 * (t1 - t0), f.size() / 1024.0, 1e3 * (wall_s() - t1));
++    lg::line(0, lg::kInfo, "state.keep", "sessions=%d gib=%.2f sync_ms=%.1f index_kib=%.1f index_ms=%.1f", n,
++             s.dbytes / 1073741824.0, 1e3 * (t1 - t0), f.size() / 1024.0, 1e3 * (wall_s() - t1));
+ }
+ 
+ void Model::Impl::state_reserve(size_t bytes) {
+@@ -362,8 +363,8 @@ uint8_t* Model::Impl::store_alloc(int h, size_t bytes) {
+         victim = k, oldest = ss.used;
+     if (victim < 0) {
+       if (rank == 0)
+-        std::printf("state: no room for %.1f MiB of session %d's state (%.2f of %.2f GiB in use)\n",
+-                    bytes / 1048576.0, h, s.bytes / 1073741824.0, s.pool.size / 1073741824.0);
++        lg::line(0, lg::kWarn, "state.room", "mib=%.1f session=%d used_gib=%.2f pool_gib=%.2f", bytes / 1048576.0, h,
++                 s.bytes / 1073741824.0, s.pool.size / 1073741824.0);
+       return nullptr;
+     }
+     state_spill(victim);
+@@ -402,7 +403,7 @@ size_t Model::Impl::disk_take(int h, size_t bytes) {
+       if (k != h && ss.disk && ss.used < oldest && std::find(s.pinned.begin(), s.pinned.end(), k) == s.pinned.end())
+         victim = k, oldest = ss.used;
+     if (victim < 0) return Pool::kNone;
+-    if (rank == 0) std::printf("state: session %d dropped from the disk tier to make room\n", victim);
++    if (rank == 0) lg::line(0, lg::kInfo, "state.evict", "session=%d", victim);
+     state_free(victim);
+     s.evicted.push_back(victim);
+   }
+@@ -466,9 +467,8 @@ void Model::Impl::state_spill(int h) {
+   ss.dsnaps = std::move(ds);
+   ss.dend = de;
+   if (rank == 0)
+-    std::printf("state: session %d spilled to disk (%.1f MiB; %.2f of %.2f GiB of the file in use; host %.2f ms)\n", h,
+-                (b0 - s.bytes) / 1048576.0, s.dbytes / 1073741824.0, s.dpool.size / 1073741824.0,
+-                1e3 * (wall_s() - t0));
++    lg::line(0, lg::kInfo, "state.spill", "session=%d mib=%.1f used_gib=%.2f pool_gib=%.2f host_ms=%.2f", h,
++             (b0 - s.bytes) / 1048576.0, s.dbytes / 1073741824.0, s.dpool.size / 1073741824.0, 1e3 * (wall_s() - t0));
+ }
+ 
+ // Session h back from the disk tier (after its writes), as far as the store has room: pages in order
+@@ -517,17 +517,17 @@ void Model::Impl::state_unspill(int h) {
+   uint64_t fp = 0;  // the checksums' xor, logged: a check that compared nothing would show as 0
+   for (const size_t o : back) bad += *s.disk->sum(o, false) != *s.disk->sum(o, true), fp ^= *s.disk->sum(o, true);
+   if (bad)
+-    std::printf("state: session %d: ERROR: %zu of %zu blocks read back from the disk differ from what was spilled "
+-                "(rank %d)\n", h, bad, back.size(), rank);
++    lg::line(rank, lg::kError, "state.unspill", "session=%d bad=%zu blocks=%zu msg=\"read back from the disk differs from what was spilled\"",
++             h, bad, back.size());
+   // a kept session is not continued from a state that is not the one it left: the next start is clean
+   if (bad && ss.kept) die("state: session %d, kept by an earlier run, came back different from the disk (rank %d)", h, rank);
+   ss.kept = false;
+   disk_release(s, ss, sp);
+   ss.disk = false;
+   if (rank == 0)
+-    std::printf("state: session %d back from disk: %.1f MiB in %.1f ms (%.2f GB/s; %.1f ms waiting for its writes; "
+-                "%zu blocks checked, %016llx)\n", h, got / 1048576.0, 1e3 * (t2 - t0), got / std::max(1e-9, t2 - t1) / 1e9,
+-                1e3 * (t1 - t0), back.size(), (unsigned long long)fp);
++    lg::line(0, lg::kInfo, "state.unspill", "session=%d mib=%.1f ms=%.1f gbps=%.2f wait_ms=%.1f blocks=%zu fp=%016llx", h,
++             got / 1048576.0, 1e3 * (t2 - t0), got / std::max(1e-9, t2 - t1) / 1e9, 1e3 * (t1 - t0), back.size(),
++             (unsigned long long)fp);
+ }
+ 
+ namespace {
+diff --git a/ds41f-4xgx10-switchless/engine/model/wave_probe.cu b/ds41f-4xgx10-switchless/engine/model/wave_probe.cu
+index e6ad582..f0085a1 100644
+--- a/ds41f-4xgx10-switchless/engine/model/wave_probe.cu
++++ b/ds41f-4xgx10-switchless/engine/model/wave_probe.cu
+@@ -8,6 +8,7 @@
+ #include <cstdio>
+ #include <vector>
+ 
++#include "common/log.h"
+ #include "model/prefill.h"
+ 
+ namespace model {
+@@ -84,7 +85,7 @@ void Model::Impl::wave_probe(int L, int a, int M) {
+     }
+     CUDA_CHECK(cudaEventCreate(&t0));
+     CUDA_CHECK(cudaEventCreate(&t1));
+-    std::printf("rank %d: wave probe: priorities %d (normal) %d (higher) of [%d, %d]\n", rank, lo, (lo + hi) / 2, lo, hi);
++    lg::line(rank, lg::kInfo, "wave.priorities", "lo=%d normal=%d higher=%d hi=%d", lo, lo, (lo + hi) / 2, hi);
+   }
+   const ActSet live = act_get(p);
+   cudaStream_t const st0 = st;
+@@ -139,11 +140,10 @@ void Model::Impl::wave_probe(int L, int a, int M) {
+     std::sort(v.begin(), v.end());
+     med[c] = v[v.size() / 2];
+   }
+-  std::printf("rank %d: wave probe L=%d M=%d a=%d: ffn %.2f attn %.2f seq %.2f conc %.2f (ffn hi %.2f, attn hi %.2f) ms;"
+-              " conc/seq %.3f %.3f %.3f\n",
+-              rank, L, M, a, med[0], med[1], med[2], med[3], med[4], med[5], med[3] / med[2], med[4] / med[2],
+-              med[5] / med[2]);
+-  std::fflush(stdout);
++  lg::line(rank, lg::kInfo, "wave.probe",
++           "L=%d M=%d a=%d ffn_ms=%.2f attn_ms=%.2f seq_ms=%.2f conc_ms=%.2f ffn_hi_ms=%.2f attn_hi_ms=%.2f "
++           "conc_seq=%.3f conc_hi_seq=%.3f conc_hi_both=%.3f",
++           L, M, a, med[0], med[1], med[2], med[3], med[4], med[5], med[3] / med[2], med[4] / med[2], med[5] / med[2]);
+ }
+ 
+ }  // namespace model
+diff --git a/ds41f-4xgx10-switchless/engine/server/cmd.cpp b/ds41f-4xgx10-switchless/engine/server/cmd.cpp
+index b57474f..55b7247 100644
+--- a/ds41f-4xgx10-switchless/engine/server/cmd.cpp
++++ b/ds41f-4xgx10-switchless/engine/server/cmd.cpp
+@@ -40,8 +40,9 @@ Watchdog::Watchdog(int timeout_s, comm::Ring& ring) {
+       std::this_thread::sleep_for(std::chrono::milliseconds(500));
+       const double t = started;
+       if (t > 0 && now_s() - t > timeout_s) {
+-        std::fprintf(stderr, "watchdog: step running for %d s, aborting\n%s\n", timeout_s, ring.describe().c_str());
+-        std::fflush(stderr);
++        char q[1024];
++        lg::line(lg::rank_ref(), lg::kFatal, "watchdog.abort", "timeout_s=%d msg=%s", timeout_s,
++                 lg::quote(q, sizeof q, ring.describe().c_str()));
+         _exit(3);
+       }
+     }
+diff --git a/ds41f-4xgx10-switchless/engine/server/main.cpp b/ds41f-4xgx10-switchless/engine/server/main.cpp
+index 4d5b8ef..fa6a0c2 100644
+--- a/ds41f-4xgx10-switchless/engine/server/main.cpp
++++ b/ds41f-4xgx10-switchless/engine/server/main.cpp
+@@ -123,6 +123,7 @@
+ #include "comm/ring.h"
+ #include "common/check.h"
+ #include "common/keepfile.h"
++#include "common/log.h"
+ #include "dspark/dspark.h"
+ #include "engram/engram.h"
+ #include "model/model.h"
+@@ -560,8 +561,9 @@ size_t resident() {
+ void mem_report(int rank, const char* when) {
+   size_t dfree = 0, dtotal = 0;
+   CUDA_CHECK(cudaMemGetInfo(&dfree, &dtotal));
+-  std::printf("rank %d: %s; free device memory %.2f GiB, available host memory %.2f GiB, resident %.2f GiB\n", rank,
+-              when, dfree / 1073741824.0, mem_available() / 1073741824.0, resident() / 1073741824.0);
++  char q[128];
++  lg::line(rank, lg::kInfo, "engine.mem", "free_gib=%.2f host_gib=%.2f resident_gib=%.2f msg=%s", dfree / 1073741824.0,
++           mem_available() / 1073741824.0, resident() / 1073741824.0, lg::quote(q, sizeof q, when));
+ }
+ 
+ }  // namespace
+@@ -569,11 +571,11 @@ void mem_report(int rank, const char* when) {
+ int main(int argc, char** argv) {
+   setvbuf(stdout, nullptr, _IOLBF, 0);
+   const Args a = parse(argc, argv);
++  lg::set_rank(a.rank);
+   const double t0 = now_s();
+-  std::printf("rank %d (%s): the fleet file %s; weights %s", a.rank, comm::fleet(a.fleet).rank[a.rank].name.c_str(),
+-              comm::fleet(a.fleet).file.c_str(), a.weights.c_str());
+-  if (!a.no_engram) std::printf("; Engram reads in batches of %d", a.engram_read_batch);
+-  std::printf("\n");
++  lg::line(a.rank, lg::kInfo, "engine.start", "fleet_node=%s fleet_file=%s weights=%s engram_batch=%d",
++           comm::fleet(a.fleet).rank[a.rank].name.c_str(), comm::fleet(a.fleet).file.c_str(), a.weights.c_str(),
++           a.no_engram ? 0 : a.engram_read_batch);
+   // 1. CUDA, and every allocation but the weights' arena, before any file is read (docs/findings.md)
+   CUDA_CHECK(cudaSetDevice(0));
+   CUDA_CHECK(cudaFree(nullptr));
+@@ -605,7 +607,7 @@ int main(int argc, char** argv) {
+     r2.port = ro.port + 1, r2.proxy_cpu = 6;
+     ring2 = std::make_unique<comm::Ring>(r2);
+   }
+-  std::printf("rank %d: ring up after %.1f s\n", a.rank, now_s() - t0);
++  lg::line(a.rank, lg::kInfo, "engine.start", "ring_s=%.1f", now_s() - t0);
+   // 3. weights (the DSpark blocks with --spec)
+   dsw::WeightFile wf(a.weights, a.rank, comm::kRanks);  // refuses another rank's file
+   dsw::LoadOptions lo;
+@@ -619,7 +621,8 @@ int main(int argc, char** argv) {
+     return true;
+   };
+   const dsw::LoadStats ls = wf.load(lo);
+-  std::printf("rank %d: %.2f GiB of weights in %.1f s (%.2f GB/s)\n", a.rank, ls.bytes / 1073741824.0, ls.seconds, ls.gbps);
++  lg::line(a.rank, lg::kInfo, "engine.start", "weights_gib=%.2f seconds=%.1f gbps=%.2f", ls.bytes / 1073741824.0,
++           ls.seconds, ls.gbps);
+   m.bind(wf, ring);
+   if (ring2) m.bind_ring2(*ring2);
+   // --draft-weights: another drafter's mtp.* (same shapes and formats) from its own rank file; embed and head
+@@ -631,16 +634,16 @@ int main(int argc, char** argv) {
+     dlo.threads = a.threads;
+     dlo.select = [](const dsw::DeviceTensor& t) { return t.name.rfind("mtp.", 0) == 0; };
+     const dsw::LoadStats ds = dwf->load(dlo);
+-    std::printf("rank %d: drafter %s: %.2f GiB in %.1f s\n", a.rank, a.draft_weights.c_str(), ds.bytes / 1073741824.0,
+-                ds.seconds);
++    lg::line(a.rank, lg::kInfo, "engine.start", "drafter=%s gib=%.2f seconds=%.1f", a.draft_weights.c_str(),
++             ds.bytes / 1073741824.0, ds.seconds);
+   }
+   if (a.spec) m.bind_spec(wf, dwf.get());
+   if (!a.head_raw) {  // after bind_spec: DSpark's FP8 head comes from the raw one
+     const double t1 = now_s();
+     int raw = 0;
+     const size_t hb = m.code_head(&raw);
+-    std::printf("rank %d: the head coded in %.2f s: %.1f MB in place of %.1f (%d tiles raw)\n", a.rank, now_s() - t1,
+-                hb / 1e6, (double)model::kVocabPart * model::kDim * 2 / 1e6, raw);
++    lg::line(a.rank, lg::kInfo, "engine.start", "head_s=%.2f head_mb=%.1f raw_mb=%.1f tiles_raw=%d", now_s() - t1, hb / 1e6,
++             (double)model::kVocabPart * model::kDim * 2 / 1e6, raw);
+   }
+   // GLP steering (docs/glp.md): WEIGHTLESS_STEER_PATH names a GGUF vector, WEIGHTLESS_STEER_ALPHA overrides
+   // its alpha and WEIGHTLESS_STEER_LAYERS the steered layers ("1,2,3" or "1-39"). Every rank loads the same
+@@ -658,9 +661,9 @@ int main(int argc, char** argv) {
+       m.set_glp(g);
+       steer_ok = true;
+       if (const char* nv = getenv("WEIGHTLESS_STEER_MODEL"); nv && *nv) steer_name = nv;
+-      if (a.rank == 0) std::printf("rank 0: GLP steering: %s in %.1f ms\n", gp, 1e3 * (now_s() - tg));
++      lg::line(a.rank, lg::kInfo, "glp.load", "path=%s ms=%.1f", gp, 1e3 * (now_s() - tg));
+     } catch (const std::exception& e) {
+-      std::fprintf(stderr, "main: GLP steering refused: %s\n", e.what());
++      lg::msg_at(a.rank, lg::kError, "glp.refused", e.what());
+       std::exit(2);
+     }
+   }
+@@ -687,8 +690,8 @@ int main(int argc, char** argv) {
+     uint64_t all[4];
+     ring.allgather_host(&mine, all, sizeof mine);
+     if (a.rank == 0)
+-      std::printf("free device memory after the prefill buffers, ranks 0-3: %.2f %.2f %.2f %.2f GiB\n",
+-                  all[0] / 1073741824.0, all[1] / 1073741824.0, all[2] / 1073741824.0, all[3] / 1073741824.0);
++      lg::line(0, lg::kInfo, "engine.start", "free0_gib=%.2f free1_gib=%.2f free2_gib=%.2f free3_gib=%.2f",
++               all[0] / 1073741824.0, all[1] / 1073741824.0, all[2] / 1073741824.0, all[3] / 1073741824.0);
+   }
+   // 6. serve: nothing takes device memory after startup (DESIGN.md's hardening list: CUDA takes only free
+   // pages, and the page cache grows into them). The spec step's graphs of every context bucket first, then
+@@ -708,7 +711,8 @@ int main(int argc, char** argv) {
+     // rank opens that file as it is; anything else starts clean and removes the kept files, as does
+     // --keep-gib 0 (nothing kept, nothing taken back).
+     const bool disk = a.disk_gib > 0 && !in_git_tree(disk_dir);
+-    if (a.disk_gib > 0 && !disk) std::printf("rank %d: no disk tier: %s is in a git tree\n", a.rank, disk_dir.c_str());
++    if (a.disk_gib > 0 && !disk)
++      lg::line(a.rank, lg::kInfo, "engine.start", "disk=0 disk_dir=%s msg=\"the disk tier is in a git tree\"", disk_dir.c_str());
+     if (disk) {
+       const uint64_t fr = spill_free(disk_dir, disk_base), margin = 32ull << 30;
+       size_t kbytes = 0;
+@@ -718,7 +722,7 @@ int main(int argc, char** argv) {
+       const double tk1 = now_s();
+       const uint64_t gen = a.keep_gib > 0 ? m.state_kept_check(disk_base, id, a.keep_days * 86400, &kbytes, &why) : 0;
+       const double tk2 = now_s();
+-      if (!why.empty()) std::printf("rank %d: kept sessions: none reused (%s)\n", a.rank, why.c_str());
++      if (!why.empty()) lg::msg_at(a.rank, lg::kInfo, "engine.start", ("kept sessions: none reused (" + why + ")").c_str());
+       const uint64_t mine[3] = {std::min<uint64_t>((uint64_t)(a.disk_gib * gib), fr > margin ? fr - margin : 0), gen,
+                                 kbytes};
+       uint64_t all[4][3];
+@@ -729,16 +733,16 @@ int main(int argc, char** argv) {
+       reuse = reuse && kbytes <= bytes;
+       if (reuse) bytes = kbytes;
+       if (bytes >= (1ull << 30)) m.state_disk(disk_base, bytes, 512ull << 20, reuse, id);
+-      std::printf("session store's disk tier: %.1f GiB in %s (at most %.1f; free space less 32 GiB, ranks 0-3: "
+-                  "%.0f %.0f %.0f %.0f GiB)\n", m.state_disk_capacity() / gib,
+-                  m.state_disk_capacity() ? m.state_disk_path().c_str() : "(none)", a.disk_gib, all[0][0] / gib,
+-                  all[1][0] / gib, all[2][0] / gib, all[3][0] / gib);
++      lg::line(a.rank, lg::kInfo, "engine.start",
++               "capacity_gib=%.1f disk_path=%s cap_gib=%.1f free0_gib=%.0f free1_gib=%.0f free2_gib=%.0f free3_gib=%.0f",
++               m.state_disk_capacity() / gib, m.state_disk_capacity() ? m.state_disk_path().c_str() : "(none)", a.disk_gib,
++               all[0][0] / gib, all[1][0] / gib, all[2][0] / gib, all[3][0] / gib);
+       if (a.rank == 0)
+-        std::printf("kept sessions: %s (generations of ranks 0-3: %016llx %016llx %016llx %016llx; the run id %016llx "
+-                    "in %.1f ms, this rank's index checked in %.1f ms)\n",
+-                    reuse && m.state_disk_capacity() ? "the files of the last planned stop are reused" : "none, a clean start",
+-                    (unsigned long long)all[0][1], (unsigned long long)all[1][1], (unsigned long long)all[2][1],
+-                    (unsigned long long)all[3][1], (unsigned long long)id, 1e3 * (tk1 - tk0), 1e3 * (tk2 - tk1));
++        lg::line(0, lg::kInfo, "engine.start",
++                 "reuse=%d gen0=%016llx gen1=%016llx gen2=%016llx gen3=%016llx run_id=%016llx ms=%.1f index_ms=%.1f",
++                 reuse && m.state_disk_capacity() ? 1 : 0, (unsigned long long)all[0][1], (unsigned long long)all[1][1],
++                 (unsigned long long)all[2][1], (unsigned long long)all[3][1], (unsigned long long)id, 1e3 * (tk1 - tk0),
++                 1e3 * (tk2 - tk1));
+     }
+     if (!m.state_disk_capacity()) {  // no disk tier: nothing kept stays
+       std::error_code ec;
+@@ -758,10 +762,11 @@ int main(int argc, char** argv) {
+     for (const auto& r : all) pool = std::min(pool, r[2]);
+     m.state_reserve(pool);
+     if (a.rank == 0) {
+-      std::printf("session store: %.2f GiB on every rank (at most %.1f; free device / available host memory before "
+-                  "it, ranks 0-3:", m.state_capacity() / gib, a.session_gib);
+-      for (const auto& r : all) std::printf(" %.2f / %.2f", r[0] / gib, r[1] / gib);
+-      std::printf(" GiB, less a margin of %.1f and the Engram cache's %.1f)\n", margin / gib, cache / gib);
++      char fh[160], q[200];
++      size_t fl = 0;
++      for (const auto& r : all) fl += (size_t)std::snprintf(fh + fl, sizeof fh - fl, "%s%.2f/%.2f", fl ? " " : "", r[0] / gib, r[1] / gib);
++      lg::line(0, lg::kInfo, "engine.start", "capacity_gib=%.2f cap_gib=%.1f margin_gib=%.1f cache_gib=%.1f free_host=%s",
++               m.state_capacity() / gib, a.session_gib, margin / gib, cache / gib, lg::quote(q, sizeof q, fh));
+     }
+   }
+   ring.barrier();
+diff --git a/ds41f-4xgx10-switchless/engine/server/serve.cpp b/ds41f-4xgx10-switchless/engine/server/serve.cpp
+index e29db32..29d7888 100644
+--- a/ds41f-4xgx10-switchless/engine/server/serve.cpp
++++ b/ds41f-4xgx10-switchless/engine/server/serve.cpp
+@@ -58,6 +58,7 @@
+ #include <atomic>
+ #include <cerrno>
+ #include <chrono>
++#include <cmath>
+ #include <condition_variable>
+ #include <cstdio>
+ #include <cstring>
+@@ -73,6 +74,7 @@
+ #include <cuda_profiler_api.h>
+ 
+ #include "common/check.h"
++#include "common/log.h"
+ #include "model/nvtx.h"
+ #include "common/frontend_protocol.h"
+ #include "common/keepfile.h"
+@@ -256,7 +258,7 @@ class Io {
+       if (p.size() < sizeof hi) return false;
+       std::memcpy(&hi, p.data(), sizeof hi);
+       if (hi.version != fe::kVersion) {
+-        std::fprintf(stderr, "serve: front-end speaks version %u, not %u\n", hi.version, fe::kVersion);
++        lg::line(0, lg::kError, "serve.refused", "version=%u want=%u", hi.version, fe::kVersion);
+         return false;
+       }
+     } else if (h.type == fe::kSubmit) {
+@@ -320,14 +322,14 @@ class Io {
+           if (cur) cur->kill();  // the new front-end replaces the old one
+           cur = std::make_shared<Conn>(fd);
+           send(cur, hello_);
+-          std::printf("serve: front-end connected\n");
++          lg::msg_at(0, lg::kInfo, "serve.connect", "front-end connected");
+         }
+         continue;
+       }
+       if (cur && fds[1].revents && !frame(cur)) {
+         cur->kill();
+         cur.reset();
+-        std::printf("serve: front-end disconnected\n");
++        lg::msg_at(0, lg::kInfo, "serve.disconnect", "front-end disconnected");
+       }
+     }
+     if (cur) cur->kill();
+@@ -580,10 +582,13 @@ class Server {
+     for (const auto& [id, s] : kept) positions += s.hist.size();
+     if (!kept.empty()) clock_ = std::max<uint64_t>(clock_, hd.clock);
+     sess_.insert(std::make_move_iterator(kept.begin()), std::make_move_iterator(kept.end()));
+-    if (!why.empty() || !sess_.empty() || !v.empty())
+-      std::printf("serve: kept sessions: %zu back (%zu positions, %.2f GiB on disk), %zu of the store's dropped, in %.1f ms%s%s\n",
+-                  sess_.size(), positions, m_.state_disk_bytes() / 1073741824.0, v.size(), 1e3 * (now_s() - t0),
+-                  why.empty() ? "" : "; ", why.c_str());
++    if (!why.empty() || !sess_.empty() || !v.empty()) {
++      char q[256];
++      lg::line(m_.rank(), lg::kInfo, "serve.kept",
++               "sessions=%zu positions=%zu disk_gib=%.2f dropped=%zu ms=%.1f%s%s", sess_.size(), positions,
++               m_.state_disk_bytes() / 1073741824.0, v.size(), 1e3 * (now_s() - t0), why.empty() ? "" : " msg=",
++               why.empty() ? "" : lg::quote(q, sizeof q, why.c_str()));
++    }
+   }
+ 
+  private:
+@@ -673,12 +678,13 @@ class Server {
+     std::memcpy(f.data(), &hd, sizeof hd);
+     std::string why;
+     const bool ok = keepfile::write_atomic(o_.keep_index, f.data(), f.size(), &why);
+-    std::printf("serve: kept sessions: %d for the next start (%d on disk before, %d spilled now: %.2f GiB; %d freed past "
+-                "%.1f GiB, %d unused for %.0f days), the ranks' files synced and indexed in %.2f s; histories %.1f KiB "
+-                "in %.1f ms%s%s\n",
+-                ok ? n : 0, before, spilled, bytes / 1073741824.0, freed, o_.keep_bytes / 1073741824.0, old,
+-                o_.keep_age_s / 86400, t1 - t0, f.size() / 1024.0, 1e3 * (now_s() - t1), ok ? "" : ": NOT WRITTEN, ",
+-                why.c_str());
++    char q[256];
++    lg::line(m_.rank(), ok ? lg::kInfo : lg::kError, "serve.keep",
++             "sessions=%d before=%d spilled=%d spilled_gib=%.2f freed=%d keep_gib=%.1f old=%d age_days=%.0f sync_s=%.2f "
++             "history_kib=%.1f ms=%.1f%s%s",
++             ok ? n : 0, before, spilled, bytes / 1073741824.0, freed, o_.keep_bytes / 1073741824.0, old,
++             o_.keep_age_s / 86400, t1 - t0, f.size() / 1024.0, 1e3 * (now_s() - t1), ok ? "" : " msg=",
++             ok ? "" : lg::quote(q, sizeof q, why.c_str()));
+   }
+ 
+   // Operations that move session x's working state (its slot's) into the store: its compressed caches as
+@@ -735,7 +741,7 @@ class Server {
+     for (const int h : m_.state_evicted())
+       for (auto it = sess_.begin(); it != sess_.end(); ++it)
+         if (it->second.h == h) {
+-          std::printf("serve: session %016llx evicted to make room\n", (unsigned long long)it->first);
++          lg::line(m_.rank(), lg::kInfo, "serve.evict", "session=%016llx", (unsigned long long)it->first);
+           if (it->second.slot >= 0) slot_[it->second.slot] = 0;
+           sess_.erase(it);
+           break;
+@@ -757,8 +763,8 @@ class Server {
+           victim = it;
+       if (victim == sess_.end()) break;
+       const size_t b = m_.state_info(victim->second.h).bytes;
+-      std::printf("serve: %s session %016llx (%.1f MiB, %zu positions)\n", disk ? "spill" : "evict",
+-                  (unsigned long long)victim->first, b / 1048576.0, victim->second.hist.size());
++      lg::line(m_.rank(), lg::kInfo, disk ? "serve.spill" : "serve.evict", "session=%016llx mib=%.1f positions=%zu",
++               (unsigned long long)victim->first, b / 1048576.0, victim->second.hist.size());
+       bytes -= std::min(bytes, b);
+       if (disk) {
+         if (victim->second.slot >= 0) persist_slot(victim->second.slot, true);  // what it holds live goes with it
+@@ -785,8 +791,8 @@ class Server {
+     const double t0 = now_s();
+     state({{kStUnspill, x->h, 0, 0}});
+     m_.drain();
+-    std::printf("serve: session %016llx back from disk: %.1f MiB, %zu positions, in %.1f ms\n", (unsigned long long)id,
+-                si.disk_bytes / 1048576.0, x->hist.size(), 1e3 * (now_s() - t0));
++    lg::line(m_.rank(), lg::kInfo, "serve.unspill", "session=%016llx mib=%.1f positions=%zu ms=%.1f", (unsigned long long)id,
++             si.disk_bytes / 1048576.0, x->hist.size(), 1e3 * (now_s() - t0));
+     forget_evicted();
+   }
+ 
+@@ -868,7 +874,7 @@ class Server {
+     d.decode_us = us(t_end - t_first);
+     d.error_len = (uint32_t)err.size();
+     io_.send(rq.conn, Frame(fe::kDone).add(&d).add(err.data(), err.size()).take());
+-    if (!err.empty()) std::printf("serve: request %llu: %s\n", (unsigned long long)rq.h.req_id, err.c_str());
++    if (!err.empty()) lg::log_msg_at(m_.rank(), lg::kError, "req.error", "request %llu: %s", (unsigned long long)rq.h.req_id, err.c_str());
+   }
+ 
+   // A submit: held while its session is in flight (a session's requests run one at a time); waiting while
+@@ -922,6 +928,7 @@ class Server {
+     }
+     f.sp.seed = (h.flags & fe::kFlagSeed) ? h.seed : rng_();
+     flying_.insert(h.session_id);
++    stats_gauge(now_s(), +1);
+     if (go(f, false)) {  // it decodes in the next run, first
+       f.t_paused = now_s();
+       rot_.push_front(std::move(f));
+@@ -959,9 +966,8 @@ class Server {
+     if (!S && h.base_session_id) src = find(h.base_session_id), src_id = h.base_session_id;
+     // GLP: a session's KV came from one stream or the other, so the other stream's session is no base
+     if (src && src->steer != (h.steer != 0)) {
+-      std::printf("serve: req %llu: session %016llx is %s and the request asks for %s: a cold start\n",
+-                  (unsigned long long)h.req_id, (unsigned long long)src_id, src->steer ? "steered" : "stock",
+-                  h.steer ? "the steered stream" : "the stock one");
++      lg::line(m_.rank(), lg::kInfo, "req.cold", "req=%llu session=%016llx have=%s want=%s", (unsigned long long)h.req_id,
++               (unsigned long long)src_id, src->steer ? "steered" : "stock", h.steer ? "steered" : "stock");
+       src = nullptr;
+     }
+     // the session's own slot. A fork takes its base's when no request of the base is in flight: the base's
+@@ -1005,7 +1011,9 @@ class Server {
+           else std::snprintf(from + k, sizeof from - k, ", and no restart point up to it is usable");
+         }
+       }
+-      std::printf("serve: req %llu restart: %s; reused %d (%s)\n", (unsigned long long)h.req_id, from, q, kHow[pl.how]);
++      char qf[256];
++      lg::line(m_.rank(), lg::kInfo, "req.restart", "req=%llu reused=%d how=%s msg=%s", (unsigned long long)h.req_id, q,
++               kHow[pl.how], lg::quote(qf, sizeof qf, from));
+     }
+     std::vector<StateOp> v;
+     if (slot_[s] && slot_[s] != h.session_id) {  // the slot's session (a fork's base too) keeps its state in the store
+@@ -1192,8 +1200,8 @@ class Server {
+     std::vector<uint16_t> rows(rq.img);
+     bcast_payload(ring_, rows.data(), rows.size() * 2, 0);
+     m_.set_images(c.n, lh.data(), lh.data() + c.n, rows.data());
+-    std::printf("serve: req %llu images: %d spans, %zu rows, sent to every rank in %.1f ms\n",
+-                (unsigned long long)rq.h.req_id, c.n, rows.size() / fe::kImageDim, 1e3 * (now_s() - t0));
++    lg::line(m_.rank(), lg::kInfo, "req.images", "req=%llu spans=%d rows=%zu ms=%.1f", (unsigned long long)rq.h.req_id, c.n,
++             rows.size() / fe::kImageDim, 1e3 * (now_s() - t0));
+   }
+ 
+   bool ended(Flight& f, uint32_t why) {
+@@ -1254,7 +1262,17 @@ class Server {
+   uint64_t st_reqs_[2] = {0, 0};  // [stock, steered]
+   uint64_t st_in_ = 0, st_out_ = 0, st_verified_ = 0, st_accepted_ = 0;
+   uint64_t st_reused_ = 0;  // of st_in_: the prompt tokens the sessions' KV already held (Flight::q)
++  double st_busy_ = 0;      // request-seconds in flight over the interval
++  double st_gauge_t_ = 0;   // the last gauge event
++  int st_gauge_ = 0;        // requests in flight now
+   engram::StoreStats st_es_;  // the Engram store's counters at the last tick (the line's are per interval)
++  // A request admitted (+1) or finished (-1): the interval's time-weighted mean in flight (stats_tick).
++  void stats_gauge(double t, int delta) {
++    if (!(o_.stats_every > 0)) return;
++    if (st_gauge_t_ > 0) st_busy_ += double(st_gauge_) * (t - st_gauge_t_);
++    st_gauge_t_ = t;
++    st_gauge_ += delta;
++  }
+   void stats_note(const Flight& f) {
+     if (!(o_.stats_every > 0)) return;
+     ++st_reqs_[f.rq.h.steer ? 1 : 0];
+@@ -1268,6 +1286,7 @@ class Server {
+     const double t = now_s();
+     if (st_since_ == 0) {
+       st_since_ = t;
++      st_gauge_t_ = t;
+       return;
+     }
+     if (t - st_since_ < o_.stats_every) return;
+@@ -1281,16 +1300,28 @@ class Server {
+     const engram::StoreStats e = es ? es->stats() : engram::StoreStats{};
+     const uint64_t e_lookups = e.lookups - st_es_.lookups, e_hits = e.hits - st_es_.hits;
+     st_es_ = e;
+-    std::printf("stats: t=%.0f rank=0 tok_out=%llu tok_in=%llu kv_util=%.3f kv_hit=%.3f draft_accept=%.3f "
+-                "queue=%zu engram_hit=%.3f engram_used=%.3f reqs_stock=%llu reqs_steered=%llu\n",
+-                t - st_since_, (unsigned long long)st_out_, (unsigned long long)st_in_, util,
+-                st_in_ ? double(st_reused_) / double(st_in_) : 0.0,
+-                st_verified_ ? double(st_accepted_) / double(st_verified_) : 0.0, wait_.size(),
+-                e_lookups ? double(e_hits) / double(e_lookups) : 0.0,
+-                e.cache_slots ? double(e.cache_used) / double(e.cache_slots) : 0.0,
+-                (unsigned long long)st_reqs_[0], (unsigned long long)st_reqs_[1]);
++    const double window = t - st_since_;
++    const double kv_hit = st_in_ ? double(st_reused_) / double(st_in_) : 0.0;
++    const double draft = st_verified_ ? double(st_accepted_) / double(st_verified_) : 0.0;
++    stats_gauge(t, 0);  // close the in-flight integral to now
++    const double inflight = window > 0 ? st_busy_ / window : 0.0;
++    lg::line(m_.rank(), lg::kInfo, "stats",
++             "t=%.0f rank=%d tok_out=%llu tok_in=%llu kv_util=%.3f kv_hit=%.3f draft_accept=%.3f "
++             "queue=%zu engram_hit=%.3f engram_used=%.3f reqs_stock=%llu reqs_steered=%llu inflight=%.2f window_s=%.3f",
++             window, m_.rank(), (unsigned long long)st_out_, (unsigned long long)st_in_, util, kv_hit, draft, wait_.size(),
++             e_lookups ? double(e_hits) / double(e_lookups) : 0.0,
++             e.cache_slots ? double(e.cache_used) / double(e.cache_slots) : 0.0, (unsigned long long)st_reqs_[0],
++             (unsigned long long)st_reqs_[1], inflight, window);
++    // The metrics bridge: the two vLLM-shaped lines a downstream regex parser reads, one interval each.
++    lg::line(m_.rank(), lg::kInfo, "metrics",
++             "#running-req: %d, #queue-req: %zu, Avg prompt throughput: %.1f tokens/s, Avg generation throughput: %.1f "
++             "tokens/s, GPU KV cache usage: %.1f%%, Prefix cache hit rate: %.1f%%",
++             (int)std::llround(inflight), wait_.size(), window > 0 ? double(st_in_) / window : 0.0,
++             window > 0 ? double(st_out_) / window : 0.0, util * 100.0, kv_hit * 100.0);
++    lg::line(m_.rank(), lg::kInfo, "metrics", "Avg Draft acceptance rate: %.1f%%", draft * 100.0);
+     std::fflush(stdout);
+     st_since_ = t;
++    st_busy_ = 0;
+     st_reqs_[0] = st_reqs_[1] = st_in_ = st_out_ = st_verified_ = st_accepted_ = st_reused_ = 0;
+   }
+ 
+@@ -1534,8 +1565,10 @@ class Server {
+           dr += b;
+         }
+     }
+-    std::printf("serve: batch of %d: %zu steps in %.1f ms, %.2f ms a step (median); req, tokens, end: %s%s\n", n,
+-                g_t_wait.size(), 1e3 * dt, d.empty() ? 0.0 : d[d.size() / 2], ends.c_str(), dr.c_str());
++    ends += dr;
++    char qe[3072];
++    lg::line(m_.rank(), lg::kDebug, "batch", "n=%d steps=%zu ms=%.1f step_ms=%.2f msg=%s", n, g_t_wait.size(), 1e3 * dt,
++             d.empty() ? 0.0 : d[d.size() / 2], lg::quote(qe, sizeof qe, ends.c_str()));
+   }
+ 
+   // Paused requests that their client cancelled, or that the server's stop ends, end now, not at their
+@@ -1570,6 +1603,7 @@ class Server {
+     Io::forget(f.rq);
+     const double t_end = now_s();
+     flying_.erase(h.session_id);
++    stats_gauge(now_s(), -1);
+     const bool released = later_.erase(h.session_id) > 0;  // the front-end let it go meanwhile
+     forget_evicted();
+     Session* S = (h.flags & fe::kFlagKeep) && !released ? find(h.session_id) : nullptr;
+@@ -1577,37 +1611,41 @@ class Server {
+     const model::Model::StateInfo si = S ? m_.state_info(S->h) : model::Model::StateInfo{};
+     const DecodeEnd* de = &f.de;
+     if (de->vsteps) {
+-      std::printf("serve: req %llu drafts: %d verify steps, %.2f drafts verified and %.2f accepted per step, "
+-                  "steps verifying 0..5: %d %d %d %d %d %d; gate %.3f (%.3f-%.3f); GPU ms by rows:",
+-                  (unsigned long long)h.req_id, de->vsteps, (double)de->verified / de->vsteps,
+-                  (double)de->accepted / de->vsteps, de->rows_hist[0], de->rows_hist[1], de->rows_hist[2],
+-                  de->rows_hist[3], de->rows_hist[4], de->rows_hist[5], de->gate_sum / std::max(1, de->gate_n),
+-                  de->gate_min, de->gate_max);
++      char g[256] = "", qg[300];
++      size_t gl = 0;
+       for (int r = 1; r <= model::ops::kDrafts + 1; ++r)
+-        if (de->gpu_n[r]) std::printf(" %d: %.2f (%d)", r, de->gpu_ms[r] / de->gpu_n[r], de->gpu_n[r]);
+-      std::printf("\n");
++        if (de->gpu_n[r])
++          gl += (size_t)std::snprintf(g + gl, sizeof g - gl, "%s%d: %.2f (%d)", gl ? " " : "", r,
++                                      de->gpu_ms[r] / de->gpu_n[r], de->gpu_n[r]);
++      lg::line(m_.rank(), lg::kInfo, "req.drafts",
++               "req=%llu vsteps=%d verified=%.2f accepted=%.2f rows=%d,%d,%d,%d,%d,%d gate=%.3f gate_min=%.3f "
++               "gate_max=%.3f gpu_ms=%s",
++               (unsigned long long)h.req_id, de->vsteps, (double)de->verified / de->vsteps,
++               (double)de->accepted / de->vsteps, de->rows_hist[0], de->rows_hist[1], de->rows_hist[2], de->rows_hist[3],
++               de->rows_hist[4], de->rows_hist[5], de->gate_sum / std::max(1, de->gate_n), de->gate_min, de->gate_max,
++               lg::quote(qg, sizeof qg, g));
+     }
+     // the decode's time: from the first token to the end, less the time paused and resuming
+     const double t_dec = f.t_first > 0 ? std::max(0.0, t_end - f.t_first - f.paused_s - f.resume_s) : 0;
+-    char sl[128] = "";  // (a request waits a moment in the turns between its first token and its decode)
+-    if (f.slices > 1 || f.paused_s >= 0.005 || f.batched)
+-      std::snprintf(sl, sizeof sl, "; %d slices, paused %.2f s, resumes %.1f ms, %d tokens in batches", f.slices,
+-                    f.paused_s, 1e3 * f.resume_s, f.batched);
+-    std::printf("serve: req %llu session %016llx: prompt %u, reused %d (%s), prefill %.1f ms (%.0f tok/s), %zu tokens "
+-                "in %.1f ms (%.1f tok/s), %s; store %.1f MiB; session %d positions, %.1f MiB, %zu window snapshots%s\n",
+-                (unsigned long long)h.req_id, (unsigned long long)h.session_id, h.n_prompt, f.q, kHow[f.pl.how],
+-                1e3 * (f.t_first > 0 ? f.t_first - f.t_start : 0.0),
+-                (h.n_prompt - f.q) / std::max(1e-9, f.t_first - f.t_start), f.out.size(), 1e3 * t_dec,
+-                f.decoded / std::max(1e-9, t_dec),
+-                why == fe::kStop ? "stop" : why == fe::kLength ? "length" : why == fe::kCancelled ? "cancelled" : "context",
+-                m_.state_bytes() / 1048576.0, S ? (int)S->hist.size() : 0, si.bytes / 1048576.0, si.snaps.size(), sl);
++    const char* served = h.steer && !o_.steer_name.empty() ? o_.steer_name.c_str() : o_.name.c_str();
++    lg::line(m_.rank(), lg::kInfo, "req.done",
++             "req=%llu session=%016llx model=%s prompt=%u reused=%d prefill_ms=%.1f prefill_tps=%.0f gen_tokens=%zu "
++             "gen_ms=%.1f gen_tps=%.1f stop=%s store_mib=%.1f positions=%d snapshots=%zu slices=%d paused_s=%.2f "
++             "resume_ms=%.1f batched=%d how=%s",
++             (unsigned long long)h.req_id, (unsigned long long)h.session_id, served, h.n_prompt, f.q,
++             1e3 * (f.t_first > 0 ? f.t_first - f.t_start : 0.0),
++             (h.n_prompt - f.q) / std::max(1e-9, f.t_first - f.t_start), f.out.size(), 1e3 * t_dec,
++             f.decoded / std::max(1e-9, t_dec),
++             why == fe::kStop ? "stop" : why == fe::kLength ? "length" : why == fe::kCancelled ? "cancelled" : "context",
++             m_.state_bytes() / 1048576.0, S ? (int)S->hist.size() : 0, si.snaps.size(), f.slices, f.paused_s,
++             1e3 * f.resume_s, f.batched, kHow[f.pl.how]);
+     stats_note(f);
+     const Turn& u = f.tu;
+-    std::printf("serve: req %llu turn: state ops %.1f ms (GPU %.1f), %d chunks: layers 0-19 %.1f ms, replay %.1f ms, "
+-                "head %.1f ms, draft windows %.1f ms, rows %.1f ms; first token to decode %.1f ms, first decode step "
+-                "%.1f ms\n",
+-                (unsigned long long)h.req_id, u.ops_ms, u.ops_gpu_ms, u.chunks, u.pf[0], u.pf[1], u.pf[2], u.pf[3],
+-                u.rows_ms, u.tail_ms, u.dec1_ms);
++    lg::line(m_.rank(), lg::kDebug, "turn",
++             "req=%llu ops_ms=%.1f ops_gpu_ms=%.1f chunks=%d pf0_ms=%.1f pf1_ms=%.1f pf2_ms=%.1f pf3_ms=%.1f "
++             "rows_ms=%.1f tail_ms=%.1f dec1_ms=%.1f",
++             (unsigned long long)h.req_id, u.ops_ms, u.ops_gpu_ms, u.chunks, u.pf[0], u.pf[1], u.pf[2], u.pf[3], u.rows_ms,
++             u.tail_ms, u.dec1_ms);
+     if (!S) release(h.session_id);
+     for (auto it = held_.begin(); it != held_.end();)  // the session's held requests go on, in order
+       if (it->h.session_id == h.session_id) ready_.push_back(std::move(*it)), it = held_.erase(it);
+@@ -1657,15 +1695,14 @@ int serve(model::Model& m, comm::Ring& ring, Watchdog& wd, const ServeOptions& o
+   hi.name_len = (uint32_t)o.name.size();
+   hi.caps = o.steer_ok ? fe::kCapSteer : 0;  // GLP: the front-end serves the steered name only if this is set
+   Io io(o.socket, Frame(fe::kHelloEngine).add(&hi).add(o.name.data(), o.name.size()).take());
+-  const std::string gs =
+-      o.steer_ok ? ", GLP steering" + (o.steer_name.empty() ? std::string() : ": " + o.steer_name) : std::string();
+-  std::printf("serve: listening on %s (context %d, session store %.2f GiB, kept between requests %.2f GiB%s)\n",
+-              o.socket.c_str(), o.max_ctx, m.state_capacity() / 1073741824.0, budget / 1073741824.0, gs.c_str());
++  lg::line(m.rank(), lg::kInfo, "serve.listen", "socket=%s context=%d store_gib=%.2f kept_gib=%.2f steer=%d steer_model=%s",
++           o.socket.c_str(), o.max_ctx, m.state_capacity() / 1073741824.0, budget / 1073741824.0, o.steer_ok ? 1 : 0,
++           o.steer_name.empty() ? "-" : o.steer_name.c_str());
+   Server s(m, ring, wd, o, io, budget);
+   s.load_kept();
+   s.loop();
+   if (g_prof) CUDA_CHECK(cudaProfilerStop());
+-  std::printf("serve: stopped\n");
++  lg::msg_at(m.rank(), lg::kInfo, "serve.stop", "serve stopped");
+   return 0;
+ }
+ 
+diff --git a/ds41f-4xgx10-switchless/frontend/src/engine.rs b/ds41f-4xgx10-switchless/frontend/src/engine.rs
+index 973bbeb..ea1561a 100644
+--- a/ds41f-4xgx10-switchless/frontend/src/engine.rs
++++ b/ds41f-4xgx10-switchless/frontend/src/engine.rs
+@@ -102,8 +102,8 @@ async fn run(inner: Arc<Inner>) {
+                 backoff = Duration::from_millis(100);
+                 logged_down = false;
+                 match connection(&inner, stream).await {
+-                    Ok(()) => eprintln!("engine: connection closed"),
+-                    Err(e) => eprintln!("engine: connection lost: {e}"),
++                    Ok(()) => crate::log::msg("info", "front.engine", "connection closed"),
++                    Err(e) => crate::log::msg("warn", "front.engine", &format!("connection lost: {e}")),
+                 }
+                 inner.info.send_replace(None);
+                 let pending = {
+@@ -127,7 +127,11 @@ async fn run(inner: Arc<Inner>) {
+             }
+             Err(e) => {
+                 if !logged_down {
+-                    eprintln!("engine: cannot connect to {}: {e}; retrying", inner.path.display());
++                    crate::log::msg(
++                        "warn",
++                        "front.engine",
++                        &format!("cannot connect to {}: {e}; retrying", inner.path.display()),
++                    );
+                     logged_down = true;
+                 }
+             }
+@@ -148,14 +152,24 @@ async fn connection(inner: &Arc<Inner>, stream: UnixStream) -> Result<(), String
+     if hello.version != VERSION {
+         return Err(format!("engine speaks protocol version {}, we speak {VERSION}", hello.version));
+     }
+-    eprintln!(
+-        "engine: connected to {} ({}; context {}, vocab {}, eos {}, {} sessions)",
+-        inner.path.display(),
+-        hello.name,
+-        hello.max_context,
+-        hello.vocab_size,
+-        hello.eos_id,
+-        hello.max_sessions
++    let (socket, context, vocab, eos, sessions) = (
++        inner.path.display().to_string(),
++        hello.max_context.to_string(),
++        hello.vocab_size.to_string(),
++        hello.eos_id.to_string(),
++        hello.max_sessions.to_string(),
++    );
++    crate::log::line(
++        "info",
++        "front.engine",
++        &[
++            ("socket", socket.as_str()),
++            ("engine", hello.name.as_str()),
++            ("context", context.as_str()),
++            ("vocab", vocab.as_str()),
++            ("eos", eos.as_str()),
++            ("sessions", sessions.as_str()),
++        ],
+     );
+     let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
+     inner.conn.lock().unwrap().tx = Some(tx);
+diff --git a/ds41f-4xgx10-switchless/frontend/src/gate.rs b/ds41f-4xgx10-switchless/frontend/src/gate.rs
+index edde4ea..d602d7b 100644
+--- a/ds41f-4xgx10-switchless/frontend/src/gate.rs
++++ b/ds41f-4xgx10-switchless/frontend/src/gate.rs
+@@ -144,14 +144,20 @@ impl Gate {
+             return Err(format!("busy: in_flight {} waiting {} idle_s {}", s.in_flight, s.waiting, s.last.elapsed().as_secs()));
+         }
+         s.held = Some(Instant::now());
+-        eprintln!("gate: holding requests (the ring is lent; no request for {} s)", s.last.elapsed().as_secs());
++        let idle_s = s.last.elapsed().as_secs().to_string();
++        crate::log::line("info", "front.gate", &[("held", "1"), ("idle_s", idle_s.as_str())]);
+         Ok(())
+     }
+ 
+     pub fn release(&self) {
+         let mut s = self.st.lock().unwrap();
+         if let Some(t) = s.held.take() {
+-            eprintln!("gate: released after {} s; {} requests waiting", t.elapsed().as_secs(), s.waiting);
++            let (held_s, waiting) = (t.elapsed().as_secs().to_string(), s.waiting.to_string());
++            crate::log::line(
++                "info",
++                "front.gate",
++                &[("held", "0"), ("held_s", held_s.as_str()), ("waiting", waiting.as_str())],
++            );
+         }
+     }
+ 
+@@ -214,7 +220,8 @@ pub async fn admin(gate: Arc<Gate>, engine: EngineClient, path: PathBuf) -> std:
+     }
+     let l = UnixListener::bind(&path)?;
+     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
+-    eprintln!("admin socket {}", path.display());
++    let socket = path.display().to_string();
++    crate::log::line("info", "front.admin", &[("socket", socket.as_str())]);
+     loop {
+         let (s, _) = l.accept().await?;
+         let (gate, engine) = (gate.clone(), engine.clone());
+diff --git a/ds41f-4xgx10-switchless/frontend/src/lib.rs b/ds41f-4xgx10-switchless/frontend/src/lib.rs
+index 8fc34e4..e1a3411 100644
+--- a/ds41f-4xgx10-switchless/frontend/src/lib.rs
++++ b/ds41f-4xgx10-switchless/frontend/src/lib.rs
+@@ -4,6 +4,7 @@ pub mod encoding;
+ pub mod engine;
+ pub mod gate;
+ pub mod guard;
++pub mod log;
+ pub mod mock;
+ pub mod protocol;
+ pub mod pyjson;
+diff --git a/ds41f-4xgx10-switchless/frontend/src/log.rs b/ds41f-4xgx10-switchless/frontend/src/log.rs
+new file mode 100644
+index 0000000..7a59d57
+--- /dev/null
++++ b/ds41f-4xgx10-switchless/frontend/src/log.rs
+@@ -0,0 +1,166 @@
++//! Structured log records, one line per event. The grammar is shared with the engine (engine/common/log.h):
++//!   ts=<UTC ISO-8601 with milliseconds> level=<debug|info|warn|error|fatal> node=<host> rank=0 src=front
++//!   event=<noun.verb> [key=value]... [msg="<text>"]
++//! UTC comes from SystemTime (no chrono), the node from /proc/sys/kernel/hostname. dsfront runs on rank 0 only.
++//! DSFRONT_LOG_LEVEL gates the records (debug < info < warn < error < fatal; default info).
++
++use std::sync::LazyLock;
++use std::time::{SystemTime, UNIX_EPOCH};
++
++#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
++enum Level {
++    Debug,
++    Info,
++    Warn,
++    Error,
++    Fatal,
++}
++
++impl Level {
++    fn as_str(self) -> &'static str {
++        match self {
++            Level::Debug => "debug",
++            Level::Info => "info",
++            Level::Warn => "warn",
++            Level::Error => "error",
++            Level::Fatal => "fatal",
++        }
++    }
++
++    fn parse(s: &str) -> Option<Level> {
++        match s {
++            "debug" => Some(Level::Debug),
++            "info" => Some(Level::Info),
++            "warn" => Some(Level::Warn),
++            "error" => Some(Level::Error),
++            "fatal" => Some(Level::Fatal),
++            _ => None,
++        }
++    }
++}
++
++/// DSFRONT_LOG_LEVEL resolved once (default info). An unknown value falls back to info and writes one
++/// warn record naming it, so a bad setting is visible, not silent.
++fn threshold() -> u8 {
++    static T: LazyLock<u8> = LazyLock::new(|| match std::env::var("DSFRONT_LOG_LEVEL") {
++        Ok(v) if !v.is_empty() => match Level::parse(&v) {
++            Some(l) => l as u8,
++            None => {
++                let msg = quote("unknown DSFRONT_LOG_LEVEL, using info");
++                emit(Level::Warn, "log.level", &[("value", v.as_str()), ("msg", msg.as_str())]);
++                Level::Info as u8
++            }
++        },
++        _ => Level::Info as u8,
++    });
++    *T
++}
++
++fn node() -> &'static str {
++    static NODE: LazyLock<String> = LazyLock::new(|| {
++        std::fs::read_to_string("/proc/sys/kernel/hostname")
++            .ok()
++            .map(|s| s.trim().to_string())
++            .filter(|s| !s.is_empty())
++            .unwrap_or_else(|| "unknown".into())
++    });
++    NODE.as_str()
++}
++
++/// Days since 1970-01-01 to (year, month, day): Howard Hinnant's civil_from_days.
++fn civil(days: i64) -> (i64, i64, i64) {
++    let z = days + 719468;
++    let era = (if z >= 0 { z } else { z - 146096 }) / 146097;
++    let doe = z - era * 146097;
++    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
++    let y = yoe + era * 400;
++    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
++    let mp = (5 * doy + 2) / 153;
++    let d = doy - (153 * mp + 2) / 5 + 1;
++    let m = mp + (if mp < 10 { 3 } else { -9 });
++    (y + (if m <= 2 { 1 } else { 0 }), m, d)
++}
++
++/// The ungated writer: the prefix, then `fields` as key=value, then a newline.
++fn emit(level: Level, event: &str, fields: &[(&str, &str)]) {
++    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
++    let secs = now.as_secs() as i64;
++    let (y, mo, d) = civil(secs.div_euclid(86400));
++    let tod = secs.rem_euclid(86400);
++    let mut s = format!(
++        "ts={y:04}-{mo:02}-{d:02}T{:02}:{:02}:{:02}.{:03}Z level={} node={} rank=0 src=front event={event}",
++        tod / 3600,
++        tod % 3600 / 60,
++        tod % 60,
++        now.subsec_millis(),
++        level.as_str(),
++        node()
++    );
++    for (k, v) in fields {
++        s.push(' ');
++        s.push_str(k);
++        s.push('=');
++        s.push_str(v);
++    }
++    s.push('\n');
++    eprint!("{s}");
++}
++
++/// One record, gated by DSFRONT_LOG_LEVEL (values must not contain spaces; use `msg`).
++pub fn line(level: &str, event: &str, fields: &[(&str, &str)]) {
++    let l = Level::parse(level).unwrap_or(Level::Info);
++    if (l as u8) < threshold() {
++        return;
++    }
++    emit(l, event, fields);
++}
++
++/// msg="..." with quotes, backslashes and control characters escaped.
++pub fn quote(text: &str) -> String {
++    let mut q = String::with_capacity(text.len() + 2);
++    q.push('"');
++    for c in text.chars() {
++        match c {
++            '"' => q.push_str("\\\""),
++            '\\' => q.push_str("\\\\"),
++            '\n' => q.push_str("\\n"),
++            '\t' => q.push_str("\\t"),
++            '\r' => q.push_str("\\r"),
++            _ => q.push(c),
++        }
++    }
++    q.push('"');
++    q
++}
++
++/// A record whose only payload is a message.
++pub fn msg(level: &str, event: &str, text: &str) {
++    let q = quote(text);
++    line(level, event, &[("msg", q.as_str())]);
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn civil_matches_known_dates() {
++        assert_eq!(civil(0), (1970, 1, 1));
++        assert_eq!(civil(19723), (2024, 1, 1)); // leap year boundary
++        assert_eq!(civil(20692), (2026, 8, 27));
++    }
++
++    #[test]
++    fn quote_escapes_the_grammar() {
++        assert_eq!(quote("a \"b\"\nc"), "\"a \\\"b\\\"\\nc\"");
++    }
++
++    #[test]
++    fn levels_are_ordered_and_parsed() {
++        assert!(Level::Debug < Level::Info && Level::Info < Level::Warn);
++        assert!(Level::Warn < Level::Error && Level::Error < Level::Fatal);
++        assert_eq!(Level::parse("debug"), Some(Level::Debug));
++        assert_eq!(Level::parse("fatal"), Some(Level::Fatal));
++        assert_eq!(Level::parse("bogus"), None);
++    }
++}
+diff --git a/ds41f-4xgx10-switchless/frontend/src/main.rs b/ds41f-4xgx10-switchless/frontend/src/main.rs
+index 95c7e28..6d719bb 100644
+--- a/ds41f-4xgx10-switchless/frontend/src/main.rs
++++ b/ds41f-4xgx10-switchless/frontend/src/main.rs
+@@ -69,7 +69,7 @@ fn parse_opt<T: std::str::FromStr>(args: &[String], name: &str, default: T) -> T
+     match opt(args, name) {
+         None => default,
+         Some(v) => v.parse().unwrap_or_else(|_| {
+-            eprintln!("bad value for {name}: {v}");
++            dsfront::log::msg("fatal", "front.config", &format!("bad value for {name}: {v}"));
+             std::process::exit(2)
+         }),
+     }
+@@ -78,7 +78,7 @@ fn parse_opt<T: std::str::FromStr>(args: &[String], name: &str, default: T) -> T
+ fn encoding_opt(args: &[String]) -> dsfront::encoding::Encoding {
+     opt(args, "--encoding").map_or(Default::default(), |v| {
+         dsfront::encoding::Encoding::parse(&v).unwrap_or_else(|e| {
+-            eprintln!("{e}");
++            dsfront::log::msg("fatal", "front.config", &e);
+             std::process::exit(2)
+         })
+     })
+@@ -94,7 +94,7 @@ fn serve(args: &[String]) {
+         .iter()
+         .map(|v| {
+             v.parse().unwrap_or_else(|_| {
+-                eprintln!("bad value for --listen: {v}");
++                dsfront::log::msg("fatal", "front.config", &format!("bad value for --listen: {v}"));
+                 std::process::exit(2)
+             })
+         })
+@@ -104,24 +104,28 @@ fn serve(args: &[String]) {
+     }
+     for a in &listen {
+         if unspecified(a.ip()) {
+-            eprintln!("refusing to listen on {a}: bind to loopback or specific addresses");
++            dsfront::log::msg(
++                "fatal",
++                "front.listen",
++                &format!("refusing to listen on {a}: bind to loopback or specific addresses"),
++            );
+             std::process::exit(2);
+         }
+     }
+     let api_key = opt(args, "--api-key-file").map(|p| {
+         let k = std::fs::read_to_string(&p).unwrap_or_else(|e| {
+-            eprintln!("{p}: {e}");
++            dsfront::log::msg("fatal", "front.config", &format!("{p}: {e}"));
+             std::process::exit(1)
+         });
+         let k = k.trim().to_string();
+         if k.is_empty() {
+-            eprintln!("{p} is empty");
++            dsfront::log::msg("fatal", "front.config", &format!("{p} is empty"));
+             std::process::exit(1);
+         }
+         k
+     });
+     if api_key.is_none() {
+-        eprintln!("warning: no --api-key-file, requests are not authenticated");
++        dsfront::log::msg("warn", "front.start", "no --api-key-file, requests are not authenticated");
+     }
+     let cfg = ServerConfig {
+         model_name: opt(args, "--model-name").unwrap_or_else(|| "deepseek-v4.1-flash-uncensored".into()),
+@@ -162,14 +166,14 @@ fn serve(args: &[String]) {
+         // without this an idle front-end writes no line at all.
+         tokio::spawn(dsfront::server::stats_clock(app.clone()));
+         if let Some(t) = &table {
+-            eprintln!("{}", app.load_sessions(t, table_age_s));
++            dsfront::log::msg("info", "front.sessions", &app.load_sessions(t, table_age_s));
+         }
+         let saver = app.clone();
+         if let Some(path) = admin {
+             let (gate, engine) = (app.gate.clone(), app.engine.clone());
+             tokio::spawn(async move {
+                 if let Err(e) = dsfront::gate::admin(gate, engine, path.clone().into()).await {
+-                    eprintln!("admin socket {path}: {e}");
++                    dsfront::log::msg("fatal", "front.admin", &format!("admin socket {path}: {e}"));
+                     std::process::exit(1);
+                 }
+             });
+@@ -178,7 +182,7 @@ fn serve(args: &[String]) {
+         let mut listeners = Vec::new();
+         for a in &listen {
+             listeners.push(tokio::net::TcpListener::bind(a).await.unwrap_or_else(|e| {
+-                eprintln!("cannot listen on {a}: {e}");
++                dsfront::log::msg("fatal", "front.listen", &format!("cannot listen on {a}: {e}"));
+                 std::process::exit(1)
+             }));
+         }
+@@ -190,14 +194,15 @@ fn serve(args: &[String]) {
+                 _ = tokio::signal::ctrl_c() => {}
+                 _ = term.recv() => {}
+             }
+-            eprintln!("shutting down");
++            dsfront::log::msg("info", "front.stop", "shutting down");
+             gate.close(); // requests waiting at the gate are answered now, not at the hold limit
+             let _ = stop_tx.send(true);
+         });
+         let routes = router(app);
+         let mut servers = tokio::task::JoinSet::new();
+         for (a, l) in listen.iter().zip(listeners) {
+-            eprintln!("serving on http://{a}/v1");
++            let listen = format!("http://{a}/v1");
++            dsfront::log::line("info", "front.listen", &[("listen", listen.as_str())]);
+             let mut stop = stop_rx.clone();
+             let shutdown = async move {
+                 let _ = stop.wait_for(|s| *s).await;
+@@ -208,7 +213,7 @@ fn serve(args: &[String]) {
+             r.expect("server task").expect("server");
+         }
+         if let Some(t) = &table {
+-            eprintln!("{}", saver.save_sessions(t, table_age_s));
++            dsfront::log::msg("info", "front.sessions", &saver.save_sessions(t, table_age_s));
+         }
+     });
+ }
+@@ -240,7 +245,7 @@ fn admin(args: &[String]) {
+         usage();
+     }
+     let fail = |e: std::io::Error| -> ! {
+-        eprintln!("{sock}: {e}");
++        dsfront::log::msg("fatal", "front.admin", &format!("{sock}: {e}"));
+         std::process::exit(2)
+     };
+     let mut s = std::os::unix::net::UnixStream::connect(&sock).unwrap_or_else(|e| fail(e));
+@@ -249,7 +254,7 @@ fn admin(args: &[String]) {
+     let mut reply = String::new();
+     s.read_to_string(&mut reply).unwrap_or_else(|e| fail(e));
+     if reply.trim().is_empty() {
+-        eprintln!("{sock}: no answer");
++        dsfront::log::msg("fatal", "front.admin", &format!("{sock}: no answer"));
+         std::process::exit(2);
+     }
+     print!("{reply}");
+@@ -290,7 +295,7 @@ fn max_body_bytes(args: &[String]) -> usize {
+     let default_mb = dsfront::server::DEFAULT_MAX_BODY_BYTES >> 20;
+     let mb = parse_opt(args, "--max-body-mb", default_mb);
+     if !(1..=4096).contains(&mb) {
+-        eprintln!("bad value for --max-body-mb: {mb} (1 to 4096)");
++        dsfront::log::msg("fatal", "front.config", &format!("bad value for --max-body-mb: {mb} (1 to 4096)"));
+         std::process::exit(2);
+     }
+     mb << 20
+@@ -301,7 +306,11 @@ fn max_image_rows(args: &[String]) -> usize {
+     use dsfront::vision::{DEFAULT_MAX_IMAGE_ROWS, MAX_TOTAL_IMAGE_ROWS};
+     let n = parse_opt(args, "--max-image-rows", DEFAULT_MAX_IMAGE_ROWS);
+     if !(1..=MAX_TOTAL_IMAGE_ROWS).contains(&n) {
+-        eprintln!("bad value for --max-image-rows: {n} (1 to {MAX_TOTAL_IMAGE_ROWS})");
++        dsfront::log::msg(
++            "fatal",
++            "front.config",
++            &format!("bad value for --max-image-rows: {n} (1 to {MAX_TOTAL_IMAGE_ROWS})"),
++        );
+         std::process::exit(2);
+     }
+     n
+@@ -312,7 +321,11 @@ fn max_image_rows_in_flight(args: &[String]) -> usize {
+     let one = max_image_rows(args);
+     let n = parse_opt(args, "--max-image-rows-in-flight", dsfront::vision::DEFAULT_MAX_IMAGE_ROWS_IN_FLIGHT.max(one));
+     if n < one {
+-        eprintln!("bad value for --max-image-rows-in-flight: {n} (not below --max-image-rows, {one})");
++        dsfront::log::msg(
++            "fatal",
++            "front.config",
++            &format!("bad value for --max-image-rows-in-flight: {n} (not below --max-image-rows, {one})"),
++        );
+         std::process::exit(2);
+     }
+     n
+@@ -344,10 +357,11 @@ fn load_tokenizer(args: &[String]) -> Tokenizer {
+     let path = opt(args, "--tokenizer").unwrap_or_else(|| DEFAULT_TOKENIZER.to_string());
+     let t0 = Instant::now();
+     let tok = Tokenizer::from_file(&path).unwrap_or_else(|e| {
+-        eprintln!("{e}");
++        dsfront::log::msg("fatal", "front.start", &e.to_string());
+         std::process::exit(1)
+     });
+-    eprintln!("tokenizer loaded in {:.0} ms", t0.elapsed().as_secs_f64() * 1e3);
++    let tokenizer_ms = format!("{:.0}", t0.elapsed().as_secs_f64() * 1e3);
++    dsfront::log::line("info", "front.start", &[("tokenizer_ms", tokenizer_ms.as_str())]);
+     tok
+ }
+ 
+diff --git a/ds41f-4xgx10-switchless/frontend/src/server.rs b/ds41f-4xgx10-switchless/frontend/src/server.rs
+index 4a2d374..6a7a94b 100644
+--- a/ds41f-4xgx10-switchless/frontend/src/server.rs
++++ b/ds41f-4xgx10-switchless/frontend/src/server.rs
+@@ -112,7 +112,18 @@ impl Stats {
+         }
+         let window = self.since.elapsed().as_secs_f64();
+         let queue = if self.samples == 0 { 0.0 } else { self.queue as f64 / self.samples as f64 };
+-        eprintln!("stats: t={window:.0} front queue={queue:.1} reqs_stock={} reqs_steered={}", self.reqs[0], self.reqs[1]);
++        let (t, q, stock, steered) =
++            (format!("{window:.0}"), format!("{queue:.1}"), self.reqs[0].to_string(), self.reqs[1].to_string());
++        crate::log::line(
++            "info",
++            "stats",
++            &[
++                ("t", t.as_str()),
++                ("queue", q.as_str()),
++                ("reqs_stock", stock.as_str()),
++                ("reqs_steered", steered.as_str()),
++            ],
++        );
+         self.since = Instant::now();
+         self.reqs = [0, 0];
+         self.queue = 0;
+@@ -165,6 +176,15 @@ impl App {
+         }
+     }
+ 
++    /// The served name a request was submitted under (the name that selects the residual stream).
++    fn served_name(&self, steer: u32) -> String {
++        if steer != 0 {
++            self.cfg.steer_model_name.clone().unwrap_or_else(|| self.cfg.model_name.clone())
++        } else {
++            self.cfg.model_name.clone()
++        }
++    }
++
+     fn random_hex(&self, n: usize) -> String {
+         // splitmix64 over time and a counter: ids only need to be unique
+         let mut x = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64
+@@ -211,6 +231,9 @@ impl ApiError {
+         json!({"error": {"message": self.2, "type": self.1, "param": null, "code": self.0.as_u16()}})
+     }
+     fn response(&self) -> Response {
++        // 0: refused before the engine assigned a request id (bad body, auth, the gate, a failed submit).
++        let (status, msg) = (self.0.as_u16().to_string(), crate::log::quote(&self.2));
++        crate::log::line("warn", "req.refused", &[("status", status.as_str()), ("req", "0"), ("msg", msg.as_str())]);
+         (self.0, [("content-type", "application/json")], self.json().to_string()).into_response()
+     }
+ }
+@@ -254,7 +277,7 @@ pub(crate) fn hold_image_rows(cfg: &ServerConfig, budget: &Arc<crate::vision::Ro
+             Ok(())
+         }
+         Err(in_flight) => {
+-            eprintln!("image rows in flight: {in_flight} of {}; a request with {} images and video frames (up to {rows} rows) is answered 429", budget.max(), p.images.len());
++            // the 429 record comes from ApiError::response, with this message
+             let msg = format!(
+                 "too much image work in flight: the image requests being answered hold {in_flight} of {} image tokens (--max-image-rows-in-flight) and this request's {} images and video frames may take up to {rows}; try again in a few seconds",
+                 budget.max(),
+@@ -695,6 +718,9 @@ struct Gen {
+     _pass: Pass,
+     req_id: u64,
+     session_id: u64,
++    /// the served name the request was submitted under
++    model: String,
++    stream: bool,
+     prompt_text: String,
+     prompt_ids: Vec<u32>,
+     rx: mpsc::UnboundedReceiver<EngineEvent>,
+@@ -757,7 +783,18 @@ impl Gen {
+                             let start = if from == 0 { 0 } else { self.gen_ends[from - 1] };
+                             let tail = String::from_utf8_lossy(&self.gen_bytes[start..]);
+                             if let Some(keep) = g.check(out_ids, &tail) {
+-                                eprintln!("req {}: repetition loop after {} tokens; keeping {keep}", self.req_id, out_ids.len());
++                                let (req_s, tokens_s, keep_s) =
++                                    (self.req_id.to_string(), out_ids.len().to_string(), keep.to_string());
++                                crate::log::line(
++                                    "info",
++                                    "req.stop",
++                                    &[
++                                        ("req", req_s.as_str()),
++                                        ("reason", "loop"),
++                                        ("tokens", tokens_s.as_str()),
++                                        ("keep", keep_s.as_str()),
++                                    ],
++                                );
+                                 self.stopped = Some(Finish::Stop);
+                                 self.app.engine.cancel(self.req_id);
+                             }
+@@ -802,19 +839,35 @@ impl Gen {
+                         let rec = json!({"req_id": self.req_id, "ids": self.ids, "kept": self.kept, "finish": finish.as_str(),
+                             "usage": usage.json(), "ttft_s": ttft, "total_s": total});
+                         if let Err(e) = std::fs::write(dir.join(format!("{:06}.out.json", self.req_id)), rec.to_string()) {
+-                            eprintln!("dump: {e}");
++                            crate::log::msg("warn", "front.dump", &e.to_string());
+                         }
+                     }
+-                    eprintln!(
+-                        "req {} session {}: prompt {} (cached {}), completion {}, {}; ttft {:.3} s, {:.1} tok/s",
+-                        self.req_id,
+-                        self.session_id,
+-                        usage.prompt,
+-                        usage.cached,
+-                        usage.completion,
+-                        finish.as_str(),
+-                        ttft,
+-                        if total > ttft { usage.completion as f64 / (total - ttft) } else { 0.0 }
++                    let gen_tps = if total > ttft { usage.completion as f64 / (total - ttft) } else { 0.0 };
++                    let (req_s, session_s, prompt_s, cached_s, completion_s, ttft_s, tps_s) = (
++                        self.req_id.to_string(),
++                        format!("{:016x}", self.session_id),
++                        usage.prompt.to_string(),
++                        usage.cached.to_string(),
++                        usage.completion.to_string(),
++                        format!("{ttft:.3}"),
++                        format!("{gen_tps:.1}"),
++                    );
++                    crate::log::line(
++                        "info",
++                        "req.done",
++                        &[
++                            ("req", req_s.as_str()),
++                            ("session", session_s.as_str()),
++                            ("model", self.model.as_str()),
++                            ("prompt", prompt_s.as_str()),
++                            ("cached", cached_s.as_str()),
++                            ("completion", completion_s.as_str()),
++                            ("finish", finish.as_str()),
++                            ("ttft_s", ttft_s.as_str()),
++                            ("gen_tps", tps_s.as_str()),
++                            ("status", "200"),
++                            ("stream", if self.stream { "1" } else { "0" }),
++                        ],
+                     );
+                     return Some(Ok((finish, usage)));
+                 }
+@@ -916,13 +969,16 @@ async fn start(app: &Arc<App>, p: &Prepared, pass: Pass) -> Result<Gen, ApiError
+             return Err(unavailable(e));
+         }
+     };
+-    // where it starts (counts only); rank 0's "serve: req N restart:" line says what the engine found
+-    eprintln!("req {req_id} plan: {}", plan.describe(p.prompt.len()));
++    // where it starts (counts only); rank 0's req.restart record says what the engine found
++    let (req_s, plan_s) = (req_id.to_string(), crate::log::quote(&plan.describe(p.prompt.len())));
++    crate::log::line("debug", "req.plan", &[("req", req_s.as_str()), ("msg", plan_s.as_str())]);
+     Ok(Gen {
+         app: app.clone(),
+         _pass: pass,
+         req_id,
+         session_id: plan.session_id,
++        model: app.served_name(p.steer),
++        stream: p.stream,
+         prompt_text: p.prompt.clone(),
+         prompt_ids: plan.ids,
+         rx,
+@@ -994,15 +1050,33 @@ async fn start_images(app: &Arc<App>, p: &Prepared, pass: Pass, info: crate::pro
+         images: Some(crate::vision::payload(&starts, enc)), // the encoder's buffer itself, not a copy
+     };
+     let (req_id, rx) = app.engine.submit(submit).map_err(|e| ApiError(StatusCode::SERVICE_UNAVAILABLE, "server_error".into(), e))?;
+-    eprintln!(
+-        "req {req_id} images: {n_images} ({n_rows} rows), encoder {encoder_ms:.0} ms; prompt {} ids; session {session_id} (not kept)",
+-        ids.len()
++    let (req_s, session_s, images_s, rows_s, encoder_s, prompt_s) = (
++        req_id.to_string(),
++        format!("{session_id:016x}"),
++        n_images.to_string(),
++        n_rows.to_string(),
++        format!("{encoder_ms:.0}"),
++        ids.len().to_string(),
++    );
++    crate::log::line(
++        "info",
++        "req.images",
++        &[
++            ("req", req_s.as_str()),
++            ("session", session_s.as_str()),
++            ("images", images_s.as_str()),
++            ("rows", rows_s.as_str()),
++            ("encoder_ms", encoder_s.as_str()),
++            ("prompt", prompt_s.as_str()),
++        ],
+     );
+     Ok(Gen {
+         app: app.clone(),
+         _pass: pass,
+         req_id,
+         session_id,
++        model: app.served_name(p.steer),
++        stream: p.stream,
+         prompt_text: p.prompt.clone(),
+         prompt_ids: ids,
+         rx,
+@@ -1117,7 +1191,7 @@ fn dump(app: &App, req: &Value, p: &Prepared, gen: &Gen) {
+     if let Some(dir) = &app.cfg.dump_dir {
+         let rec = json!({"request": req, "prompt": p.prompt, "ids": gen.prompt_ids, "session": gen.session_id, "req_id": gen.req_id});
+         if let Err(e) = std::fs::write(dir.join(format!("{:06}.json", gen.req_id)), rec.to_string()) {
+-            eprintln!("dump: {e}");
++            crate::log::msg("warn", "front.dump", &e.to_string());
+         }
+     }
+ }
+diff --git a/ds41f-4xgx10-switchless/tools/vision/vision_encoder.py b/ds41f-4xgx10-switchless/tools/vision/vision_encoder.py
+index 21f77df..900034a 100644
+--- a/ds41f-4xgx10-switchless/tools/vision/vision_encoder.py
++++ b/ds41f-4xgx10-switchless/tools/vision/vision_encoder.py
+@@ -22,6 +22,7 @@ import argparse
+ import hashlib
+ import json
+ import os
++import signal
+ import socket
+ import socketserver
+ import struct
+@@ -89,8 +90,36 @@ _video_lock = threading.Lock()
+ _last = time.time()
+ 
+ 
+-def log(*x):
+-    print(time.strftime("%H:%M:%S"), *x, flush=True)
++def _record(level, event, text, **fields):
++    """One line in the record grammar (engine/common/log.h, frontend/src/log.rs)."""
++    now = time.time()
++    ts = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(now)) + ".%03dZ" % int(now * 1000 % 1000)
++    node = os.environ.get("ANEDA_NODE_HOST") or socket.gethostname()
++    rank = os.environ.get("ANEDA_NODE_RANK") or "0"
++    quoted = text.replace("\\", "\\\\").replace('"', '\\"')
++    quoted = quoted.replace("\n", "\\n").replace("\t", "\\t").replace("\r", "\\r")
++    extra = "".join(f" {k}={v}" for k, v in fields.items())
++    print(f"ts={ts} level={level} node={node} rank={rank} src=vision event={event}{extra} "
++          f"msg=\"{quoted}\"", flush=True)
++
++
++def log(*x, event="vision.log"):
++    _record("info", event, " ".join(str(v) for v in x))
++
++
++_exit_recorded = False
++
++
++def _exit(code, text):
++    """One vision.exit record, best effort: a dead stdout must not block the exit."""
++    global _exit_recorded
++    if _exit_recorded:
++        return
++    _exit_recorded = True
++    try:
++        _record("info", "vision.exit", text, code=code)
++    except OSError:
++        pass
+ 
+ 
+ def load():
+@@ -369,10 +398,27 @@ def unloader():
+                 log("idle: weights unloaded")
+ 
+ 
++def _stop(signum, _frame):
++    _exit(128 + signum, f"signal {signum}")
++    raise SystemExit(128 + signum)
++
++
+ if __name__ == "__main__":
+-    if os.environ.get("VISION_PRELOAD", "0") == "1":
+-        load()
+-    threading.Thread(target=unloader, daemon=True).start()
+-    srv = S((a.host, a.port), H)
+-    log(f"listening on {a.host}:{a.port}")
+-    srv.serve_forever()
++    signal.signal(signal.SIGTERM, _stop)
++    signal.signal(signal.SIGINT, _stop)
++    rc = 0
++    try:
++        if os.environ.get("VISION_PRELOAD", "0") == "1":
++            load()
++        threading.Thread(target=unloader, daemon=True).start()
++        srv = S((a.host, a.port), H)
++        log(f"listening on {a.host}:{a.port}", event="vision.start")
++        srv.serve_forever()
++    except SystemExit as exc:
++        rc = exc.code if isinstance(exc.code, int) else 1
++        raise
++    except BaseException:
++        rc = 1
++        raise
++    finally:
++        _exit(rc, "vision encoder exiting")

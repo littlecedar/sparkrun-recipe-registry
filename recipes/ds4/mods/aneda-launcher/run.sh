@@ -1,0 +1,304 @@
+#!/bin/bash
+# SPDX-FileCopyrightText: 2026 Little Cedar Group
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+set -euo pipefail
+
+#####################################################################
+# README
+#####################################################################
+# Pre-exec staging for the aneda arm: the picom (dsgb10) stack forked for
+# GLP steering. The engine is Picom-code's from-scratch TP=4
+# DeepSeek-V4.1-Flash build; it is NOT an SGLang/vLLM server, so sparkrun
+# launches it through the `aneda` runtime (plugins/aneda_runtime.py): native
+# distribution, tensor_parallel: 1, one container per rank
+# (recipes/ds4/README.md, "deepseek-v4.1-flash-1017-aneda-tp4-1m").
+#
+# This mod owns what is environment-shaped and therefore cannot be baked
+# into the image or committed to the tree: the per-node fleet file the
+# engine reads at start, the runtime directories, and the API key. Fabric
+# addresses are cluster-internal: each rank derives its own tail from its
+# RoCE GID, the ranks exchange the rest at serve time (ANEDA_RANK_TAILS stays
+# an override), and nothing is ever stored in a tracked file
+# (tests/test_tracked_address_hygiene.py).
+#
+# The fleet file's shape is the engine's own contract
+# (upstream ds41f-4xgx10-switchless/engine/comm/fleet.cpp):
+#   - NEXT_DEV0/1, PREV_DEV0/1 must exist by exact ibv name on every box;
+#   - each device's GID at GID_INDEX must equal the IPv4 named for that role;
+#   - one IPv4 per netdev, all four ranks' NEXT/PREV IPs listed.
+# On a switched fabric (this fleet) the ring's two directions ride the same
+# two f0 devices, so NEXT_DEV* == PREV_DEV* and NEXT_IP* == PREV_IP*. The
+# TCP 18620 bootstrap then binds rank r's PREV_IP0 and dials rank r+1's
+# PREV_IP0 — same subnet, one L2 domain on the switch.
+#
+# The heavy per-rank artifacts (72.38 GiB weight file, 50.7 GB Engram
+# shards) are prepared by launch.sh on first boot, not here: conversion
+# needs the prepared checkpoint path that only the serve command receives.
+#####################################################################
+
+#####################################################################
+# Metadata
+#####################################################################
+export MOD_NAME="aneda-launcher"
+export MOD_DESCRIPTION="Stage the aneda (dsgb10) fleet file, runtime dirs and API key"
+export MOD_MAINTAINER="Little Cedar Group <sparkrun@littlecedar.net>"
+
+#####################################################################
+# Config
+#####################################################################
+export MOD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export LOGDIR="${MOD_LOGDIR:-/cache/runtime/modlogs}"
+export ANEDA_ROOT="${ANEDA_ROOT:-/cache/runtime/aneda}"
+NODE="${ANEDA_NODE_HOST:-${HOSTNAME:-$(hostname)}}"
+
+#####################################################################
+# Helpers (per mods/mod-template harness)
+#####################################################################
+reown() {
+  # Chown a path to the owner of the .cache bind mount (mods run as root).
+  local target="${1}"
+  if [[ -e "${target}" ]]; then
+    chown -R "$(stat -c '%u' /cache/runtime):$(stat -c '%g' /cache/runtime)" "${target}" || true
+  fi
+}
+
+emit() {  # level msg
+  local level=$1 msg=$2 now ts
+  # EPOCHREALTIME + bash's printf: GNU and uutils `date` disagree on `%3N`.
+  now=${EPOCHREALTIME/,/.}
+  ts=$(TZ=UTC0 printf '%(%Y-%m-%dT%H:%M:%S)T' "${now%.*}")
+  ts="${ts}.${now#*.}"
+  msg=${msg//\\/\\\\}
+  msg=${msg//\"/\\\"}
+  msg=${msg//$'\n'/\\n}
+  printf 'ts=%sZ level=%s node=%s rank=%s src=mod event=mod.log msg="%s"\n' \
+    "${ts:0:23}" "${level}" "${NODE}" "${ANEDA_NODE_RANK:-0}" "${msg}"
+}
+
+log() {
+  emit info "[$MOD_NAME] $*" | tee -a "${LOGDIR}/${MOD_NAME}.log"
+}
+
+log_var() {
+  log "${1}=${!1:-}"
+}
+
+die() {
+  emit fatal "FATAL: $*" | tee -a "${LOGDIR}/${MOD_NAME}.log"
+  exit 2
+}
+
+# /cache/runtime is sparkrun's runtime-cache bind mount (core/runtime_cache.py:
+# RUNTIME_CACHE_CONTAINER_PATH), so it is a different filesystem from the
+# container's overlay root. With the cache disabled (`SPARKRUN_NO_RUNTIME_CACHE`,
+# or `runtime_cache.enabled: false`) it is an ordinary overlay directory and the
+# 130 GB/rank of converted artifacts would vanish with the container — refuse
+# here, where a non-zero mod exit tears the launch down, not after an hour of
+# conversion.
+require_runtime_cache_mount() {
+  local base="${ANEDA_ROOT%/*}" root_dev base_dev
+  root_dev=$(stat -c %d / 2>/dev/null) || root_dev=""
+  base_dev=$(stat -c %d "${base}" 2>/dev/null) || base_dev=""
+  if [[ -z "${base_dev}" || "${base_dev}" == "${root_dev}" ]]; then
+    die "runtime cache is not mounted: ${base} is the container overlay, not sparkrun's runtime-cache bind mount, so the artifacts would land in the overlay — drop SPARKRUN_NO_RUNTIME_CACHE or re-enable runtime_cache"
+  fi
+}
+
+#####################################################################
+# Rotate logs
+#####################################################################
+mkdir -p "${LOGDIR}"
+if [[ -f "${LOGDIR}/${MOD_NAME}.log.gz" ]]; then
+  rm -f "${LOGDIR}/${MOD_NAME}.log.gz"
+fi
+if [[ -f "${LOGDIR}/${MOD_NAME}.log" ]]; then
+  gzip -c "${LOGDIR}/${MOD_NAME}.log" > "${LOGDIR}/${MOD_NAME}.log.gz"
+  rm -f "${LOGDIR}/${MOD_NAME}.log"
+fi
+reown "${LOGDIR}"
+
+log "${MOD_NAME} - ${MOD_DESCRIPTION}"
+log "${MOD_MAINTAINER}"
+
+#####################################################################
+# Fabric inputs: operator override, else sparkrun's detection, else sysfs
+#####################################################################
+# sparkrun detects the RoCE fabric on every host and injects NCCL_IB_HCA (the
+# ACTIVE devices) and NCCL_IB_GID_INDEX into the container
+# (orchestration/infiniband.py:246-259). It passes no rail address, so the two
+# /24s come from each device's own IPv4-mapped RoCE v2 GID in sysfs — the entry
+# the engine re-checks the fleet file against at start.
+ANEDA_IB_SYSFS="${ANEDA_IB_SYSFS:-/sys/class/infiniband}"
+
+# DEV IDX -> the IPv4 that GID carries, empty when the entry is missing or is
+# not IPv4-mapped RoCE v2 (an fe80:: link-local GID is not a fabric address).
+gid_ipv4() {
+  local dev="${1}" idx="${2}" base type gid hi lo
+  base="${ANEDA_IB_SYSFS}/${dev}/ports/1"
+  type=$(cat "${base}/gid_attrs/types/${idx}" 2>/dev/null) || return 0
+  [[ "${type}" == *"RoCE v2"* ]] || return 0
+  gid=$(cat "${base}/gids/${idx}" 2>/dev/null) || return 0
+  [[ "${gid}" == 0000:0000:0000:0000:0000:ffff:* ]] || return 0
+  hi=${gid##*:ffff:}
+  hi=${hi%%:*}
+  lo=${gid##*:}
+  printf '%d.%d.%d.%d\n' "$((16#${hi} >> 8))" "$((16#${hi} & 255))" "$((16#${lo:0:2}))" "$((16#${lo:2:2}))"
+}
+
+# DEV -> "<index> <ipv4>" of its first IPv4-mapped RoCE v2 GID, numeric order.
+gid_first_ipv4() {
+  local dev="${1}" idx ip
+  for idx in $(ls "${ANEDA_IB_SYSFS}/${dev}/ports/1/gid_attrs/types" 2>/dev/null | sort -n); do
+    ip=$(gid_ipv4 "${dev}" "${idx}")
+    if [[ -n "${ip}" ]]; then
+      printf '%s %s\n' "${idx}" "${ip}"
+      return 0
+    fi
+  done
+}
+
+# NAME DEV NET -> die unless DEV's GID at ANEDA_GID_INDEX is a NET.x address.
+verify_fabric() {
+  local which="${1}" dev="${2}" net="${3}" ip
+  ip=$(gid_ipv4 "${dev}" "${ANEDA_GID_INDEX}")
+  [[ -n "${ip}" ]] ||
+    die "${which}: ${dev} has no IPv4-mapped RoCE v2 GID at index ${ANEDA_GID_INDEX}: the engine's fleet check would refuse every rank"
+  [[ "${ip%.*}" == "${net}" ]] ||
+    die "${which}: ${dev} GID ${ANEDA_GID_INDEX} is ${ip}, not a ${net}.0/24 address"
+}
+
+resolve_fabric() {
+  local -a pairs=()
+  local dev ip
+  if [[ -n "${ANEDA_DEV_A:-}" && -z "${ANEDA_DEV_B:-}" ]] ||
+    [[ -z "${ANEDA_DEV_A:-}" && -n "${ANEDA_DEV_B:-}" ]]; then
+    die "set ANEDA_DEV_A and ANEDA_DEV_B together, or neither (sparkrun's NCCL_IB_HCA then names them)"
+  fi
+  if [[ -z "${ANEDA_DEV_A:-}" ]]; then
+    [[ -n "${NCCL_IB_HCA:-}" ]] ||
+      die "ANEDA_DEV_A/ANEDA_DEV_B unset and sparkrun injected no NCCL_IB_HCA: no RoCE device source"
+    for dev in ${NCCL_IB_HCA//,/ }; do
+      ip=$(gid_first_ipv4 "${dev}")
+      if [[ -n "${ip}" ]]; then
+        pairs+=("${ip#* } ${dev}")
+      fi
+    done
+    mapfile -t pairs < <(printf '%s\n' "${pairs[@]}" | sort)
+    [[ ${#pairs[@]} -ge 2 ]] ||
+      die "NCCL_IB_HCA='${NCCL_IB_HCA}' names fewer than two devices with an IPv4-mapped RoCE v2 GID"
+    read -r ip ANEDA_DEV_A <<< "${pairs[0]}"
+    read -r ip ANEDA_DEV_B <<< "${pairs[1]}"
+    [[ "${ANEDA_DEV_A}" != "${ANEDA_DEV_B}" ]] ||
+      die "NCCL_IB_HCA names one usable device ('${ANEDA_DEV_A}'): the engine's switched ring needs two"
+  fi
+  if [[ -z "${ANEDA_FABRIC_A:-}" || -z "${ANEDA_FABRIC_B:-}" ]]; then
+    ip=$(gid_first_ipv4 "${ANEDA_DEV_A}")
+    ANEDA_FABRIC_A="${ANEDA_FABRIC_A:-$(printf '%s' "${ip#* }" | cut -d. -f1-3)}"
+    ip=$(gid_first_ipv4 "${ANEDA_DEV_B}")
+    ANEDA_FABRIC_B="${ANEDA_FABRIC_B:-$(printf '%s' "${ip#* }" | cut -d. -f1-3)}"
+  fi
+  if [[ -z "${ANEDA_GID_INDEX:-}" ]]; then
+    ANEDA_GID_INDEX="${NCCL_IB_GID_INDEX:-}"
+    if [[ ! "${ANEDA_GID_INDEX}" =~ ^[0-9]+$ ]]; then
+      ANEDA_GID_INDEX=$(gid_first_ipv4 "${ANEDA_DEV_A}")
+      ANEDA_GID_INDEX="${ANEDA_GID_INDEX%% *}"
+    fi
+  fi
+  [[ "${ANEDA_GID_INDEX}" =~ ^[0-9]+$ ]] ||
+    die "ANEDA_GID_INDEX='${ANEDA_GID_INDEX}' is not a GID index and ${ANEDA_DEV_A} carries no IPv4-mapped RoCE v2 GID"
+  verify_fabric A "${ANEDA_DEV_A}" "${ANEDA_FABRIC_A}"
+  verify_fabric B "${ANEDA_DEV_B}" "${ANEDA_FABRIC_B}"
+}
+
+#####################################################################
+# Main: resolve the fabric, publish what the serve phase needs, render the fleet
+#####################################################################
+# The four tails are no longer an operator input. sparkrun exports no host list
+# to a recipe (core/env_templates.py:19 LAUNCH_FIELDS is closed), but the
+# pre_exec hook environment carries rank 0's management address and this node's
+# rank (orchestration/hooks.py:110-125, quoted in README.md). The serve phase
+# (launch.sh) runs concurrently on all four nodes and exchanges the tails there;
+# ANEDA_RANK_TAILS stays an explicit override and is validated as before.
+ANEDA_ENGRAM_READ_BATCH="${ANEDA_ENGRAM_READ_BATCH:-1}"
+
+require_runtime_cache_mount
+resolve_fabric
+: "${ANEDA_NODE_RANK:?ANEDA_NODE_RANK missing: the recipe must render it from the launch node_rank template}"
+own_ip=$(gid_ipv4 "${ANEDA_DEV_A}" "${ANEDA_GID_INDEX}")
+own_tail="${own_ip##*.}"
+[[ -n "${own_tail}" ]] ||
+  die "this node's ${ANEDA_DEV_A} GID ${ANEDA_GID_INDEX} carries no IPv4 address; cannot learn this rank's rail tail"
+log "fabric resolved: A=${ANEDA_FABRIC_A}/24 via ${ANEDA_DEV_A}, B=${ANEDA_FABRIC_B}/24 via ${ANEDA_DEV_B}, GID ${ANEDA_GID_INDEX}"
+log_var ANEDA_DEV_A
+log_var ANEDA_DEV_B
+log_var ANEDA_FABRIC_A
+log_var ANEDA_FABRIC_B
+log_var ANEDA_GID_INDEX
+log_var ANEDA_NODE_RANK
+log_var ANEDA_NODE_HOST
+# Consumed, not assumed: sparkrun's own hook environment and container env.
+log_var SPARKRUN_NODE_HOST
+log_var SPARKRUN_HEAD_HOST
+log_var SPARKRUN_CLUSTER_ID
+log_var HF_HOME
+
+for d in run logs weights engram spill fleet; do
+  mkdir -p "${ANEDA_ROOT}/${d}"
+done
+
+FLEET="${ANEDA_ROOT}/fleet.conf"
+FABRIC_ENV="${ANEDA_ROOT}/fabric.env"
+# launch.sh is a separate process with only the container env; the hook-only
+# SPARKRUN_* values and this node's own tail are carried over here.
+{
+  echo "ANEDA_FABRIC_A=${ANEDA_FABRIC_A}"
+  echo "ANEDA_FABRIC_B=${ANEDA_FABRIC_B}"
+  echo "ANEDA_DEV_A=${ANEDA_DEV_A}"
+  echo "ANEDA_DEV_B=${ANEDA_DEV_B}"
+  echo "ANEDA_GID_INDEX=${ANEDA_GID_INDEX}"
+  echo "ANEDA_RANK=${ANEDA_NODE_RANK}"
+  echo "ANEDA_OWN_TAIL=${own_tail}"
+  echo "ANEDA_HEAD=${SPARKRUN_HEAD_HOST:-}"
+  echo "ANEDA_CACHE=${HF_HOME:-/cache/huggingface}"
+} > "${FABRIC_ENV}.new"
+mv -f "${FABRIC_ENV}.new" "${FABRIC_ENV}"
+
+if [[ -n "${ANEDA_RANK_TAILS:-}" ]]; then
+  IFS=, read -r -a TAILS <<< "${ANEDA_RANK_TAILS}"
+  [[ ${#TAILS[@]} -eq 4 ]] || die "ANEDA_RANK_TAILS needs exactly four comma-separated octet tails, got '${ANEDA_RANK_TAILS}'"
+  for t in "${TAILS[@]}"; do
+    [[ "${t}" =~ ^[0-9]{1,3}$ ]] || die "ANEDA_RANK_TAILS entry '${t}' is not an IPv4 octet"
+  done
+  # Check this rank's entry against the rail rather than trusting it: a stale
+  # list fails here, not in a peer's QP.
+  [[ "${TAILS[${ANEDA_NODE_RANK}]}" == "${own_tail}" ]] ||
+    die "ANEDA_RANK_TAILS[${ANEDA_NODE_RANK}]='${TAILS[${ANEDA_NODE_RANK}]}' but this node's ${ANEDA_DEV_A} GID ${ANEDA_GID_INDEX} is ${own_ip:-absent}"
+  export ANEDA_FABRIC_A ANEDA_FABRIC_B ANEDA_DEV_A ANEDA_DEV_B ANEDA_GID_INDEX
+  bash "${MOD_DIR}/fleet-render.sh" "${FLEET}.new" ||
+    die "fleet rendering refused the fabric inputs (see the message above)"
+  mv -f "${FLEET}.new" "${FLEET}"
+  log "rendered ${FLEET} from ANEDA_RANK_TAILS=[${ANEDA_RANK_TAILS}] on ${ANEDA_FABRIC_A}/${ANEDA_FABRIC_B} via ${ANEDA_DEV_A}/${ANEDA_DEV_B}, GID ${ANEDA_GID_INDEX}"
+else
+  log "tails not supplied: rank ${ANEDA_NODE_RANK} of ${SPARKRUN_HEAD_HOST:-<no head address>} will meet the others in launch.sh (port 19110)"
+fi
+
+#####################################################################
+# API key: only when ANEDA_AUTH=1. The shipped default is keyless, because the
+# fleet's API proxy sends no bearer; dsfront warns once and serves unauthenticated.
+#####################################################################
+ANEDA_AUTH="${ANEDA_AUTH:-0}"
+log_var ANEDA_AUTH
+if [[ "${ANEDA_AUTH}" = 1 ]]; then
+  KEY="${ANEDA_ROOT}/run/api-key"
+  if [[ ! -s "${KEY}" ]]; then
+    (umask 077; head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n' > "${KEY}")
+    log "generated ${KEY}"
+  fi
+  chmod 600 "${KEY}"
+else
+  log "auth off (ANEDA_AUTH=0): dsfront serves keyless, no key file is created"
+fi
+
+reown "${ANEDA_ROOT}"
+log "Done."

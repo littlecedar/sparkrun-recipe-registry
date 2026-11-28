@@ -3468,8 +3468,12 @@ if __name__ == "__main__":
 # the vector or the patched engine is missing. Each of those is invisible in a
 # plain boot that answers 200, so each is checked here without a GPU.
 ANEDA_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-1017-aneda-tp4-1m.yaml"
+ANEDA_OEA_RECIPE = RECIPE_DIR / "deepseek-v4.1-flash-1017-aneda-tp4-1m-oea.yaml"
+ANEDA_MOD_DIR = RECIPE_DIR / "mods" / "aneda-launcher"
+ANEDA_DOCKERFILE = RECIPE_DIR / "Dockerfile.aneda-ds41f"
 ANEDA_RUNTIME_PLUGIN = REPO_ROOT / "plugins" / "aneda_runtime.py"
-WEIGHTLESS_PATCH = "picom-weightless-steering.patch"
+WEIGHTLESS_PATCH = "aneda-weightless-steering.patch"
+STRUCTURED_LOG_PATCH = "aneda-structured-logging.patch"
 WEIGHTLESS_VECTOR = "/cache/runtime/glp/vector.gguf"
 
 
@@ -3487,14 +3491,14 @@ def _assert_aneda_arm_contract(tc, r: "Recipe", text: str) -> None:
     steered = "deepseek-ai/DeepSeek-V4.1-Flash-1017-Weightless"
     tc.assertEqual(r.default("served_model_name"), stock)
     tc.assertNotEqual(stock, steered)
-    tc.assertIn("--steer-model-name %s" % steered, r.env["PICOM_FRONT_ARGS"])
+    tc.assertIn("--steer-model-name %s" % steered, r.env["ANEDA_FRONT_ARGS"])
     tc.assertEqual(r.env["WEIGHTLESS_STEER_MODEL"], steered)
     tc.assertEqual(r.env["WEIGHTLESS_STEER_PATH"], WEIGHTLESS_VECTOR)
     tc.assertEqual(r.env["WEIGHTLESS_STEER_ALPHA"], "0.75")
     tc.assertIn("WEIGHTLESS_STEER_LAYERS", r.env)
     # The vector is on every node before the serve starts, and its bytes are checked.
     tc.assertIn("mods/glp-vector-stage", text)
-    tc.assertIn("mods/picom-launcher", text)
+    tc.assertIn("mods/aneda-launcher", text)
     # The checkpoint is the vector's own base_model, not the lane's pin.
     tc.assertEqual(r.model_revision, "1bae0e1088993b9b82de08f59de5be5a34e42170")
     # The image is this registry's own build, published and pinned by digest: a
@@ -3507,14 +3511,21 @@ def _assert_aneda_arm_contract(tc, r: "Recipe", text: str) -> None:
 
 
 def _assert_aneda_dockerfile(tc, dockerfile: str) -> None:
-    """The steering patch ships beside the Dockerfile and applies after the two PRs."""
+    """The aneda build: the fork's own source args, then the patch series in order."""
+    tc.assertIn("ARG ANEDA_REPO=", dockerfile)
+    tc.assertIn("ARG ANEDA_REF=", dockerfile)
+    tc.assertNotIn("PICOM_REPO", dockerfile)
+    tc.assertNotIn("PICOM_REF", dockerfile)
     tc.assertIn(WEIGHTLESS_PATCH, dockerfile)
-    tc.assertIn("COPY picom-pr15-service-vision.patch picom-pr7-stream-tool-args.patch " + WEIGHTLESS_PATCH,
+    tc.assertIn(STRUCTURED_LOG_PATCH, dockerfile)
+    tc.assertIn("COPY picom-pr15-service-vision.patch picom-pr7-stream-tool-args.patch "
+                + WEIGHTLESS_PATCH + " " + STRUCTURED_LOG_PATCH,
                 dockerfile)
     order = [
         dockerfile.index("git -C /src apply /tmp/picom-pr15-service-vision.patch"),
         dockerfile.index("git -C /src apply /tmp/picom-pr7-stream-tool-args.patch"),
         dockerfile.index("git -C /src apply /tmp/" + WEIGHTLESS_PATCH),
+        dockerfile.index("git -C /src apply /tmp/" + STRUCTURED_LOG_PATCH),
     ]
     tc.assertEqual(order, sorted(order), "the patch series applies out of order")
     # The series' acceptance: the merged front-end suite runs in the build.
@@ -3538,7 +3549,7 @@ class AnedaContract(unittest.TestCase):
     def setUp(self):
         self.text = ANEDA_RECIPE.read_text()
         self.r = Recipe(self.text, ANEDA_RECIPE.name)
-        self.dockerfile = PICOM_DOCKERFILE.read_text()
+        self.dockerfile = ANEDA_DOCKERFILE.read_text()
         self.runtime = ANEDA_RUNTIME_PLUGIN.read_text()
 
     def test_recipe_contract(self):
@@ -3555,7 +3566,7 @@ class AnedaContract(unittest.TestCase):
         # A recipe that names the steered name but never tells the engine the
         # vector would serve two aliases of the stock model.
         self.assertIn("WEIGHTLESS_STEER_PATH", self.r.env)
-        self.assertIn("PICOM_FRONT_ARGS", self.r.env)
+        self.assertIn("ANEDA_FRONT_ARGS", self.r.env)
 
     def test_defaults_are_consumed(self):
         for key in self.r.defaults:
@@ -3579,8 +3590,8 @@ class AnedaNegativeControls(unittest.TestCase):
 
     def test_control_no_steered_name(self):
         r, text = self._mutated(
-            'PICOM_FRONT_ARGS: "--steer-model-name deepseek-ai/DeepSeek-V4.1-Flash-1017-Weightless"',
-            'PICOM_FRONT_ARGS: ""')
+            'ANEDA_FRONT_ARGS: "--steer-model-name deepseek-ai/DeepSeek-V4.1-Flash-1017-Weightless"',
+            'ANEDA_FRONT_ARGS: ""')
         with self.assertRaises(AssertionError):
             _assert_aneda_arm_contract(self, r, text)
 
@@ -3603,8 +3614,8 @@ class AnedaNegativeControls(unittest.TestCase):
             _assert_aneda_arm_contract(self, r, text)
 
     def test_control_patch_after_the_prs_out_of_order(self):
-        dockerfile = PICOM_DOCKERFILE.read_text()
-        line = " && git -C /src apply /tmp/" + WEIGHTLESS_PATCH
+        dockerfile = ANEDA_DOCKERFILE.read_text()
+        line = " && git -C /src apply /tmp/" + WEIGHTLESS_PATCH + " \\\n"
         assert line in dockerfile, "control anchor for the apply line vanished"
         moved = dockerfile.replace(line, "", 1).replace(
             "RUN git -C /src apply /tmp/picom-pr15-service-vision.patch",
@@ -3618,3 +3629,112 @@ class AnedaNegativeControls(unittest.TestCase):
             'requires_capability = frozenset({"gb10"})', "requires_capability = frozenset()")
         with self.assertRaises(AssertionError):
             _assert_aneda_runtime(self, source)
+
+
+# --------------------------------------------------------------------------
+# The aneda fork's split from the picom artifacts it was copied from
+# --------------------------------------------------------------------------
+# The fork rule: a shipped picom artifact keeps its name while its contents keep
+# moving, so aneda gets its own copies under its own names. A copy that still
+# names a picom path or env key stages or reads the picom arm's tree and serves
+# the wrong files silently; a picom artifact that learns the aneda name moves
+# under the shipped arms' feet.
+# `/opt/picom` is the image's own install prefix (upstream's layout, identical in
+# both images), so it is shared on purpose and is not an aneda leak.
+ANEDA_LEAKS = ("PICOM_", "/cache/runtime/picom", "[picom-launcher]")
+PICOM_LEAKS = ("ANEDA_", "mods/aneda-launcher", "/cache/runtime/aneda", "/opt/aneda")
+
+
+def aneda_fork_violations(
+    aneda_recipes: list[Path],
+    aneda_mod: Path,
+    picom_recipes: list[Path],
+    picom_mod: Path,
+) -> list[str]:
+    """Every place the two names still cross; empty when the fork is clean."""
+    bad: list[str] = []
+    for path in aneda_recipes:
+        body = _strip_comment_lines(path.read_text())
+        if "mods/aneda-launcher" not in body:
+            bad.append(f"{path.name}: does not reference mods/aneda-launcher")
+        if "/workspace/mods/aneda-launcher/launch.sh" not in body:
+            bad.append(f"{path.name}: command does not run the aneda launcher")
+        for key in re.findall(r"(?m)^\s+(PICOM_[A-Z0-9_]+):", body):
+            bad.append(f"{path.name}: carries the picom key {key}")
+    for path in sorted(p for p in aneda_mod.rglob("*") if p.is_file()):
+        body = path.read_text(errors="replace")
+        for needle in ANEDA_LEAKS:
+            if needle in body:
+                bad.append(f"{path.name}: names {needle}")
+    for path in list(picom_recipes) + sorted(p for p in picom_mod.rglob("*") if p.is_file()):
+        body = path.read_text(errors="replace")
+        for needle in PICOM_LEAKS:
+            if needle in body:
+                bad.append(f"{path.name}: names {needle}")
+    return bad
+
+
+class AnedaForkSplit(unittest.TestCase):
+    """The aneda copies name only aneda; the picom artifacts name only picom."""
+
+    def test_the_two_arms_and_the_copied_mod_are_split(self):
+        self.assertEqual([], aneda_fork_violations(
+            [ANEDA_RECIPE, ANEDA_OEA_RECIPE], ANEDA_MOD_DIR,
+            [PICOM_EXACT_RECIPE, PICOM_OEA_RECIPE], PICOM_MOD_DIR))
+
+
+class AnedaForkSplitNegativeControls(unittest.TestCase):
+    """Mutation controls for AnedaForkSplit: each must break the guard."""
+
+    @staticmethod
+    def _tree(root: Path) -> tuple[list[Path], Path, list[Path], Path]:
+        aneda = root / "aneda.yaml"
+        aneda.write_text(
+            'mods:\n  - "mods/aneda-launcher"\n'
+            'command: bash /workspace/mods/aneda-launcher/launch.sh\n')
+        picom = root / "picom.yaml"
+        picom.write_text('env:\n  PICOM_AUTH: "0"\n')
+        amod = root / "aneda-launcher"
+        amod.mkdir()
+        (amod / "run.sh").write_text("ANEDA_ROOT=/cache/runtime/aneda\n")
+        pmod = root / "picom-launcher"
+        pmod.mkdir()
+        (pmod / "run.sh").write_text("PICOM_ROOT=/cache/runtime/picom\n")
+        return [aneda], amod, [picom], pmod
+
+    def test_control_an_aneda_recipe_naming_a_picom_key_is_caught(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            aneda, amod, picom, pmod = self._tree(Path(d))
+            self.assertEqual([], aneda_fork_violations(aneda, amod, picom, pmod))
+            aneda[0].write_text(
+                'env:\n  PICOM_AUTH: "0"\nmods:\n  - "mods/aneda-launcher"\n'
+                'command: bash /workspace/mods/aneda-launcher/launch.sh\n')
+            self.assertTrue(aneda_fork_violations(aneda, amod, picom, pmod))
+
+    def test_control_an_aneda_recipe_running_the_picom_launcher_is_caught(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            aneda, amod, picom, pmod = self._tree(Path(d))
+            aneda[0].write_text(
+                'mods:\n  - "mods/aneda-launcher"\n'
+                'command: bash /workspace/mods/picom-launcher/launch.sh\n')
+            self.assertTrue(aneda_fork_violations(aneda, amod, picom, pmod))
+
+    def test_control_a_mod_copy_naming_a_picom_path_is_caught(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            aneda, amod, picom, pmod = self._tree(Path(d))
+            (amod / "run.sh").write_text("ANEDA_ROOT=/cache/runtime/picom\n")
+            self.assertTrue(aneda_fork_violations(aneda, amod, picom, pmod))
+
+    def test_control_a_picom_artifact_naming_the_fork_is_caught(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            aneda, amod, picom, pmod = self._tree(Path(d))
+            picom[0].write_text('env:\n  PICOM_AUTH: "0"\n  ANEDA_AUTH: "0"\n')
+            self.assertTrue(aneda_fork_violations(aneda, amod, picom, pmod))

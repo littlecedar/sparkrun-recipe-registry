@@ -469,10 +469,11 @@ def watchdog_arm_slice(text: str) -> str:
 
 
 class ScopedInferenceWatchdog(unittest.TestCase):
-    """Only a picom arm asks the watchdog to require a generated token.
+    """Only the picom and aneda arms ask the watchdog to require a generated token.
 
     A canned `/v1/chat/completions` body reads as healthy at t=1 s; `--require-inference` makes
-    health need a token, so a picom boot without a key holds at `loading`/`no_probe` instead.
+    health need a token, so a picom or aneda boot without a key holds at `loading`/`no_probe`
+    instead.
     """
 
     def setUp(self):
@@ -508,9 +509,15 @@ class ScopedInferenceWatchdog(unittest.TestCase):
         self.assertIn("--node", argv, "the key can only be resolved through --node")
         self.assertIn("--rank", argv, "the rank arguments were lost with the flag")
 
+    def test_aneda_arm_requires_inference(self):
+        """The aneda arms run the same engine, so the same early `/health` applies."""
+        argv = self.watchdog_argv("recipes/ds4/deepseek-v4.1-flash-1017-aneda-tp4-1m.yaml")
+        self.assertIn("--require-inference", argv, "an aneda arm armed a plain endpoint probe")
+        self.assertIn("--node", argv, "the key can only be resolved through --node")
+
     def test_other_arm_gets_todays_argv(self):
         argv = self.watchdog_argv("recipes/glm/some-arm.yaml")
-        self.assertNotIn("--require-inference", argv, "a non-picom arm changed its argv")
+        self.assertNotIn("--require-inference", argv, "a non-picom/aneda arm changed its argv")
 
     def test_removing_the_case_takes_the_flag_away(self):
         mutated = watchdog_arm_slice(read_tool()).replace(

@@ -683,6 +683,19 @@ class HookIsNotAServe(unittest.TestCase):
         self.assertEqual(bw.decide(False, False, 2, seen_alive=True), "dead")
 
 
+class LogFilterIsNotAServe(unittest.TestCase):
+    """`logprefix.py` carries the serve's name on its command line; a filter is not the serve."""
+
+    def test_the_probe_skips_the_log_filter(self):
+        self.assertIn("*logprefix*", bw.probe_script("dsgb10_rank"))
+
+    def test_control_without_the_skip_the_filter_would_match(self):
+        kept = tuple(skip for skip in bw.PID_SKIP if skip != "logprefix")
+        with mock.patch.object(bw, "PID_SKIP", kept):
+            self.assertNotIn("logprefix", bw.probe_script("dsgb10_rank"),
+                             "the control must drop the skip the guard exists for")
+
+
 class FingerprintMissIsNotDeath(unittest.TestCase):
     """2026-11-17 (picom, task `58cddf1c62ba6578_f6e2d245df66`): the serve pattern was
     `tensorfold|llama-server|sglang|vllm|python3|python`, which matches neither
@@ -1003,6 +1016,28 @@ class InferenceProbe(unittest.TestCase):
         self.assertIn("verdict=healthy", log, log)
         self.assertIn("inference=ok", log)
         self.assertEqual(rc, 0)
+
+
+class DefaultKeyCandidates(unittest.TestCase):
+    """Two launchers ship now: either runtime root's key file must be read."""
+
+    def test_the_default_candidates_name_both_runtime_roots(self):
+        self.assertEqual(
+            bw.API_KEY_FILES,
+            ("/cache/runtime/picom/run/api-key", "/cache/runtime/aneda/run/api-key"),
+            "a launcher's key root fell out of the default candidates")
+
+    def test_an_unset_path_tries_every_candidate_on_the_host_and_in_the_container(self):
+        fake_run = mock.Mock(return_value=mock.Mock(stdout="", stderr="", returncode=1))
+        fake = mock.Mock(run=fake_run, SubprocessError=subprocess.SubprocessError)
+        with mock.patch.object(bw, "read_api_key", return_value=""), \
+                mock.patch.object(bw, "subprocess", fake):
+            key, tried = bw.resolve_api_key("", "n1", "sparkrun_abc123_solo")
+        self.assertEqual(key, "")
+        self.assertEqual(
+            tried,
+            list(bw.API_KEY_FILES)
+            + [f"n1:sparkrun_abc123_solo:{path}" for path in bw.API_KEY_FILES])
 
 
 class MemAvail(unittest.TestCase):

@@ -14,9 +14,9 @@ vector is sm_121-bound), must not wait out a native rendezvous gate nothing
 binds (the launcher meets its peers on 19110 itself), and carries its own image.
 Those are runtime declarations, not recipe text.
 
-The serve command is the picom launcher's; the runtime only renders it. Every
+The serve command is the aneda launcher's; the runtime only renders it. Every
 per-rank argument, the fabric resolution and the weight/Engram staging live in
-`recipes/ds4/mods/picom-launcher/` where the shipped arm keeps them.
+`recipes/ds4/mods/aneda-launcher/` where this arm keeps them.
 """
 
 from __future__ import annotations
@@ -36,9 +36,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 #: The launcher's argv. `{...}` names resolve from the recipe's config chain.
-LAUNCHER = "bash /workspace/mods/picom-launcher/launch.sh"
+LAUNCHER = "bash /workspace/mods/aneda-launcher/launch.sh"
 #: Exactly the four flags `launch.sh` parses; it ignores any other argv word, so
-#: nothing that matters may ride this line (the steered name is `PICOM_FRONT_ARGS`).
+#: nothing that matters may ride this line (the steered name is `ANEDA_FRONT_ARGS`).
 _LAUNCH_ARGS = (
     "--model {model}",
     "--revision {model_revision}",
@@ -120,7 +120,7 @@ class AnedaRuntime(RuntimePlugin):
         hosts: list[str] | None = None,
         placement=None,
     ) -> str:
-        """Per node: the same argv; `PICOM_NODE_RANK` (a recipe env template) is the rank."""
+        """Per node: the same argv; `ANEDA_NODE_RANK` (a recipe env template) is the rank."""
         return self._command(recipe, overrides, skip_keys)
 
     # --- cluster lifecycle ---

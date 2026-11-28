@@ -2866,7 +2866,7 @@ exactly why that arm needs an image of its own.
 | | |
 |:--|:--|
 | Recipe | `recipes/ds4/deepseek-v4.1-flash-1017-aneda-tp4-1m.yaml` |
-| Engine | the picom (`dsgb10`) TP=4 engine + its Rust front-end `dsfront`, **with this registry's GLP steering patch series** (`recipes/ds4/picom-weightless-steering.patch`, third in the series after PR #15 and PR #7) |
+| Engine | the picom (`dsgb10`) TP=4 engine + its Rust front-end `dsfront`, **with this registry's GLP steering patch series** (`recipes/ds4/aneda-weightless-steering.patch`, third in the series after PR #15 and PR #7) |
 | Runtime | `aneda` — `plugins/aneda_runtime.py`: native distribution, no rendezvous gate, GB10 only |
 | Model | [`deepseek-ai/DeepSeek-V4.1-Flash-1017`](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017) at `1bae0e10` — the revision the steering vector was derived against |
 | Second name | `deepseek-ai/DeepSeek-V4.1-Flash-1017-Weightless`, the same weights with the GLP vector projected out of the residual stream **per request** |
@@ -2881,7 +2881,7 @@ is not a vLLM server. This arm does not borrow it: a steered arm must refuse a h
 GB10 (the vector is sm_121-bound), must not wait out a native rendezvous gate nothing binds (the
 launcher meets its peers on 19110 itself), and carries its own image — declarations, not recipe
 text, which is why the runtime exists. The image is built on an idle GB10 node from
-`Dockerfile.picom-ds41f` with the three-patch series (`git apply` in that order, `git apply
+`Dockerfile.aneda-ds41f` with the patch series (`git apply` in that order, `git apply
 --check` proven, resulting tree `637fc87a`), pushed to `ghcr.io/littlecedar/aneda` and
 pinned by digest, so `container:` is public and `sparkrun` pulls it like any other arm. The two
 compile defects the first build found are fixed in the patch (`read_kind` is `inline`; the
@@ -2960,6 +2960,17 @@ cold start reads `0.000` and a continued conversation near `1.000`. `engram_hit`
 store's hot-row cache hit rate over the interval, and `engram_used` the fraction of that cache's
 slots that hold a row now: the store's own counters, which the server reads through
 `Model::engram_store()` (`--no-engram` leaves both `0.000`).
+
+**The record format.** With the logging patch in the build (`aneda-structured-logging.patch`,
+applied by `Dockerfile.aneda-ds41f`), each serve process writes one record per line:
+`ts=<UTC ISO-8601 ms> level=<debug|info|warn|error|fatal> node=<host> rank=<0-3> src=<engine|front|vision|launcher|mod> event=<noun.verb> [key=value]... [msg="<text>"]`.
+The two `stats:` shapes above become `event=stats` records with the same keys (the engine adds
+`inflight` and `window_s`), and `event=metrics` carries the two vLLM-shaped bridge lines
+sparkrun's scraper reads. The sink
+map, rotation, the filter and the closed event set are in
+[`mods/aneda-launcher/README.md`](mods/aneda-launcher/README.md#log-records); the
+sparkrun-facing contract (grammar, gates, rule map, cadence) is `.omp/aneda-log-deets.md`.
+The Picom arms keep their own logging, unchanged — nothing here describes their records.
 
 **The line reaches the sparkrun log.** Rank 0's engine writes through `tee` into `rank.0.log` (the
 receipt) and the container stdout sparkrun captures, as ranks 1-3's engines and dsfront already

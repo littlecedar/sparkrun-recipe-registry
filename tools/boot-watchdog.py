@@ -19,10 +19,10 @@ distinction explicit and acts on it:
     embedding and reranking lanes serve only the last two). A `/health` 200 with no
     surface answering is `loading`, never healthy, never exit 0. The bearer is read from
     `--api-key-file` on this host, else through `--node`'s container by `docker exec cat`
-    (the picom arm writes it inside the container); when neither reads, the check is
+    (the picom and aneda arms write it inside the container); when neither reads, the check is
     `no_probe` -- never `healthy`, never a silent keyless probe. `run-arm.sh` passes the
-    flag for the picom arms, whose `/health` answers before the engine: on picom `dsfront`
-    binds `/health` ~90 s early and the receipt
+    flag for the picom and aneda arms, whose `/health` answers before the engine: on picom
+    `dsfront` binds `/health` ~90 s early and the receipt
     `head:~/benchmarks/picom-bareh-20261120-head/watchdog.log` shows the keyless rule
     reporting `verdict=healthy` at t=1 s on a boot that could not answer.
   * serve pattern matched nothing while the container is up and the endpoint
@@ -146,6 +146,14 @@ def endpoint_reachable(endpoint: str, timeout: float = 5.0) -> bool:
     return False
 
 
+#: Where the picom and aneda launchers write the generated key, one per arm's
+#: runtime root. The launcher the arm runs decides which exists.
+API_KEY_FILES = (
+    "/cache/runtime/picom/run/api-key",
+    "/cache/runtime/aneda/run/api-key",
+)
+
+
 def read_api_key(path: str) -> str:
     """Bearer key from the file the arm writes; empty when unreadable (fail closed)."""
     try:
@@ -155,35 +163,42 @@ def read_api_key(path: str) -> str:
 
 
 def resolve_api_key(path: str, node: str, container: str) -> tuple[str, list[str]]:
-    """(key, attempted locations): the host path, else the same path inside `node`'s container.
+    """(key, attempted locations): each host path, else the same path inside `node`'s container.
 
-    `/cache/runtime/picom/run/api-key` is written inside the container, while the watchdog
-    runs on the control machine, so a host-readable copy is not guaranteed. Reading it through
-    `docker exec` on the rank container is the operator's own route. Two failed attempts are
-    reported by the caller as `no_probe` -- never a silent keyless probe.
+    `path` empty means the shipped launchers' own key files (`API_KEY_FILES`). Those are
+    written inside the container, while the watchdog runs on the control machine, so a
+    host-readable copy is not guaranteed. Reading it through `docker exec` on the rank
+    container is the operator's own route. Two failed attempts are reported by the caller
+    as `no_probe` -- never a silent keyless probe.
     """
-    tried = [path]
-    key = read_api_key(path)
-    if key or not node or not container:
-        return key, tried
-    remote = f"{node}:{container}:{path}"
-    tried.append(remote)
-    try:
-        proc = subprocess.run(
-            [
-                "ssh", "-o", "BatchMode=yes", f"red@{node}",
-                f"docker exec {shlex.quote(container)} cat {shlex.quote(path)}",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
-    except (subprocess.SubprocessError, OSError):
+    candidates = (path,) if path else API_KEY_FILES
+    tried = list(candidates)
+    for candidate in candidates:
+        key = read_api_key(candidate)
+        if key:
+            return key, tried
+    if not node or not container:
         return "", tried
-    if proc.returncode != 0:
-        return "", tried
-    return proc.stdout.strip(), tried
+    for candidate in candidates:
+        remote = f"{node}:{container}:{candidate}"
+        tried.append(remote)
+        try:
+            proc = subprocess.run(
+                [
+                    "ssh", "-o", "BatchMode=yes", f"red@{node}",
+                    f"docker exec {shlex.quote(container)} cat {shlex.quote(candidate)}",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+        except (subprocess.SubprocessError, OSError):
+            return "", tried
+        if proc.returncode != 0:
+            continue
+        return proc.stdout.strip(), tried
+    return "", tried
 
 
 def http_call(
@@ -410,26 +425,19 @@ def pick_io(text: str) -> tuple[bool, tuple[int, int] | None]:
     return alive, best
 
 
-def serve_state(
-    node: str, container: str, pattern: str
-) -> tuple[bool | None, tuple[int, int] | None, int | None, int | None, str | None]:
-    """(pid_alive, io, serve_log_size, container_memory, fatal_line) for the serve child.
+#: Command-line fragments that are never the serve: the probe's own wrappers carry the
+#: pattern in their argv, and `logprefix.py` (the arm's log-record filter) carries the
+#: serve's name, so a filter process must never be mistaken for the serve.
+PID_SKIP = ("pgrep", "boot-watchdog", '"sh -c"', '"sh -s"', "logprefix")
 
-    `pid_alive is None` means the probe failed — ssh or the container exec errored, or the
-    node went away mid-flight. It is deliberately distinct from `False` (probed, and there
-    is no serve child): the caller must never read its own broken instrument as a death.
-    """
-    # The script is fed on stdin so neither the pattern nor its own quotes need
-    # escaping through ssh's argument passing.
-    # The probe's own `sh -c` command line CONTAINS the pattern, so `pgrep -f` matches
-    # itself; the busiest-reader rule then flips between the serve and a transient
-    # wrapper every sample and `io_delta` becomes meaningless. Measured 2026-10-30 on a
-    # 122B load: io_delta=0 for five minutes while shards loaded at 80 s each.
-    script = (
+
+def probe_script(pattern: str) -> str:
+    """The in-container shell the probe runs, fed on stdin so nothing needs escaping."""
+    return (
         "PAT=" + shlex.quote(pattern) + "\n"
         "for p in $(pgrep -f \"$PAT\"); do\n"
         "  case \"$(tr \\0 ' ' < /proc/$p/cmdline 2>/dev/null)\" in\n"
-        "    *pgrep*|*boot-watchdog*|*\"sh -c\"*|*\"sh -s\"*) continue ;;\n"
+        "    " + "|".join(f"*{skip}*" for skip in PID_SKIP) + ") continue ;;\n"
         "  esac\n"
         "  echo \"PID $p\"; cat /proc/$p/io 2>/dev/null\n"
         "done\n"
@@ -439,6 +447,22 @@ def serve_state(
         # an engine that logged a warning and carried on is not dead.
         "echo \"FATAL $(tail -n 5 /tmp/sparkrun_serve.log 2>/dev/null | grep -oiE 'traceback \\(most recent|notimplementederror|cuda error|received sigquit|killed|runtimeerror|assertionerror|segmentation fault|out of memory' | head -1)\"\n"
     )
+
+
+def serve_state(
+    node: str, container: str, pattern: str
+) -> tuple[bool | None, tuple[int, int] | None, int | None, int | None, str | None]:
+    """(pid_alive, io, serve_log_size, container_memory, fatal_line) for the serve child.
+
+    `pid_alive is None` means the probe failed — ssh or the container exec errored, or the
+    node went away mid-flight. It is deliberately distinct from `False` (probed, and there
+    is no serve child): the caller must never read its own broken instrument as a death.
+    """
+    # The probe's own `sh -c` command line CONTAINS the pattern, so `pgrep -f` matches
+    # itself; the busiest-reader rule then flips between the serve and a transient
+    # wrapper every sample and `io_delta` becomes meaningless. Measured 2026-10-30 on a
+    # 122B load: io_delta=0 for five minutes while shards loaded at 80 s each.
+    script = probe_script(pattern)
     try:
         proc = subprocess.run(
             ["ssh", "-o", "BatchMode=yes", f"red@{node}", f"docker exec -i {container} sh -s"],
@@ -874,13 +898,15 @@ def main(argv: list[str] | None = None) -> int:
         help="opt-in: healthy then needs an authenticated `/v1/models` plus one tiny 2xx on "
         "the engine's own surface (`/v1/chat/completions`, `/v1/completions`, "
         "`/v1/embeddings`, `/v1/rerank`), not just a `/health` 200. `run-arm.sh` passes it "
-        "for the `recipes/ds4/*picom*` arms; a manual picom launch must pass it too",
+        "for the `recipes/ds4/*picom*` and `recipes/ds4/*aneda*` arms; a manual launch of "
+        "either must pass it too",
     )
     ap.add_argument(
         "--api-key-file",
-        default="/cache/runtime/picom/run/api-key",
+        default="",
         help="bearer key for the inference probe: the host path is tried first, then the same "
-        "path inside --node's container (`docker exec cat`, where the picom arm writes it). "
+        "path inside --node's container (`docker exec cat`, where the arm writes it). The "
+        "default tries both runtime roots (`/cache/runtime/picom`, `/cache/runtime/aneda`). "
         "Neither readable is `no_probe`: never healthy, never a keyless fallback",
     )
     ap.add_argument("--log", default="")
