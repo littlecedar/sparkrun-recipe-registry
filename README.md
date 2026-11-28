@@ -6,85 +6,40 @@
    <a href="https://spark-arena.com"><img src="https://img.shields.io/badge/Spark_Arena-community-76b900" alt="Spark Arena" /></a>  
    <a href="https://github.com/spark-arena/sparkrun"><img src="https://img.shields.io/badge/sparkrun-CLI-1e40af" alt="sparkrun CLI" /></a>
    <a href="https://sparkrun.dev"><img src="https://img.shields.io/badge/docs-sparkrun.dev-1e40af" alt="Documentation" /></a>
-   <!-- <a href="https://recipes.sparkrun.dev"><img src="https://img.shields.io/badge/browse-recipes-76b900" alt="Browse Recipes" /></a> -->
 </p>
 
 ---
-This is the **Little Cedar Group recipe registry** for [Sparkrun][sparkrun] from the [Little Cedar Group][littlecedar] team.
+**Little Cedar Group recipe registry** for [Sparkrun][sparkrun] — recipes we run on our 6-node DGX Spark cluster.
 
-- [Little Cedar Group][littlecedar] — our resilience-focused technology company
-- [Mad Science](mad-science/README.md) — Our autoresearch experiments and findings.
-  - [Testing Methodology](mad-science/METHODOLOGY.md) — How our performance numbers and benchmarks are derived.
-- [Spark Arena][spark-arena] — community benchmarking hub
-- [Sparkrun][sparkrun] — our favorite tool for AI workload management
-- [Sparkrun Docs][sparkrun-docs] — full Sparkrun documentation
-<!-- - [Sparkrun Recipe Explorer][sparkrun-recipe-explorer] — browse and filter all recipes -->
-
----
-
-# Contents
-- [Install Our Registry](#install-the-registry)
-- [Run Our Recipes](#run-little-cedar-groups-recipes)
-- [Our Recipe Format](#recipe-format)
-- [Recipe Flags](#recipe-flags)
-- [Little Cedar Sparkrun Recipes](#little-cedar-sparkrun-recipes)
-  - [DeepSeek V4](#deepseek-v4)
-  - [Ornith 1.5](#ornith-15)
-  - [Embed](#embed)
-  - [Rerank](#rerank)
-  - [Qwen 3x](#qwen-3x)
-  - [Qwen 4x](#qwen-4x)
-  - [IFM K2-Horizon](#ifm-k2-horizon)
-  - [GLM 5.3](#glm-53)
-  - [Decision](#decision)
-  - [Media](#media)
-  - [Explore](#explore)
-  - [Liquid AI](#liquid-ai)
-  - [Cybersec](#cybersec)
-- [CI](#ci)
-- [License Policy](#license-policy)
-- [Mechanics](#mechanics)
-- [References](#references)
+[Little Cedar Group][littlecedar] · [Spark Arena][spark-arena] · [Sparkrun docs][sparkrun-docs] · [Mad Science](mad-science/README.md) · [Testing Methodology](mad-science/METHODOLOGY.md)
 
 # Install the Registry
 
-You can install our registry in Sparkrun like this:
 ```bash
 sparkrun registry add @littlecedar https://github.com/littlecedar/sparkrun-registry
-```
-After reviewing the recipes you'd like to run, it is recommended to trust our registry like this:
-```bash
-sparkrun registry trust @littlecedar
+sparkrun registry trust @littlecedar   # after reviewing the recipes
 ```
 
 # Run Little Cedar Group's Recipes
 
 > [!IMPORTANT]
-> Recipes flagged with `📜` require the operator to accept the upstream model repository release on Hugging Face's website. Downloads require setting `HF_TOKEN` after accepting the release. See [License Policy](#license-policy) for more information about licensing.
+> A `📜` recipe needs the upstream model release accepted on Hugging Face and `HF_TOKEN` set; see [License Policy](#license-policy).
 
-Our recipes are accessed with the `@littlecedar` prefix.
+Recipes are addressed with the `@littlecedar` prefix.
 
 ```bash
-# List available recipes
-sparkrun list @littlecedar
-
-# Run a recipe
-sparkrun run @littlecedar/our-awesome-recipe
-
-# Check VRAM requirements before launching
-sparkrun show @littlecedar/our-awesome-recipe
-# or
-sparkrun recipe vram @littlecedar/our-awesome-recipe
+sparkrun list @littlecedar                  # list recipes
+sparkrun show @littlecedar/<recipe>         # VRAM requirements
+sparkrun run @littlecedar/<recipe>
 ```
 
 # Recipe Format
 
-Our recipes follow the standard Sparkrun recipe schema with some additional metadata and formatting divergences, for example we use YAML `>` instead of `|` for readability and resilience. See
-the [recipe authoring docs](https://sparkrun.dev/recipes/format/) for the full specification.
+Standard Sparkrun recipe schema; we use YAML `>` instead of `|` for readability and resilience. Full spec: [recipe authoring docs](https://sparkrun.dev/recipes/format/).
 
 # Recipe Flags
 
-Flags indicate characteristics of the model, runtime, mods, and recipe, and are added by us to `metadata.tags:` in the recipe's YAML.
+Flags live in `metadata.tags:`.
 
 | Flag | Tag           | Description                              |
 |:-----|:--------------|:-----------------------------------------|
@@ -117,11 +72,9 @@ Flags indicate characteristics of the model, runtime, mods, and recipe, and are 
 
 # Little Cedar Sparkrun Recipes
 
-_Brought to you by Little Cedar Group._
-
-These are the recipes we are using in the office on our humble 6-node DGX Spark cluster.
-
 ## DeepSeek V4
+
+Lane doc: [`recipes/ds4/README.md`](recipes/ds4/README.md).
 
 | Recipe                                       | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |  Size |  Mem% | TP | Model Cards                                                      |
 |:---------------------------------------------|:------|-------:|-------:|-------:|--------:|------:|------:|---:|:-----------------------------------------------------------------|
@@ -129,17 +82,15 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | deepseek-v4.1-flash-tensorfold-tp2-1m-sglang | 🚀🚚1👀 | 66.4 | 47.8 | 44.8 | 48.4 | 385GB | 84%\* | 2 | [Model][LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw] |
 | deepseek-v4.1-flash-1017-picom-tp4-1m | 🚀🚚👀🔧 | 83.4 | 90.8 | 111.5 | 129.2 | 72.4GiB + 50.7GB Engram\* | —\* | 4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash-1017] |
 | deepseek-v4.1-flash-1017-picom-tp4-1m-oea | 🚀🚚👀🔧 | 87.1 | 90.9 | 117.6 | 134.4 | 72.4GiB + 50.7GB Engram\* | —\* | 4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash-1017] |
-|| deepseek-v4.1-flash-1017-aneda-tp4-1m | 🌲🚀🚚👀🔧 | 85.1 | 98.1 | 113.5 | 122.8 | 72.4GiB + 50.7GB Engram* | —* | 4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash-1017] |
-|| deepseek-v4.1-flash-1017-aneda-tp4-1m-oea | 🌲🚀🚚👀🔧 | 84.6 | 98.2 | 119.3 | 136.3 | 72.4GiB + 50.7GB Engram* | —* | 4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash-1017] |
+| deepseek-v4.1-flash-1017-aneda-tp4-1m | 🌲🚀🚚👀🔧 | 85.1 | 98.1 | 113.5 | 122.8 | 72.4GiB + 50.7GB Engram\* | —\* | 4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash-1017] |
+| deepseek-v4.1-flash-1017-aneda-tp4-1m-oea | 🌲🚀🚚👀🔧 | 84.6 | 98.2 | 119.3 | 136.3 | 72.4GiB + 50.7GB Engram\* | —\* | 4 | [Model][deepseek-ai/DeepSeek-V4.1-Flash-1017] |
 
-* _`*` Mem% = the engine's boot-log allocator ceiling (107.8 GiB of 128 GB); this recipe sets no util._
-* _The **knapcio** cells are the shipped line's 2026-10-26 evening ladder (`benchmarking/concurrency-ladder.yaml`, d0 pp2048 tg128, 5 runs/cell, `--skip-run` on the aff52fa5 overlay boot): C1 **70.41 ± 10.66** (warm-4 66.02 ± 4.80), C2 83.44, C5 127.27, C10 **160.88 ± 17.48** (`~/benchmarks/ds4-1017-parity-20261027/armC/armC-ladder.{json,csv}`). The earlier adoption boot on the same line read C1 **64.08 ± 3.66** / C10 **152.24 ± 13.88**, and the profile's documented 7–25 % inter-boot floor plus a within-boot C1 spread of 61.7–88.0 make a single-boot C1 weak evidence. On the decode protocols this line sits **at parity with upstream knapcio `aff52fa5`**: speedbench 0.3 all-73 geomean **86.82** vs 87.5, prose category 64.50 vs 64.7, sparkDash prose c1 decode window **90.77** vs 91.3. Quality was measured on the two **config-differing arms, not on the committed-default arm**: house **37/37** and needles 32k/131k **10/10** on both the strict-parity and the old-line boots, against **36/37** on the pre-adoption adoption boot — no quality claim rests on the new defaults alone (method and the per-category table: [`recipes/ds4/README.md`](recipes/ds4/README.md#measured-aff52fa5-parity-abc-2026-10-26-evening-quartet-3134)). The earlier v2.3/v2.4-era cells (67.18 pooled C1, C2 89.9, C5 113.4, C10 115.4) are superseded; their history is in `attic/ds4/AGENTS.md` §12.18 and the lane README's §"Measured: the v2.4 serve line"._
-* _The **picom exact** row's cells are its own 2026-11-18 boot's 5-run ladder (d0, pp 2048, tg 128; `head:~/benchmarks/picom-prod-20261118/phase5/ladder.csv`), C1 **83.4 ± 5.2**. `PICOM_MAX_TOKENS=262144` is `dsfront --max-tokens` — the default *and* the hard ceiling on a reply, so a client that omits the field gets it too — and a 262,144-token reply needs one of the four `--big-slots 4` (`prompt + max_new ≤ 1,048,576`; the other twelve hold 131,072). The endpoint is keyless by default (`PICOM_AUTH=0`), as is `/health`; `PICOM_AUTH=1` restores the bearer key rank 0 writes under `/cache/runtime/picom/run/api-key`. Accuracy on the single post-fix battery, three unpolluted runs: agentic **13/13, 13/13, 12/13** at **125.1 / 133.4 / 110.2 s** total, run 3 missing `golden-regression` (`head:~/benchmarks/picom-prod-20261118/final-20261118/bootA-exact/`), which leads the production SGLang line's **147.1 / 152.9 / 152.9 s** on that same battery (`…/knapcio-newfix-20261118/`) by **18.2 %** at the median, ranges disjoint in the sample — LIKELY, one boot per arm against a ~7 % inter-boot floor, and `stub-service-client` now runs 11.4 / 11.1 / 8.7 s. House **37/37**, needle 3/3 at 131,072, and a 983,040-token prefill **PASS** in 97.1 s (`phase5/needle-983k-d10.json`)._
-* _The two **picom** rows' Size is the **served footprint per rank**, not the checkpoint: 72.38 GiB of converted weights plus 50.7 GB of Engram shards on each of the four, against the knapcio row's 510GB checkpoint. Mem% stays `—` because this engine reports free device memory rather than a configured budget, so there is no percentage to state._
-* _The **aneda** row's cells are the 2026-11-23 concurrency ladder (d0, pp2048, tg128, 5 runs/cell; decode rows only, receipt ~/benchmarks/aneda-ladder-20261123/aneda-ladder.yaml): C1 **85.1 ± 10.3**, C2 98.1, C5 113.5, C10 122.8 t/s. The same picom engine as the picom-tp4-1m rows, with the weightless steering layer added._
-* _The **aneda OEA** row's cells are the 2026-11-24 boot's 5-run ladder (d0, pp2048, tg128; `PICOM_OEA=4,12,9`, receipt `head:~/benchmarks/aneda-oea-20261124/deepseek-v4.1-flash-1017-aneda-tp4-1m-oea/`): C1 **84.6** (pp 49,895 t/s), C2 98.2, C5 119.3, C10 136.3 t/s. The production arm: the same engine as the aneda row with the lossy MoE re-route on._
+* _Ladder cells are d0 / pp 2048 / tg 128, n=5. `*`: the picom and aneda Size is the served footprint per rank (weights + Engram), not the checkpoint; their `Mem%` is `—` because the engine reports no budget, and the tensorfold `84%*` is the engine's allocator ceiling, not a util._
+* _Aneda and OEA cells are the 2026-11-23/24 5-run ladders (`~/benchmarks/aneda-ladder-20261123/`, `~/benchmarks/aneda-oea-20261124/`). The picom endpoint is keyless by default (`PICOM_AUTH=0`), and `PICOM_MAX_TOKENS=262144` is a reply's default and hard ceiling._
 
 ## Ornith 1.5
+
+Lane doc: [`recipes/ornith/README.md`](recipes/ornith/README.md).
 
 | Recipe                                           | Flags   | C1 t/s | C2 t/s | C5 t/s | C10 t/s |                 Size | Mem% | TP | Model Cards                                                                                                                                                                                                                |
 |:-------------------------------------------------|:--------|-------:|-------:|-------:|--------:|---------------------:|-----:|---:|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -148,12 +99,11 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | ornith-1.5-9b-nvfp4-dflash-sglang                | ✨🚀🤏👀🧠🦾🔧 |     55 |  101.1 |  159.0 |   148.9 |  8.8GB + 2.6GB draft |  85% |  1 | [Model][ornith-ai/Ornith-1.5-9B-NVFP4] [Draft][ornith-ai/Ornith-1.5-9B-DFlash]                                                                                                                                             |
 | ornith-1.5-35b-a3b-nvfp4-yarn-1m-sglang         | ✨🚚👀🧠🦾🔧 |      — |      — |      — |       — |               23.5GB |  85% |  1 | [Model][ornith-ai/Ornith-1.5-35B-A3B-NVFP4]  |
 
-* _Ornith ladder cells are @ d0, pp 2048, tg 128, n=5, decode rows read from each receipt's `--output` file._
-* _The **35B** row is the 2026-10-16 re-run — `~/benchmarks/ornith-35b-suite-20261016/ornith35b-ladder.json`, per-stream 101.8 / 79.8 / 54.5 / 34.2 t/s, ttfr 303 / 582 / 1208 / 1973 ms (the 2026-10-15 pass read C2/C5/C10 158.2 / 220.4 / 249.9, i.e. within 3 %)._
-* _The **9B** row's C1–C10 are the 2026-10-15 pass — `bench_92725c90d298`, `~/benchmarks/ornith-9b-ladder-20261015/perf-ladder.yaml`, same-boot C1 58.0. Its quality cells are the 2026-10-18 suite on a separate boot, `~/benchmarks/ornith-9b-suite-20261018/` (`summary.json`, `bfcl.json`)._
-* _The **YaRN** row is the long-context arm and has **no ladder (no C1)** — it is depth-gated, not speed-gated, so its performance cells stay `—` by design. It earns the row on the pre-registered needle gate, now 6/6 across boots: 262,144 control / 512k / 768k PASS 3/3 and 1M at depth 10 % (977,427), 50 % (977,487) and 90 % (977,975, 1,891 s, 2026-10-19) — all ≥95 % fill. The depth-90 % rung failed twice before it passed (serve-side exit mid-prefill, mechanism unlogged), so the 1M path is measured but not reliable; `recipes/ornith/README.md` §The YaRN 1M arm._
+* _Ladder cells are d0 / pp 2048 / tg 128, n=5. The YaRN row is depth-gated, not speed-gated: no ladder, and its 1M rung passed but failed twice before, so it is measured, not reliable._
 
 ## Embed
+
+Lane doc: [`recipes/embed/README.md`](recipes/embed/README.md).
 
 | Recipe                                   | Flags | C1 u/s | C2 u/s | C5 u/s | C10 u/s |   Size | Mem% |            API | TP | Model Cards                                    |
 |:-----------------------------------------|:------|-------:|-------:|-------:|--------:|-------:|-----:|---------------:|---:|:-----------------------------------------------|
@@ -161,20 +111,22 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | qwen3-vl-embedding-2b-vllm-b12x          | 🌲👀📶🤏 |   38.2 |   45.5 |   85.2 |   102.4 | 4.26GB |  25% | /v1/embeddings |  1 | [Model][Qwen/Qwen3-VL-Embedding-2B]            |
 | qwen3-vl-embedding-8b-awq-4bit-vllm-b12x | 🌲👀📶🤏 |   15.9 |      — |      — |       — | 6.01GB |  30% | /v1/embeddings |  1 | [Model][gonuit/Qwen3-VL-Embedding-8B-AWQ-4bit] |
 
-* _The 2B row's C1–C10 are 2026-10-16 units/s from `benchmarking/pooling-ladder-embed.yaml` (c 1/2/5/10, 100 requests, ~256-token inputs, 5 warmups, salted, `-b dimension_check=2048`) — `~/benchmarks/pins-20261016/embed2b-ladder.json`. That is **not** the 8B row's shape, so the two rows' cells are not comparable._
-* _C1 is from the lane's `.scratch/embed/csweep8b-order1-c1.json` receipt._
-* _The 0.6B text row's C1–C10 are the 2026-11-07 campaign ladder (`benchmarking/pooling-ladder-embed.yaml`, c 1/2/5/10, 100 requests, ~256-token texts, `-b dimension_check=1024`, `.35`) — `~/benchmarks/embed2-20261107/receipts/qwen3-embedding-0.6b-vllm-b12x.json`. One unit is one request on a 100-request rung, so these cells are also request/s; the 8B row above is a C1-only sweep of a different shape, and the 2B row was a different day's boot._
+* _Units are requests/s; the 2B, 0.6B and 8B rows are different sweeps and not comparable. The 8B C1 receipt is `.scratch/embed/csweep8b-order1-c1.json`._
 
 ## Rerank
+
+Lane doc: [`recipes/rerank/README.md`](recipes/rerank/README.md).
 
 | Recipe                         | Flags | C1 u/s | C2 u/s | C5 u/s | C10 u/s |   Size | Mem% |       API | TP | Model Cards                        |
 |:-------------------------------|:------|-------:|-------:|-------:|--------:|-------:|-----:|----------:|---:|:-----------------------------------|
 | qwen3-vl-reranker-2b-vllm-b12x | 🚀🌲👀🔃🤏 |  100.6 |      — |      — |       — | 4.27GB |  30% | /v1/score |  1 | [Model][Qwen/Qwen3-VL-Reranker-2B] |
 | qwen3-vl-reranker-8b-vllm-b12x | 🌲👀🔃🤏  |      — |      — |      — |       — | 17.6GB |  30% | /v1/score |  1 | [Model][Qwen/Qwen3-VL-Reranker-8B] |
 
-* _C1 from the lane's `.scratch/embed/conc-1.json` receipt._
+* _C1 only, from `.scratch/embed/conc-1.json`; no ladder was run._
 
 ## Qwen 3x
+
+Lane doc: [`recipes/qwen3/README.md`](recipes/qwen3/README.md).
 
 | Recipe                                | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |                 Size |  Mem% | TP | Model Cards                                                                                                                                                                                                   |
 |:--------------------------------------|:------|-------:|-------:|-------:|--------:|---------------------:|------:|---:|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -182,11 +134,11 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | qwen3-coder-next-int4-autoround-vllm  | 🌲🚀    |   70.4 |  114.0 |  177.1 |   249.5 |               43.6GB |   85% |  1 | [Model][Intel/Qwen3-Coder-Next-int4-AutoRound]                                                                                                                                                                |
 | qwen3.8-27b-mlx4bit-tensorfold-sglang | 👀     |   44.8 |   57.7 |   64.4 |    65.6 | 16.1GB + 3.9GB draft | 30%\* |  1 | [Model][TensorFold/Qwen3.8-27B-MLX-4bit] [Draft][z-lab/Qwen3.8-27B-DFlash2]                                                                                                                                   |
 
-* _The **TensorFold** row's bfcl cell is the 2026-10-18 re-run at `--bfcl-max-tokens 4096` — 88.2 % (1094/1240), `~/benchmarks/qwen3-tf-tools4096-20261018/`; the 85.7 % it replaces was the same arm at bfcl-eval's 512-token default, `~/benchmarks/qwen3-tf-tools-20261017/`. The id-level gain/loss split is in `recipes/qwen3/README.md`._
-* _`*` no recipe util — the engine's 37.77 GiB startup estimate of 128 GB._
-* _The `qwen3.8-27b-nvfp4-dflash2` row mixes boots: its **C1 33.8** is the arm's pre-loader-fix single-point reference (2026-10-15) and C2/C5/C10 are the 2026-10-17 re-measure, within noise of the shipped-boot ladder the lane doc also holds (31.7 / 54.3 / 95.5 / 94.5, `bench_017bdc06394d`)._
+* _Cells are d0 / pp 2048 / tg 128, n=5 unless noted. The TensorFold row's bfcl cell is the 4096-token re-run (88.2%), its C1 mixes boots, and its `30%*` is the engine's startup estimate, not a util._
 
 ## Qwen 4x
+
+Lane doc: [`recipes/qwen4/README.md`](recipes/qwen4/README.md).
 
 | Recipe                                           | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |  Size | Mem% | TP | Model Cards                                                                                                                     |
 |:-------------------------------------------------|:------|-------:|-------:|-------:|--------:|------:|-----:|---:|:--------------------------------------------------------------------------------------------------------------------------------|
@@ -194,10 +146,11 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | qwen3.8-flash-next-nvfp4-solo-vllm-b12x          | 🌲     |   33.9 |  55.49 |  64.61 |   62.04 | 106GB |  80% |  1 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4]                                                                           |
 | qwen3.8-flash-next-nvfp4-labquant-highcon-sglang | 🌲👀   |      — |      — |      — |       — | 106GB |  80% |  2 | [Model][local-inference-lab/Qwen3.8-Flash-Next-NVFP4]                                                                           |
 
-* _The solo TP=1 row's **C1 33.9** is the 2026-10-14 decode-triage C1 (33.92 ± 1.73, pre-pin); **C2/C5/C10 are the 2026-10-18 ladder** (`bench_6b35f675861a`, receipt `~/benchmarks/ladders-solo-20261018/`), whose same-boot C1 is 34.04 — inside that cell's ±2.84. C10 (62.04) sits below C5 (64.61) because `max_num_seqs: 8` binds at ten streams, not because the KV pool is short._
-* _The labquant TP=2 ladder is **39.90 ± 1.48 / 69.45 ± 7.85 / 94.98 ± 8.97 / 104.45 ± 3.00 t/s** @ d0, n=5 per cell (`bench_684c21a7cd8a`, receipt `~/benchmarks/qwen4-tp2-20261018/b1-cutlass-concurrency-ladder.{yaml,json}`, decode rows of the `--output` file). Its same-boot C1 reproduces the 2026-10-14 baseline (40.32 ± 1.94) inside the cell σ; per-request decode falls 39.90 → 15.78 t/s by c10 while the aggregate keeps rising._
+* _The solo row's C10 sits below C5 because `max_num_seqs: 8` binds at ten streams, not because the KV pool is short._
 
 ## IFM K2-Horizon
+
+Lane doc: [`recipes/ifm/README.md`](recipes/ifm/README.md).
 
 | Recipe                           | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |                   Size | Mem% | TP | Model Cards                                                                                                                                                                        |
 |:--------------------------------|:------|-------:|-------:|-------:|--------:|-----------------------:|-----:|---:|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -205,26 +158,25 @@ These are the recipes we are using in the office on our humble 6-node DGX Spark 
 | k2-horizon-7b-fp8-uno-sglang     | 🤏🧠🔧🦾 |   32.4 |   56.1 |   94.0 |   126.0 | 11.1GB + 1.4GB adapter |  82% |  1 | [Model][IFM/K2-Horizon-7B-FP8]                                                                                                                                                     |
 | k2-horizon-0.9b-bf16-uno-sglang  | ✨🚀🤏🧠🔧 |  123.2 |  205.2 |  388.4 |   534.3 | 2.16GB + 224MB adapter |  82% |  1 | [Model][IFM/K2-Horizon-0.9B] [Uno][IFM/K2-Horizon-0.9B-Uno]                                                                                                                        |
 
-* _The 7B row's fp8-KV gate is an accuracy pass, not a throughput claim: it ran at `attention_backend: triton`, because the shipped `fa4` asserts Q/K dtype equality and cannot serve bf16 queries into an fp8 cache, with a same-backend bf16-KV control beside it — `~/benchmarks/sweep2-20261018/` (`ifm-7b-fp8kv/`, `ifm-7b-ctl/`). The row's C1–C10 are the fa4 arm. Its standard suite was measured on the shipped fa4/bf16 line (2026-10-19): house 36/37, needle 3/3 at 32k and 131k, ARC 90.5 %, GSM8K 94.5 %, tools 87.1 % — `~/benchmarks/ifm-7b-uno-shipped-20261019/`._
-* _The **0.9B UNO** row is one boot (2026-10-18): C1 cells `bench_a42c59ba1ec8`, ladder `bench_ddb8a41a69d3`, decode rows only, receipt `~/benchmarks/ifm-09b-uno-20261018/`. Its control is the same recipe booted on the same node with `-o attention_backend=fa4` (`control-fa4-*`): 79.0 / 68.0 at C1 and 78.6 / 178.8 / 343.3 / 500.1 on the ladder, against the recorded flashinfer base's 80.4 / 181.6 / 317.6 / 503.9 — fa4-vs-flashinfer is a wash (−1.7 %), so the gain is UNO's. The ARC cell (+11 items, ≈1.8 SE) is **not claimed as an improvement**: it came with more truncations than the base and is most likely verify-batch numerics; settling it needs an item-level diff against a same-window plain-fa4 control, which was not taken._
+* _The 7B fp8-KV row is an accuracy pass, not a throughput claim; its C1–C10 are the fa4 arm._
 
 ## GLM 5.3
+
+Lane doc: [`recipes/glm/README.md`](recipes/glm/README.md).
 
 | Recipe                                           | Flags   | C1 t/s | C2 t/s | C5 t/s | C10 t/s |                 Size |  Mem% | TP | Model Cards                                                                                                                                                                                                                |
 |:-------------------------------------------------|:--------|-------:|-------:|-------:|--------:|---------------------:|------:|---:|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | glm-5.3-flash-exl3-tp4-1m-tensorfold-sglang      | 🚚🚀🧠🔧👀   |   83.0 |  102.4 |   79.5 |    73.4 |  176GB + 2.3GB draft | 41%\* |  4 | [Model][Mia-AiLab/GLM-5.3-Flash-EXL3-4bpw-TensorFold] [Draft][incoai/GLM-5.3-Flash-DFlash2]                                                                                                                                |
 | glm-5.3-exl3-3bpw-tp4-1m-tensorfold-sglang      | 🚚🧠🔧      |   28.8 |   37.4 |   76.3 |   145.8 |       273GB | 94%\* |  4 | [Model][bertholomus/GLM-5.3-EXL3-3.0bpw]                                                                                                                                                                                   |
-* _This row is the recipe's **first boot** — the lane was boot-deferred until 2026-10-18 (task `b55c050475ff4b3a_7afff0589a33`), and the recipe now carries a receipt, so it qualifies for an index row. Ladder `--skip-run` on that serve, d0 pp2048 tg128, 5 runs/cell; `±` (sample sd, n=5): C1 17.74, C2 24.01, C5 11.34, C10 8.44. C1's five runs ramp (111.3 / 84.4 / 77.6 / 79.2 / 62.6), so ex-first it is 76.0 ± 9.3. Aggregate tg peaks at C2 and falls with concurrency — the `--parallel 8` / DFlash2 verify-window shape, not a throughput claim. **Still unproven:** a quality battery through this path (the trial's 37/37 does not transfer) and any second boot. Receipts `~/benchmarks/tp4-20261018/glm-*`; method in [`recipes/glm/README.md`](recipes/glm/README.md) §"Boot receipt". The rest of the lane is runbooks plus one archived arm — [`recipes/glm/README.md`](recipes/glm/README.md), [`attic/glm/`](attic/glm/ARMS-MANIFEST.md)._
-* _The **3.0bpw** row's cells are the **window-3 ladder** (2026-10-25, quartet `.31`–`.34`, the confirmed NCCL-env fix, `--fresh`, n=5 decode rows, `~/benchmarks/tp4-window3-20261024/glm-perf-ladder.{yaml,json,csv}`): C1 **28.83 ± 1.37**, per-request decode **flat 27–29 t/s from C1 through C10** while the aggregate scales to C2 37.4 / C5 76.3 / **C10 145.8** (~5.1× C1) — the MTP-3 draft head sustains under load, so the rising aggregate is the verify-window shape, not a throughput claim. The same serve ran the arm's **first quality battery through the recipe path: house 37/37** @4096 thinking-on. The 2026-10-18 first-boot figures (C1 31.7, no c5/c10) are superseded. `94%` is the engine's own startup estimate, 96.27 GiB of a 102.86 GiB ceiling; the 2026-10-13 runbook's 35.7 t/s was an editable install, not this image. Lane: [`recipes/glm/README.md`](recipes/glm/README.md)._
+
+* _The 4bpw row is a first boot and its quality battery is still unproven; the 3.0bpw row is the window-3 ladder._
+* _`*` Mem% is the engine's own startup estimate, not a configured util._
 
 ## Decision
 
-Decision arms are prefill-only scorers, not chat models: they emit no tokens, so the ladder columns
-are **req/s** — one `/v1/systemone` case (five questions in one forward pass) or one
-`/v1/completions` question on the JEV arms. Most of the lane is CPU (the `vllm-srun` runtime, `kev`,
-`laya`, the `timestral` forecaster) and the ladder is flat-to-negative under load, so a `—` in C2–C10
-means "not run", not "fast enough to skip". Per-arm detail and the co-location budget:
-[`recipes/decision/README.md`](recipes/decision/README.md).
+Lane doc: [`recipes/decision/README.md`](recipes/decision/README.md).
+
+Prefill-only scorers, not chat models: the ladder columns are **req/s**, and a `—` in C2–C10 means "not run", not "fast enough to skip".
 
 | Recipe                      | Flags | Accuracy | C1 req/s | C2 req/s | C5 req/s | C10 req/s |   Size | Mem% |             API | TP | Model Cards                            |
 |:----------------------------|:------|---------:|---------:|---------:|---------:|----------:|-------:|-----:|----------------:|---:|:---------------------------------------|
@@ -241,18 +193,14 @@ means "not run", not "fast enough to skip". Per-arm detail and the co-location b
 | laya-decision-serve         | 🤏🖥🚮   |    36.1% |    0.449 |        — |        — |         — |      — |    — |   /v1/systemone |  1 | [Model][convaiinnovations/laya]        |
 | timestral-209m-forecast-cpu | 🤏🖥    |        — |        — |        — |        — |         — | 0.84GB |    — |   POST /forecast |  1 | [Model][mistralai/Timestral-209M]      |
 
-* _Mem% is what the launches served at: neither recipe renders a util flag, so vLLM ran at `--gpu-memory-utilization=0.92` and SGLang at `mem_fraction_static=0.82` (the arms' serve logs)._
-* _The **timestral-209m** row is a CPU probabilistic forecaster, not a classifier: its Accuracy cell is `—` by design (no classification instrument applies) and its req/s columns are `—` — its own rate is a 1.18–1.44 s wall per forecast at the 4,096-step context. Load 1.9 s, peak RSS 2.26 GiB; every pre-registered quantile cell passes (six monotone 21-quantile grids, CRPS beats seasonal-naive on all series). Weights are Modified MIT (USD $20M/month cap, owner-accepted). Receipt `~/benchmarks/tp4-lane-20261024/timestral/`; lane section [`recipes/decision/README.md`](recipes/decision/README.md#timestral-209m-forecast-cpu)._
-* _The **d1-2B** row is **MEASURED 2026-11-07** (`.30`, campaign driver, rc=0, 69 s): `tools/decision-ladder.py --api systemone` reads **9.204 / 9.609 / 9.641 / 9.641 req/s** at c1/c2/c5/c10 (46.02 → 48.20 decisions/s, ttft p50 107.3 → 1036.9 ms, every rung 100/100 requests and 500/500 decisions) — flat throughput with scaling latency, i.e. one slot queuing rather than batching. The `POST /v1/systemone` semantic gate returned 200 in 0.179 s with five typed answers in the vendor's `answers` map. Its Accuracy cell stays `—` **by design**: the recipe declares `metadata.decision_accuracy: none` (the accuracy instrument replays a case set this arm does not answer) and the receipt carries `accuracy_status: n/a` with that reason instead of a score. Engine: llama.cpp `6023692` on `ghcr.io/littlecedar/dgx-spark-llama-cpp:upstream-6023692`, `lfm3vl` projector beside the Q8_0 GGUF. Receipt `~/benchmarks/d1-20261107/receipts/liquidai-d1-2b-q8-systemone-llamacpp.json`; route and semantics: [`recipes/decision/README.md`](recipes/decision/README.md#liquidai-d1-2b-q8-systemone-llamacpp)._
-* _**jev-27b** and **d3-edge** are listed without measured cells. The 27B arm ships as a recipe with no lane section and no receipt yet (52 GB of bf16 weights, solo-only on one GB10); `d3-edge` has never booted — its runtime refuses the staged offline node and the golden `/health` gate, both blockers re-probed unchanged 2026-10-22._
+* _Mem% is what the launches served at: vLLM `--gpu-memory-utilization=0.92`, SGLang `mem_fraction_static=0.82`._
+* _jev-27b and d3-edge have no measured cells: the 27B has no receipt yet, and d3-edge has never booted._
 
 ## Media
 
-Generation and tooling arms — speech synthesis, speaker diarization, image and video generation, and a
-text rewriter — split out of Explore and Decision on 2026-10-22 (lane doc and why-notes:
-[`recipes/media/README.md`](recipes/media/README.md)). None is a chat arm, so the t/s ladder does not
-apply: the rate column is the arm's own task rate and every `—` cell is by design, not a missing
-measurement.
+Lane doc: [`recipes/media/README.md`](recipes/media/README.md).
+
+Generation and tooling arms, not chat: the rate column is each arm's own task rate, and every `—` cell is by design, not a missing measurement.
 
 | Recipe                                        | Flags  | Task rate                            |  Size  | Mem% |             API | TP | Model Cards                            |
 |:----------------------------------------------|:-------|:-------------------------------------|-------:|-----:|----------------:|---:|:---------------------------------------|
@@ -269,12 +217,12 @@ measurement.
 | idol-1.8b-bf16-3dgs-script                    | 🐢📜1    | —                                    | 3.08GB |    — | GET /health     |  1 | [Model][speridlabs/idol]               |
 | viggle-remake-h3-lora-v2v-comfyui-script      | 🎥📜1  | —                                    | 46.2GB |    — |   POST /generate |  1 | [Model][Viggle/Viggle-Remake]          |
 
-* _`*` no recipe util — the Diffusers qwen-image is peak reserved memory (37.68 GiB of 128 GB), the vLLM-OMNI sibling the engine's own `peak_memory_mb` (35,748 MB, i.e. 34.91 GiB of 128 GB); LTX is `MemTotal − MemAvailable` of the unified pool at 84.0 GiB of 121, not a reserved figure._
-* _`📜` Qwen-Image is NON-COMMERCIAL (`qwen-research`, eval-only under the lane banner); drama-3 is revenue-gated (Fish Audio Community License, commercial use only below USD 500k/yr); **Idol is eval-only twice over** — FLUX.2 [dev]'s VAE is non-commercial and its DINOv3 encoder is under Meta's DINOv3 License, not Apache-2.0; **Viggle-Remake** rides the MiniMax H3 Community License's territorial condition (not the EU/UK/KR/USA) with NOTICE carriage, so it is eval-only and outside the US only._
-* _The **drama-3** row is its first measured boot (2026-10-22, `.34`, two boots): warm RTF **0.848 ± 0.015** at ~4.6 s of audio and **0.813** at 28.7 s, streaming TTFA **0.646 s**, 44.1 kHz mono 16-bit out, TTR 437.0 s cold / 417.0 s warm. **Pass a `seed`**: seeded takes are byte-identical (10/10) and length scales with input, while unseeded one 13-word sentence returns 4.2–7.7 s (σ 0.93, n=10). Intelligibility is unmeasured — the owner's ears decide it, and `zz-pyannote` covers who-spoke-when only. Receipt `~/benchmarks/drama-20261022/`; lane section [`recipes/media/README.md`](recipes/media/README.md#drama-3-35b-a3b-fp8-vllm-omni-tts)._
-* _The **phonon-31m** row: 0.06GB is the q8 gguf; boot-verified 2026-10-25 on `.35` (TTR 8.2 s, RTF 0.10–0.14). It **won the lane's hard-sentence WER A/B** (literal WER 0.1747 vs Kokoro's 0.2329, whistle instrument, `~/benchmarks/tplt4-20261024/ab/`) — the two CPU TTS arms split on measured strengths. **Not byte-deterministic per invocation** (same seed/text → different PCM; score at the transcript level). English only, Apache-2.0 (the 40m siblings are CC BY-NC — only 31m-en ships). `recipes/media/README.md` §phonon-31m-tts-cpu._
+* _`*` Mem% is peak reserved or engine-reported memory, not a configured util._
+* _`📜` Qwen-Image is non-commercial; drama-3 is revenue-gated; Idol is eval-only twice over; Viggle-Remake is eval-only and excluded in the EU, UK, KR and US._
 
 ## Explore
+
+Lane doc: [`recipes/explore/README.md`](recipes/explore/README.md).
 
 | Recipe                                        | Flags |      C1 t/s | C2 t/s | C5 t/s | C10 t/s |                 Size |  Mem% |                  API | TP | Model Cards                                                                                                                                                                                                                                                              |
 |:----------------------------------------------|:------|------------:|-------:|-------:|--------:|---------------------:|------:|---------------------:|---:|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -284,26 +232,30 @@ measurement.
 | poolside-laguna-m1-nvfp4-vllm-tp2            | ✨🧠🔧   |       12.85 |  21.85 |  34.15 |   34.64 |              139.3GB |   85% | /v1/chat/completions |  2 | [Model][poolside/Laguna-M.1-NVFP4] |
 | nemotron-3.5-lightning-30b-a3b-nvfp4-vllm      | ✨🚀🧠🔧   |       63.27 |   90.8 |  122.3 |   144.2 |               20.1GB |   85% | /v1/chat/completions |  1 | [Model][nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4] |
 | flint-40b-a2.5b-ud-q3k-xl-llamacpp | 🚀🧠🦾🔧 | 73.0 | 119.5 | 173.2 | 133.7 | 18.5GB | — | /v1/chat/completions | 1 | [Model][unsloth/flint-GGUF] |
-| mellum2.1-12b-a2.5b-q4km-thinking-llamacpp    | ✨🚀🧠🔧   |       110.5 |  154.3 |  208.3 |   186.0 |               8.07GB |     — | /v1/chat/completions |  1 | [Model][JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF]
-| muse-glimmer-30b-q4km-thinking-tools-llamacpp | ✨🐢🧠🔧 | 12.5 | 24.6 | 29.4 | 61.3 | 16.76GB | — | /v1/chat/completions | 1 | [Model][meta-models/Muse-Glimmer-30B-GGUF] |                                                                                                                                                                                                                     |
+| mellum2.1-12b-a2.5b-q4km-thinking-llamacpp    | ✨🚀🧠🔧   |       110.5 |  154.3 |  208.3 |   186.0 |               8.07GB |     — | /v1/chat/completions |  1 | [Model][JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF] |
+| muse-glimmer-30b-q4km-thinking-tools-llamacpp | ✨🐢🧠🔧 | 12.5 | 24.6 | 29.4 | 61.3 | 16.76GB | — | /v1/chat/completions | 1 | [Model][meta-models/Muse-Glimmer-30B-GGUF] |
 | ternary-bonsai-2-9b-q2_0-llamacpp             | 👀🚀🧠   |        75.5 |  129.2 |  152.0 |   129.8 |               2.38GB |     — | /v1/chat/completions |  1 | [Model][prism-ml/Ternary-Bonsai-2-9B-gguf]                                                                                                                                                                                                                               |
 | spark-x2.6-4b-bf16-sglang                     | 🧠🦾🔧   |       20.38 |  46.38 |  99.27 |  156.20 |                8.22GB |   85% | /v1/chat/completions |  1 | [Model][XHToken/Spark-X2.6-4B] |
 | spark-x2.6-4b-fp8-sglang | — | 40.80 | 77.06 | 146.63 | 217.58 | 4.47GB | 85% | /v1/chat/completions | 1 | [Model][XHToken/Spark-X2.6-4B-FP8] |
 | ernie-5.5-flash-base-tp4-flashinfer-sparse-sglang | ✨📜 | — | — | — | — | 268.65GB | 78% | /v1/completions | 4 | [Model][baidu/ERNIE-5.5-Flash-Base] |
 | twil-8b-bf16-reasoning-sglang                 | 🧠📜    |           — |      — |      — |       — |               17.6GB |     — | /v1/chat/completions |  1 | [Model][webAI-Official/TwIL-8B] |
 
-* _The **Mellum Q4_K_M** row is the **selected single-node easy-traffic arm** (2026-10-22, `mad-science/QUESTIONS.md` `#1`). Its C1–C10 cells are the **ten-slot window** (`parallel: 10`; ladder @ d0 pp2048 tg128 n=5, decode rows, `~/benchmarks/mellum-c10-20261022/REPORT.md`): C1 **110.52 ± 1.77** / C2 154.30 / C5 **208.29 ± 5.67** / C10 **185.96 ± 2.31** t/s, E 0.168, house **36/37** @4096 thinking-on, TTR 25 s, `n_slots = 10` × `n_ctx_slot = 131,072` — against the gate's C1 ≥ 69.28 / C10 ≥ 116.27. The **shipped recipe still grants 8 slots** (`parallel: 8`) and that separate boot reads 111.9 / 151.1 / 208.0 / 146.4 (`~/benchmarks/mellum-gguf-20261017/`), so only the row's cells changed. The C5→C10 dip (208.29 → 185.96, −10.7 %) is a genuine five-stream peak, accepted under the gate's amended leg (2) — no `🚚`, the window is 131,072 rather than ≥ 512k. Provenance and the full gate: [`recipes/explore/README.md`](recipes/explore/README.md#easy-traffic-selection-2026-10-22)._
-* _The **Flint** row **booted and passed the easy-traffic gate 2026-11-07** on `.30` in one boot: C1 **73.0** (bar 69.28), C10 **133.7** (bar 116.27), house **37/37** @4096 thinking-on, contract ok at `max_model_len` 262,144. A second independent `run-arm.sh` boot read 73.7 / 119.9 / 176.4 / 132.1 with tool-eval-bench **97** (14 pass, 1 partial, 0 fail), so both boots agree. The shape peaks at five streams; `E = C10/(C1 x 10)` = 0.183 is reported, never gated. This is a gate-passing alternative, not the selected arm — Mellum2.1 keeps that row. Comparison and risks: [`recipes/explore/README.md`](recipes/explore/README.md#flint-40b-a25b-ud-q3k-xl-llamacpp); receipts `head:~/benchmarks/tp12-20261107/flint-40b-a2.5b-ud-q3k-xl-llamacpp/` and `...-house/`._
-* _The **ERNIE-5.5-Flash-Base** row **shipped 2026-11-11 under the ERNIE 5.5 Flash Base Model License v1.0** (card `license: other`): free non-commercial use; commercial use only below US$50 M annual revenue, carrying **attribution** to Baidu and a **one-time written notice** to the licensor (§4.2), separate authorization above the threshold (§4.3) — the recipe banner carries the same terms. `/v1/completions` only (the checkpoint ships no chat template) and the C1–C10 cells stay `—`: quality, not throughput, is its cell. 0-shot GSM8K **190/200 = 95.0 %**; window falsifier T/N/C passes in QA form and the **imperative form fails its control** at 4,264 and 17,940 prompt tokens (`trio_c2.json`) — recorded as behaviour, not gated. `Ready` 916 s on task `sparkrun_e59088ba4d0f3858_e2a8839bcbe8`, receipt `head:~/benchmarks/tp4-20261110b/ernie-gate2/`; lane section [`recipes/explore/README.md`](recipes/explore/README.md#ernie-55-flash-base-tp4-flashinfer-sparse-sglang)._
-* _**The TwIL row is an authored arm, not a booted one** (2026-11-16): the recipe validates clean (no `--strict` finding at all) and renders a complete SGLang line, but no cell is measured — C1–C10 and Mem% are `—`, and `17.6GB` is the single bf16 file the arm serves (`model-balanced.safetensors`, 8.79B parameters, 16.38 GiB) out of a 67.81 GiB repo that also carries a `verbose` variant and three GGUF tiers. Fit arithmetic on one GB10: 16.38 GiB of weights plus 40 layers x 8 KV heads x 128 head-dim x 2 x 2 B = 160 KiB per token, i.e. 20.0 GiB of KV at the 131,072 window, so ~40 GiB of the ~109 GB usable. `📜` is the **webAI Non-Commercial License ver. 1.0** — §3.3 restricts the Work and any derivatives to non-commercial research and educational use, so the arm ships EVAL-ONLY under the lane banner; the checkout's `LICENSE.md` §3.1 also binds whoever redistributes the weights to carry a complete copy of the licence. Reasoning, tool use and thinking budget are all unmeasured here; the card's own `arxiv:2607.02770` claims are the only quality evidence. Lane section [`recipes/explore/README.md`](recipes/explore/README.md#twil-8b-bf16-reasoning-sglang)._
+* _Mellum2.1 is the selected single-node easy-traffic arm; Flint passed the same gate and is the alternative, not the selection._
+* _ERNIE is `other`-licensed (non-commercial, or commercial below US$50M revenue); TwIL is authored and never booted, and is eval-only._
 
 ## Liquid AI
+
+Lane doc: [`recipes/liquidai/README.md`](recipes/liquidai/README.md).
+
 | Recipe | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s | Size | Mem% | API | TP | Model Cards |
 |:----------------------------------------------|:------|------------:|-------:|-------:|--------:|---------------------:|------:|---------------------:|---:|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | liquidai-lfm3-1.7b-q4km-llamacpp | ✨🤏📜 | — | — | — | — | 1.10GB | — | /v1/chat/completions | 1 | [Model][LiquidAI/LFM3-1.7B-GGUF] |
-* _The row **booted and measured 2026-11-07** (`.30`, campaign driver, 180 s, rc=0) on the registry's own llama.cpp build at upstream `6023692`: the GGUF declares `general.architecture = lfm3` and that image loaded and served it. Ladder `benchmarking/concurrency-ladder.yaml` at `parallel: 1` reads c1 **137.51 ± 2.90** tg t/s (pp 12,762.8, ttfr 143.9 ms) and falls to 127.56 / 121.37 / 121.16 at c2/c5/c10 as requests queue for the single slot, so the C1–C10 columns above stay `—`: those cells time queuing, not concurrency. House **93** (15 scenarios, 13 pass, 2 partial `TC-11`/`TC-14`, 0 fail). Receipt `~/benchmarks/liquidai-20261107/receipts/liquidai-lfm3-1.7b-q4km-llamacpp.json`. The sibling bf16 vLLM route was authored and retired unshipped because the pinned vLLM predates LFM3 (vLLM `0.1.dev21830+g8244d1c44`, `Lfm2`/`Lfm2Moe` only; upstream added LFM3 text 2026-11-06). License class: LFM Open License v1.0 (`other`) ships as an ordinary arm on the owner's 2026-11-02 ruling. Lane: [`recipes/liquidai/README.md`](recipes/liquidai/README.md#arms--measured-2026-11-07)._
+
+* _Booted and measured 2026-11-07 at C1 137.51 ± 2.90 t/s on one slot; C2–C10 stay `—` because they time queuing, not concurrency._
 
 ## Cybersec
+
+Lane doc: [`recipes/cybersec/README.md`](recipes/cybersec/README.md).
 
 | Recipe                                                      | Flags | C1 t/s | C2 t/s | C5 t/s | C10 t/s |                 Size |  Mem% | TP | Model Cards                                                                                                                                                               |
 |:------------------------------------------------------------|:------|-------:|-------:|-------:|--------:|---------------------:|------:|---:|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -315,45 +267,27 @@ measurement.
 | orcacyber-nano-1.0-15.7g-dflash2-llamacpp                   | 👀🏴📜  |   31.2 |   41.0 |   35.6 |    31.0 | 15.7GB + 2.0GB draft |   —   |  1 | [Model][orcarouter/OrcaCyber-Nano-1.0]                                                                                                                                    |
 | orcacyber-nano-1.0-13g-gguf-llamacpp                        | 👀🏴📜  |   28.1 |   46.3 |   38.3 |   34.1 |  12.1GB + 0.9 mmproj  |   —   |  1 | [Model][orcarouter/OrcaCyber-Nano-1.0]                                                                    |
 
-* _`*` no recipe util — the arm's documented `≤ 0.85` ceiling._ 
-* _`📜` every arm in this lane is gated on the Hub (`gated: auto`): each node needs an `HF_TOKEN` with that repo's release accepted._ 
-* _The **OrcaCyber DFlash2** row is the same 15.7G body with the vendor's external 1.9B Q8_0 drafter (`-md`, `--spec-type draft-dflash`, 7 draft tokens) instead of the in-file MTP head, shipped 2026-11-21 after the load falsifier proved the target records the 5 layer inputs the drafter reads. **Same-window pair on `.35`**: drafter on **C1 31.2 ± 3.8** (full ladder, boot 2) with boot 1 at **29.3 ± 1.8** and boot 2's single C1 cell at 33.1 ± 7.4, against the MTP arm booted in the same window at **C1 25.3 ± 1.1** — so the gain is **+16 to +23 % at C1 only**, and C2/C5/C10 (41.0 / 35.6 / 31.0) sit on the MTP arm's recorded band (40.1 / 36.2 / 32.9). Quality is the MTP arm's exactly — house **37/37**, refusal **0/4**, vision **2/2** — as expected from verification-correct speculation; a delta would have been an accept-path defect, not a finding. `Size` is the 15.7G tier plus the 2.06 GB drafter (the 0.93 GB `mmproj` rides too); `Mem%` is `—` for the same reason as its sibling. Receipt `~/benchmarks/orcacyber-dflash-20261120/` (falsifier log, three ladders, battery, vision/refusal JSON, watchdog logs); lane section [`recipes/cybersec/README.md`](recipes/cybersec/README.md#orcacyber-nano-10-157g-dflash2-llamacpp)._
-
-* _No row, by lane ruling: `nex-n2.5-mini-uncensored-nvfp4-sglang`, `nex-n2.5-mini-uncensored-nvfp4-vllm`, `qwen3.8-flash-next-uncensored-nvfp4-sglang` and `qwen3.8-flash-next-uncensored-nvfp4-vllm` ship as **route records** — the nex checkpoint degenerates to one repeated token on every engine tried, flash-next is refused by SGLang's compressed-tensors loader (`CompressedTensorsW4A16Sparse24`) and fails vLLM load with `Found different quantization schemes`, so "an arm that cannot serve keeps its recipe, not its row". Route receipts exist; throughput and accuracy cells do not. [`recipes/cybersec/README.md`](recipes/cybersec/README.md) arms 3 and 4._
+* _`*` no recipe util — the arm's documented `≤ 0.85` ceiling. Every arm in this lane is gated on the Hub (`gated: auto`): each node needs an `HF_TOKEN` with that repo's release accepted._
+* _Four route records keep their recipes but have no row: `nex-n2.5-mini-uncensored-nvfp4-{sglang,vllm}` and `qwen3.8-flash-next-uncensored-nvfp4-{sglang,vllm}` cannot serve on the engines tried; see `recipes/cybersec/README.md`._
 
 # CI
 
-Three GitHub workflows in [`.github/workflows/`](.github), none of which boots an engine. **No
-workflow fails a run for finding drift**: the report and the issue are the signal.
-
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `gate.yml` | push to `main`, every PR, manual | the repo gate: `uv sync --frozen`, `uv run python -B -m unittest discover -s tests`, `sparkrun recipe validate` over `recipes/*/*.yaml`, `bash -n` on every mod script, `py_compile` over `tools/`, `plugins/` and mod Python. Two hosted-runner gaps degrade visibly instead of silently: if `uv sync` fails (netifaces builds from its sdist) the stdlib suite and `py_compile` run on the runner's `python3`, and `sparkrun recipe validate` skips with `SKIPPED: sparkrun not installable in CI` only when the CLI is genuinely absent; a present-but-broken install reddens the step with its own message |
-| `refresh-sweep.yml` | daily 06:17 UTC, manual | `tools/refresh-sweep.py --exit-code --accept-file tools/refresh-sweep-accepted.json`: **exit 0 = clean, 1 = pin drift, 2 = could not run**. The job always succeeds — the counts and drift table go to the run summary and the report is uploaded as an artifact — and either non-zero code opens or updates one issue labelled `pin-drift`, titled for the case, with the report in the body; exit 2 also labels it `sweep-broken`. **Issues are enabled** (owner decision 2026-10-22): the sweep maintains its single `pin-drift` issue **in place**, updated rather than re-created. Deliberate holds are declared in the accept file and neither gate nor get applied — but an entry that matches nothing is `stale-acceptance` and does gate. `exit_code_on_drift: true` on a manual dispatch is the only way to make drift fail the run, and it defaults to `false`. A manual `apply: true` run prints the per-arm boot checklist and stops — it never commits or pushes |
-| `llamacpp-engine.yml` | weekly, manual | reports our pinned llama.cpp refs against upstream head (with `behind_by`), upstream releases, and the feature gates the stock-upstream image needs; API errors print as `ERROR:` lines and never fail the run. Its arm64 GB10 image build is manual-only and runs on GitHub's own `ubuntu-24.04-arm` runner — no GPU is needed to build (nvcc compiles, `cuobjdump` proves sm_121) and nothing has to be self-hosted |
+| `gate.yml` | push to `main`, every PR, manual | `uv sync --frozen`, unittest discovery, `sparkrun recipe validate`, `bash -n` on mod scripts, `py_compile` |
+| `refresh-sweep.yml` | daily 06:17 UTC, manual | pin-drift sweep: exit 0 clean, 1 drift, 2 could not run; either non-zero opens or updates the single `pin-drift` issue |
+| `llamacpp-engine.yml` | weekly, manual | pinned llama.cpp refs against upstream, releases and feature gates; the arm64 GB10 image build is manual-only on `ubuntu-24.04-arm` |
 
-CI validates artifacts; it never bumps a model pin and it never pages anyone for drift. Recipe and
-pin changes stay boot-gated by lane policy — and a pin edit has to satisfy the daily sweep too:
-either move the pin, or retire the hold that covered it in `tools/refresh-sweep-accepted.json`,
-because a hold that matches nothing is reported as `stale-acceptance` and does gate.
+* _No workflow fails a run for drift — the report and the issue are the signal — and CI never bumps a pin._
+* _A pin edit must satisfy the daily sweep: move the pin, or retire the hold in `tools/refresh-sweep-accepted.json`; a hold that matches nothing is `stale-acceptance` and does gate._
 
 # License Policy
 
-The registry carries **recipes and mods, not weights**: recipes ship repo ids, revisions and wiring, and each
-downloader fetches the checkpoint from the Hub under that repo's own terms. **Third-party-downloadable** means
-fetchable from a public Hub repo on those terms, with the registry shipping only the recipe (with an flag indicating special licensing). Derivatives of third-party bases are carried when their own
-license permits redistribution. Where the registry only *references* upstream work (for example, the ds4 graft mod fetches
-the author's script at a pinned revision) it redistributes nothing. Vendored images and mods stay under
-their upstream licenses. Non-commercial and gated checkpoints are carried only where their license allows the
-intended use. 
+The registry carries **recipes and mods, not weights**: each recipe names a Hub repo id and revision, and the downloader fetches the checkpoint under that repo's own terms. Derivatives are carried when their license permits redistribution; vendored images and mods stay under their upstream licenses. Non-commercial and gated checkpoints are carried only where their license allows the intended use — `📜` marks them. Where the registry only references upstream work, it redistributes nothing.
 
 # Mechanics
 
 See [MECHANICS.md](recipes/MECHANICS.md) for the sparkrun command-template rules every recipe author needs.
-
-# References
-
-* https://spark-arena.com
 
 <!-- Links -->
 [baidu/ERNIE-5.5-Flash-Base]: https://huggingface.co/baidu/ERNIE-5.5-Flash-Base
@@ -365,7 +299,6 @@ See [MECHANICS.md](recipes/MECHANICS.md) for the sparkrun command-template rules
 [littlecedar]: https://littlecedar.net
 [sparkrun]: https://sparkrun.dev
 [sparkrun-docs]: https://sparkrun.dev/getting-started/quick-start/
-[sparkrun-recipe-explorer]: https://recipes.sparkrun.dev
 [spark-arena]: https://spark-arena.com
 [RadixArk/Qwen3.8-27B-NVFP4]: https://huggingface.co/RadixArk/Qwen3.8-27B-NVFP4
 [local-inference-lab/Qwen3.8-Flash-Next-NVFP4]: https://huggingface.co/local-inference-lab/Qwen3.8-Flash-Next-NVFP4
@@ -381,7 +314,6 @@ See [MECHANICS.md](recipes/MECHANICS.md) for the sparkrun command-template rules
 [IFM/K2-Horizon-7B-FP8]: https://huggingface.co/IFM/K2-Horizon-7B-FP8
 [IFM/K2-Horizon-0.9B-Uno]: https://huggingface.co/IFM/K2-Horizon-0.9B-Uno
 [Intel/Qwen3-Coder-Next-int4-AutoRound]: https://huggingface.co/Intel/Qwen3-Coder-Next-int4-AutoRound
-[littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram]: https://huggingface.co/littlecedar/DeepSeek-V4.1-Flash-EXL3-2.9bpw-with-engram
 [LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw]: https://huggingface.co/LibertAIDAI/DeepSeek-V4.1-Flash-1017-EXL3-2.9bpw
 [autotrust/JEV-9B]: https://huggingface.co/autotrust/JEV-9B
 [Cloudflare/clef-flash]: https://huggingface.co/Cloudflare/clef-flash
@@ -392,7 +324,6 @@ See [MECHANICS.md](recipes/MECHANICS.md) for the sparkrun command-template rules
 [vllm-sr/Decision-2.0-Nox-4B]: https://huggingface.co/vllm-sr/Decision-2.0-Nox-4B
 [vllm-sr/Decision-2.0-Sol-2B-GGUF]: https://huggingface.co/vllm-sr/Decision-2.0-Sol-2B-GGUF
 [Myric/Kolibri-1-APEX-GGUF]: https://huggingface.co/Myric/Kolibri-1-APEX-GGUF
-[deepseek-ai/DeepSeek-V4.1-Flash]: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash
 [deepseek-ai/DeepSeek-V4.1-Flash-1017]: https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017
 [orcarouter/Qwen3.8-27B-Uncensored-NVFP4]: https://huggingface.co/orcarouter/Qwen3.8-27B-Uncensored-NVFP4
 [orcarouter/OrcaCyber-Nano-1.0]: https://huggingface.co/orcarouter/OrcaCyber-Nano-1.0
